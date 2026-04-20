@@ -1,0 +1,1960 @@
+import { useState, useMemo, useRef } from 'react';
+import './App.css';
+
+const MapIcon = () => (
+  <svg width="36" height="36" viewBox="0 0 27 27" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M18 27L9 23.85L2.025 26.55C1.525 26.75 1.0625 26.6938 0.6375 26.3813C0.2125 26.0688 0 25.65 0 25.125V4.125C0 3.8 0.09375 3.5125 0.28125 3.2625C0.46875 3.0125 0.725 2.825 1.05 2.7L9 0L18 3.15L24.975 0.45C25.475 0.25 25.9375 0.30625 26.3625 0.61875C26.7875 0.93125 27 1.35 27 1.875V22.875C27 23.2 26.9062 23.4875 26.7188 23.7375C26.5312 23.9875 26.275 24.175 25.95 24.3L18 27ZM16.5 23.325V5.775L10.5 3.675V21.225L16.5 23.325Z" fill="#049516" />
+  </svg>
+);
+
+const BadgeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'none', fill: 'currentColor' }}>
+    <path d="M1.66667 16.6667C1.20833 16.6667 0.815972 16.5035 0.489583 16.1771C0.163194 15.8507 0 15.4583 0 15V5.83333C0 5.375 0.163194 4.98264 0.489583 4.65625C0.815972 4.32986 1.20833 4.16667 1.66667 4.16667H5.83333V1.66667C5.83333 1.20833 5.99653 0.815972 6.32292 0.489583C6.64931 0.163194 7.04167 0 7.5 0H9.16667C9.625 0 10.0174 0.163194 10.3438 0.489583C10.6701 0.815972 10.8333 1.20833 10.8333 1.66667V4.16667H15C15.4583 4.16667 15.8507 4.32986 16.1771 4.65625C16.5035 4.98264 16.6667 5.375 16.6667 5.83333V15C16.6667 15.4583 16.5035 15.8507 16.1771 16.1771C15.8507 16.5035 15.4583 16.6667 15 16.6667H1.66667ZM1.66667 15H15V5.83333H10.8333C10.8333 6.29167 10.6701 6.68403 10.3438 7.01042C10.0174 7.33681 9.625 7.5 9.16667 7.5H7.5C7.04167 7.5 6.64931 7.33681 6.32292 7.01042C5.99653 6.68403 5.83333 6.29167 5.83333 5.83333H1.66667V15ZM3.33333 13.3333H8.33333V12.9583C8.33333 12.7222 8.26736 12.5035 8.13542 12.3021C8.00347 12.1007 7.81944 11.9444 7.58333 11.8333C7.30556 11.7083 7.02431 11.6146 6.73958 11.5521C6.45486 11.4896 6.15278 11.4583 5.83333 11.4583C5.51389 11.4583 5.21181 11.4896 4.92708 11.5521C4.64236 11.6146 4.36111 11.7083 4.08333 11.8333C3.84722 11.9444 3.66319 12.1007 3.53125 12.3021C3.39931 12.5035 3.33333 12.7222 3.33333 12.9583V13.3333ZM10 12.0833H13.3333V10.8333H10V12.0833ZM5.83333 10.8333C6.18056 10.8333 6.47569 10.7118 6.71875 10.4688C6.96181 10.2257 7.08333 9.93056 7.08333 9.58333C7.08333 9.23611 6.96181 8.94097 6.71875 8.69792C6.47569 8.45486 6.18056 8.33333 5.83333 8.33333C5.48611 8.33333 5.19097 8.45486 4.94792 8.69792C4.70486 8.94097 4.58333 9.23611 4.58333 9.58333C4.58333 9.93056 4.70486 10.2257 4.94792 10.4688C5.19097 10.7118 5.48611 10.8333 5.83333 10.8333ZM10 9.58333H13.3333V8.33333H10V9.58333ZM7.5 5.83333H9.16667V1.66667H7.5V5.83333Z" fill="currentColor" />
+  </svg>
+);
+
+const LockIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'none', color: 'var(--text-light)' }}>
+    <path d="M1.66667 17.5C1.20833 17.5 0.815972 17.3368 0.489583 17.0104C0.163194 16.684 0 16.2917 0 15.8333V7.5C0 7.04167 0.163194 6.64931 0.489583 6.32292C0.815972 5.99653 1.20833 5.83333 1.66667 5.83333H2.5V4.16667C2.5 3.01389 2.90625 2.03125 3.71875 1.21875C4.53125 0.40625 5.51389 0 6.66667 0C7.81944 0 8.80208 0.40625 9.61458 1.21875C10.4271 2.03125 10.8333 3.01389 10.8333 4.16667V5.83333H11.6667C12.125 5.83333 12.5174 5.99653 12.8438 6.32292C13.1701 6.64931 13.3333 7.04167 13.3333 7.5V15.8333C13.3333 16.2917 13.1701 16.684 12.8438 17.0104C12.5174 17.3368 12.125 17.5 11.6667 17.5H1.66667ZM1.66667 15.8333H11.6667V7.5H1.66667V15.8333ZM6.66667 13.3333C7.125 13.3333 7.51736 13.1701 7.84375 12.8438C8.17014 12.5174 8.33333 12.125 8.33333 11.6667C8.33333 11.2083 8.17014 10.816 7.84375 10.4896C7.51736 10.1632 7.125 10 6.66667 10C6.20833 10 5.81597 10.1632 5.48958 10.4896C5.16319 10.816 5 11.2083 5 11.6667C5 12.125 5.16319 12.5174 5.48958 12.8438C5.81597 13.1701 6.20833 13.3333 6.66667 13.3333ZM4.16667 5.83333H9.16667V4.16667C9.16667 3.47222 8.92361 2.88194 8.4375 2.39583C7.95139 1.90972 7.36111 1.66667 6.66667 1.66667C5.97222 1.66667 5.38194 1.90972 4.89583 2.39583C4.40972 2.88194 4.16667 3.47222 4.16667 4.16667V5.83333ZM1.66667 15.8333V7.5V15.8333Z" fill="currentColor" />
+  </svg>
+);
+
+const EyeIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 19 13" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'none', color: 'var(--text-light)' }}>
+    <path d="M9.16667 10C10.2083 10 11.0938 9.63542 11.8229 8.90625C12.5521 8.17708 12.9167 7.29167 12.9167 6.25C12.9167 5.20833 12.5521 4.32292 11.8229 3.59375C11.0938 2.86458 10.2083 2.5 9.16667 2.5C8.125 2.5 7.23958 2.86458 6.51042 3.59375C5.78125 4.32292 5.41667 5.20833 5.41667 6.25C5.41667 7.29167 5.78125 8.17708 6.51042 8.90625C7.23958 9.63542 8.125 10 9.16667 10ZM9.16667 8.5C8.54167 8.5 8.01042 8.28125 7.57292 7.84375C7.13542 7.40625 6.91667 6.875 6.91667 6.25C6.91667 5.625 7.13542 5.09375 7.57292 4.65625C8.01042 4.21875 8.54167 4 9.16667 4C9.79167 4 10.3229 4.21875 10.7604 4.65625C11.1979 5.09375 11.4167 5.625 11.4167 6.25C11.4167 6.875 11.1979 7.40625 10.7604 7.84375C10.3229 8.28125 9.79167 8.5 9.16667 8.5ZM9.16667 12.5C7.13889 12.5 5.29167 11.934 3.625 10.8021C1.95833 9.67014 0.75 8.15278 0 6.25C0.75 4.34722 1.95833 2.82986 3.625 1.69792C5.29167 0.565972 7.13889 0 9.16667 0C11.1944 0 13.0417 0.565972 14.7083 1.69792C16.375 2.82986 17.5833 4.34722 18.3333 6.25C17.5833 8.15278 16.375 9.67014 14.7083 10.8021C13.0417 11.934 11.1944 12.5 9.16667 12.5ZM9.16667 10.8333C10.7361 10.8333 12.1771 10.4201 13.4896 9.59375C14.8021 8.76736 15.8056 7.65278 16.5 6.25C15.8056 4.84722 14.8021 3.73264 13.4896 2.90625C12.1771 2.07986 10.7361 1.66667 9.16667 1.66667C7.59722 1.66667 6.15625 2.07986 4.84375 2.90625C3.53125 3.73264 2.52778 4.84722 1.83333 6.25C2.52778 7.65278 3.53125 8.76736 4.84375 9.59375C6.15625 10.4201 7.59722 10.8333 9.16667 10.8333Z" fill="currentColor" />
+  </svg>
+);
+
+const ChevronDownIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="6 9 12 15 18 9"></polyline>
+  </svg>
+);
+
+const ArrowRightIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M4 12H20M20 12L13 5M20 12L13 19" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const CapIcon = ({ color = "white", outline = false }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    {outline ? (
+      <path d="M22 10L12 5L2 10L12 15L22 10Z" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+    ) : (
+      <path d="M22 10L12 5L2 10L12 15L22 10Z" fill={color} />
+    )}
+    <path d="M6 12V17C6 17 8 20 12 20C16 20 18 17 18 17V12" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M22 10V18" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const SignalIcon = () => (
+  <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="1" y="7" width="3" height="5" rx="1.5" fill="#0b9617" />
+    <rect x="6" y="4" width="3" height="8" rx="1.5" fill="#0b9617" />
+    <rect x="11" y="0" width="3" height="12" rx="1.5" fill="#0b9617" />
+  </svg>
+);
+
+const WifiIcon = () => (
+  <svg width="16" height="14" viewBox="0 0 24 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="12" cy="18" r="2.5" fill="#0b9617" />
+    <path d="M6 13C9 10 15 10 18 13" stroke="#0b9617" strokeWidth="2.5" strokeLinecap="round" />
+    <path d="M2 9C7 4.5 17 4.5 22 9" stroke="#0b9617" strokeWidth="2.5" strokeLinecap="round" />
+  </svg>
+);
+
+const BatteryIcon = () => (
+  <svg width="12" height="16" viewBox="0 0 10 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M3 2C3 1.44772 3.44772 1 4 1H6C6.55228 1 7 1.44772 7 2V3H9C9.55228 3 10 3.44772 10 4V14C10 14.5523 9.55228 15 9 15H1C0.447715 15 0 14.5523 0 14V4C0 3.44772 0.447715 3 1 3H3V2Z" fill="#0b9617" />
+  </svg>
+);
+
+const GridIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+    <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+    <rect x="14" y="14" width="7" height="7" rx="1"></rect>
+    <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+  </svg>
+);
+
+const ScanQRIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 3H5C3.89543 3 3 3.89543 3 5V7" />
+    <path d="M17 3H19C20.1046 3 21 3.89543 21 5V7" />
+    <path d="M21 17V19C21 20.1046 20.1046 21 19 21H17" />
+    <path d="M7 21H5C3.89543 21 3 20.1046 3 19V17" />
+    <rect x="7" y="7" width="3" height="3" fill="currentColor" stroke="none" />
+    <rect x="14" y="7" width="3" height="3" fill="currentColor" stroke="none" />
+    <rect x="7" y="14" width="3" height="3" fill="currentColor" stroke="none" />
+    <rect x="11" y="11" width="2" height="2" fill="currentColor" stroke="none" />
+  </svg>
+);
+
+const SlipIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="16" y1="13" x2="8" y2="13"></line>
+    <line x1="16" y1="17" x2="8" y2="17"></line>
+    <polyline points="10 9 9 9 8 9"></polyline>
+  </svg>
+);
+
+const StatusGraphIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+    <line x1="8" y1="17" x2="8" y2="11"></line>
+    <line x1="12" y1="17" x2="12" y2="7"></line>
+    <line x1="16" y1="17" x2="16" y2="13"></line>
+  </svg>
+);
+
+const LocationPinIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+    <circle cx="12" cy="10" r="3"></circle>
+  </svg>
+);
+
+const DocumentIcon = ({ color = "currentColor", width = "20", height = "20" }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+    <polyline points="14 2 14 8 20 8"></polyline>
+    <line x1="16" y1="13" x2="8" y2="13"></line>
+    <line x1="16" y1="17" x2="8" y2="17"></line>
+  </svg>
+);
+
+const SlashedPersonIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-3-3.87"></path>
+    <path d="M4 21v-2a4 4 0 0 1 2-3.21"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+    <line x1="3" y1="3" x2="21" y2="21"></line>
+  </svg>
+);
+
+const MapFoldIcon = ({ color = "currentColor", width = "32", height = "32" }) => (
+  <svg width={width} height={height} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+    <line x1="8" y1="2" x2="8" y2="18"></line>
+    <line x1="16" y1="6" x2="16" y2="22"></line>
+  </svg>
+);
+
+const HomeNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+  </svg>
+);
+
+const ProfileNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+  </svg>
+);
+
+const BackArrowIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="19" y1="12" x2="5" y2="12"></line>
+    <polyline points="12 19 5 12 12 5"></polyline>
+  </svg>
+);
+
+const GlobeIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="2" y1="12" x2="22" y2="12"></line>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+  </svg>
+);
+
+const ClipboardCheckIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+    <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+    <path d="M9 14l2 2 4-4"></path>
+  </svg>
+);
+
+const ClockIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
+
+const RefreshClockIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 8 14"></polyline>
+    <path d="M22 12A10 10 0 0 0 12 2" strokeDasharray="3 3"></path>
+  </svg>
+);
+
+const SendIcon = ({ color = "white" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"></line>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+  </svg>
+);
+
+const ProfileEditIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 20h9"></path>
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+  </svg>
+);
+
+const PasswordIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.182 17 8.5l1.5-1.5 1.5 1.5L22 6.5V2h-4.5z"></path>
+  </svg>
+);
+
+const NotificationIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+  </svg>
+);
+
+const PrivacyIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    <circle cx="12" cy="11" r="3"></circle>
+  </svg>
+);
+
+const LogoutIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+    <polyline points="16 17 21 12 16 7"></polyline>
+    <line x1="21" y1="12" x2="9" y2="12"></line>
+  </svg>
+);
+
+const ChevronRightIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6"></polyline>
+  </svg>
+);
+
+const IdBadgeIcon = ({ color = "currentColor" }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="5" width="18" height="14" rx="2" ry="2"></rect>
+    <circle cx="8" cy="12" r="2"></circle>
+    <line x1="13" y1="11" x2="19" y2="11"></line>
+    <line x1="13" y1="14" x2="19" y2="14"></line>
+  </svg>
+);
+
+const FlashlightIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 6h-4"></path>
+    <path d="M15 10v10a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2V10l-2-4V2h10v4l-2 4z"></path>
+  </svg>
+);
+
+const UploadIcon = ({ color = "currentColor" }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+    <polyline points="17 8 12 3 7 8"></polyline>
+    <line x1="12" y1="3" x2="12" y2="15"></line>
+  </svg>
+);
+
+const HelpIcon = ({ color = "currentColor" }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+  </svg>
+);
+
+const HourglassIcon = ({ color = "currentColor" }) => (
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c.55 0 1 .45 1 1v1.5c0 .35-.15.68-.4.9l-5.6 5.6 5.6 5.6c.25.22.4.55.4.9V20c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1v-1.5c0-.35.15-.68.4-.9l5.6-5.6-5.6-5.6A1.25 1.25 0 0 1 3 6.5V5c0-.55.45-1 1-1z" />
+    <path d="M7 14.5V20" />
+    <path d="M17 14.5V20" />
+    <path d="M7 4v5.5" />
+    <path d="M17 4v5.5" />
+  </svg>
+);
+
+const ShieldCheckSmallIcon = ({ color = "currentColor" }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    <path d="M9 12l2 2 4-4"></path>
+  </svg>
+);
+
+const ProgressReviewIcon = ({ color = "currentColor" }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10"></polyline>
+    <polyline points="1 20 1 14 7 14"></polyline>
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+  </svg>
+);
+
+const FilledClockIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <polyline points="12 6 12 12 16 14"></polyline>
+  </svg>
+);
+
+const ShieldCheckIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+    <polyline points="9 12 11 14 15 10"></polyline>
+  </svg>
+);
+
+const CheckCircleSolidIcon = ({ color = "var(--green)", size = "36" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="12" fill={color} />
+    <path d="M7 12L10.5 15.5L18 8" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const ShieldSolidIcon = ({ color = "var(--green)", size = "16" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="none">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill={color} />
+    <path d="M9 12l2 2 4-4" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const LockSmallIcon = ({ color = "#9CA3AF" }) => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+  </svg>
+);
+
+const ExclamationCircleIcon = ({ color = "#EF4444", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="8" x2="12" y2="12"></line>
+    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+  </svg>
+);
+
+const EditPencilIcon = ({ color = "var(--green)", size = "12" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+  </svg>
+);
+
+const DummySignature = () => (
+  <div style={{ width: '90px', height: '46px', background: '#333', position: 'relative', overflow: 'hidden' }}>
+    <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} viewBox="0 0 100 50" preserveAspectRatio="none">
+      <path d="M10,40 Q30,10 40,25 T60,30 T80,15" fill="none" stroke="#E5D9AE" strokeWidth="2.5" strokeLinecap="round" />
+      <path d="M20,35 Q50,-10 90,45" fill="none" stroke="#E5D9AE" strokeWidth="1" strokeLinecap="round" opacity="0.6" />
+      <line x1="0" y1="38" x2="100" y2="38" stroke="#E5D9AE" strokeWidth="0.5" opacity="0.4" />
+    </svg>
+  </div>
+);
+
+const GraduationCapIcon = ({ color = "currentColor" }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill={color}>
+    <path d="M12 3L1 9L5 11.18V17H19V11.18L23 9L12 3Z" />
+  </svg>
+);
+
+const AtSymbolIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="4" />
+    <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" />
+  </svg>
+);
+
+const LoginDoorIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+    <polyline points="10 17 15 12 10 7" />
+    <line x1="15" y1="12" x2="3" y2="12" />
+  </svg>
+);
+
+const HeadsetIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+    <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+    <circle cx="12" cy="13" r="3" />
+  </svg>
+);
+
+const PinIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="7"></circle>
+    <circle cx="12" cy="12" r="2" fill={color}></circle>
+    <line x1="12" y1="1" x2="12" y2="5"></line>
+    <line x1="12" y1="19" x2="12" y2="23"></line>
+    <line x1="1" y1="12" x2="5" y2="12"></line>
+    <line x1="19" y1="12" x2="23" y2="12"></line>
+  </svg>
+);
+
+const EwanIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 4 4 9 12 14 20 9 12 4"></polygon>
+    <polyline points="4 14 12 19 20 14"></polyline>
+  </svg>
+);
+
+const LoginView = ({ setView }) => (
+  <div className="content fade-in">
+    <div className="logo-container">
+      <div className="logo-box">
+        <MapIcon />
+      </div>
+      <h1>EduRoute</h1>
+      <h2>GORDON COLLEGE FACULTY PORTAL</h2>
+    </div>
+
+    <div className="card">
+      <div className="input-group">
+        <label>EMAIL OR EMPLOYEE ID</label>
+        <div className="input-wrapper disabled">
+          <BadgeIcon />
+          <input type="text" placeholder="j.smith@gordon.edu" disabled />
+        </div>
+      </div>
+
+      <div className="input-group">
+        <div className="label-row">
+          <label>PASSWORD</label>
+          <a href="#" className="forgot-link" onClick={(e) => { e.preventDefault(); setView('forgot-password'); }}>Forgot Password?</a>
+        </div>
+        <div className="input-wrapper">
+          <LockIcon />
+          <input type="password" placeholder="••••••••" />
+          <button type="button" className="icon-btn">
+            <EyeIcon />
+          </button>
+        </div>
+      </div>
+
+      <button type="button" className="primary-btn" onClick={() => setView('dashboard')}>
+        Login <ArrowRightIcon />
+      </button>
+
+      <div className="divider">
+        <hr />
+        <span>NEW TO EDUROUTE?</span>
+        <hr />
+      </div>
+
+      <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
+        Sign Up
+      </button>
+    </div>
+
+    <div className="footer">
+      <div className="footer-logo">
+        <CapIcon />
+      </div>
+      <div className="footer-text">
+        <span className="footer-developed">DEVELOPED BY</span>
+        <span className="footer-brand">ARCHONS</span>
+      </div>
+    </div>
+  </div>
+);
+
+const ForgotPasswordView = ({ setView }) => (
+  <div className="content fade-in forgot-pw-content">
+    <div className="recovery-header">
+      <CapIcon />
+      <span>EduRoute Faculty</span>
+    </div>
+
+    <div className="recovery-title-box">
+      <div className="yellow-bar"></div>
+      <h1>Account<br />Recovery</h1>
+    </div>
+
+    <p className="recovery-desc">
+      Enter your registered faculty email to receive a secure password reset link.
+    </p>
+
+    <div className="card recovery-card">
+      <div className="input-group">
+        <label>FACULTY EMAIL</label>
+        <div className="input-wrapper tall-input-wrapper">
+          <div className="at-icon-wrapper"><AtSymbolIcon /></div>
+          <textarea placeholder="e.g.&#10;professor.name@eduroute.edu" rows={2} spellCheck="false" />
+        </div>
+      </div>
+
+      <button type="submit" className="primary-btn">
+        Send Reset Link <ArrowRightIcon />
+      </button>
+
+      <button type="button" className="ghost-btn" onClick={() => setView('login')}>
+        <LoginDoorIcon /> Back to Faculty Login
+      </button>
+    </div>
+
+    <div className="support-badge">
+      <div className="support-icon">
+        <HeadsetIcon />
+      </div>
+      <div className="support-text">
+        Issue persists? Contact<br />
+        <span>IT Support Desk</span>
+      </div>
+    </div>
+  </div>
+);
+
+const SignUpView = ({ setView }) => (
+  <div className="content fade-in signup-content">
+    <div className="card signup-card">
+      <div className="signup-header">
+        <h1>Create Faculty<br />Account</h1>
+        <p>Please enter your institutional details to begin.</p>
+      </div>
+
+      <div className="input-group">
+        <label>FULL NAME</label>
+        <div className="input-wrapper plain-input-wrapper">
+          <input type="text" placeholder="Dr. Julian Vane" />
+        </div>
+      </div>
+
+      <div className="input-group">
+        <label>EMPLOYEE ID</label>
+        <div className="input-wrapper plain-input-wrapper">
+          <input type="text" placeholder="FAC-88920" />
+        </div>
+      </div>
+
+      <div className="input-group">
+        <label>DEPARTMENT</label>
+        <div className="input-wrapper plain-input-wrapper select-wrapper">
+          <select defaultValue="">
+            <option value="" disabled hidden>Select Department</option>
+            <option value="CHTM">College of Hospitality and Tourism Management</option>
+            <option value="CCS">College of Computer Studies</option>
+            <option value="CBA">College of Business and Accountancy</option>
+            <option value="CEAS">College of Education, Arts and Sciences</option>
+            <option value="CAHS">College of Allied Health Studies</option>
+          </select>
+          <div className="select-icon">
+            <ChevronDownIcon />
+          </div>
+        </div>
+      </div>
+
+      <div className="input-group">
+        <label>EMAIL ADDRESS</label>
+        <div className="input-wrapper plain-input-wrapper">
+          <input type="email" placeholder="faculty@university.edu" />
+        </div>
+      </div>
+
+      <div className="input-group">
+        <label>PASSWORD</label>
+        <div className="input-wrapper plain-input-wrapper">
+          <input type="password" placeholder="••••••••" />
+        </div>
+      </div>
+
+      <div className="input-group">
+        <label>CONFIRM PASSWORD</label>
+        <div className="input-wrapper plain-input-wrapper">
+          <input type="password" placeholder="••••••••" />
+        </div>
+      </div>
+
+      <label className="checkbox-container">
+        <input type="checkbox" />
+        <span className="checkmark"></span>
+        <span className="checkbox-label">
+          I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+        </span>
+      </label>
+
+      <button type="button" className="primary-btn signup-btn" onClick={() => setView('dashboard')}>
+        Register <ArrowRightIcon />
+      </button>
+
+      <div className="signup-footer-link">
+        Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+      </div>
+    </div>
+
+    <div className="signup-brand-footer">
+      <div className="signup-footer-logo">
+        <CapIcon color="white" />
+      </div>
+      <div className="footer-text signup-footer-text">
+        <span className="footer-developed">DEVELOPED BY</span>
+        <span className="footer-brand">ARCHONS</span>
+      </div>
+    </div>
+  </div>
+);
+
+const BottomNav = ({ active = 'home', setView }) => (
+  <div className="bottom-nav">
+    <div className={`nav-item ${active === 'home' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('dashboard')}>
+      {active === 'home' ? (
+        <div className="nav-pill-bg">
+          <HomeNavIcon color="white" />
+          <span>HOME</span>
+        </div>
+      ) : (
+        <><HomeNavIcon color="var(--text-gray)" /><span>HOME</span></>
+      )}
+    </div>
+    <div className={`nav-item ${active === 'scan' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('scan')}>
+      {active === 'scan' ? (
+        <div className="nav-pill-bg">
+          <img src="/QR Icon.svg" alt="Scan QR Icon" />
+          <span>SCAN</span>
+        </div>
+      ) : (
+        <><ScanQRIcon /><span>SCAN</span></>
+      )}
+    </div>
+    <div className={`nav-item ${active === 'slips' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('locator-slip')}>
+      {active === 'slips' ? (
+        <div className="nav-pill-bg">
+          <DocumentIcon color="white" width="24" height="24" />
+          <span>SLIPS</span>
+        </div>
+      ) : (
+        <><DocumentIcon color="var(--text-gray)" width="24" height="24" /><span>SLIPS</span></>
+      )}
+    </div>
+    <div className={`nav-item ${active === 'map' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('map')}>
+      {active === 'map' ? (
+        <div className="nav-pill-bg">
+          <MapFoldIcon color="white" width="24" height="24" />
+          <span>MAP</span>
+        </div>
+      ) : (
+        <><MapFoldIcon color="var(--text-gray)" width="24" height="24" /><span>MAP</span></>
+      )}
+    </div>
+    <div className={`nav-item ${active === 'profile' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('profile')}>
+      {active === 'profile' ? (
+        <div className="nav-pill-bg">
+          <ProfileNavIcon color="white" />
+          <span>PROFILE</span>
+        </div>
+      ) : (
+        <><ProfileNavIcon color="var(--text-gray)" /><span>PROFILE</span></>
+      )}
+    </div>
+  </div>
+);
+
+const DashboardView = ({ setView }) => (
+  <div className="dashboard-wrapper">
+    <div className="content fade-in dash-content">
+
+      <div className="dash-top-nav">
+        <div className="dash-menu-left">
+          <GridIcon />
+          <span className="dash-logo-text">EduRoute</span>
+        </div>
+        <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+
+      <div className="dash-header">
+        <p>Good morning, Prof. Juan</p>
+        <h1>Faculty Dashboard</h1>
+        <div className="dept-pill">
+          <CapIcon color="var(--green)" outline={true} /> COMPUTER SCIENCE DEPT.
+        </div>
+      </div>
+
+      <div className="action-grid">
+        <div className="primary-action-card" onClick={() => setView('scan')} style={{ cursor: 'pointer' }}>
+          <div className="primary-action-bg-deco">
+            <img src="/Translucent Icon.svg" alt="Decoration Layout" />
+          </div>
+          <div className="primary-icon-wrapper">
+            <img src="/QR Icon.svg" alt="Scan QR Icon" />
+          </div>
+          <h2>Scan QR Code</h2>
+          <p>Instant faculty check-in/out</p>
+        </div>
+
+        <div className="secondary-action-grid">
+          <div className="secondary-action-card" onClick={() => setView('locator-slip')} style={{ cursor: 'pointer' }}>
+            <div className="sec-icon-bg green-bg"><SlipIcon color="var(--green)" /></div>
+            <h3>New Slip</h3>
+            <p>Create locator</p>
+          </div>
+          <div className="secondary-action-card" onClick={() => setView('slip-submitted')} style={{ cursor: 'pointer' }}>
+            <div className="sec-icon-bg yellow-bg"><StatusGraphIcon color="#B88A00" /></div>
+            <h3>Status</h3>
+            <p>Track progress</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="recent-activity-section">
+        <div className="activity-header">
+          <h3>Recent Activity</h3>
+          <span className="see-all">SEE ALL</span>
+        </div>
+
+        <div className="activity-list">
+          <div className="activity-card">
+            <div className="act-icon-bg act-green-bg"><LocationPinIcon color="var(--green)" /></div>
+            <div className="act-details">
+              <h4>Research Symposium</h4>
+              <p>External Visit • Manila Hotel</p>
+              <span className="status-badge badge-approved">APPROVED</span>
+            </div>
+            <span className="act-time">10:45 AM</span>
+          </div>
+
+          <div className="activity-card">
+            <div className="act-icon-bg act-gray-bg"><DocumentIcon color="var(--green)" /></div>
+            <div className="act-details">
+              <h4>Curriculum Workshop</h4>
+              <p>Official Business • Main Library</p>
+              <span className="status-badge badge-pending">PENDING</span>
+            </div>
+            <span className="act-time">Yesterday</span>
+          </div>
+
+          <div className="activity-card">
+            <div className="act-icon-bg act-gray-bg act-red-icon"><SlashedPersonIcon color="#FF4D4D" /></div>
+            <div className="act-details">
+              <h4>Personal Leave</h4>
+              <p>Emergency • Out of Office</p>
+              <span className="status-badge badge-rejected">REJECTED</span>
+            </div>
+            <span className="act-time">Oct 24</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="map-card-container">
+        <div className="map-bg-wrapper">
+          <img src="/Map Image.png" alt="Map Background" className="map-dummy-texture" />
+        </div>
+        <div className="map-floating-element" onClick={() => setView('map')} style={{ cursor: 'pointer' }}>
+          <MapFoldIcon color="var(--green)" width="32" height="32" />
+          <span>View Live Campus Map</span>
+        </div>
+      </div>
+
+    </div>
+    <BottomNav active="home" setView={setView} />
+  </div>
+);
+
+const LocatorSlipView = ({ setView }) => {
+  const [purpose, setPurpose] = useState('');
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content slip-content">
+
+        <div className="slip-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="slip-page-header">
+          <span className="slip-subtitle">INTERNAL LOGISTICS</span>
+          <h1>Create Locator Slip</h1>
+          <p>Please document your destination and expected return for institutional coordination.</p>
+        </div>
+
+        <div className="slip-section-card credentials-card">
+          <div className="section-title-row">
+            <div className="section-icon green-circle-icon">
+              <GlobeIcon color="white" />
+            </div>
+            <h3>Faculty Credentials</h3>
+          </div>
+          <div className="credential-field">
+            <span className="cred-label">FULL NAME</span>
+            <span className="cred-value">Dr. Alex Nilo</span>
+          </div>
+          <div className="credential-field">
+            <span className="cred-label">EMPLOYEE ID</span>
+            <span className="cred-value">FAC-2024-0891</span>
+          </div>
+          <div className="credential-field">
+            <span className="cred-label">DEPARTMENT</span>
+            <span className="cred-value">College of Computer Science</span>
+          </div>
+        </div>
+
+        <div className="slip-section-card trip-card">
+          <div className="section-title-row">
+            <div className="section-icon green-circle-icon">
+              <ClipboardCheckIcon color="white" />
+            </div>
+            <h3>Trip Details</h3>
+          </div>
+
+          <div className="trip-field">
+            <label>Destination</label>
+            <div className="trip-input-wrapper">
+              <LocationPinIcon color="var(--text-light)" />
+              <input type="text" placeholder="Where are you heading?" />
+            </div>
+          </div>
+
+          <div className="trip-field">
+            <label>Purpose of Travel</label>
+            <div className="trip-input-wrapper trip-select-wrapper">
+              <DocumentIcon color="var(--text-light)" width="18" height="18" />
+              <select value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+                <option value="" disabled hidden>Select purpose...</option>
+                <option value="meeting">Official Meeting/Conference</option>
+                <option value="documents">Submission/Retrieval of Documents</option>
+                <option value="coordination">Coordination/Consultation</option>
+                <option value="inspection">Field Inspection/Monitoring</option>
+                <option value="others">Others (Put own purpose)</option>
+              </select>
+              <div className="select-icon trip-chevron">
+                <ChevronDownIcon />
+              </div>
+            </div>
+            {purpose === 'others' && (
+              <div className="trip-input-wrapper others-input" style={{ marginTop: '12px' }}>
+                <DocumentIcon color="var(--text-light)" width="18" height="18" />
+                <input type="text" placeholder="Please specify your purpose..." />
+              </div>
+            )}
+          </div>
+
+          <div className="trip-field">
+            <label>Departure</label>
+            <div className="trip-input-wrapper">
+              <ClockIcon color="var(--text-light)" />
+              <input type="datetime-local" className="datetime-input" />
+            </div>
+          </div>
+
+          <div className="trip-field">
+            <label>Expected Return</label>
+            <div className="trip-input-wrapper">
+              <RefreshClockIcon color="var(--text-light)" />
+              <input type="datetime-local" className="datetime-input" />
+            </div>
+          </div>
+
+          <div className="trip-field">
+            <label>Additional Remarks (Optional)</label>
+            <div className="trip-textarea-wrapper">
+              <textarea placeholder="Any specific details or contact info during the trip..." rows={3} />
+            </div>
+          </div>
+        </div>
+
+        <button type="button" className="primary-btn slip-submit-btn" onClick={() => setView('updates')}>
+          <SendIcon /> SUBMIT REQUEST
+        </button>
+
+        <button type="button" className="slip-cancel-btn" onClick={() => setView('dashboard')}>
+          Cancel
+        </button>
+
+      </div>
+      <BottomNav active="slips" setView={setView} />
+    </div>
+  );
+};
+
+const UpdatesView = ({ setView }) => (
+  <div className="dashboard-wrapper" style={{ background: '#F9FAFB' }}>
+    <div className="content fade-in dash-content updates-content">
+      <div className="slip-top-nav" style={{ borderBottom: '1px solid #F3F4F6' }}>
+        <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+          <BackArrowIcon color="var(--green)" />
+          <span className="dash-logo-text">EduRoute</span>
+        </div>
+        <div className="dash-avatar">
+          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+
+      <div className="updates-header">
+        <h1 className="updates-title">Updates</h1>
+        <p className="updates-subtitle">Your academic concierge activity feed.</p>
+      </div>
+
+      <div className="update-card" onClick={() => setView('route-approved')}>
+        <div className="update-icon-wrapper">
+          <ShieldCheckIcon color="var(--green)" />
+        </div>
+        <div className="update-content">
+          <div className="update-header-row">
+            <h3 className="update-card-title">Route Approval Confirmed</h3>
+            <span className="update-time">2M<br />AGO</span>
+          </div>
+          <p className="update-desc">
+            Your personalized academic curriculum path for the Fall semester has been formally vetted and approved by the Dean.
+          </p>
+          <div className="update-tags">
+            <span className="update-tag-pill">ACADEMIC PATH</span>
+            <span className="update-tag-text">View Route Details</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <BottomNav active="slips" setView={setView} />
+  </div>
+);
+
+const RouteApprovedView = ({ setView }) => (
+  <div className="dashboard-wrapper" style={{ background: '#F9FAFB' }}>
+    <div className="content fade-in dash-content">
+      <div className="slip-top-nav" style={{ borderBottom: '1px solid #F3F4F6' }}>
+        <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+          <BackArrowIcon color="var(--green)" />
+          <span className="dash-logo-text">EduRoute</span>
+        </div>
+        <div className="dash-avatar">
+          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+
+      <div className="approved-hero">
+        <div className="approved-icon-wrapper">
+          <CheckCircleSolidIcon size="42" />
+        </div>
+        <h1 className="approved-title">Route Approved</h1>
+        <p className="approved-subtitle">Your academic journey has been officially validated.</p>
+      </div>
+
+      <div className="approved-card">
+        <div className="auth-header">
+          <ShieldSolidIcon />
+          <span>VERIFIED AUTHORIZATION</span>
+        </div>
+        <p className="auth-subtext">Approved with Digital Signature by</p>
+        <h3 className="auth-name">Dr. Ronnie Luy</h3>
+        <p className="auth-role">Dean of Undergraduate Studies</p>
+
+        <div className="signature-box">
+          <DummySignature />
+          <div className="signature-hash">
+            <LockSmallIcon /> HASH: 8F2A...9C1D
+          </div>
+        </div>
+      </div>
+
+      <div className="view-route-btn-container">
+        <button className="primary-btn view-route-btn" onClick={() => setView('map')}>
+          View Route <MapFoldIcon color="white" width="20" height="20" />
+        </button>
+      </div>
+
+      <div className="rejected-card">
+        <div className="rejected-icon-wrapper">
+          <ExclamationCircleIcon />
+        </div>
+        <div className="rejected-content">
+          <h4 className="rejected-title">Previous Attempt: Rejected</h4>
+          <p className="rejected-reason">
+            <strong>Reason:</strong> Prerequisites for ADV-402 not fully met in current sequence.
+          </p>
+          <button className="edit-resubmit-btn" onClick={() => setView('locator-slip')}>
+            EDIT & RESUBMIT <EditPencilIcon />
+          </button>
+        </div>
+      </div>
+
+    </div>
+    <BottomNav active="slips" setView={setView} />
+  </div>
+);
+
+const MapTrackingView = ({ setView }) => (
+  <div className="dashboard-wrapper map-view-wrapper">
+    <div className="map-bg-container">
+      <img src="/Map view.png" alt="Map Route" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+    </div>
+
+    <div className="map-top-nav">
+      <div className="nav-left">
+        <GridIcon />
+        <span className="nav-title">Active Journey</span>
+      </div>
+      <div className="dash-avatar" onClick={() => setView('profile')} style={{ background: '#E8F5E9', padding: '2px' }}>
+        <img src="/profile_pic.png" alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+      </div>
+    </div>
+
+    <div className="map-marker-container fade-in">
+      <div className="map-marker-dot">
+        <div className="dot-inner">
+          <div className="dot-core"></div>
+        </div>
+      </div>
+      <div className="map-marker-label">YOU ARE HERE</div>
+    </div>
+
+    <div className="map-controls fade-in">
+      <div className="map-ctrl-btn">
+        <PinIcon color="var(--green)" />
+      </div>
+      <div className="map-ctrl-btn">
+        <EwanIcon color="var(--green)" />
+      </div>
+    </div>
+
+    <div className="tracking-board fade-in">
+      <div className="tb-header">
+        <div className="tb-header-left">
+          <div className="tb-dot"></div>
+          <span>TRACKING ACTIVE</span>
+        </div>
+        <div className="tb-header-right">
+          GPS High Accuracy
+        </div>
+      </div>
+      <div className="tb-body">
+        <div className="tb-stats-row">
+          <div className="tb-stat">
+            <label>DURATION</label>
+            <div className="tb-val">00:15:42</div>
+          </div>
+          <div className="tb-stat tb-divider">
+            <label>DISTANCE</label>
+            <div className="tb-val">1.2<span className="tb-unit">km</span></div>
+          </div>
+          <div className="tb-stat tb-divider">
+            <label>SPEED</label>
+            <div className="tb-val">4.8<span className="tb-unit">kph</span></div>
+          </div>
+        </div>
+        <button className="end-trip-btn" onClick={() => setView('dashboard')}>
+          <div className="stop-icon"></div>
+          End Trip
+        </button>
+      </div>
+    </div>
+
+    <BottomNav active="map" setView={setView} />
+  </div>
+);
+
+const DEPT_NAMES = {
+  CCS: 'College of Computer Studies',
+  CBA: 'College of Business and Accountancy',
+  CEAS: 'College of Education, Arts and Sciences',
+  CHTM: 'College of Hospitality and Tourism Management',
+  CAHS: 'College of Allied Health Studies',
+};
+
+const ProfileView = ({ setView, profileData }) => {
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content profile-content">
+
+        <div className="slip-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar">
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="profile-header-card">
+          <div className="profile-bg-wrapper">
+            <div className="profile-bg-shape"></div>
+          </div>
+          <div className="profile-image-container">
+            <div className="profile-image-wrapper">
+              <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+            <div className="faculty-badge">FACULTY</div>
+          </div>
+
+          <h1 className="profile-name">{profileData.fullName}</h1>
+          <p className="profile-dept">{DEPT_NAMES[profileData.department] || profileData.department}</p>
+
+          <div className="profile-id-pill">
+            <IdBadgeIcon color="currentColor" />
+            <span>ID: EDU-2024-8891</span>
+          </div>
+        </div>
+
+        <div className="profile-section-title">
+          ACCOUNT ADMINISTRATION
+        </div>
+
+        <div className="profile-menu-list">
+          <div className="profile-menu-item" onClick={() => setView('edit-profile')}>
+            <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+              <ProfileEditIcon color="var(--green)" />
+            </div>
+            <span className="profile-menu-text">Edit Profile</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+
+          <div className="profile-menu-item" onClick={() => setView('change-password')}>
+            <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+              <PasswordIcon color="var(--green)" />
+            </div>
+            <span className="profile-menu-text">Change Password</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+
+          <div className="profile-menu-item" onClick={() => setView('notification-settings')}>
+            <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+              <NotificationIcon color="var(--green)" />
+            </div>
+            <span className="profile-menu-text">Notifications Settings</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+
+          <div className="profile-menu-item" onClick={() => setView('privacy-security')}>
+            <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+              <PrivacyIcon color="var(--green)" />
+            </div>
+            <span className="profile-menu-text">Privacy</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+        </div>
+
+        <button type="button" className="session-logout-btn" onClick={() => setShowLogoutModal(true)}>
+          <LogoutIcon color="white" /> LOGOUT SESSION
+        </button>
+
+        <div className="profile-version-text">
+          VERSION 2.4.0 • BUILT FOR EXCELLENCE
+        </div>
+
+      </div>
+      <BottomNav active="profile" setView={setView} />
+
+      {/* Logout Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="modal-overlay fade-in">
+          <div className="logout-modal-card">
+            <div className="logout-icon-container">
+              <LogoutIcon color="var(--green)" />
+              <div className="logout-cap-badge">
+                <GraduationCapIcon color="#1A202C" />
+              </div>
+            </div>
+
+            <h2 className="logout-modal-title">Are you sure you want<br />to logout?</h2>
+            <p className="logout-modal-desc">
+              You will be securely logged out of the <span className="text-green">EduRoute Faculty Portal</span>. Any unsaved academic progress may be lost.
+            </p>
+
+            <button className="logout-confirm-btn" onClick={() => setView('login')}>
+              Yes, Logout <ArrowRightIcon color="white" />
+            </button>
+            <button className="logout-cancel-btn" onClick={() => setShowLogoutModal(false)}>
+              Cancel
+            </button>
+
+            <div className="modal-dots">
+              <div className="dot green-dot-pill"></div>
+              <div className="dot grey-dot"></div>
+              <div className="dot yellow-dot"></div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ScanView = ({ setView }) => (
+  <div className="dashboard-wrapper scan-wrapper">
+    <div className="content fade-in dash-content">
+
+      <div className="slip-top-nav scan-top-nav">
+        <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+          <BackArrowIcon color="white" />
+          <span className="dash-logo-text" style={{ color: 'white' }}>EduRoute</span>
+        </div>
+        <div className="scan-nav-right">
+          <FlashlightIcon color="white" />
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer', marginLeft: '16px' }}>
+            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+      </div>
+
+      <div className="scanner-status-container">
+        <div className="scanner-active-pill">
+          <div className="green-dot"></div>
+          <span>SCANNER ACTIVE</span>
+        </div>
+      </div>
+
+      <div className="scanner-frame-section">
+        <div className="scanner-frame-wrapper">
+          <div className="scanner-frame-bg"></div>
+
+          <div className="scanner-corner top-left"></div>
+          <div className="scanner-corner top-right"></div>
+          <div className="scanner-corner bottom-left"></div>
+          <div className="scanner-corner bottom-right"></div>
+        </div>
+      </div>
+
+      <div className="scanner-text-container">
+        <h2>Scan your Faculty ID QR Code</h2>
+        <p>Align the QR code within the frame to verify your identity and unlock route tracking.</p>
+      </div>
+
+      <div className="scan-actions-container">
+        <button className="scan-action-btn dark-btn">
+          <UploadIcon /> UPLOAD IMAGE
+        </button>
+        <button className="scan-action-btn green-btn">
+          <HelpIcon /> HELP
+        </button>
+      </div>
+
+    </div>
+    <BottomNav active="scan" setView={setView} />
+  </div>
+);
+
+const SlipSubmittedView = ({ setView }) => (
+  <div className="dashboard-wrapper submitted-wrapper">
+    <div className="content fade-in dash-content">
+
+      <div className="slip-top-nav">
+        <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+          <BackArrowIcon color="var(--green)" />
+          <span className="dash-logo-text">EduRoute</span>
+        </div>
+        <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+
+      <div className="submitted-graphic-container">
+        <div className="graphic-circle-dashed">
+          <div className="graphic-circle-solid">
+            <HourglassIcon color="var(--green)" />
+          </div>
+          <div className="graphic-shield-badge">
+            <ShieldCheckSmallIcon color="white" />
+          </div>
+        </div>
+      </div>
+
+      <div className="submitted-status-text">
+        <div className="status-pill-yellow">
+          STATUS: PENDING APPROVAL
+        </div>
+        <h2>Verification in <span className="text-green">Progress</span></h2>
+        <p>Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.</p>
+      </div>
+
+      <div className="progress-bar-container">
+        <div className="progress-track">
+          <div className="progress-fill"></div>
+        </div>
+        <div className="progress-points">
+          <div className="progress-point active">
+            <div className="point-dot green-dot-solid"></div>
+            <span className="point-label">APPLIED</span>
+          </div>
+          <div className="progress-point current">
+            <div className="point-icon-wrapper yellow-bg">
+              <ProgressReviewIcon color="var(--text-dark)" />
+            </div>
+            <span className="point-label green-label">REVIEW</span>
+          </div>
+          <div className="progress-point pending">
+            <div className="point-dot grey-dot-solid"></div>
+            <span className="point-label">ACTIVE</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="info-cards-container">
+        <div className="info-card">
+          <div className="info-icon green-light-bg">
+            <FilledClockIcon color="var(--green)" />
+          </div>
+          <div className="info-text">
+            <h4>Estimated Time</h4>
+            <p>Typically verified within 20-60 business minutes.</p>
+          </div>
+        </div>
+
+        <div className="info-card">
+          <div className="info-icon yellow-light-bg">
+            <HelpIcon color="#B88A00" />
+          </div>
+          <div className="info-text">
+            <h4>Need Help?</h4>
+            <p>Contact support at faculty@eduroute.edu</p>
+          </div>
+        </div>
+      </div>
+
+      <button className="cancel-request-btn" onClick={() => setView('dashboard')}>
+        CANCEL REQUEST
+      </button>
+
+      <div className="referral-id">
+        REFERRAL ID: FAC-9921-XPR
+      </div>
+
+    </div>
+    <BottomNav active="slips" setView={setView} />
+  </div>
+);
+
+const PolicyCheckIcon = ({ met }) => (
+  met ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill="var(--green)" />
+      <path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill="#E5E7EB" />
+      <path d="M8 8L16 16M16 8L8 16" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+);
+
+const LinkIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text-light)' }}>
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+    <line x1="1" y1="1" x2="23" y2="23" />
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+  </svg>
+);
+
+const ChangePasswordView = ({ setView }) => {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
+
+  const personalInfo = ['alex', 'nilo', 'eduroute', 'edu-2024', '8891'];
+
+  const policy = useMemo(() => {
+    const pw = newPassword.toLowerCase();
+    return {
+      minLength: newPassword.length >= 10,
+      symbolsNumbers: /[0-9]/.test(newPassword) && /[^a-zA-Z0-9\s]/.test(newPassword),
+      noPersonal: newPassword.length > 0 && !personalInfo.some(info => pw.includes(info)),
+    };
+  }, [newPassword]);
+
+  const allPoliciesMet = policy.minLength && policy.symbolsNumbers && policy.noPersonal;
+  const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content chpw-content">
+
+        <div className="slip-top-nav chpw-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('profile')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+          </div>
+          <div className="dash-avatar">
+            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="chpw-divider-line"></div>
+
+        <div className="chpw-header">
+          <h1 className="chpw-title">Security Credentials</h1>
+          <p className="chpw-subtitle">Update your password to ensure your faculty account remains secure and private.</p>
+        </div>
+
+        {/* Password Policy Card */}
+        <div className="chpw-policy-card">
+          <div className="chpw-policy-header">
+            <ShieldSolidIcon color="var(--green)" size="18" />
+            <span>PASSWORD POLICY</span>
+          </div>
+          <div className="chpw-policy-list">
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.minLength} />
+              <span>Minimum 10 characters</span>
+            </div>
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.symbolsNumbers} />
+              <span>Include symbols & numbers</span>
+            </div>
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.noPersonal} />
+              <span>No personal information</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Security Quote Card */}
+        <div className="chpw-quote-card">
+          <p>"Your security is our priority in the EduRoute academic ecosystem."</p>
+          <div className="chpw-quote-shield">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" opacity="0.12">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="var(--green)" />
+            </svg>
+          </div>
+        </div>
+
+        {/* Current Password */}
+        <div className="chpw-field-section">
+          <label className="chpw-label">CURRENT PASSWORD</label>
+          <div className="chpw-input-wrapper">
+            <input
+              type={showCurrentPw ? 'text' : 'password'}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="••••••••••••"
+            />
+            <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowCurrentPw(!showCurrentPw)}>
+              {showCurrentPw ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </div>
+
+        {/* New Password + Confirm */}
+        <div className="chpw-new-pw-card">
+          <div className="chpw-new-pw-field">
+            <label className="chpw-label">NEW PASSWORD</label>
+            <div className="chpw-card-input-wrapper">
+              <input
+                type={showNewPw ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter complex password"
+              />
+              <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowNewPw(!showNewPw)}>
+                {showNewPw ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <div className="chpw-new-pw-field">
+            <label className="chpw-label">CONFIRM PASSWORD</label>
+            <div className={`chpw-card-input-wrapper ${confirmPassword.length > 0 ? (passwordsMatch ? 'match' : 'mismatch') : ''}`}>
+              <input
+                type={showConfirmPw ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Re-type new password"
+              />
+              <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowConfirmPw(!showConfirmPw)}>
+                {showConfirmPw ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+            {confirmPassword.length > 0 && !passwordsMatch && (
+              <span className="chpw-mismatch-text">Passwords do not match</span>
+            )}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className={`chpw-update-btn ${allPoliciesMet && passwordsMatch && currentPassword.length > 0 ? 'active' : ''}`}
+          disabled={!(allPoliciesMet && passwordsMatch && currentPassword.length > 0)}
+          onClick={() => setView('profile')}
+        >
+          <LinkIcon /> UPDATE PASSWORD
+        </button>
+
+        <div className="chpw-lost-access">
+          LOST ACCESS? <span>CONTACT SYSTEM ADMIN</span>
+        </div>
+
+      </div>
+      <BottomNav active="profile" setView={setView} />
+    </div>
+  );
+};
+
+const BellRingIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+    <path d="M2 8c0-2.2.7-4.3 2-6" />
+    <path d="M22 8a10 10 0 0 0-2-6" />
+  </svg>
+);
+
+const RefreshIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 4 23 10 17 10" />
+    <polyline points="1 20 1 14 7 14" />
+    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+  </svg>
+);
+
+const SaveIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" />
+    <polyline points="7 3 7 8 15 8" />
+  </svg>
+);
+
+const ToggleSwitch = ({ isOn, onToggle }) => (
+  <div className={`notif-toggle ${isOn ? 'on' : 'off'}`} onClick={onToggle}>
+    <div className="notif-toggle-thumb" />
+  </div>
+);
+
+const NotificationSettingsView = ({ setView }) => {
+  const [approvalNotifs, setApprovalNotifs] = useState(true);
+  const [reminderAlerts, setReminderAlerts] = useState(true);
+  const [systemUpdates, setSystemUpdates] = useState(false);
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content notif-content">
+
+        <div className="slip-top-nav chpw-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('profile')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+          </div>
+          <div className="dash-avatar">
+            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="chpw-divider-line" />
+
+        <div className="notif-header">
+          <span className="notif-label-green">PREFERENCES</span>
+          <h1 className="notif-title">Notification<br />Control Center</h1>
+          <p className="notif-subtitle">Manage how you receive alerts for approvals, schedules, and faculty updates.</p>
+        </div>
+
+        {/* Approval Notifications */}
+        <div className="notif-card">
+          <div className="notif-card-icon notif-icon-green">
+            <ShieldCheckIcon color="var(--green)" />
+          </div>
+          <div className="notif-card-body">
+            <h3 className="notif-card-title">Approval Notifications</h3>
+            <p className="notif-card-desc">Get notified when students request route changes or late approvals.</p>
+          </div>
+          <ToggleSwitch isOn={approvalNotifs} onToggle={() => setApprovalNotifs(!approvalNotifs)} />
+        </div>
+
+        {/* Reminder Alerts */}
+        <div className="notif-card">
+          <div className="notif-card-icon notif-icon-yellow">
+            <BellRingIcon color="#B88A00" />
+          </div>
+          <div className="notif-card-body">
+            <h3 className="notif-card-title">Reminder Alerts</h3>
+            <p className="notif-card-desc">Receive reminders for upcoming route starts and faculty meetings.</p>
+          </div>
+          <ToggleSwitch isOn={reminderAlerts} onToggle={() => setReminderAlerts(!reminderAlerts)} />
+        </div>
+
+        {/* System Updates */}
+        <div className="notif-card">
+          <div className="notif-card-icon notif-icon-light">
+            <RefreshIcon color="var(--text-gray)" />
+          </div>
+          <div className="notif-card-body">
+            <h3 className="notif-card-title">System Updates</h3>
+            <p className="notif-card-desc">Stay informed about new app features and essential system maintenance.</p>
+          </div>
+          <ToggleSwitch isOn={systemUpdates} onToggle={() => setSystemUpdates(!systemUpdates)} />
+        </div>
+
+        {/* Save Changes Button */}
+        <button type="button" className="notif-save-btn" onClick={() => setView('profile')}>
+          <SaveIcon /> SAVE CHANGES
+        </button>
+
+      </div>
+      <BottomNav active="profile" setView={setView} />
+    </div>
+  );
+};
+
+const CameraIcon = ({ color = "white" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+    <circle cx="12" cy="13" r="4" />
+  </svg>
+);
+
+const PersonOutlineIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const MailIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+    <polyline points="22,6 12,13 2,6" />
+  </svg>
+);
+
+const CheckCircleIcon = ({ color = "white" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const EditProfileView = ({ setView, profileData, setProfileData }) => {
+  const [fullName, setFullName] = useState(profileData.fullName);
+  const [department, setDepartment] = useState(profileData.department);
+  const [email, setEmail] = useState(profileData.email);
+  const [profileImage, setProfileImage] = useState(profileData.image);
+  const fileInputRef = useRef(null);
+
+  const handleSave = () => {
+    setProfileData({ fullName, department, email, image: profileImage });
+    setView('profile');
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProfileImage(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content editp-content">
+
+        <div className="slip-top-nav chpw-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('profile')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+          </div>
+          <div className="dash-avatar">
+            <img src={profileImage} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="chpw-divider-line" />
+
+        <div className="editp-header">
+          <span className="editp-badge">FACULTY IDENTITY</span>
+          <h1 className="editp-title">Edit Your Profile</h1>
+          <p className="editp-subtitle">Manage your professional presence across the EduRoute academic ecosystem.</p>
+        </div>
+
+        {/* Profile Photo */}
+        <div className="editp-photo-section">
+          <div className="editp-photo-wrapper">
+            <img src={profileImage} alt="Profile" />
+            <button
+              type="button"
+              className="editp-camera-btn"
+              onClick={() => fileInputRef.current.click()}
+            >
+              <CameraIcon />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={handlePhotoChange}
+            />
+          </div>
+        </div>
+
+        {/* Full Name */}
+        <div className="editp-field">
+          <label className="editp-label">FULL NAME</label>
+          <div className="editp-input-wrapper">
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+            <PersonOutlineIcon color="var(--text-light)" />
+          </div>
+        </div>
+
+        {/* Department */}
+        <div className="editp-field">
+          <label className="editp-label">DEPARTMENT</label>
+          <div className="editp-input-wrapper editp-select-wrapper">
+            <select value={department} onChange={(e) => setDepartment(e.target.value)}>
+              <option value="CCS">College of Computer Studies</option>
+              <option value="CBA">College of Business and Accountancy</option>
+              <option value="CEAS">College of Education, Arts and Sciences</option>
+              <option value="CHTM">College of Hospitality and Tourism Management</option>
+              <option value="CAHS">College of Allied Health Studies</option>
+            </select>
+            <div className="editp-select-icon">
+              <ChevronDownIcon />
+            </div>
+          </div>
+        </div>
+
+        {/* Academic Email */}
+        <div className="editp-field">
+          <label className="editp-label">ACADEMIC EMAIL</label>
+          <div className="editp-input-wrapper">
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            <MailIcon color="var(--text-light)" />
+          </div>
+        </div>
+
+        {/* Save Changes Button */}
+        <button type="button" className="editp-save-btn" onClick={handleSave}>
+          SAVE CHANGES <CheckCircleIcon />
+        </button>
+
+      </div>
+      <BottomNav active="profile" setView={setView} />
+    </div>
+  );
+};
+
+const LocationPinFilledIcon = ({ color = "var(--green)" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+  </svg>
+);
+
+const PermissionsIcon = ({ color = "var(--green)" }) => (
+  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const FileTextIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const GlobeSmIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+);
+
+const HelpCircleIcon = ({ color = "currentColor" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const TrashIcon = ({ color = "currentColor" }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="9" y1="9" x2="15" y2="15" />
+    <line x1="15" y1="9" x2="9" y2="15" />
+  </svg>
+);
+
+const LockPrivIcon = ({ color = "currentColor" }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" />
+    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+  </svg>
+);
+
+const PrivacySecurityView = ({ setView }) => {
+  const [locationTracking, setLocationTracking] = useState(true);
+
+  return (
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content priv-content">
+
+        <div className="slip-top-nav chpw-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('profile')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+          </div>
+          <div className="dash-avatar">
+            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="chpw-divider-line" />
+
+        <div className="priv-header">
+          <h1 className="priv-title">Privacy & Security</h1>
+          <p className="priv-subtitle">Manage your digital footprint and data preferences across the EduRoute ecosystem.</p>
+        </div>
+
+        {/* Location Tracking Card */}
+        <div className="priv-location-card">
+          <div className="priv-location-left">
+            <div className="priv-location-icon">
+              <LocationPinFilledIcon />
+            </div>
+            <div className="priv-location-text">
+              <h3>Location tracking</h3>
+              <p>Allow EduRoute to optimize your route based on real-time transit data.</p>
+            </div>
+          </div>
+          <ToggleSwitch isOn={locationTracking} onToggle={() => setLocationTracking(!locationTracking)} />
+        </div>
+
+        {/* Permissions Card */}
+        <div className="priv-permissions-card">
+          <PermissionsIcon color="var(--green)" />
+          <h3>Permissions</h3>
+          <p>Review app access to your camera, calendar, and microphone.</p>
+          <button type="button" className="priv-manage-btn">MANAGE</button>
+        </div>
+
+        {/* Authentication Layer */}
+        <div className="priv-auth-section">
+          <div className="priv-auth-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="var(--green)" /><path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            <span className="priv-auth-text green">Authentication Layer</span>
+          </div>
+          <div className="priv-auth-row">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--green)" strokeWidth="2" /><circle cx="12" cy="12" r="5" fill="var(--green)" /></svg>
+            <span className="priv-auth-text green">Privacy Tier: Enhanced</span>
+          </div>
+          <div className="priv-auth-row">
+            <LockPrivIcon color="var(--text-gray)" />
+            <span className="priv-auth-text gray">Encryption: Quantum-Safe</span>
+          </div>
+        </div>
+
+        {/* Legal Links */}
+        <div className="priv-legal-list">
+          <div className="priv-legal-item">
+            <FileTextIcon color="var(--text-dark)" />
+            <span>Terms and conditions</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+          <div className="priv-legal-item">
+            <GlobeSmIcon color="var(--text-dark)" />
+            <span>Privacy Policy</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+          <div className="priv-legal-item">
+            <HelpCircleIcon color="var(--text-dark)" />
+            <span>Data Usage FAQ</span>
+            <ChevronRightIcon color="var(--text-light)" />
+          </div>
+        </div>
+
+        {/* Request Data Deletion */}
+        <button type="button" className="priv-delete-btn">
+          <TrashIcon color="#EF4444" />
+          <span>REQUEST DATA DELETION</span>
+        </button>
+
+      </div>
+      <BottomNav active="profile" setView={setView} />
+    </div>
+  );
+};
+
+const isAuthView = (v) => ['login', 'forgot-password', 'signup'].includes(v);
+
+function App() {
+  const [view, setView] = useState('login');
+  const [profileData, setProfileData] = useState({
+    fullName: 'Mr. Alex Nilo',
+    department: 'CCS',
+    email: 'a.nilo@eduroute.ac.edu',
+    image: '/profile_pic.png',
+  });
+
+  return (
+    <div className="mobile-container">
+      {isAuthView(view) && (
+        <div className="status-bar">
+          <span className="time">9:41</span>
+          <div className="status-icons">
+            <SignalIcon />
+            <WifiIcon />
+            <BatteryIcon />
+          </div>
+        </div>
+      )}
+
+      {view === 'login' && <LoginView setView={setView} />}
+      {view === 'forgot-password' && <ForgotPasswordView setView={setView} />}
+      {view === 'signup' && <SignUpView setView={setView} />}
+      {view === 'dashboard' && <DashboardView setView={setView} />}
+      {view === 'scan' && <ScanView setView={setView} />}
+      {view === 'locator-slip' && <LocatorSlipView setView={setView} />}
+      {view === 'updates' && <UpdatesView setView={setView} />}
+      {view === 'route-approved' && <RouteApprovedView setView={setView} />}
+      {view === 'slip-submitted' && <SlipSubmittedView setView={setView} />}
+      {view === 'map' && <MapTrackingView setView={setView} />}
+      {view === 'profile' && <ProfileView setView={setView} profileData={profileData} />}
+      {view === 'change-password' && <ChangePasswordView setView={setView} />}
+      {view === 'notification-settings' && <NotificationSettingsView setView={setView} />}
+      {view === 'edit-profile' && <EditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />}
+      {view === 'privacy-security' && <PrivacySecurityView setView={setView} />}
+
+      {isAuthView(view) && (
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '36px', zIndex: 1, pointerEvents: 'none' }}>
+          <div style={{ width: '100%', height: '100%', left: 0, top: 0, position: 'absolute', opacity: 0.40, background: 'linear-gradient(90deg, #049516 0%, #FFD517 50%, #036E10 100%)' }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
