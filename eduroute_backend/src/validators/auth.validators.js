@@ -58,10 +58,27 @@ const resetPasswordValidator = [
     handleValidation
 ];
 
+const updateProfileValidator = [
+    body('full_name').trim().notEmpty().withMessage('Full name is required.'),
+    body('department_id').isInt({ min: 1 }).withMessage('A valid department is required.'),
+    handleValidation
+];
+
+const changePasswordValidator = [
+    body('current_password').isString().notEmpty().withMessage('Current password is required.'),
+    body('new_password').isString().notEmpty().withMessage('New password is required.'),
+    body('confirm_password')
+        .custom((value, { req }) => value === req.body.new_password)
+        .withMessage('Confirm password must match new password.'),
+    handleValidation
+];
+
 module.exports = {
     registerValidator,
     loginValidator,
     forgotPasswordValidator,
     verifyResetCodeValidator,
-    resetPasswordValidator
+    resetPasswordValidator,
+    updateProfileValidator,
+    changePasswordValidator
 };

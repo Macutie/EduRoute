@@ -16,5 +16,8 @@ module.exports = {
     smtpPass: process.env.SMTP_PASS,
     mailFrom: process.env.MAIL_FROM,
     resetCodeTtlMinutes: Number(process.env.RESET_CODE_TTL_MINUTES || 15),
-    bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12)
+    bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
+    cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
+    cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
+    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET
 };

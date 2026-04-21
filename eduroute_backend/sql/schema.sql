@@ -18,6 +18,8 @@ CREATE TABLE faculty_users (
     department_id INT NOT NULL REFERENCES departments(id) ON DELETE RESTRICT,
     email VARCHAR(150) NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
+    profile_image_url TEXT,
+    profile_image_public_id TEXT,
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
     terms_accepted BOOLEAN NOT NULL DEFAULT FALSE,
     last_login_at TIMESTAMP NULL,

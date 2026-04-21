@@ -6,6 +6,7 @@ const { signAccessToken } = require('../utils/jwt');
 const { validatePasswordPolicy } = require('../utils/passwordPolicy');
 const { generateResetCode, hashResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
+const cloudinary = require('../config/cloudinary');
 
 const getDepartments = async () => {
     const query = `
@@ -26,6 +27,7 @@ const sanitizeFaculty = (faculty) => ({
     status: faculty.status,
     department_id: faculty.department_id,
     department_name: faculty.department_name,
+    profile_image_url: faculty.profile_image_url,
     last_login_at: faculty.last_login_at,
     created_at: faculty.created_at
 });
@@ -127,6 +129,8 @@ const loginFaculty = async ({ email_or_employee_id, password }) => {
       fu.password_hash,
       fu.status,
       fu.department_id,
+      fu.profile_image_url,
+      fu.profile_image_public_id,
       fu.last_login_at,
       fu.created_at,
       d.department_name
@@ -186,6 +190,8 @@ const getCurrentFaculty = async (facultyId) => {
       fu.email,
       fu.status,
       fu.department_id,
+      fu.profile_image_url,
+      fu.profile_image_public_id,
       fu.last_login_at,
       fu.created_at,
       d.department_name
@@ -202,6 +208,142 @@ const getCurrentFaculty = async (facultyId) => {
     }
 
     return sanitizeFaculty(rows[0]);
+};
+
+const updateCurrentFacultyProfile = async (facultyId, payload) => {
+    const fullName = payload.full_name.trim();
+    const departmentId = Number(payload.department_id);
+
+    const departmentResult = await pool.query(
+        'SELECT id FROM departments WHERE id = $1',
+        [departmentId]
+    );
+
+    if (departmentResult.rowCount === 0) {
+        throw new AppError('Selected department does not exist.', 404);
+    }
+
+    const updateResult = await pool.query(
+        `UPDATE faculty_users
+         SET full_name = $2,
+             department_id = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1
+         RETURNING id`,
+        [facultyId, fullName, departmentId]
+    );
+
+    if (updateResult.rowCount === 0) {
+        throw new AppError('Faculty user not found.', 404);
+    }
+
+    return getCurrentFaculty(facultyId);
+};
+
+const uploadToCloudinary = (fileBuffer, facultyId) =>
+    new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: 'eduroute/faculty-profile-images',
+                public_id: `faculty-${facultyId}-${Date.now()}`,
+                overwrite: true,
+                resource_type: 'image',
+                transformation: [
+                    { width: 500, height: 500, crop: 'fill', gravity: 'face' },
+                    { quality: 'auto', fetch_format: 'auto' }
+                ]
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                return resolve(result);
+            }
+        );
+
+        uploadStream.end(fileBuffer);
+    });
+
+const updateCurrentFacultyProfileImage = async (facultyId, file) => {
+    if (!file) {
+        throw new AppError('Profile image is required.', 422);
+    }
+
+    const currentImageResult = await pool.query(
+        'SELECT profile_image_public_id FROM faculty_users WHERE id = $1',
+        [facultyId]
+    );
+    const uploadResult = await uploadToCloudinary(file.buffer, facultyId);
+
+    await pool.query(
+        `UPDATE faculty_users
+         SET profile_image_url = $2,
+             profile_image_public_id = $3,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [facultyId, uploadResult.secure_url, uploadResult.public_id]
+    );
+
+    const currentPublicId = currentImageResult.rows[0]?.profile_image_public_id;
+
+    if (currentPublicId) {
+        cloudinary.uploader.destroy(currentPublicId).catch((error) => {
+            console.error('Failed to remove old Cloudinary profile image:', error.message);
+        });
+    }
+
+    return getCurrentFaculty(facultyId);
+};
+
+const changeCurrentFacultyPassword = async (facultyId, payload) => {
+    const userResult = await pool.query(
+        `SELECT id, full_name, employee_id, email, password_hash, status
+         FROM faculty_users
+         WHERE id = $1
+         LIMIT 1`,
+        [facultyId]
+    );
+
+    if (userResult.rowCount === 0) {
+        throw new AppError('Faculty user not found.', 404);
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.status !== 'active') {
+        throw new AppError('This account is not active.', 403);
+    }
+
+    const currentPasswordMatches = await bcrypt.compare(payload.current_password, user.password_hash);
+
+    if (!currentPasswordMatches) {
+        throw new AppError('Current password is incorrect.', 400);
+    }
+
+    const passwordCheck = validatePasswordPolicy({
+        password: payload.new_password,
+        fullName: user.full_name,
+        employeeId: user.employee_id,
+        email: user.email
+    });
+
+    if (!passwordCheck.isValid) {
+        throw new AppError('Password policy validation failed', 422, passwordCheck.errors);
+    }
+
+    const sameAsCurrent = await bcrypt.compare(payload.new_password, user.password_hash);
+
+    if (sameAsCurrent) {
+        throw new AppError('New password must be different from the current password.', 422);
+    }
+
+    const newPasswordHash = await bcrypt.hash(payload.new_password, env.bcryptSaltRounds);
+
+    await pool.query(
+        `UPDATE faculty_users
+         SET password_hash = $2,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [facultyId, newPasswordHash]
+    );
 };
 
 const forgotPassword = async ({ email }) => {
@@ -386,6 +528,9 @@ module.exports = {
     registerFaculty,
     loginFaculty,
     getCurrentFaculty,
+    updateCurrentFacultyProfile,
+    updateCurrentFacultyProfileImage,
+    changeCurrentFacultyPassword,
     forgotPassword,
     verifyResetCode,
     resetPassword

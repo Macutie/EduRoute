@@ -61,11 +61,41 @@ const me = async (req, res, next) => {
     }
 };
 
+const updateMe = async (req, res, next) => {
+    try {
+        const user = await authService.updateCurrentFacultyProfile(req.user.sub, req.body);
+        return res.status(200).json(successResponse('Profile updated successfully.', user));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const updateProfileImage = async (req, res, next) => {
+    try {
+        const user = await authService.updateCurrentFacultyProfileImage(req.user.sub, req.file);
+        return res.status(200).json(successResponse('Profile picture updated successfully.', user));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const changePassword = async (req, res, next) => {
+    try {
+        await authService.changeCurrentFacultyPassword(req.user.sub, req.body);
+        return res.status(200).json(successResponse('Password changed successfully.'));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     register,
     login,
     forgotPassword,
     verifyResetCode,
     resetPassword,
-    me
+    me,
+    updateMe,
+    updateProfileImage,
+    changePassword
 };

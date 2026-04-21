@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import './App.css';
 import { API_BASE_URL } from './config';
 
+const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
+
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
   const [view, setView] = useState('login');
@@ -9,10 +11,10 @@ function App() {
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [departments, setDepartments] = useState([]);
   const [profileData, setProfileData] = useState({
-    fullName: 'Mr. Alex Nilo',
-    department: 'CCS',
-    email: 'a.nilo@eduroute.ac.edu',
-    image: '/profile_pic.png',
+    fullName: 'Faculty User',
+    department: 'Faculty Department',
+    email: '',
+    image: DEFAULT_PROFILE_IMAGE,
   });
 
   const [loginForm, setLoginForm] = useState({
@@ -40,6 +42,10 @@ function App() {
     confirm_password: '',
     terms_accepted: false
   });
+  const [showPermissionSetup, setShowPermissionSetup] = useState(false);
+  const [permissionSetupStep, setPermissionSetupStep] = useState('intro');
+  const [permissionSetupMessage, setPermissionSetupMessage] = useState('');
+  const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
 
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
 
@@ -113,6 +119,22 @@ function App() {
       body: JSON.stringify(payload)
     });
 
+  const permissionApiHeaders = () => ({
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  const fetchPermissionPreferencesApi = () =>
+    apiRequest('/api/permissions/me', {
+      headers: permissionApiHeaders(),
+    });
+
+  const updatePermissionPreferencesApi = (payload) =>
+    apiRequest('/api/permissions/me', {
+      method: 'PATCH',
+      headers: permissionApiHeaders(),
+      body: JSON.stringify(payload),
+    });
+
   useEffect(() => {
     const loadDepartments = async () => {
       if (view !== 'signup') return;
@@ -126,6 +148,66 @@ function App() {
     };
 
     loadDepartments();
+  }, [view]);
+
+  useEffect(() => {
+    localStorage.removeItem('profileImage');
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+
+    if (!token || isAuthView(view)) return;
+
+    const syncProfileFromDatabase = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) return;
+
+        setProfileData((prev) => ({
+          ...prev,
+          fullName: data.data.full_name || 'Faculty User',
+          department: data.data.department_name || 'Faculty Department',
+          email: data.data.email || '',
+          image: data.data.profile_image_url || DEFAULT_PROFILE_IMAGE,
+        }));
+      } catch (error) {
+        console.error('Failed to sync profile:', error);
+      }
+    };
+
+    syncProfileFromDatabase();
+  }, [view]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+
+    if (!token || view !== 'dashboard') return;
+
+    const loadPermissionSetup = async () => {
+      try {
+        const data = await fetchPermissionPreferencesApi();
+        const preferences = data.data;
+
+        if (!preferences?.first_login_setup_completed) {
+          setPermissionSetupStep('intro');
+          setPermissionSetupMessage('');
+          setShowPermissionSetup(true);
+        } else {
+          setShowPermissionSetup(false);
+        }
+      } catch (error) {
+        console.error('Failed to load permission setup:', error);
+      }
+    };
+
+    loadPermissionSetup();
   }, [view]);
 
   const handleRegister = async (e) => {
@@ -154,12 +236,96 @@ function App() {
     try {
       const data = await loginApi(loginForm);
       localStorage.setItem('token', data.data.token);
+      setProfileData((prev) => ({
+        ...prev,
+        fullName: data.data.user?.full_name || 'Faculty User',
+        department: data.data.user?.department_name || 'Faculty Department',
+        email: data.data.user?.email || '',
+        image: data.data.user?.profile_image_url || DEFAULT_PROFILE_IMAGE,
+      }));
       alert(formatApiMessage(data.message) || 'Login successful.');
       setView('dashboard');
     } catch (error) {
       alert(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('profileImage');
+    setShowPermissionSetup(false);
+    setPermissionSetupStep('intro');
+    setPermissionSetupMessage('');
+    setProfileData({
+      fullName: 'Faculty User',
+      department: 'Faculty Department',
+      email: '',
+      image: DEFAULT_PROFILE_IMAGE,
+    });
+    setView('login');
+  };
+
+  const finishPermissionSetup = async (notificationsStatus) => {
+    setPermissionSetupLoading(true);
+
+    try {
+      await updatePermissionPreferencesApi({
+        notifications_status: notificationsStatus,
+        first_login_setup_completed: true,
+      });
+      setShowPermissionSetup(false);
+      setPermissionSetupStep('intro');
+      setPermissionSetupMessage('');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setPermissionSetupLoading(false);
+    }
+  };
+
+  const handleMaybeLaterPermissions = () => {
+    finishPermissionSetup('dismissed');
+  };
+
+  const handleEnableNotificationPermission = async () => {
+    setPermissionSetupLoading(true);
+
+    try {
+      let notificationStatus = 'unsupported';
+
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          notificationStatus = 'granted';
+        } else if (Notification.permission === 'denied') {
+          notificationStatus = 'denied';
+        } else {
+          const browserPermission = await Notification.requestPermission();
+          notificationStatus = browserPermission === 'default' ? 'dismissed' : browserPermission;
+        }
+      }
+
+      await updatePermissionPreferencesApi({
+        notifications_status: notificationStatus,
+        first_login_setup_completed: true,
+      });
+
+      if (notificationStatus === 'granted') {
+        setPermissionSetupMessage('Approval alerts are enabled for this browser. You can manage this later in Privacy & Security.');
+      } else if (notificationStatus === 'denied') {
+        setPermissionSetupMessage('Notifications are blocked in this browser. You can re-enable them from your browser or device site settings.');
+      } else if (notificationStatus === 'dismissed') {
+        setPermissionSetupMessage('No problem. EduRoute will still show alerts while the portal is open. You can enable notifications later in Privacy & Security.');
+      } else {
+        setPermissionSetupMessage('This browser does not support web notifications. You can still check approvals inside EduRoute.');
+      }
+
+      setPermissionSetupStep('result');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setPermissionSetupLoading(false);
     }
   };
 
@@ -356,16 +522,16 @@ function App() {
         />
       )}
 
-      {view === 'dashboard' && <DashboardView setView={setView} />}
-      {view === 'scan' && <ScanView setView={setView} />}
-      {view === 'locator-slip' && <LocatorSlipView setView={setView} />}
-      {view === 'updates' && <UpdatesView setView={setView} />}
-      {view === 'route-approved' && <RouteApprovedView setView={setView} />}
-      {view === 'slip-submitted' && <SlipSubmittedView setView={setView} />}
-      {view === 'map' && <MapTrackingView setView={setView} />}
-      {view === 'profile' && <ProfileView setView={setView} profileData={profileData} />}
-      {view === 'change-password' && <ChangePasswordView setView={setView} />}
-      {view === 'notification-settings' && <NotificationSettingsView setView={setView} />}
+      {view === 'dashboard' && <DashboardView setView={setView} profileData={profileData} />}
+      {view === 'scan' && <ScanView setView={setView} profileData={profileData} />}
+      {view === 'locator-slip' && <LocatorSlipView setView={setView} profileData={profileData} />}
+      {view === 'updates' && <UpdatesView setView={setView} profileData={profileData} />}
+      {view === 'route-approved' && <RouteApprovedView setView={setView} profileData={profileData} />}
+      {view === 'slip-submitted' && <SlipSubmittedView setView={setView} profileData={profileData} />}
+      {view === 'map' && <MapTrackingView setView={setView} profileData={profileData} />}
+      {view === 'profile' && <ProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'change-password' && <ChangePasswordView setView={setView} profileData={profileData} />}
+      {view === 'notification-settings' && <NotificationSettingsView setView={setView} profileData={profileData} />}
       {view === 'edit-profile' && (
         <EditProfileView
           setView={setView}
@@ -373,7 +539,7 @@ function App() {
           setProfileData={setProfileData}
         />
       )}
-      {view === 'privacy-security' && <PrivacySecurityView setView={setView} />}
+      {view === 'privacy-security' && <PrivacySecurityView setView={setView} profileData={profileData} />}
 
       {isAuthView(view) && (
         <div
@@ -400,9 +566,94 @@ function App() {
           />
         </div>
       )}
+
+      {showPermissionSetup && (
+        <PermissionSetupModal
+          step={permissionSetupStep}
+          message={permissionSetupMessage}
+          loading={permissionSetupLoading}
+          onShowExplainer={() => setPermissionSetupStep('notifications')}
+          onEnableNotifications={handleEnableNotificationPermission}
+          onMaybeLater={handleMaybeLaterPermissions}
+          onClose={() => setShowPermissionSetup(false)}
+        />
+      )}
     </div>
   );
 }
+
+const PermissionSetupModal = ({
+  step,
+  message,
+  loading,
+  onShowExplainer,
+  onEnableNotifications,
+  onMaybeLater,
+  onClose,
+}) => {
+  const isIntro = step === 'intro';
+  const isResult = step === 'result';
+
+  return (
+    <div className="permission-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="permission-modal-card">
+        <div className="permission-modal-glow" />
+        <div className="permission-modal-icon">
+          <NotificationIcon color="var(--green)" />
+        </div>
+
+        {isIntro && (
+          <>
+            <span className="permission-modal-kicker">FIRST LOGIN SETUP</span>
+            <h2 className="permission-modal-title">Stay Updated on Approvals</h2>
+            <p className="permission-modal-copy">
+              EduRoute can notify you when locator slips, approvals, and request updates need your attention, even when the portal is closed.
+            </p>
+            <div className="permission-modal-note">
+              We will ask for notifications first. Location, camera, and photos are only requested later when you use those features.
+            </div>
+            <button type="button" className="permission-primary-btn" onClick={onShowExplainer} disabled={loading}>
+              Enable alerts
+            </button>
+            <button type="button" className="permission-ghost-btn" onClick={onMaybeLater} disabled={loading}>
+              Maybe later
+            </button>
+          </>
+        )}
+
+        {step === 'notifications' && (
+          <>
+            <span className="permission-modal-kicker">APPROVAL ALERTS</span>
+            <h2 className="permission-modal-title">Allow EduRoute Notifications?</h2>
+            <p className="permission-modal-copy">
+              You will receive faculty approval and request alerts on this device. EduRoute will not use notifications for ads or unrelated messages.
+            </p>
+            <div className="permission-modal-note">
+              Your browser will show its own permission popup after you click Enable now.
+            </div>
+            <button type="button" className="permission-primary-btn" onClick={onEnableNotifications} disabled={loading}>
+              {loading ? 'Opening permission...' : 'Enable now'}
+            </button>
+            <button type="button" className="permission-ghost-btn" onClick={onMaybeLater} disabled={loading}>
+              Not now
+            </button>
+          </>
+        )}
+
+        {isResult && (
+          <>
+            <span className="permission-modal-kicker">SETUP SAVED</span>
+            <h2 className="permission-modal-title">Notification Preference Updated</h2>
+            <p className="permission-modal-copy">{message}</p>
+            <button type="button" className="permission-primary-btn" onClick={onClose}>
+              Continue to dashboard
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
 
 const MapIcon = () => (
   <svg width="36" height="36" viewBox="0 0 27 27" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -633,6 +884,73 @@ const PrivacyIcon = ({ color = "currentColor" }) => (
     <circle cx="12" cy="11" r="3"></circle>
   </svg>
 );
+
+const ShieldSearchIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4.2 8-10.5V5.5L12 2 4 5.5v6C4 17.8 12 22 12 22z" />
+    <circle cx="11" cy="11" r="3.2" />
+    <path d="M13.4 13.4L16.5 16.5" />
+  </svg>
+);
+
+const QuestionCircleIcon = ({ color = "currentColor" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9.5" />
+    <path d="M9.7 9.2C10.1 7.9 11.1 7 12.6 7c1.7 0 2.9 1.1 2.9 2.6 0 1.9-2.5 2.4-3.1 4.1" />
+    <path d="M12.3 17h.01" />
+  </svg>
+);
+
+const LEGAL_DOCUMENTS = {
+  terms: {
+    title: 'Terms and Conditions',
+    body: 'EduRoute is intended for official faculty routing, locator slip submission, and school-approved coordination. Faculty users are responsible for keeping account credentials private and submitting accurate travel information.'
+  },
+  privacy: {
+    title: 'Privacy Policy',
+    body: 'EduRoute stores registered faculty details, permission preferences, profile updates, and locator slip records only for school portal operations. Sensitive permissions are requested only when a feature needs them.'
+  },
+  dataFaq: {
+    title: 'Data Usage FAQ',
+    body: 'Notifications support approval alerts. Location is used only for route-related features. Camera and photo access are used only for profile pictures or document-related actions.'
+  }
+};
+
+const LegalDocumentModal = ({ activeLegalDoc, onClose }) => {
+  if (!activeLegalDoc) return null;
+
+  const legalDoc = LEGAL_DOCUMENTS[activeLegalDoc];
+
+  return (
+    <div className="priv-legal-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="priv-legal-modal-card">
+        <div className="priv-legal-modal-icon">
+          {activeLegalDoc === 'privacy' && <ShieldSearchIcon color="var(--green)" />}
+          {activeLegalDoc === 'dataFaq' && <QuestionCircleIcon color="var(--green)" />}
+          {activeLegalDoc === 'terms' && <FileTextIcon color="var(--green)" />}
+        </div>
+        <h2>{legalDoc.title}</h2>
+        <div className="priv-legal-modal-scroll">
+          <p>{legalDoc.body}</p>
+          <p>
+            Authorized access is limited to registered Gordon College faculty users. Keep your password secure, submit accurate account and locator slip information, and use EduRoute only for official school-related coordination.
+          </p>
+          <p>
+            EduRoute may update these guidelines as the academic portal grows. Continued use of the portal means you agree to follow current faculty data, security, and acceptable-use rules.
+          </p>
+        </div>
+        <button type="button" className="priv-legal-modal-btn" onClick={onClose}>
+          Go Back <ArrowRightIcon />
+        </button>
+        <div className="priv-legal-modal-pager">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const LogoutIcon = ({ color = "currentColor" }) => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1228,6 +1546,7 @@ const SetNewPasswordView = ({
 const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onRegister, loading }) => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+  const [activeLegalDoc, setActiveLegalDoc] = useState(null);
 
   const signupPasswordPolicy = useMemo(() => {
     const password = registerForm.password;
@@ -1264,175 +1583,187 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
   };
 
   return (
-  <div className="content fade-in signup-content">
-    <form className="card signup-card" onSubmit={handleSignupSubmit}>
-      <div className="signup-header">
-        <h1>Create Faculty<br />Account</h1>
-        <p>Please enter your institutional details to begin.</p>
-      </div>
-
-      <div className="input-group">
-        <label>FULL NAME</label>
-        <div className="input-wrapper plain-input-wrapper">
-          <input
-            type="text"
-            placeholder="Dr. Julian Vane"
-            value={registerForm.full_name}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
-            }
-          />
+    <div className="content fade-in signup-content">
+      <form className="card signup-card" onSubmit={handleSignupSubmit}>
+        <div className="signup-header">
+          <h1>Create Faculty<br />Account</h1>
+          <p>Please enter your institutional details to begin.</p>
         </div>
-      </div>
 
-      <div className="input-group">
-        <label>EMPLOYEE ID</label>
-        <div className="input-wrapper plain-input-wrapper">
-          <input
-            type="text"
-            placeholder="FAC-88920"
-            value={registerForm.employee_id}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="input-group">
-        <label>DEPARTMENT</label>
-        <div className="input-wrapper plain-input-wrapper select-wrapper">
-          <select
-            value={registerForm.department_id}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
-            }
-          >
-            <option value="" disabled>Select Department</option>
-            {departments.map((dept) => (
-              <option key={dept.id} value={dept.id}>
-                {dept.department_name}
-              </option>
-            ))}
-          </select>
-          <div className="select-icon">
-            <ChevronDownIcon />
+        <div className="input-group">
+          <label>FULL NAME</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type="text"
+              placeholder="Dr. Julian Vane"
+              value={registerForm.full_name}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
+              }
+            />
           </div>
         </div>
-      </div>
 
-      <div className="input-group">
-        <label>EMAIL ADDRESS</label>
-        <div className="input-wrapper plain-input-wrapper">
-          <input
-            type="email"
-            placeholder="faculty@university.edu"
-            value={registerForm.email}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
-            }
-          />
-        </div>
-      </div>
-
-      <div className="password-policy-card">
-        <div className="policy-heading">
-          <PolicyBulbIcon />
-          <span>PASSWORD POLICY</span>
-        </div>
-        <div className="policy-list">
-          <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
-            <span>Minimum 10 characters</span>
-          </div>
-          <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
-            <span>Include symbols &amp; numbers</span>
-          </div>
-          <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
-            <span>No personal information</span>
+        <div className="input-group">
+          <label>EMPLOYEE ID</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type="text"
+              placeholder="FAC-88920"
+              value={registerForm.employee_id}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
+              }
+            />
           </div>
         </div>
-      </div>
 
-      <div className="input-group">
-        <label>PASSWORD</label>
-        <div className="input-wrapper plain-input-wrapper">
+        <div className="input-group">
+          <label>DEPARTMENT</label>
+          <div className="input-wrapper plain-input-wrapper select-wrapper">
+            <select
+              value={registerForm.department_id}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+              }
+            >
+              <option value="" disabled>Select Department</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.department_name}
+                </option>
+              ))}
+            </select>
+            <div className="select-icon">
+              <ChevronDownIcon />
+            </div>
+          </div>
+        </div>
+
+        <div className="input-group">
+          <label>EMAIL ADDRESS</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type="email"
+              placeholder="faculty@university.edu"
+              value={registerForm.email}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+              }
+            />
+          </div>
+        </div>
+
+        <div className="password-policy-card">
+          <div className="policy-heading">
+            <PolicyBulbIcon />
+            <span>PASSWORD POLICY</span>
+          </div>
+          <div className="policy-list">
+            <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
+              <span>Minimum 10 characters</span>
+            </div>
+            <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
+              <span>Include symbols &amp; numbers</span>
+            </div>
+            <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
+              <span>No personal information</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="input-group">
+          <label>PASSWORD</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type={showSignupPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={registerForm.password}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+              }
+            />
+            <button
+              type="button"
+              className="signup-eye-btn"
+              aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+              onClick={() => setShowSignupPassword((prev) => !prev)}
+            >
+              {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </div>
+
+        <div className="input-group">
+          <label>CONFIRM PASSWORD</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type={showSignupConfirmPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={registerForm.confirm_password}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+              }
+            />
+            <button
+              type="button"
+              className="signup-eye-btn"
+              aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
+            >
+              {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </div>
+
+        <label className="checkbox-container">
           <input
-            type={showSignupPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={registerForm.password}
+            type="checkbox"
+            checked={registerForm.terms_accepted}
             onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+              setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
             }
           />
-          <button
-            type="button"
-            className="signup-eye-btn"
-            aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-            onClick={() => setShowSignupPassword((prev) => !prev)}
-          >
-            {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
+          <span className="checkmark"></span>
+          <span className="checkbox-label">
+            I agree to the{' '}
+            <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
+              Terms of Service
+            </button>{' '}
+            and{' '}
+            <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
+              Privacy Policy
+            </button>.
+          </span>
+        </label>
+
+        <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
+          {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
+        </button>
+
+        <div className="signup-footer-link">
+          Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+        </div>
+      </form>
+
+      <div className="signup-brand-footer">
+        <div className="signup-footer-logo">
+          <CapIcon color="white" />
+        </div>
+        <div className="footer-text signup-footer-text">
+          <span className="footer-developed">DEVELOPED BY</span>
+          <span className="footer-brand">ARCHONS</span>
         </div>
       </div>
 
-      <div className="input-group">
-        <label>CONFIRM PASSWORD</label>
-        <div className="input-wrapper plain-input-wrapper">
-          <input
-            type={showSignupConfirmPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={registerForm.confirm_password}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
-            }
-          />
-          <button
-            type="button"
-            className="signup-eye-btn"
-            aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-            onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
-          >
-            {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-          </button>
-        </div>
-      </div>
-
-      <label className="checkbox-container">
-        <input
-          type="checkbox"
-          checked={registerForm.terms_accepted}
-          onChange={(e) =>
-            setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
-          }
-        />
-        <span className="checkmark"></span>
-        <span className="checkbox-label">
-          I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
-        </span>
-      </label>
-
-      <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
-        {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
-      </button>
-
-      <div className="signup-footer-link">
-        Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
-      </div>
-    </form>
-
-    <div className="signup-brand-footer">
-      <div className="signup-footer-logo">
-        <CapIcon color="white" />
-      </div>
-      <div className="footer-text signup-footer-text">
-        <span className="footer-developed">DEVELOPED BY</span>
-        <span className="footer-brand">ARCHONS</span>
-      </div>
+      <LegalDocumentModal
+        activeLegalDoc={activeLegalDoc}
+        onClose={() => setActiveLegalDoc(null)}
+      />
     </div>
-  </div>
   );
 };
 
@@ -1499,7 +1830,40 @@ const BottomNav = ({ active = 'home', setView }) => (
   </div>
 );
 
-const DashboardView = ({ setView }) => (
+const DashboardView = ({ setView, profileData }) => {
+  const [facultyProfile, setFacultyProfile] = useState(null);
+
+  useEffect(() => {
+    const loadDashboardProfile = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+          setFacultyProfile(data.data);
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard profile:', error);
+      }
+    };
+
+    loadDashboardProfile();
+  }, []);
+
+  const hour = new Date().getHours();
+  const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'night';
+  const registeredName = facultyProfile?.full_name || profileData.fullName || '';
+  const firstName = registeredName
+    .replace(/^(dr|prof|mr|mrs|ms)\.?\s+/i, '')
+    .trim()
+    .split(/\s+/)[0] || 'Professor';
+  const departmentLabel = facultyProfile?.department_name || profileData.department || 'Faculty Department';
+
+  return (
   <div className="dashboard-wrapper">
     <div className="content fade-in dash-content">
 
@@ -1509,15 +1873,15 @@ const DashboardView = ({ setView }) => (
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
-          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
 
       <div className="dash-header">
-        <p>Good morning, Prof. Juan</p>
+        <p>Good {dayPart}, Prof. {firstName}</p>
         <h1>Faculty Dashboard</h1>
         <div className="dept-pill">
-          <CapIcon color="var(--green)" outline={true} /> COMPUTER SCIENCE DEPT.
+          <CapIcon color="var(--green)" outline={true} /> {departmentLabel.toUpperCase()}
         </div>
       </div>
 
@@ -1599,10 +1963,208 @@ const DashboardView = ({ setView }) => (
     </div>
     <BottomNav active="home" setView={setView} />
   </div>
-);
+  );
+};
 
-const LocatorSlipView = ({ setView }) => {
-  const [purpose, setPurpose] = useState('');
+const LOCATOR_PURPOSE_OPTIONS = [
+  'Official Meeting/Conference',
+  'Submission/Retrieval of Documents',
+  'Coordination/Consultation',
+  'Field Inspection/Monitoring',
+  'Others',
+];
+
+const toDateTimeLocalValue = (date) => {
+  const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return offsetDate.toISOString().slice(0, 16);
+};
+
+const LocatorSlipView = ({ setView, profileData }) => {
+  const [facultyProfile, setFacultyProfile] = useState(null);
+  const [locatorSlipLoading, setLocatorSlipLoading] = useState(false);
+  const [locatorSlipErrors, setLocatorSlipErrors] = useState({});
+  const [currentDateTimeLocal, setCurrentDateTimeLocal] = useState(() => toDateTimeLocalValue(new Date()));
+  const [locatorSlipForm, setLocatorSlipForm] = useState({
+    destination: '',
+    purpose_of_travel: '',
+    custom_purpose: '',
+    departure_datetime: '',
+    expected_return_datetime: '',
+    additional_remarks: '',
+  });
+
+  const locatorSlipValidation = useMemo(() => {
+    const errors = {};
+    const now = new Date(currentDateTimeLocal);
+    const departureTime = locatorSlipForm.departure_datetime
+      ? new Date(locatorSlipForm.departure_datetime).getTime()
+      : null;
+    const returnTime = locatorSlipForm.expected_return_datetime
+      ? new Date(locatorSlipForm.expected_return_datetime).getTime()
+      : null;
+
+    if (!locatorSlipForm.destination.trim()) {
+      errors.destination = 'Destination is required.';
+    }
+
+    if (!locatorSlipForm.purpose_of_travel) {
+      errors.purpose_of_travel = 'Purpose of travel is required.';
+    }
+
+    if (locatorSlipForm.purpose_of_travel === 'Others' && !locatorSlipForm.custom_purpose.trim()) {
+      errors.custom_purpose = 'Please specify your purpose.';
+    }
+
+    if (!locatorSlipForm.departure_datetime) {
+      errors.departure_datetime = 'Departure date and time is required.';
+    } else if (Number.isNaN(departureTime)) {
+      errors.departure_datetime = 'Departure date and time is invalid.';
+    } else if (departureTime < now.getTime()) {
+      errors.departure_datetime = 'Unallowed time input: departure time has already passed. Please choose a departure time later than the current time.';
+    }
+
+    if (!locatorSlipForm.expected_return_datetime) {
+      errors.expected_return_datetime = 'Expected return date and time is required.';
+    } else if (Number.isNaN(returnTime)) {
+      errors.expected_return_datetime = 'Expected return date and time is invalid.';
+    } else if (returnTime < now.getTime()) {
+      errors.expected_return_datetime = 'Unallowed time input: expected return time has already passed. Please choose a return time later than the current time.';
+    } else if (
+      locatorSlipForm.departure_datetime &&
+      !Number.isNaN(departureTime) &&
+      returnTime <= departureTime
+    ) {
+      errors.expected_return_datetime = 'Unallowed time input: expected return is earlier than or equal to the departure time. Please choose a return time after departure.';
+    }
+
+    if (locatorSlipForm.additional_remarks.length > 1000) {
+      errors.additional_remarks = 'Additional remarks must not exceed 1000 characters.';
+    }
+
+    return errors;
+  }, [currentDateTimeLocal, locatorSlipForm]);
+
+  const canSubmitLocatorSlip =
+    facultyProfile &&
+    Object.keys(locatorSlipValidation).length === 0 &&
+    !locatorSlipLoading;
+
+  const getAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  const formatApiError = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatApiError).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatApiError).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const fetchLocatorSlipJson = async (endpoint, options = {}) => {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        ...getAuthHeaders(),
+        ...(options.headers || {}),
+      },
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(formatApiError(data.errors) || formatApiError(data.message) || 'Request failed.');
+    }
+
+    return data;
+  };
+
+  useEffect(() => {
+    const loadFacultyProfile = async () => {
+      setLocatorSlipLoading(true);
+      try {
+        const data = await fetchLocatorSlipJson('/api/locator-slips/faculty-profile');
+        setFacultyProfile(data.data);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setLocatorSlipLoading(false);
+      }
+    };
+
+    loadFacultyProfile();
+  }, []);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentDateTimeLocal(toDateTimeLocalValue(new Date()));
+    }, 30000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const updateLocatorSlipField = (field, value) => {
+    setLocatorSlipForm((prev) => ({
+      ...prev,
+      [field]: value,
+      ...(field === 'purpose_of_travel' && value !== 'Others' ? { custom_purpose: '' } : {}),
+    }));
+    setLocatorSlipErrors((prev) => ({
+      ...prev,
+      [field]: undefined,
+      ...(field === 'departure_datetime' ? { expected_return_datetime: undefined } : {}),
+    }));
+  };
+
+  const handleLocatorSlipSubmit = async () => {
+    setLocatorSlipErrors(locatorSlipValidation);
+
+    if (!canSubmitLocatorSlip) return;
+
+    setLocatorSlipLoading(true);
+    try {
+      const data = await fetchLocatorSlipJson('/api/locator-slips', {
+        method: 'POST',
+        body: JSON.stringify(locatorSlipForm),
+      });
+      alert(data.message);
+      setView('updates');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLocatorSlipLoading(false);
+    }
+  };
+
+  const visibleLocatorSlipErrors = {
+    ...locatorSlipErrors,
+    ...locatorSlipValidation,
+  };
+
+  const timeWarningFields = new Set(['departure_datetime', 'expected_return_datetime']);
+  const locatorSlipTimeWarnings = [
+    visibleLocatorSlipErrors.departure_datetime && locatorSlipForm.departure_datetime
+      ? visibleLocatorSlipErrors.departure_datetime
+      : null,
+    visibleLocatorSlipErrors.expected_return_datetime && locatorSlipForm.expected_return_datetime
+      ? visibleLocatorSlipErrors.expected_return_datetime
+      : null,
+  ].filter(Boolean);
+
+  const renderLocatorSlipMessage = (field) => {
+    const message = visibleLocatorSlipErrors[field];
+
+    if (!message) return null;
+
+    return (
+      <span className={timeWarningFields.has(field) ? 'field-warning' : 'field-error'}>
+        {timeWarningFields.has(field) && <span className="field-warning-icon">!</span>}
+        {message}
+      </span>
+    );
+  };
 
   return (
     <div className="dashboard-wrapper">
@@ -1614,7 +2176,7 @@ const LocatorSlipView = ({ setView }) => {
             <span className="dash-logo-text">EduRoute</span>
           </div>
           <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
-            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
 
@@ -1633,15 +2195,15 @@ const LocatorSlipView = ({ setView }) => {
           </div>
           <div className="credential-field">
             <span className="cred-label">FULL NAME</span>
-            <span className="cred-value">Dr. Alex Nilo</span>
+            <span className="cred-value">{facultyProfile?.full_name || 'Loading...'}</span>
           </div>
           <div className="credential-field">
             <span className="cred-label">EMPLOYEE ID</span>
-            <span className="cred-value">FAC-2024-0891</span>
+            <span className="cred-value">{facultyProfile?.employee_id || 'Loading...'}</span>
           </div>
           <div className="credential-field">
             <span className="cred-label">DEPARTMENT</span>
-            <span className="cred-value">College of Computer Science</span>
+            <span className="cred-value">{facultyProfile?.department_name || 'Loading...'}</span>
           </div>
         </div>
 
@@ -1657,60 +2219,109 @@ const LocatorSlipView = ({ setView }) => {
             <label>Destination</label>
             <div className="trip-input-wrapper">
               <LocationPinIcon color="var(--text-light)" />
-              <input type="text" placeholder="Where are you heading?" />
+              <input
+                type="text"
+                placeholder="Where are you heading?"
+                value={locatorSlipForm.destination}
+                onChange={(e) => updateLocatorSlipField('destination', e.target.value)}
+              />
             </div>
+            {renderLocatorSlipMessage('destination')}
           </div>
 
           <div className="trip-field">
             <label>Purpose of Travel</label>
             <div className="trip-input-wrapper trip-select-wrapper">
               <DocumentIcon color="var(--text-light)" width="18" height="18" />
-              <select value={purpose} onChange={(e) => setPurpose(e.target.value)}>
+              <select
+                value={locatorSlipForm.purpose_of_travel}
+                onChange={(e) => updateLocatorSlipField('purpose_of_travel', e.target.value)}
+              >
                 <option value="" disabled hidden>Select purpose...</option>
-                <option value="meeting">Official Meeting/Conference</option>
-                <option value="documents">Submission/Retrieval of Documents</option>
-                <option value="coordination">Coordination/Consultation</option>
-                <option value="inspection">Field Inspection/Monitoring</option>
-                <option value="others">Others (Put own purpose)</option>
+                {LOCATOR_PURPOSE_OPTIONS.map((option) => (
+                  <option key={option} value={option}>{option}</option>
+                ))}
               </select>
               <div className="select-icon trip-chevron">
                 <ChevronDownIcon />
               </div>
             </div>
-            {purpose === 'others' && (
+            {renderLocatorSlipMessage('purpose_of_travel')}
+            {locatorSlipForm.purpose_of_travel === 'Others' && (
               <div className="trip-input-wrapper others-input" style={{ marginTop: '12px' }}>
                 <DocumentIcon color="var(--text-light)" width="18" height="18" />
-                <input type="text" placeholder="Please specify your purpose..." />
+                <input
+                  type="text"
+                  placeholder="Please specify your purpose..."
+                  value={locatorSlipForm.custom_purpose}
+                  onChange={(e) => updateLocatorSlipField('custom_purpose', e.target.value)}
+                />
               </div>
             )}
+            {renderLocatorSlipMessage('custom_purpose')}
           </div>
 
           <div className="trip-field">
             <label>Departure</label>
-            <div className="trip-input-wrapper">
+            <div className={`trip-input-wrapper ${visibleLocatorSlipErrors.departure_datetime && locatorSlipForm.departure_datetime ? 'has-warning' : ''}`}>
               <ClockIcon color="var(--text-light)" />
-              <input type="datetime-local" className="datetime-input" />
+              <input
+                type="datetime-local"
+                className="datetime-input"
+                value={locatorSlipForm.departure_datetime}
+                onChange={(e) => updateLocatorSlipField('departure_datetime', e.target.value)}
+              />
             </div>
+            {renderLocatorSlipMessage('departure_datetime')}
           </div>
 
           <div className="trip-field">
             <label>Expected Return</label>
-            <div className="trip-input-wrapper">
+            <div className={`trip-input-wrapper ${visibleLocatorSlipErrors.expected_return_datetime && locatorSlipForm.expected_return_datetime ? 'has-warning' : ''}`}>
               <RefreshClockIcon color="var(--text-light)" />
-              <input type="datetime-local" className="datetime-input" />
+              <input
+                type="datetime-local"
+                className="datetime-input"
+                value={locatorSlipForm.expected_return_datetime}
+                onChange={(e) => updateLocatorSlipField('expected_return_datetime', e.target.value)}
+              />
             </div>
+            {renderLocatorSlipMessage('expected_return_datetime')}
           </div>
 
           <div className="trip-field">
             <label>Additional Remarks (Optional)</label>
             <div className="trip-textarea-wrapper">
-              <textarea placeholder="Any specific details or contact info during the trip..." rows={3} />
+              <textarea
+                placeholder="Any specific details or contact info during the trip..."
+                rows={3}
+                value={locatorSlipForm.additional_remarks}
+                onChange={(e) => updateLocatorSlipField('additional_remarks', e.target.value)}
+              />
             </div>
+            {renderLocatorSlipMessage('additional_remarks')}
           </div>
         </div>
 
-        <button type="button" className="primary-btn slip-submit-btn" onClick={() => setView('updates')}>
-          <SendIcon /> SUBMIT REQUEST
+        {locatorSlipTimeWarnings.length > 0 && (
+          <div className="locator-time-warning-card" role="alert">
+            <div className="locator-time-warning-icon">!</div>
+            <div>
+              <h4>Time check needed</h4>
+              {locatorSlipTimeWarnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="primary-btn slip-submit-btn"
+          disabled={!canSubmitLocatorSlip}
+          onClick={handleLocatorSlipSubmit}
+        >
+          <SendIcon /> {locatorSlipLoading ? 'SUBMITTING...' : 'SUBMIT REQUEST'}
         </button>
 
         <button type="button" className="slip-cancel-btn" onClick={() => setView('dashboard')}>
@@ -1723,7 +2334,7 @@ const LocatorSlipView = ({ setView }) => {
   );
 };
 
-const UpdatesView = ({ setView }) => (
+const UpdatesView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper" style={{ background: '#F9FAFB' }}>
     <div className="content fade-in dash-content updates-content">
       <div className="slip-top-nav" style={{ borderBottom: '1px solid #F3F4F6' }}>
@@ -1732,7 +2343,7 @@ const UpdatesView = ({ setView }) => (
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar">
-          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
 
@@ -1765,7 +2376,7 @@ const UpdatesView = ({ setView }) => (
   </div>
 );
 
-const RouteApprovedView = ({ setView }) => (
+const RouteApprovedView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper" style={{ background: '#F9FAFB' }}>
     <div className="content fade-in dash-content">
       <div className="slip-top-nav" style={{ borderBottom: '1px solid #F3F4F6' }}>
@@ -1774,7 +2385,7 @@ const RouteApprovedView = ({ setView }) => (
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar">
-          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
 
@@ -1829,7 +2440,7 @@ const RouteApprovedView = ({ setView }) => (
   </div>
 );
 
-const MapTrackingView = ({ setView }) => (
+const MapTrackingView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper map-view-wrapper">
     <div className="map-bg-container">
       <img src="/Map view.png" alt="Map Route" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1841,7 +2452,7 @@ const MapTrackingView = ({ setView }) => (
         <span className="nav-title">Active Journey</span>
       </div>
       <div className="dash-avatar" onClick={() => setView('profile')} style={{ background: '#E8F5E9', padding: '2px' }}>
-        <img src="/profile_pic.png" alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+        <img src={profileData.image} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
       </div>
     </div>
 
@@ -1907,8 +2518,51 @@ const DEPT_NAMES = {
   CAHS: 'College of Allied Health Studies',
 };
 
-const ProfileView = ({ setView, profileData }) => {
+const ProfileView = ({ setView, profileData, onLogout }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [facultyProfile, setFacultyProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  const formatProfileApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatProfileApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatProfileApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  useEffect(() => {
+    const loadFacultyProfile = async () => {
+      setProfileLoading(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(formatProfileApiMessage(data.errors) || formatProfileApiMessage(data.message) || 'Failed to load profile.');
+        }
+
+        setFacultyProfile(data.data);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    loadFacultyProfile();
+  }, []);
+
+  const displayName = facultyProfile?.full_name || (profileLoading ? 'Loading...' : profileData.fullName);
+  const displayDepartment = facultyProfile?.department_name || (profileLoading ? 'Loading...' : profileData.department);
+  const displayEmployeeId = facultyProfile?.employee_id || (profileLoading ? 'Loading...' : 'Unavailable');
 
   return (
     <div className="dashboard-wrapper">
@@ -1935,12 +2589,12 @@ const ProfileView = ({ setView, profileData }) => {
             <div className="faculty-badge">FACULTY</div>
           </div>
 
-          <h1 className="profile-name">{profileData.fullName}</h1>
-          <p className="profile-dept">{DEPT_NAMES[profileData.department] || profileData.department}</p>
+          <h1 className="profile-name">{displayName}</h1>
+          <p className="profile-dept">{displayDepartment}</p>
 
           <div className="profile-id-pill">
             <IdBadgeIcon color="currentColor" />
-            <span>ID: EDU-2024-8891</span>
+            <span>ID: {displayEmployeeId}</span>
           </div>
         </div>
 
@@ -2009,7 +2663,7 @@ const ProfileView = ({ setView, profileData }) => {
               You will be securely logged out of the <span className="text-green">EduRoute Faculty Portal</span>. Any unsaved academic progress may be lost.
             </p>
 
-            <button className="logout-confirm-btn" onClick={() => setView('login')}>
+            <button className="logout-confirm-btn" onClick={onLogout}>
               Yes, Logout <ArrowRightIcon color="white" />
             </button>
             <button className="logout-cancel-btn" onClick={() => setShowLogoutModal(false)}>
@@ -2028,7 +2682,7 @@ const ProfileView = ({ setView, profileData }) => {
   );
 };
 
-const ScanView = ({ setView }) => (
+const ScanView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper scan-wrapper">
     <div className="content fade-in dash-content">
 
@@ -2040,7 +2694,7 @@ const ScanView = ({ setView }) => (
         <div className="scan-nav-right">
           <FlashlightIcon color="white" />
           <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer', marginLeft: '16px' }}>
-            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
       </div>
@@ -2082,7 +2736,7 @@ const ScanView = ({ setView }) => (
   </div>
 );
 
-const SlipSubmittedView = ({ setView }) => (
+const SlipSubmittedView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper submitted-wrapper">
     <div className="content fade-in dash-content">
 
@@ -2092,7 +2746,7 @@ const SlipSubmittedView = ({ setView }) => (
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
-          <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
 
@@ -2202,13 +2856,14 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const ChangePasswordView = ({ setView }) => {
+const ChangePasswordView = ({ setView, profileData }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
+  const [changePasswordLoading, setChangePasswordLoading] = useState(false);
 
   const personalInfo = ['alex', 'nilo', 'eduroute', 'edu-2024', '8891'];
 
@@ -2223,6 +2878,53 @@ const ChangePasswordView = ({ setView }) => {
 
   const allPoliciesMet = policy.minLength && policy.symbolsNumbers && policy.noPersonal;
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
+  const canUpdatePassword = allPoliciesMet && passwordsMatch && currentPassword.length > 0 && !changePasswordLoading;
+
+  const formatChangePasswordApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatChangePasswordApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatChangePasswordApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const handleChangePassword = async () => {
+    if (!canUpdatePassword) return;
+
+    setChangePasswordLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+          confirm_password: confirmPassword,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatChangePasswordApiMessage(data.errors) || formatChangePasswordApiMessage(data.message) || 'Failed to change password.');
+      }
+
+      alert(formatChangePasswordApiMessage(data.message) || 'Password changed successfully.');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setView('profile');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setChangePasswordLoading(false);
+    }
+  };
 
   return (
     <div className="dashboard-wrapper">
@@ -2234,7 +2936,7 @@ const ChangePasswordView = ({ setView }) => {
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
 
@@ -2331,15 +3033,15 @@ const ChangePasswordView = ({ setView }) => {
 
         <button
           type="button"
-          className={`chpw-update-btn ${allPoliciesMet && passwordsMatch && currentPassword.length > 0 ? 'active' : ''}`}
-          disabled={!(allPoliciesMet && passwordsMatch && currentPassword.length > 0)}
-          onClick={() => setView('profile')}
+          className={`chpw-update-btn ${canUpdatePassword ? 'active' : ''}`}
+          disabled={!canUpdatePassword}
+          onClick={handleChangePassword}
         >
-          <LinkIcon /> UPDATE PASSWORD
+          <LinkIcon /> {changePasswordLoading ? 'UPDATING...' : 'UPDATE PASSWORD'}
         </button>
 
         <div className="chpw-lost-access">
-          LOST ACCESS? <span>CONTACT SYSTEM ADMIN</span>
+          FORGOT CURRENT PASSWORD? <span onClick={() => setView('forgot-password')}>RESET PASSWORD</span>
         </div>
 
       </div>
@@ -2379,10 +3081,107 @@ const ToggleSwitch = ({ isOn, onToggle }) => (
   </div>
 );
 
-const NotificationSettingsView = ({ setView }) => {
-  const [approvalNotifs, setApprovalNotifs] = useState(true);
+const NotificationSettingsView = ({ setView, profileData }) => {
+  const [approvalNotifs, setApprovalNotifs] = useState(false);
   const [reminderAlerts, setReminderAlerts] = useState(true);
   const [systemUpdates, setSystemUpdates] = useState(false);
+  const [notificationStatus, setNotificationStatus] = useState('unknown');
+  const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
+
+  const formatNotificationApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatNotificationApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatNotificationApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const notificationAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  useEffect(() => {
+    const loadNotificationPreference = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/permissions/me`, {
+          headers: notificationAuthHeaders(),
+        });
+        const data = await response.json();
+
+        if (!response.ok) return;
+
+        const status = data.data?.notifications_status || 'unknown';
+        setNotificationStatus(status);
+        setApprovalNotifs(status === 'granted');
+      } catch (error) {
+        console.error('Failed to load notification preference:', error);
+      }
+    };
+
+    loadNotificationPreference();
+  }, []);
+
+  const saveNotificationStatus = async (status) => {
+    const response = await fetch(`${API_BASE_URL}/api/permissions/me`, {
+      method: 'PATCH',
+      headers: notificationAuthHeaders(),
+      body: JSON.stringify({
+        notifications_status: status,
+        first_login_setup_completed: true,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(formatNotificationApiMessage(data.errors) || formatNotificationApiMessage(data.message) || 'Failed to update notifications.');
+    }
+
+    setNotificationStatus(data.data.notifications_status);
+    setApprovalNotifs(data.data.notifications_status === 'granted');
+  };
+
+  const handleApprovalNotificationToggle = async () => {
+    if (notificationSettingsLoading) return;
+
+    setNotificationSettingsLoading(true);
+
+    try {
+      if (approvalNotifs) {
+        await saveNotificationStatus('dismissed');
+        return;
+      }
+
+      let status = 'unsupported';
+
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          status = 'granted';
+        } else if (Notification.permission === 'denied') {
+          status = 'denied';
+        } else {
+          const browserPermission = await Notification.requestPermission();
+          status = browserPermission === 'default' ? 'dismissed' : browserPermission;
+        }
+      }
+
+      await saveNotificationStatus(status);
+
+      if (status === 'denied') {
+        alert('Notifications are blocked for this browser. Open browser site settings and allow notifications for EduRoute.');
+      } else if (status === 'unsupported') {
+        alert('This browser does not support web notifications.');
+      } else if (status === 'dismissed') {
+        alert('Notification permission was not enabled. You can try again later.');
+      }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setNotificationSettingsLoading(false);
+    }
+  };
 
   return (
     <div className="dashboard-wrapper">
@@ -2394,7 +3193,7 @@ const NotificationSettingsView = ({ setView }) => {
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
 
@@ -2413,9 +3212,13 @@ const NotificationSettingsView = ({ setView }) => {
           </div>
           <div className="notif-card-body">
             <h3 className="notif-card-title">Approval Notifications</h3>
-            <p className="notif-card-desc">Get notified when students request route changes or late approvals.</p>
+            <p className="notif-card-desc">
+              {approvalNotifs
+                ? 'Enabled from your first-login setup. You will receive approval and request alerts on this device.'
+                : `Currently ${notificationStatus}. Enable this to receive approval alerts even when EduRoute is closed.`}
+            </p>
           </div>
-          <ToggleSwitch isOn={approvalNotifs} onToggle={() => setApprovalNotifs(!approvalNotifs)} />
+          <ToggleSwitch isOn={approvalNotifs} onToggle={handleApprovalNotificationToggle} />
         </div>
 
         {/* Reminder Alerts */}
@@ -2482,25 +3285,138 @@ const CheckCircleIcon = ({ color = "white" }) => (
 );
 
 const EditProfileView = ({ setView, profileData, setProfileData }) => {
-  const [fullName, setFullName] = useState(profileData.fullName);
-  const [department, setDepartment] = useState(profileData.department);
-  const [email, setEmail] = useState(profileData.email);
+  const [fullName, setFullName] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [departmentsList, setDepartmentsList] = useState([]);
+  const [email, setEmail] = useState('');
   const [profileImage, setProfileImage] = useState(profileData.image);
+  const [editProfileLoading, setEditProfileLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  const handleSave = () => {
-    setProfileData({ fullName, department, email, image: profileImage });
-    setView('profile');
+  const formatEditProfileApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatEditProfileApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatEditProfileApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const editProfileHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  useEffect(() => {
+    const loadEditProfileData = async () => {
+      setEditProfileLoading(true);
+
+      try {
+        const [profileResponse, departmentsResponse] = await Promise.all([
+          fetch(`${API_BASE_URL}/api/auth/me`, {
+            headers: editProfileHeaders(),
+          }),
+          fetch(`${API_BASE_URL}/api/departments`),
+        ]);
+        const profileJson = await profileResponse.json();
+        const departmentsJson = await departmentsResponse.json();
+
+        if (!profileResponse.ok) {
+          throw new Error(formatEditProfileApiMessage(profileJson.errors) || formatEditProfileApiMessage(profileJson.message) || 'Failed to load profile.');
+        }
+
+        if (!departmentsResponse.ok) {
+          throw new Error(formatEditProfileApiMessage(departmentsJson.errors) || formatEditProfileApiMessage(departmentsJson.message) || 'Failed to load departments.');
+        }
+
+        setFullName(profileJson.data.full_name || '');
+        setDepartmentId(String(profileJson.data.department_id || ''));
+        setEmail(profileJson.data.email || '');
+        setProfileImage(profileJson.data.profile_image_url || DEFAULT_PROFILE_IMAGE);
+        setDepartmentsList(departmentsJson.data || []);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setEditProfileLoading(false);
+      }
+    };
+
+    loadEditProfileData();
+  }, []);
+
+  const handleSave = async () => {
+    setEditProfileLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'PATCH',
+        headers: editProfileHeaders(),
+        body: JSON.stringify({
+          full_name: fullName,
+          department_id: Number(departmentId),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to update profile.');
+      }
+
+      setProfileData({
+        fullName: data.data.full_name,
+        department: data.data.department_name,
+        email: data.data.email,
+        image: profileImage,
+      });
+      alert(data.message);
+      setView('profile');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setEditProfileLoading(false);
+    }
   };
 
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImage(reader.result);
+      const uploadProfileImage = async () => {
+        setEditProfileLoading(true);
+
+        try {
+          const formData = new FormData();
+          formData.append('profile_image', file);
+
+          const response = await fetch(`${API_BASE_URL}/api/auth/me/profile-picture`, {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+            },
+            body: formData,
+          });
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to upload profile picture.');
+          }
+
+          const imageUrl = data.data.profile_image_url;
+          setProfileImage(imageUrl);
+          setProfileData((prev) => ({
+            ...prev,
+            image: imageUrl,
+          }));
+          alert(data.message);
+        } catch (error) {
+          alert(error.message);
+        } finally {
+          setEditProfileLoading(false);
+          e.target.value = '';
+        }
       };
-      reader.readAsDataURL(file);
+
+      uploadProfileImage();
     }
   };
 
@@ -2564,12 +3480,13 @@ const EditProfileView = ({ setView, profileData, setProfileData }) => {
         <div className="editp-field">
           <label className="editp-label">DEPARTMENT</label>
           <div className="editp-input-wrapper editp-select-wrapper">
-            <select value={department} onChange={(e) => setDepartment(e.target.value)}>
-              <option value="CCS">College of Computer Studies</option>
-              <option value="CBA">College of Business and Accountancy</option>
-              <option value="CEAS">College of Education, Arts and Sciences</option>
-              <option value="CHTM">College of Hospitality and Tourism Management</option>
-              <option value="CAHS">College of Allied Health Studies</option>
+            <select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)}>
+              <option value="" disabled>Select Department</option>
+              {departmentsList.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.department_name}
+                </option>
+              ))}
             </select>
             <div className="editp-select-icon">
               <ChevronDownIcon />
@@ -2584,15 +3501,21 @@ const EditProfileView = ({ setView, profileData, setProfileData }) => {
             <input
               type="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              disabled
+              readOnly
             />
             <MailIcon color="var(--text-light)" />
           </div>
         </div>
 
         {/* Save Changes Button */}
-        <button type="button" className="editp-save-btn" onClick={handleSave}>
-          SAVE CHANGES <CheckCircleIcon />
+        <button
+          type="button"
+          className="editp-save-btn"
+          onClick={handleSave}
+          disabled={editProfileLoading || !fullName.trim() || !departmentId}
+        >
+          {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'} <CheckCircleIcon />
         </button>
 
       </div>
@@ -2655,8 +3578,88 @@ const LockPrivIcon = ({ color = "currentColor" }) => (
   </svg>
 );
 
-const PrivacySecurityView = ({ setView }) => {
+const PrivacySecurityView = ({ setView, profileData }) => {
   const [locationTracking, setLocationTracking] = useState(true);
+  const [permissionPrefs, setPermissionPrefs] = useState(null);
+  const [activeLegalDoc, setActiveLegalDoc] = useState(null);
+
+  const formatPrivacyApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatPrivacyApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatPrivacyApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const privacyAuthHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  useEffect(() => {
+    const loadPermissionPrefs = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/permissions/me`, {
+          headers: privacyAuthHeaders(),
+        });
+        const data = await response.json();
+
+        if (!response.ok) return;
+        setPermissionPrefs(data.data);
+      } catch (error) {
+        console.error('Failed to load permission preferences:', error);
+      }
+    };
+
+    loadPermissionPrefs();
+  }, []);
+
+  const updateNotificationPermissionFromSettings = async () => {
+    try {
+      let notificationStatus = 'unsupported';
+
+      if ('Notification' in window) {
+        if (Notification.permission === 'granted') {
+          notificationStatus = 'granted';
+        } else if (Notification.permission === 'denied') {
+          notificationStatus = 'denied';
+        } else {
+          const browserPermission = await Notification.requestPermission();
+          notificationStatus = browserPermission === 'default' ? 'dismissed' : browserPermission;
+        }
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/permissions/me`, {
+        method: 'PATCH',
+        headers: privacyAuthHeaders(),
+        body: JSON.stringify({
+          notifications_status: notificationStatus,
+          first_login_setup_completed: true,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatPrivacyApiMessage(data.errors) || formatPrivacyApiMessage(data.message) || 'Failed to update permission settings.');
+      }
+
+      setPermissionPrefs(data.data);
+
+      if (notificationStatus === 'denied') {
+        alert('Notifications are blocked for this browser. Open your browser site settings for EduRoute/localhost and allow Notifications.');
+      } else if (notificationStatus === 'granted') {
+        alert('Notifications are enabled for this browser.');
+      } else if (notificationStatus === 'unsupported') {
+        alert('This browser does not support web notifications.');
+      } else {
+        alert('Notification permission was not enabled. You can try again later.');
+      }
+    } catch (error) {
+      alert(error.message);
+    }
+  };
 
   return (
     <div className="dashboard-wrapper">
@@ -2668,7 +3671,7 @@ const PrivacySecurityView = ({ setView }) => {
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src="/profile_pic.png" alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
 
@@ -2697,42 +3700,47 @@ const PrivacySecurityView = ({ setView }) => {
         <div className="priv-permissions-card">
           <PermissionsIcon color="var(--green)" />
           <h3>Permissions</h3>
-          <p>Review app access to your camera, calendar, and microphone.</p>
-          <button type="button" className="priv-manage-btn">MANAGE</button>
+          <p>
+            Notifications: {permissionPrefs?.notifications_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.
+          </p>
+          <button type="button" className="priv-manage-btn" onClick={updateNotificationPermissionFromSettings}>
+            MANAGE
+          </button>
         </div>
 
         {/* Authentication Layer */}
         <div className="priv-auth-section">
-          <div className="priv-auth-row">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="var(--green)" /><path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            <span className="priv-auth-text green">Authentication Layer</span>
+          <div className="priv-auth-line-group">
+            <div className="priv-auth-row">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="11" fill="var(--green)" /><path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              <span className="priv-auth-text green">Authentication Layer</span>
+            </div>
+            <div className="priv-auth-row">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--green)" strokeWidth="2" /><circle cx="12" cy="12" r="5" fill="var(--green)" /></svg>
+              <span className="priv-auth-text green">Privacy Tier: Enhanced</span>
+            </div>
+            <div className="priv-auth-row">
+              <LockPrivIcon color="var(--text-gray)" />
+              <span className="priv-auth-text gray">Encryption: Quantum-Safe</span>
+            </div>
           </div>
-          <div className="priv-auth-row">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="var(--green)" strokeWidth="2" /><circle cx="12" cy="12" r="5" fill="var(--green)" /></svg>
-            <span className="priv-auth-text green">Privacy Tier: Enhanced</span>
-          </div>
-          <div className="priv-auth-row">
-            <LockPrivIcon color="var(--text-gray)" />
-            <span className="priv-auth-text gray">Encryption: Quantum-Safe</span>
-          </div>
-        </div>
 
-        {/* Legal Links */}
-        <div className="priv-legal-list">
-          <div className="priv-legal-item">
-            <FileTextIcon color="var(--text-dark)" />
-            <span>Terms and conditions</span>
-            <ChevronRightIcon color="var(--text-light)" />
-          </div>
-          <div className="priv-legal-item">
-            <GlobeSmIcon color="var(--text-dark)" />
-            <span>Privacy Policy</span>
-            <ChevronRightIcon color="var(--text-light)" />
-          </div>
-          <div className="priv-legal-item">
-            <HelpCircleIcon color="var(--text-dark)" />
-            <span>Data Usage FAQ</span>
-            <ChevronRightIcon color="var(--text-light)" />
+          <div className="priv-auth-legal-panel">
+            <button type="button" className="priv-legal-item" onClick={() => setActiveLegalDoc('terms')}>
+              <FileTextIcon color="var(--text-gray)" />
+              <span>Terms and Conditions</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </button>
+            <button type="button" className="priv-legal-item" onClick={() => setActiveLegalDoc('privacy')}>
+              <PrivacyIcon color="var(--text-gray)" />
+              <span>Privacy Policy</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </button>
+            <button type="button" className="priv-legal-item" onClick={() => setActiveLegalDoc('dataFaq')}>
+              <HelpCircleIcon color="var(--text-gray)" />
+              <span>Data Usage FAQ</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </button>
           </div>
         </div>
 
@@ -2744,6 +3752,11 @@ const PrivacySecurityView = ({ setView }) => {
 
       </div>
       <BottomNav active="profile" setView={setView} />
+
+      <LegalDocumentModal
+        activeLegalDoc={activeLegalDoc}
+        onClose={() => setActiveLegalDoc(null)}
+      />
     </div>
   );
 };

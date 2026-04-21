@@ -5,10 +5,14 @@
     "type": "commonjs",
     "scripts": {
         "dev": "nodemon src/server.js",
-        "start": "node src/server.js"
+        "start": "node src/server.js",
+        "migrate:locator-slips": "node scripts/run-sql-file.js sql/locator_slips.sql",
+        "migrate:profile-image": "node scripts/run-sql-file.js sql/faculty_profile_image.sql",
+        "migrate:permissions": "node scripts/run-sql-file.js sql/faculty_permissions.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",
+        "cloudinary": "^2.9.0",
         "cors": "^2.8.5",
         "dotenv": "^16.4.5",
         "express": "^4.19.2",
@@ -16,7 +20,9 @@
         "express-validator": "^7.1.0",
         "helmet": "^7.1.0",
         "jsonwebtoken": "^9.0.2",
-        "nodemailer": "^6.9.14",
+        "multer": "^2.1.1",
+        "multer-storage-cloudinary": "^2.2.1",
+        "nodemailer": "^8.0.5",
         "pg": "^8.12.0",
         "uuid": "^10.0.0"
     },
