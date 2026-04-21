@@ -1,5 +1,408 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import './App.css';
+import { API_BASE_URL } from './config';
+
+function App() {
+  console.log('API_BASE_URL:', API_BASE_URL);
+  const [view, setView] = useState('login');
+  const [loading, setLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [departments, setDepartments] = useState([]);
+  const [profileData, setProfileData] = useState({
+    fullName: 'Mr. Alex Nilo',
+    department: 'CCS',
+    email: 'a.nilo@eduroute.ac.edu',
+    image: '/profile_pic.png',
+  });
+
+  const [loginForm, setLoginForm] = useState({
+    email_or_employee_id: '',
+    password: ''
+  });
+
+  const [forgotForm, setForgotForm] = useState({
+    email: ''
+  });
+  const [resetCode, setResetCode] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [newPasswordForm, setNewPasswordForm] = useState({
+    password: '',
+    confirm_password: '',
+  });
+
+  const [registerForm, setRegisterForm] = useState({
+    full_name: '',
+    employee_id: '',
+    department_id: '',
+    email: '',
+    password: '',
+    confirm_password: '',
+    terms_accepted: false
+  });
+
+  const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
+
+  const formatApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatApiMessage).filter(Boolean).join('\n');
+    }
+
+    return String(value);
+  };
+
+  const apiRequest = async (endpoint, options = {}) => {
+    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+      },
+      ...options
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Non-JSON response:', text);
+      throw new Error(`Expected JSON but got ${contentType || 'unknown content type'}`);
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const validationMessage = formatApiMessage(data.errors);
+      throw new Error(validationMessage || formatApiMessage(data.message) || 'Request failed');
+    }
+
+    return data;
+  };
+
+  const fetchDepartmentsApi = () => apiRequest('/api/departments');
+
+  const registerApi = (payload) =>
+    apiRequest('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+  const loginApi = (payload) =>
+    apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+  const forgotPasswordApi = (payload) =>
+    apiRequest('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+  const verifyResetCodeApi = (payload) =>
+    apiRequest('/api/auth/verify-reset-code', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+  const resetPasswordApi = (payload) =>
+    apiRequest('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+
+  useEffect(() => {
+    const loadDepartments = async () => {
+      if (view !== 'signup') return;
+
+      try {
+        const data = await fetchDepartmentsApi();
+        setDepartments(data.data || []);
+      } catch (error) {
+        alert(error.message);
+      }
+    };
+
+    loadDepartments();
+  }, [view]);
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const data = await registerApi({
+        ...registerForm,
+        department_id: Number(registerForm.department_id)
+      });
+
+      alert(formatApiMessage(data.message) || 'Registration successful.');
+      setView('login');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const data = await loginApi(loginForm);
+      localStorage.setItem('token', data.data.token);
+      alert(formatApiMessage(data.message) || 'Login successful.');
+      setView('dashboard');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return undefined;
+
+    const timer = setTimeout(() => {
+      setResendCooldown((seconds) => Math.max(0, seconds - 1));
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
+  const sendForgotPasswordCode = async ({ goToCode = false } = {}) => {
+    setLoading(true);
+
+    try {
+      const email = forgotForm.email.trim();
+      const data = await forgotPasswordApi({ email });
+      alert(formatApiMessage(data.message) || 'Reset code sent.');
+
+      setForgotForm((prev) => ({ ...prev, email }));
+      setResetCode('');
+      setResetToken('');
+      setResendCooldown(60);
+
+      if (goToCode) {
+        setView('reset-code');
+      }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    await sendForgotPasswordCode({ goToCode: true });
+  };
+
+  const handleResendResetCode = async () => {
+    if (resendCooldown > 0 || loading) return;
+    await sendForgotPasswordCode();
+  };
+
+  const handleVerifyResetCode = (e) => {
+    e.preventDefault();
+
+    if (resetCode.length !== 6) {
+      alert('Please enter the 6-digit reset code.');
+      return;
+    }
+
+    const verifyCode = async () => {
+      setLoading(true);
+
+      try {
+        const email = forgotForm.email.trim();
+        const data = await verifyResetCodeApi({
+          email,
+          email_or_employee_id: email,
+          code: resetCode.trim(),
+          otp: resetCode.trim(),
+          otp_code: resetCode.trim(),
+          reset_code: resetCode.trim(),
+        });
+
+        setResetToken(
+          data.data?.token ||
+          data.data?.reset_token ||
+          data.reset_token ||
+          data.token ||
+          ''
+        );
+        alert(formatApiMessage(data.message) || 'Reset code verified.');
+        setNewPasswordForm({
+          password: '',
+          confirm_password: '',
+        });
+        setView('set-new-password');
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    verifyCode();
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const email = forgotForm.email.trim();
+      const code = resetCode.trim();
+      const data = await resetPasswordApi({
+        email,
+        email_or_employee_id: email,
+        code,
+        otp: code,
+        otp_code: code,
+        reset_code: code,
+        token: resetToken,
+        reset_token: resetToken,
+        password: newPasswordForm.password,
+        new_password: newPasswordForm.password,
+        confirm_password: newPasswordForm.confirm_password,
+        password_confirmation: newPasswordForm.confirm_password,
+        new_password_confirmation: newPasswordForm.confirm_password,
+      });
+
+      alert(formatApiMessage(data.message) || 'Password updated successfully.');
+      setResetCode('');
+      setResetToken('');
+      setNewPasswordForm({
+        password: '',
+        confirm_password: '',
+      });
+      setView('login');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="mobile-container">
+      {isAuthView(view) && (
+        <div className="status-bar">
+          <span className="time">9:41</span>
+          <div className="status-icons">
+            <SignalIcon />
+            <WifiIcon />
+            <BatteryIcon />
+          </div>
+        </div>
+      )}
+
+      {view === 'login' && (
+        <LoginView
+          setView={setView}
+          loginForm={loginForm}
+          setLoginForm={setLoginForm}
+          onLogin={handleLogin}
+          loading={loading}
+          showLoginPassword={showLoginPassword}
+          setShowLoginPassword={setShowLoginPassword}
+        />
+      )}
+
+      {view === 'forgot-password' && (
+        <ForgotPasswordView
+          setView={setView}
+          forgotForm={forgotForm}
+          setForgotForm={setForgotForm}
+          onForgotPassword={handleForgotPassword}
+          loading={loading}
+        />
+      )}
+
+      {view === 'reset-code' && (
+        <ResetCodeView
+          setView={setView}
+          resetCode={resetCode}
+          setResetCode={setResetCode}
+          onVerifyResetCode={handleVerifyResetCode}
+          onResendResetCode={handleResendResetCode}
+          resendCooldown={resendCooldown}
+          loading={loading}
+        />
+      )}
+
+      {view === 'set-new-password' && (
+        <SetNewPasswordView
+          newPasswordForm={newPasswordForm}
+          setNewPasswordForm={setNewPasswordForm}
+          onResetPassword={handleResetPassword}
+          loading={loading}
+        />
+      )}
+
+      {view === 'signup' && (
+        <SignUpView
+          setView={setView}
+          registerForm={registerForm}
+          setRegisterForm={setRegisterForm}
+          departments={departments}
+          onRegister={handleRegister}
+          loading={loading}
+        />
+      )}
+
+      {view === 'dashboard' && <DashboardView setView={setView} />}
+      {view === 'scan' && <ScanView setView={setView} />}
+      {view === 'locator-slip' && <LocatorSlipView setView={setView} />}
+      {view === 'updates' && <UpdatesView setView={setView} />}
+      {view === 'route-approved' && <RouteApprovedView setView={setView} />}
+      {view === 'slip-submitted' && <SlipSubmittedView setView={setView} />}
+      {view === 'map' && <MapTrackingView setView={setView} />}
+      {view === 'profile' && <ProfileView setView={setView} profileData={profileData} />}
+      {view === 'change-password' && <ChangePasswordView setView={setView} />}
+      {view === 'notification-settings' && <NotificationSettingsView setView={setView} />}
+      {view === 'edit-profile' && (
+        <EditProfileView
+          setView={setView}
+          profileData={profileData}
+          setProfileData={setProfileData}
+        />
+      )}
+      {view === 'privacy-security' && <PrivacySecurityView setView={setView} />}
+
+      {isAuthView(view) && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            width: '100%',
+            height: '36px',
+            zIndex: 1,
+            pointerEvents: 'none'
+          }}
+        >
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              left: 0,
+              top: 0,
+              position: 'absolute',
+              opacity: 0.4,
+              background: 'linear-gradient(90deg, #049516 0%, #FFD517 50%, #036E10 100%)'
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MapIcon = () => (
   <svg width="36" height="36" viewBox="0 0 27 27" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -8,7 +411,7 @@ const MapIcon = () => (
 );
 
 const BadgeIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'none', fill: 'currentColor' }}>
+  <svg width="20" height="20" viewBox="0 0 17 17" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ stroke: 'none', color: 'var(--text-light)' }}>
     <path d="M1.66667 16.6667C1.20833 16.6667 0.815972 16.5035 0.489583 16.1771C0.163194 15.8507 0 15.4583 0 15V5.83333C0 5.375 0.163194 4.98264 0.489583 4.65625C0.815972 4.32986 1.20833 4.16667 1.66667 4.16667H5.83333V1.66667C5.83333 1.20833 5.99653 0.815972 6.32292 0.489583C6.64931 0.163194 7.04167 0 7.5 0H9.16667C9.625 0 10.0174 0.163194 10.3438 0.489583C10.6701 0.815972 10.8333 1.20833 10.8333 1.66667V4.16667H15C15.4583 4.16667 15.8507 4.32986 16.1771 4.65625C16.5035 4.98264 16.6667 5.375 16.6667 5.83333V15C16.6667 15.4583 16.5035 15.8507 16.1771 16.1771C15.8507 16.5035 15.4583 16.6667 15 16.6667H1.66667ZM1.66667 15H15V5.83333H10.8333C10.8333 6.29167 10.6701 6.68403 10.3438 7.01042C10.0174 7.33681 9.625 7.5 9.16667 7.5H7.5C7.04167 7.5 6.64931 7.33681 6.32292 7.01042C5.99653 6.68403 5.83333 6.29167 5.83333 5.83333H1.66667V15ZM3.33333 13.3333H8.33333V12.9583C8.33333 12.7222 8.26736 12.5035 8.13542 12.3021C8.00347 12.1007 7.81944 11.9444 7.58333 11.8333C7.30556 11.7083 7.02431 11.6146 6.73958 11.5521C6.45486 11.4896 6.15278 11.4583 5.83333 11.4583C5.51389 11.4583 5.21181 11.4896 4.92708 11.5521C4.64236 11.6146 4.36111 11.7083 4.08333 11.8333C3.84722 11.9444 3.66319 12.1007 3.53125 12.3021C3.39931 12.5035 3.33333 12.7222 3.33333 12.9583V13.3333ZM10 12.0833H13.3333V10.8333H10V12.0833ZM5.83333 10.8333C6.18056 10.8333 6.47569 10.7118 6.71875 10.4688C6.96181 10.2257 7.08333 9.93056 7.08333 9.58333C7.08333 9.23611 6.96181 8.94097 6.71875 8.69792C6.47569 8.45486 6.18056 8.33333 5.83333 8.33333C5.48611 8.33333 5.19097 8.45486 4.94792 8.69792C4.70486 8.94097 4.58333 9.23611 4.58333 9.58333C4.58333 9.93056 4.70486 10.2257 4.94792 10.4688C5.19097 10.7118 5.48611 10.8333 5.83333 10.8333ZM10 9.58333H13.3333V8.33333H10V9.58333ZM7.5 5.83333H9.16667V1.66667H7.5V5.83333Z" fill="currentColor" />
   </svg>
 );
@@ -409,7 +812,7 @@ const EwanIcon = ({ color = "currentColor", size = "20" }) => (
   </svg>
 );
 
-const LoginView = ({ setView }) => (
+const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLoginPassword, setShowLoginPassword }) => (
   <div className="content fade-in">
     <div className="logo-container">
       <div className="logo-box">
@@ -419,31 +822,66 @@ const LoginView = ({ setView }) => (
       <h2>GORDON COLLEGE FACULTY PORTAL</h2>
     </div>
 
-    <div className="card">
+    <form className="card" onSubmit={onLogin}>
       <div className="input-group">
         <label>EMAIL OR EMPLOYEE ID</label>
-        <div className="input-wrapper disabled">
+        <div className="input-wrapper">
           <BadgeIcon />
-          <input type="text" placeholder="j.smith@gordon.edu" disabled />
+          <input
+            type="text"
+            placeholder="j.smith@gordon.edu"
+            value={loginForm.email_or_employee_id}
+            onChange={(e) =>
+              setLoginForm((prev) => ({
+                ...prev,
+                email_or_employee_id: e.target.value
+              }))
+            }
+          />
         </div>
       </div>
 
       <div className="input-group">
         <div className="label-row">
           <label>PASSWORD</label>
-          <a href="#" className="forgot-link" onClick={(e) => { e.preventDefault(); setView('forgot-password'); }}>Forgot Password?</a>
+          <a
+            href="#"
+            className="forgot-link"
+            onClick={(e) => {
+              e.preventDefault();
+              setView('forgot-password');
+            }}
+          >
+            Forgot Password?
+          </a>
         </div>
+
         <div className="input-wrapper">
           <LockIcon />
-          <input type="password" placeholder="••••••••" />
-          <button type="button" className="icon-btn">
+          <input
+            type={showLoginPassword ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={loginForm.password}
+            onChange={(e) =>
+              setLoginForm((prev) => ({
+                ...prev,
+                password: e.target.value
+              }))
+            }
+          />
+
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={() => setShowLoginPassword((prev) => !prev)}
+          >
             <EyeIcon />
           </button>
         </div>
       </div>
 
-      <button type="button" className="primary-btn" onClick={() => setView('dashboard')}>
-        Login <ArrowRightIcon />
+      <button type="submit" className="primary-btn" disabled={loading}>
+        {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
       </button>
 
       <div className="divider">
@@ -455,7 +893,8 @@ const LoginView = ({ setView }) => (
       <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
         Sign Up
       </button>
-    </div>
+    </form>
+
 
     <div className="footer">
       <div className="footer-logo">
@@ -469,7 +908,7 @@ const LoginView = ({ setView }) => (
   </div>
 );
 
-const ForgotPasswordView = ({ setView }) => (
+const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading }) => (
   <div className="content fade-in forgot-pw-content">
     <div className="recovery-header">
       <CapIcon />
@@ -485,23 +924,34 @@ const ForgotPasswordView = ({ setView }) => (
       Enter your registered faculty email to receive a secure password reset link.
     </p>
 
-    <div className="card recovery-card">
+    <form className="card recovery-card" onSubmit={onForgotPassword}>
       <div className="input-group">
         <label>FACULTY EMAIL</label>
         <div className="input-wrapper tall-input-wrapper">
           <div className="at-icon-wrapper"><AtSymbolIcon /></div>
-          <textarea placeholder="e.g.&#10;professor.name@eduroute.edu" rows={2} spellCheck="false" />
+          <textarea
+            placeholder="e.g.&#10;professor.name@eduroute.edu"
+            rows={2}
+            spellCheck="false"
+            value={forgotForm.email}
+            onChange={(e) =>
+              setForgotForm((prev) => ({
+                ...prev,
+                email: e.target.value
+              }))
+            }
+          />
         </div>
       </div>
 
-      <button type="submit" className="primary-btn">
-        Send Reset Link <ArrowRightIcon />
+      <button type="submit" className="primary-btn" disabled={loading}>
+        {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
       </button>
 
       <button type="button" className="ghost-btn" onClick={() => setView('login')}>
         <LoginDoorIcon /> Back to Faculty Login
       </button>
-    </div>
+    </form>
 
     <div className="support-badge">
       <div className="support-icon">
@@ -515,9 +965,307 @@ const ForgotPasswordView = ({ setView }) => (
   </div>
 );
 
-const SignUpView = ({ setView }) => (
+const ResetCodeView = ({
+  setView,
+  resetCode,
+  setResetCode,
+  onVerifyResetCode,
+  onResendResetCode,
+  resendCooldown,
+  loading,
+}) => {
+  const codeInputRefs = useRef([]);
+  const digits = Array.from({ length: 6 }, (_, index) => resetCode[index] || '');
+  const canResend = resendCooldown === 0 && !loading;
+
+  const updateDigit = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const nextDigits = [...digits];
+    nextDigits[index] = digit;
+    setResetCode(nextDigits.join(''));
+
+    if (digit && index < codeInputRefs.current.length - 1) {
+      codeInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleCodeKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      codeInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleCodePaste = (e) => {
+    e.preventDefault();
+    const pastedCode = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    setResetCode(pastedCode);
+    codeInputRefs.current[Math.min(pastedCode.length, 5)]?.focus();
+  };
+
+  return (
+    <div className="content fade-in forgot-pw-content reset-code-content">
+      <div className="recovery-header">
+        <CapIcon />
+        <span>EduRoute Faculty</span>
+      </div>
+
+      <div className="recovery-title-box reset-code-title-box">
+        <div className="yellow-bar"></div>
+        <h1>Account<br />Recovery</h1>
+      </div>
+
+      <p className="recovery-desc reset-code-desc">
+        Enter your registered faculty email to receive a secure password reset link.
+      </p>
+
+      <form className="card recovery-card reset-code-card" onSubmit={onVerifyResetCode}>
+        <div className="input-group">
+          <label>TYPE OTP CODE</label>
+          <div className="otp-code-row" onPaste={handleCodePaste}>
+            {digits.map((digit, index) => (
+              <input
+                key={index}
+                ref={(node) => {
+                  codeInputRefs.current[index] = node;
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={1}
+                className="otp-code-box"
+                value={digit}
+                aria-label={`Reset code digit ${index + 1}`}
+                onChange={(e) => updateDigit(index, e.target.value)}
+                onKeyDown={(e) => handleCodeKeyDown(index, e)}
+              />
+            ))}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          className="resend-code-btn"
+          disabled={!canResend}
+          onClick={onResendResetCode}
+        >
+          {canResend ? 'RESEND CODE' : `RESEND IN ${resendCooldown}s`}
+        </button>
+
+        <button type="submit" className="primary-btn reset-verify-btn" disabled={loading || resetCode.length !== 6}>
+          {loading ? 'Verifying...' : <>Verify <ArrowRightIcon /></>}
+        </button>
+
+        <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
+          <LoginDoorIcon /> Back to Faculty Login
+        </button>
+      </form>
+
+      <div className="support-badge">
+        <div className="support-icon">
+          <HeadsetIcon />
+        </div>
+        <div className="support-text">
+          Issue persists? Contact<br />
+          <span>IT Support Desk</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SetNewPasswordView = ({
+  newPasswordForm,
+  setNewPasswordForm,
+  onResetPassword,
+  loading,
+}) => {
+  const [showResetPassword, setShowResetPassword] = useState(false);
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
+
+  const resetPasswordPolicy = useMemo(() => {
+    const password = newPasswordForm.password;
+
+    return {
+      minLength: password.length >= 10,
+      symbolsNumbers: /[0-9]/.test(password) && /[^a-zA-Z0-9\s]/.test(password),
+      noPersonal: password.length > 0 && !['eduroute', 'password', 'faculty'].some((info) =>
+        password.toLowerCase().includes(info)
+      ),
+    };
+  }, [newPasswordForm.password]);
+
+  const passwordsMatch =
+    newPasswordForm.password.length > 0 && newPasswordForm.password === newPasswordForm.confirm_password;
+  const policyComplete =
+    resetPasswordPolicy.minLength && resetPasswordPolicy.symbolsNumbers && resetPasswordPolicy.noPersonal;
+  const canSavePassword = policyComplete && passwordsMatch && !loading;
+
+  const handleSubmit = (e) => {
+    if (!canSavePassword) {
+      e.preventDefault();
+      return;
+    }
+
+    onResetPassword(e);
+  };
+
+  return (
+    <div className="content fade-in forgot-pw-content set-password-content">
+      <div className="recovery-header">
+        <CapIcon />
+        <span>EduRoute Faculty</span>
+      </div>
+
+      <div className="recovery-title-box set-password-title-box">
+        <div className="yellow-bar"></div>
+        <h1>Set New<br />Password</h1>
+      </div>
+
+      <p className="recovery-desc set-password-desc">
+        Enter your registered faculty email to receive a secure password reset link.
+      </p>
+
+      <div className="password-policy-card set-password-policy-card">
+        <div className="policy-heading">
+          <PolicyBulbIcon />
+          <span>PASSWORD POLICY</span>
+        </div>
+        <div className="policy-list">
+          <div className={`policy-item ${resetPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={resetPasswordPolicy.minLength} />
+            <span>Minimum 10 characters</span>
+          </div>
+          <div className={`policy-item ${resetPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={resetPasswordPolicy.symbolsNumbers} />
+            <span>Include symbols &amp; numbers</span>
+          </div>
+          <div className={`policy-item ${resetPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={resetPasswordPolicy.noPersonal} />
+            <span>No personal information</span>
+          </div>
+        </div>
+      </div>
+
+      <form className="card recovery-card set-password-card" onSubmit={handleSubmit}>
+        <h2 className="set-password-card-title">SET NEW PASSWORD</h2>
+
+        <div className="input-group">
+          <label>PASSWORD</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type={showResetPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={newPasswordForm.password}
+              onChange={(e) =>
+                setNewPasswordForm((prev) => ({
+                  ...prev,
+                  password: e.target.value,
+                }))
+              }
+            />
+            <button
+              type="button"
+              className="signup-eye-btn"
+              aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+              onClick={() => setShowResetPassword((prev) => !prev)}
+            >
+              {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </div>
+
+        <div className="input-group">
+          <label>CONFIRM PASSWORD</label>
+          <div className="input-wrapper plain-input-wrapper">
+            <input
+              type={showResetConfirmPassword ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={newPasswordForm.confirm_password}
+              onChange={(e) =>
+                setNewPasswordForm((prev) => ({
+                  ...prev,
+                  confirm_password: e.target.value,
+                }))
+              }
+            />
+            <button
+              type="button"
+              className="signup-eye-btn"
+              aria-label={showResetConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              onClick={() => setShowResetConfirmPassword((prev) => !prev)}
+            >
+              {showResetConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+            </button>
+          </div>
+        </div>
+
+        {newPasswordForm.confirm_password.length > 0 && !passwordsMatch && (
+          <span className="set-password-mismatch">Passwords do not match</span>
+        )}
+
+        <button
+          type="submit"
+          className={`primary-btn set-password-save-btn ${canSavePassword ? 'ready' : 'disabled'}`}
+          disabled={!canSavePassword}
+        >
+          {loading ? 'Saving...' : <>Save Password <ArrowRightIcon /></>}
+        </button>
+      </form>
+
+      <div className="support-badge">
+        <div className="support-icon">
+          <HeadsetIcon />
+        </div>
+        <div className="support-text">
+          Issue persists? Contact<br />
+          <span>IT Support Desk</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onRegister, loading }) => {
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
+
+  const signupPasswordPolicy = useMemo(() => {
+    const password = registerForm.password;
+    const passwordLower = password.toLowerCase();
+    const personalInfo = [
+      registerForm.full_name,
+      registerForm.employee_id,
+      registerForm.email,
+      'eduroute',
+    ]
+      .flatMap((value) => String(value || '').toLowerCase().split(/[^a-z0-9]+/))
+      .filter((value) => value.length >= 3);
+
+    return {
+      minLength: password.length >= 10,
+      symbolsNumbers: /[0-9]/.test(password) && /[^a-zA-Z0-9\s]/.test(password),
+      noPersonal: password.length > 0 && !personalInfo.some((info) => passwordLower.includes(info)),
+    };
+  }, [registerForm.email, registerForm.employee_id, registerForm.full_name, registerForm.password]);
+
+  const signupPasswordsMatch =
+    registerForm.password.length > 0 && registerForm.password === registerForm.confirm_password;
+  const signupPolicyComplete =
+    signupPasswordPolicy.minLength && signupPasswordPolicy.symbolsNumbers && signupPasswordPolicy.noPersonal;
+  const canRegister = signupPolicyComplete && signupPasswordsMatch && registerForm.terms_accepted && !loading;
+
+  const handleSignupSubmit = (e) => {
+    if (!canRegister) {
+      e.preventDefault();
+      return;
+    }
+
+    onRegister(e);
+  };
+
+  return (
   <div className="content fade-in signup-content">
-    <div className="card signup-card">
+    <form className="card signup-card" onSubmit={handleSignupSubmit}>
       <div className="signup-header">
         <h1>Create Faculty<br />Account</h1>
         <p>Please enter your institutional details to begin.</p>
@@ -526,27 +1274,46 @@ const SignUpView = ({ setView }) => (
       <div className="input-group">
         <label>FULL NAME</label>
         <div className="input-wrapper plain-input-wrapper">
-          <input type="text" placeholder="Dr. Julian Vane" />
+          <input
+            type="text"
+            placeholder="Dr. Julian Vane"
+            value={registerForm.full_name}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
+            }
+          />
         </div>
       </div>
 
       <div className="input-group">
         <label>EMPLOYEE ID</label>
         <div className="input-wrapper plain-input-wrapper">
-          <input type="text" placeholder="FAC-88920" />
+          <input
+            type="text"
+            placeholder="FAC-88920"
+            value={registerForm.employee_id}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
+            }
+          />
         </div>
       </div>
 
       <div className="input-group">
         <label>DEPARTMENT</label>
         <div className="input-wrapper plain-input-wrapper select-wrapper">
-          <select defaultValue="">
-            <option value="" disabled hidden>Select Department</option>
-            <option value="CHTM">College of Hospitality and Tourism Management</option>
-            <option value="CCS">College of Computer Studies</option>
-            <option value="CBA">College of Business and Accountancy</option>
-            <option value="CEAS">College of Education, Arts and Sciences</option>
-            <option value="CAHS">College of Allied Health Studies</option>
+          <select
+            value={registerForm.department_id}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+            }
+          >
+            <option value="" disabled>Select Department</option>
+            {departments.map((dept) => (
+              <option key={dept.id} value={dept.id}>
+                {dept.department_name}
+              </option>
+            ))}
           </select>
           <div className="select-icon">
             <ChevronDownIcon />
@@ -557,40 +1324,104 @@ const SignUpView = ({ setView }) => (
       <div className="input-group">
         <label>EMAIL ADDRESS</label>
         <div className="input-wrapper plain-input-wrapper">
-          <input type="email" placeholder="faculty@university.edu" />
+          <input
+            type="email"
+            placeholder="faculty@university.edu"
+            value={registerForm.email}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+            }
+          />
+        </div>
+      </div>
+
+      <div className="password-policy-card">
+        <div className="policy-heading">
+          <PolicyBulbIcon />
+          <span>PASSWORD POLICY</span>
+        </div>
+        <div className="policy-list">
+          <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
+            <span>Minimum 10 characters</span>
+          </div>
+          <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
+            <span>Include symbols &amp; numbers</span>
+          </div>
+          <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+            <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
+            <span>No personal information</span>
+          </div>
         </div>
       </div>
 
       <div className="input-group">
         <label>PASSWORD</label>
         <div className="input-wrapper plain-input-wrapper">
-          <input type="password" placeholder="••••••••" />
+          <input
+            type={showSignupPassword ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={registerForm.password}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+            }
+          />
+          <button
+            type="button"
+            className="signup-eye-btn"
+            aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+            onClick={() => setShowSignupPassword((prev) => !prev)}
+          >
+            {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
         </div>
       </div>
 
       <div className="input-group">
         <label>CONFIRM PASSWORD</label>
         <div className="input-wrapper plain-input-wrapper">
-          <input type="password" placeholder="••••••••" />
+          <input
+            type={showSignupConfirmPassword ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={registerForm.confirm_password}
+            onChange={(e) =>
+              setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+            }
+          />
+          <button
+            type="button"
+            className="signup-eye-btn"
+            aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+            onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
+          >
+            {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+          </button>
         </div>
       </div>
 
       <label className="checkbox-container">
-        <input type="checkbox" />
+        <input
+          type="checkbox"
+          checked={registerForm.terms_accepted}
+          onChange={(e) =>
+            setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
+          }
+        />
         <span className="checkmark"></span>
         <span className="checkbox-label">
           I agree to the <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
         </span>
       </label>
 
-      <button type="button" className="primary-btn signup-btn" onClick={() => setView('dashboard')}>
-        Register <ArrowRightIcon />
+      <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
+        {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
       </button>
 
       <div className="signup-footer-link">
         Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
       </div>
-    </div>
+    </form>
 
     <div className="signup-brand-footer">
       <div className="signup-footer-logo">
@@ -602,6 +1433,15 @@ const SignUpView = ({ setView }) => (
       </div>
     </div>
   </div>
+  );
+};
+
+const PolicyBulbIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M9 21H15" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M10 17H14" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <path d="M8 10.2C8 7.85 9.8 6 12 6C14.2 6 16 7.85 16 10.2C16 11.74 15.18 12.78 14.34 13.65C13.72 14.28 13.2 14.86 13.08 16H10.92C10.8 14.86 10.28 14.28 9.66 13.65C8.82 12.78 8 11.74 8 10.2Z" stroke="currentColor" strokeWidth="2.2" strokeLinejoin="round" />
+  </svg>
 );
 
 const BottomNav = ({ active = 'home', setView }) => (
@@ -1907,54 +2747,5 @@ const PrivacySecurityView = ({ setView }) => {
     </div>
   );
 };
-
-const isAuthView = (v) => ['login', 'forgot-password', 'signup'].includes(v);
-
-function App() {
-  const [view, setView] = useState('login');
-  const [profileData, setProfileData] = useState({
-    fullName: 'Mr. Alex Nilo',
-    department: 'CCS',
-    email: 'a.nilo@eduroute.ac.edu',
-    image: '/profile_pic.png',
-  });
-
-  return (
-    <div className="mobile-container">
-      {isAuthView(view) && (
-        <div className="status-bar">
-          <span className="time">9:41</span>
-          <div className="status-icons">
-            <SignalIcon />
-            <WifiIcon />
-            <BatteryIcon />
-          </div>
-        </div>
-      )}
-
-      {view === 'login' && <LoginView setView={setView} />}
-      {view === 'forgot-password' && <ForgotPasswordView setView={setView} />}
-      {view === 'signup' && <SignUpView setView={setView} />}
-      {view === 'dashboard' && <DashboardView setView={setView} />}
-      {view === 'scan' && <ScanView setView={setView} />}
-      {view === 'locator-slip' && <LocatorSlipView setView={setView} />}
-      {view === 'updates' && <UpdatesView setView={setView} />}
-      {view === 'route-approved' && <RouteApprovedView setView={setView} />}
-      {view === 'slip-submitted' && <SlipSubmittedView setView={setView} />}
-      {view === 'map' && <MapTrackingView setView={setView} />}
-      {view === 'profile' && <ProfileView setView={setView} profileData={profileData} />}
-      {view === 'change-password' && <ChangePasswordView setView={setView} />}
-      {view === 'notification-settings' && <NotificationSettingsView setView={setView} />}
-      {view === 'edit-profile' && <EditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />}
-      {view === 'privacy-security' && <PrivacySecurityView setView={setView} />}
-
-      {isAuthView(view) && (
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '36px', zIndex: 1, pointerEvents: 'none' }}>
-          <div style={{ width: '100%', height: '100%', left: 0, top: 0, position: 'absolute', opacity: 0.40, background: 'linear-gradient(90deg, #049516 0%, #FFD517 50%, #036E10 100%)' }} />
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default App;

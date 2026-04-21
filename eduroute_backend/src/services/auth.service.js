@@ -1,0 +1,392 @@
+const bcrypt = require('bcrypt');
+const pool = require('../db/pool');
+const env = require('../config/env');
+const AppError = require('../utils/appError');
+const { signAccessToken } = require('../utils/jwt');
+const { validatePasswordPolicy } = require('../utils/passwordPolicy');
+const { generateResetCode, hashResetCode } = require('../utils/resetCode');
+const { sendResetCodeEmail } = require('./email.service');
+
+const getDepartments = async () => {
+    const query = `
+    SELECT id, department_name
+    FROM departments
+    ORDER BY department_name ASC
+  `;
+
+    const { rows } = await pool.query(query);
+    return rows;
+};
+
+const sanitizeFaculty = (faculty) => ({
+    id: faculty.id,
+    full_name: faculty.full_name,
+    employee_id: faculty.employee_id,
+    email: faculty.email,
+    status: faculty.status,
+    department_id: faculty.department_id,
+    department_name: faculty.department_name,
+    last_login_at: faculty.last_login_at,
+    created_at: faculty.created_at
+});
+
+const registerFaculty = async (payload) => {
+    const client = await pool.connect();
+
+    try {
+        const fullName = payload.full_name.trim();
+        const employeeId = payload.employee_id.trim();
+        const departmentId = Number(payload.department_id);
+        const email = payload.email.trim().toLowerCase();
+        const password = payload.password;
+        const termsAccepted = payload.terms_accepted === true;
+
+        const passwordCheck = validatePasswordPolicy({
+            password,
+            fullName,
+            employeeId,
+            email
+        });
+
+        if (!passwordCheck.isValid) {
+            throw new AppError('Password policy validation failed', 422, passwordCheck.errors);
+        }
+
+        await client.query('BEGIN');
+
+        const departmentResult = await client.query(
+            'SELECT id, department_name FROM departments WHERE id = $1',
+            [departmentId]
+        );
+
+        if (departmentResult.rowCount === 0) {
+            throw new AppError('Selected department does not exist.', 404);
+        }
+
+        const duplicateEmail = await client.query(
+            'SELECT id FROM faculty_users WHERE LOWER(email) = LOWER($1)',
+            [email]
+        );
+
+        if (duplicateEmail.rowCount > 0) {
+            throw new AppError('Email is already registered.', 409);
+        }
+
+        const duplicateEmployee = await client.query(
+            'SELECT id FROM faculty_users WHERE employee_id = $1',
+            [employeeId]
+        );
+
+        if (duplicateEmployee.rowCount > 0) {
+            throw new AppError('Employee ID is already registered.', 409);
+        }
+
+        const passwordHash = await bcrypt.hash(password, env.bcryptSaltRounds);
+
+        const insertResult = await client.query(
+            `INSERT INTO faculty_users (
+        full_name,
+        employee_id,
+        department_id,
+        email,
+        password_hash,
+        terms_accepted
+      )
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, full_name, employee_id, department_id, email, status, created_at, last_login_at`,
+            [fullName, employeeId, departmentId, email, passwordHash, termsAccepted]
+        );
+
+        await client.query('COMMIT');
+
+        return {
+            ...insertResult.rows[0],
+            department_name: departmentResult.rows[0].department_name
+        };
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('Rollback failed:', rollbackError);
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+const loginFaculty = async ({ email_or_employee_id, password }) => {
+    const identifier = email_or_employee_id.trim();
+
+    const query = `
+    SELECT
+      fu.id,
+      fu.full_name,
+      fu.employee_id,
+      fu.email,
+      fu.password_hash,
+      fu.status,
+      fu.department_id,
+      fu.last_login_at,
+      fu.created_at,
+      d.department_name
+    FROM faculty_users fu
+    JOIN departments d ON d.id = fu.department_id
+    WHERE LOWER(fu.email) = LOWER($1)
+       OR fu.employee_id = $1
+    LIMIT 1
+  `;
+
+    const { rows, rowCount } = await pool.query(query, [identifier]);
+
+    if (rowCount === 0) {
+        throw new AppError('Invalid credentials.', 401);
+    }
+
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!isMatch) {
+        throw new AppError('Invalid credentials.', 401);
+    }
+
+    if (user.status !== 'active') {
+        throw new AppError('This account is not active.', 403);
+    }
+
+    const updateResult = await pool.query(
+        `UPDATE faculty_users
+     SET last_login_at = CURRENT_TIMESTAMP
+     WHERE id = $1
+     RETURNING last_login_at`,
+        [user.id]
+    );
+
+    const token = signAccessToken({
+        sub: user.id,
+        email: user.email,
+        role: 'faculty'
+    });
+
+    return {
+        token,
+        user: sanitizeFaculty({
+            ...user,
+            last_login_at: updateResult.rows[0]?.last_login_at || user.last_login_at
+        })
+    };
+};
+
+const getCurrentFaculty = async (facultyId) => {
+    const query = `
+    SELECT
+      fu.id,
+      fu.full_name,
+      fu.employee_id,
+      fu.email,
+      fu.status,
+      fu.department_id,
+      fu.last_login_at,
+      fu.created_at,
+      d.department_name
+    FROM faculty_users fu
+    JOIN departments d ON d.id = fu.department_id
+    WHERE fu.id = $1
+    LIMIT 1
+  `;
+
+    const { rows, rowCount } = await pool.query(query, [facultyId]);
+
+    if (rowCount === 0) {
+        throw new AppError('Faculty user not found.', 404);
+    }
+
+    return sanitizeFaculty(rows[0]);
+};
+
+const forgotPassword = async ({ email }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const userResult = await pool.query(
+        'SELECT id, full_name, email, status FROM faculty_users WHERE LOWER(email) = LOWER($1) LIMIT 1',
+        [normalizedEmail]
+    );
+
+    if (userResult.rowCount === 0) {
+        return;
+    }
+
+    const user = userResult.rows[0];
+
+    if (user.status !== 'active') {
+        return;
+    }
+
+    const resetCode = generateResetCode();
+    const resetCodeHash = hashResetCode(resetCode);
+    const expiresAt = new Date(Date.now() + env.resetCodeTtlMinutes * 60 * 1000);
+
+    await pool.query(
+        `UPDATE password_reset_tokens
+     SET used_at = CURRENT_TIMESTAMP
+     WHERE faculty_user_id = $1 AND used_at IS NULL`,
+        [user.id]
+    );
+
+    await pool.query(
+        `INSERT INTO password_reset_tokens (faculty_user_id, reset_code_hash, expires_at)
+     VALUES ($1, $2, $3)`,
+        [user.id, resetCodeHash, expiresAt]
+    );
+
+    await sendResetCodeEmail({
+        to: user.email,
+        fullName: user.full_name,
+        resetCode
+    });
+};
+
+const verifyResetCode = async ({ email, reset_code }) => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const codeHash = hashResetCode(reset_code.trim());
+
+    const query = `
+    SELECT
+      prt.id,
+      prt.faculty_user_id,
+      prt.reset_code_hash,
+      prt.expires_at,
+      prt.used_at,
+      fu.email,
+      fu.status
+    FROM password_reset_tokens prt
+    JOIN faculty_users fu ON fu.id = prt.faculty_user_id
+    WHERE LOWER(fu.email) = LOWER($1)
+      AND prt.used_at IS NULL
+    ORDER BY prt.created_at DESC
+    LIMIT 1
+  `;
+
+    const { rows, rowCount } = await pool.query(query, [normalizedEmail]);
+
+    if (rowCount === 0) {
+        throw new AppError('Invalid or expired reset code.', 400);
+    }
+
+    const tokenRecord = rows[0];
+
+    if (tokenRecord.status !== 'active') {
+        throw new AppError('This account is not active.', 403);
+    }
+
+    if (new Date(tokenRecord.expires_at).getTime() < Date.now()) {
+        throw new AppError('Reset code has expired.', 400);
+    }
+
+    if (tokenRecord.reset_code_hash !== codeHash) {
+        throw new AppError('Invalid or expired reset code.', 400);
+    }
+
+    return { verified: true };
+};
+
+const resetPassword = async ({ email, reset_code, new_password }) => {
+    const client = await pool.connect();
+
+    try {
+        const normalizedEmail = email.trim().toLowerCase();
+        const codeHash = hashResetCode(reset_code.trim());
+
+        await client.query('BEGIN');
+
+        const userResult = await client.query(
+            `SELECT fu.id, fu.full_name, fu.employee_id, fu.email, fu.status
+       FROM faculty_users fu
+       WHERE LOWER(fu.email) = LOWER($1)
+       LIMIT 1`,
+            [normalizedEmail]
+        );
+
+        if (userResult.rowCount === 0) {
+            throw new AppError('Invalid reset request.', 400);
+        }
+
+        const user = userResult.rows[0];
+
+        if (user.status !== 'active') {
+            throw new AppError('This account is not active.', 403);
+        }
+
+        const passwordCheck = validatePasswordPolicy({
+            password: new_password,
+            fullName: user.full_name,
+            employeeId: user.employee_id,
+            email: user.email
+        });
+
+        if (!passwordCheck.isValid) {
+            throw new AppError('Password policy validation failed', 422, passwordCheck.errors);
+        }
+
+        const tokenResult = await client.query(
+            `SELECT id, faculty_user_id, reset_code_hash, expires_at, used_at
+       FROM password_reset_tokens
+       WHERE faculty_user_id = $1 AND used_at IS NULL
+       ORDER BY created_at DESC
+       LIMIT 1`,
+            [user.id]
+        );
+
+        if (tokenResult.rowCount === 0) {
+            throw new AppError('Invalid or expired reset code.', 400);
+        }
+
+        const tokenRecord = tokenResult.rows[0];
+
+        if (new Date(tokenRecord.expires_at).getTime() < Date.now()) {
+            throw new AppError('Reset code has expired.', 400);
+        }
+
+        if (tokenRecord.reset_code_hash !== codeHash) {
+            throw new AppError('Invalid or expired reset code.', 400);
+        }
+
+        const newPasswordHash = await bcrypt.hash(new_password, env.bcryptSaltRounds);
+
+        await client.query(
+            `UPDATE faculty_users
+       SET password_hash = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE LOWER(email) = LOWER($1)`,
+            [normalizedEmail, newPasswordHash]
+        );
+
+        await client.query(
+            `UPDATE password_reset_tokens
+       SET used_at = CURRENT_TIMESTAMP
+       WHERE faculty_user_id = $1 AND used_at IS NULL`,
+            [user.id]
+        );
+
+        await client.query('COMMIT');
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('Rollback failed:', rollbackError);
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+module.exports = {
+    getDepartments,
+    registerFaculty,
+    loginFaculty,
+    getCurrentFaculty,
+    forgotPassword,
+    verifyResetCode,
+    resetPassword
+};
