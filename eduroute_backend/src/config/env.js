@@ -9,6 +9,10 @@ module.exports = {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+    frontendUrls: (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean),
     smtpHost: process.env.SMTP_HOST,
     smtpPort: Number(process.env.SMTP_PORT || 587),
     smtpSecure: String(process.env.SMTP_SECURE) === 'true',

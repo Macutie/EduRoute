@@ -46,10 +46,30 @@ const cancelLocatorSlip = async (req, res, next) => {
     }
 };
 
+const verifyLocation = async (req, res, next) => {
+    try {
+        const verification = await locatorSlipService.verifyLocation(req.user.sub, req.params.id, req.file);
+        return res.status(201).json(successResponse('Location verification photo uploaded successfully.', verification));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getLocationVerification = async (req, res, next) => {
+    try {
+        const verification = await locatorSlipService.getLocationVerification(req.user.sub, req.params.id);
+        return res.json(successResponse('Location verification fetched successfully.', verification));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     getFacultyProfile,
     createLocatorSlip,
     getMyLocatorSlips,
     getLocatorSlipById,
-    cancelLocatorSlip
+    cancelLocatorSlip,
+    verifyLocation,
+    getLocationVerification
 };

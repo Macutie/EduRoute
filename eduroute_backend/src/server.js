@@ -8,7 +8,7 @@ const startServer = async () => {
         await pool.query('SELECT 1');
         console.log('PostgreSQL connected successfully.');
 
-        app.listen(env.port, () => {
+        app.listen(env.port, '0.0.0.0', () => {
             console.log(`Server running on port ${env.port}`);
         });
     } catch (error) {

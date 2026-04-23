@@ -13,7 +13,18 @@ const app = express();
 app.use(helmet());
 app.use(
     cors({
-        origin: env.frontendUrl,
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+
+            const isConfiguredOrigin = env.frontendUrls.includes(origin);
+            const isLocalNetworkOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
+
+            if (isConfiguredOrigin || (env.nodeEnv !== 'production' && isLocalNetworkOrigin)) {
+                return callback(null, true);
+            }
+
+            return callback(new Error('Not allowed by CORS'));
+        },
         credentials: true
     })
 );

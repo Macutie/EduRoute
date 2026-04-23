@@ -34,6 +34,42 @@ CREATE INDEX IF NOT EXISTS idx_locator_slips_status
 CREATE INDEX IF NOT EXISTS idx_locator_slips_created_at
     ON locator_slips(created_at DESC);
 
+CREATE TABLE IF NOT EXISTS locator_slip_location_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    locator_slip_id UUID NOT NULL REFERENCES locator_slips(id) ON DELETE CASCADE,
+    faculty_user_id UUID NOT NULL REFERENCES faculty_users(id) ON DELETE CASCADE,
+    target_location VARCHAR(255) NOT NULL,
+    image_url TEXT NOT NULL,
+    image_public_id VARCHAR(255),
+    mime_type VARCHAR(100) NOT NULL,
+    file_size INTEGER NOT NULL,
+    original_file_size INTEGER,
+    image_width INTEGER,
+    image_height INTEGER,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'submitted',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT chk_location_verifications_status
+        CHECK (verification_status IN ('submitted', 'accepted', 'rejected'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_location_verifications_locator_slip_id
+    ON locator_slip_location_verifications(locator_slip_id);
+
+CREATE INDEX IF NOT EXISTS idx_location_verifications_faculty_user_id
+    ON locator_slip_location_verifications(faculty_user_id);
+
+CREATE INDEX IF NOT EXISTS idx_location_verifications_created_at
+    ON locator_slip_location_verifications(created_at DESC);
+
+ALTER TABLE locator_slip_location_verifications
+    ADD COLUMN IF NOT EXISTS original_file_size INTEGER;
+
+ALTER TABLE locator_slip_location_verifications
+    ADD COLUMN IF NOT EXISTS image_width INTEGER;
+
+ALTER TABLE locator_slip_location_verifications
+    ADD COLUMN IF NOT EXISTS image_height INTEGER;
+
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN

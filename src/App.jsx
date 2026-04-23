@@ -6,7 +6,11 @@ const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
 
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
-  const [view, setView] = useState('login');
+  const [view, setView] = useState(() => {
+    const token = localStorage.getItem('token');
+    const savedView = localStorage.getItem('edurouteLastView');
+    return token ? (savedView || 'dashboard') : 'login';
+  });
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [departments, setDepartments] = useState([]);
@@ -138,6 +142,46 @@ function App() {
     });
 
   useEffect(() => {
+    if (isAuthView(view)) return;
+    localStorage.setItem('edurouteLastView', view);
+  }, [view]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const pendingSlipId = localStorage.getItem('edurouteVerifySlipId');
+    const savedView = localStorage.getItem('edurouteLastView');
+
+    if (!token || !pendingSlipId || savedView !== 'scan' || selectedStatusSlip?.id === pendingSlipId) return;
+
+    const restoreVerificationSlip = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/locator-slips/${pendingSlipId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          localStorage.removeItem('edurouteVerifySlipId');
+          return;
+        }
+
+        if (data.data?.status === 'approved') {
+          setSelectedStatusSlip(data.data);
+          setView('scan');
+        } else {
+          localStorage.removeItem('edurouteVerifySlipId');
+        }
+      } catch (error) {
+        console.error('Failed to restore verification slip:', error);
+      }
+    };
+
+    restoreVerificationSlip();
+  }, [selectedStatusSlip]);
+
+  useEffect(() => {
     const loadDepartments = async () => {
       if (view !== 'signup') return;
 
@@ -262,6 +306,8 @@ function App() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('profileImage');
+    localStorage.removeItem('edurouteLastView');
+    localStorage.removeItem('edurouteVerifySlipId');
     setShowPermissionSetup(false);
     setPermissionSetupStep('intro');
     setPermissionSetupMessage('');
@@ -2043,8 +2089,12 @@ const DashboardView = ({ setView, profileData }) => {
     loadRecentLocatorSlips();
   }, []);
 
-  const hour = new Date().getHours();
-  const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'night';
+  const localHour = new Date().getHours();
+  const greeting = localHour < 12
+    ? 'Good morning'
+    : localHour < 18
+      ? 'Good afternoon'
+      : 'Good evening';
   const registeredName = facultyProfile?.full_name || profileData.fullName || '';
   const firstName = registeredName
     .replace(/^(dr|prof|mr|mrs|ms)\.?\s+/i, '')
@@ -2067,7 +2117,7 @@ const DashboardView = ({ setView, profileData }) => {
         </div>
 
         <div className="dash-header">
-          <p>Good {dayPart}, Prof. {firstName}</p>
+          <p>{greeting}, Prof. {firstName}</p>
           <h1>Faculty Dashboard</h1>
           <div className="dept-pill">
             <CapIcon color="var(--green)" outline={true} /> {departmentLabel.toUpperCase()}
@@ -2075,12 +2125,12 @@ const DashboardView = ({ setView, profileData }) => {
         </div>
 
         <div className="action-grid">
-          <div className="primary-action-card" onClick={() => setView('scan')} style={{ cursor: 'pointer' }}>
+          <div className="primary-action-card" onClick={() => setView('status')} style={{ cursor: 'pointer' }}>
             <div className="primary-action-bg-deco">
-              <img src="/Translucent Icon.svg" alt="Decoration Layout" />
+              <img src="/Camera Translucent Icon.svg" alt="Camera Decoration Layout" />
             </div>
             <div className="primary-icon-wrapper">
-              <img src="/QR Icon.svg" alt="Scan QR Icon" />
+              <img src="/Camera Icon.svg" alt="Camera Icon" />
             </div>
             <h2>Verify Location</h2>
             <p>Instant location verification</p>
@@ -2129,7 +2179,7 @@ const DashboardView = ({ setView, profileData }) => {
                   <p>{slip.destination}</p>
                   <span className={`status-badge badge-${slip.status}`}>{slip.status.toUpperCase()}</span>
                 </div>
-                <span className="act-time">{formatStatusDate(slip.created_at)}</span>
+                <span className="act-time">{formatActivityFiledTime(slip.created_at)}</span>
               </div>
             ))}
           </div>
@@ -2209,6 +2259,39 @@ const formatStatusDate = (value) => {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
+  });
+};
+
+const formatStatusDateTime = (value) => {
+  if (!value) return 'No date set';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'No date set';
+
+  return date.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+};
+
+const formatActivityFiledTime = (value) => {
+  if (!value) return 'No time';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'No time';
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
   });
 };
 
@@ -2662,6 +2745,10 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
               type="button"
               className={`status-slip-card ${slip.status}`}
               onClick={() => {
+                if (slip.status !== 'approved') {
+                  localStorage.removeItem('edurouteVerifySlipId');
+                }
+                localStorage.setItem('edurouteLastView', 'locator-slip-detail');
                 setSelectedStatusSlip(slip);
                 setView('locator-slip-detail');
               }}
@@ -2678,7 +2765,11 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
                 </div>
                 <div className="status-slip-row">
                   <ClockIcon color="var(--text-gray)" />
-                  <span>{formatStatusDate(slip.departure_datetime)}</span>
+                  <span>Departure: {formatStatusDateTime(slip.departure_datetime)}</span>
+                </div>
+                <div className="status-slip-row">
+                  <RefreshClockIcon color="var(--text-gray)" />
+                  <span>Expected Return: {formatStatusDateTime(slip.expected_return_datetime)}</span>
                 </div>
               </div>
             </button>
@@ -2692,6 +2783,8 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
 
 const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [locationVerification, setLocationVerification] = useState(null);
+  const [showLocationProof, setShowLocationProof] = useState(false);
   const slip = selectedSlip;
 
   useEffect(() => {
@@ -2699,6 +2792,33 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
       setView('status');
     }
   }, [slip, setView]);
+
+  useEffect(() => {
+    if (!slip || slip.status !== 'approved') {
+      setLocationVerification(null);
+      setShowLocationProof(false);
+      return;
+    }
+
+    const fetchLocationVerification = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/locator-slips/${slip.id}/location-verification`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        });
+        const data = await response.json();
+
+        if (!response.ok) return;
+
+        setLocationVerification(data.data?.verification || null);
+      } catch (error) {
+        console.error('Failed to fetch location verification:', error);
+      }
+    };
+
+    fetchLocationVerification();
+  }, [slip]);
 
   if (!slip) return null;
 
@@ -2753,7 +2873,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
         </div>
 
         <div className="submitted-graphic-container">
-          <div className={`graphic-circle-dashed ${isRejected ? 'rejected' : ''}`}>
+          <div className={`graphic-circle-dashed ${isApproved ? 'approved' : ''} ${isRejected ? 'rejected' : ''}`}>
             <div className="graphic-circle-solid">
               {isApproved && <CheckCircleSolidIcon color="var(--green)" size="66" />}
               {isRejected && <ExclamationCircleIcon color="#c9191f" size="74" />}
@@ -2788,7 +2908,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
         {(isPending || isApproved || isRejected) && (
           <div className="progress-bar-container">
-            <div className={`progress-track ${isApproved ? 'approved' : ''}`}>
+            <div className={`progress-track ${isApproved ? 'approved' : ''} ${isRejected ? 'rejected' : ''}`}>
               <div className="progress-fill"></div>
             </div>
             <div className="progress-points">
@@ -2845,15 +2965,37 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
             <button type="button" className="approved-view-route-btn" onClick={() => setView('map')}>
               VIEW ROUTE
             </button>
+            {locationVerification?.image_url && (
+              <button
+                type="button"
+                className="approved-view-proof-btn"
+                onClick={() => setShowLocationProof((current) => !current)}
+              >
+                {showLocationProof ? 'HIDE UPLOADED LOCATION' : 'VIEW UPLOADED LOCATION'}
+              </button>
+            )}
             <button
               type="button"
               className="approved-verify-location-btn"
               onClick={() => {
+                localStorage.setItem('edurouteVerifySlipId', slip.id);
+                localStorage.setItem('edurouteLastView', 'scan');
                 setView('scan');
               }}
             >
               VERIFY LOCATION
             </button>
+          </div>
+        )}
+
+        {isApproved && showLocationProof && locationVerification?.image_url && (
+          <div className="location-proof-card">
+            <span className="location-proof-kicker">PROOF OF ARRIVAL</span>
+            <h3>{locationVerification.target_location || slip.destination}</h3>
+            <p>
+              Uploaded {formatStatusDate(locationVerification.created_at)} for this approved locator slip.
+            </p>
+            <img src={locationVerification.image_url} alt="Uploaded proof of arrival" />
           </div>
         )}
 
@@ -3227,6 +3369,221 @@ const ProfileView = ({ setView, profileData, onLogout }) => {
 
 const ScanView = ({ setView, profileData, selectedSlip }) => {
   const targetLocation = selectedSlip?.destination || 'Select an approved locator slip from Status';
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const verificationFileInputRef = useRef(null);
+  const streamRef = useRef(null);
+  const [cameraMode, setCameraMode] = useState('idle');
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [capturedPreview, setCapturedPreview] = useState('');
+  const [submittedPhotoUrl, setSubmittedPhotoUrl] = useState('');
+  const [cameraMessage, setCameraMessage] = useState('');
+  const [verificationUploading, setVerificationUploading] = useState(false);
+
+  useEffect(() => {
+    if (selectedSlip && selectedSlip.status !== 'approved') {
+      localStorage.removeItem('edurouteVerifySlipId');
+      localStorage.setItem('edurouteLastView', 'locator-slip-detail');
+      setView('locator-slip-detail');
+    }
+  }, [selectedSlip, setView]);
+
+  const formatScanApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatScanApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') return Object.values(value).map(formatScanApiMessage).filter(Boolean).join('\n');
+    return String(value);
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      stopCamera();
+      if (capturedPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(capturedPreview);
+      }
+    };
+  }, [capturedPreview]);
+
+  const startCamera = async () => {
+    setCameraMessage('');
+
+    if (!selectedSlip) {
+      setCameraMessage('Open an approved locator slip from Status before verifying your location.');
+      return;
+    }
+
+    if (selectedSlip.status !== 'approved') {
+      setCameraMessage('Only approved locator slips can be verified by location photo.');
+      return;
+    }
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      setCameraMessage('Live camera preview requires HTTPS on phones. Opening your device camera as a secure fallback.');
+      localStorage.setItem('edurouteVerifySlipId', selectedSlip.id);
+      localStorage.setItem('edurouteLastView', 'scan');
+      verificationFileInputRef.current?.click();
+      return;
+    }
+
+    try {
+      setCameraMode('requesting');
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 1280 },
+        },
+        audio: false,
+      });
+
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      setCameraMode('camera');
+    } catch (error) {
+      setCameraMode('idle');
+
+      if (error.name === 'NotAllowedError') {
+        setCameraMessage('Camera permission was denied. Enable camera access in your browser settings to verify this location.');
+      } else if (error.name === 'NotFoundError') {
+        setCameraMessage('No camera was found on this device.');
+      } else {
+        setCameraMessage('Unable to open the camera. Please try again.');
+      }
+    }
+  };
+
+  const captureLocationPhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    if (!video || !canvas) {
+      setCameraMessage('Camera preview is not ready yet.');
+      return;
+    }
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        setCameraMessage('Failed to capture photo. Please try again.');
+        return;
+      }
+
+      const file = new File([blob], `location-verification-${selectedSlip.id}.jpg`, {
+        type: 'image/jpeg',
+      });
+
+      stopCamera();
+
+      if (capturedPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(capturedPreview);
+      }
+
+      setCapturedPhoto(file);
+      setCapturedPreview(URL.createObjectURL(file));
+      setCameraMode('preview');
+      setCameraMessage('Review the photo. Retake it if the location is unclear.');
+    }, 'image/jpeg', 0.92);
+  };
+
+  const retakeLocationPhoto = async () => {
+    if (capturedPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(capturedPreview);
+    }
+
+    setCapturedPhoto(null);
+    setCapturedPreview('');
+    await startCamera();
+  };
+
+  const handleVerificationFile = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setCameraMessage('Please capture or choose a valid image file.');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setCameraMessage('Image is too large. Maximum file size is 10MB.');
+      return;
+    }
+
+    stopCamera();
+
+    if (capturedPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(capturedPreview);
+    }
+
+    setCapturedPhoto(file);
+    setCapturedPreview(URL.createObjectURL(file));
+    setCameraMode('preview');
+    setCameraMessage('Review the photo. Retake it if the location is unclear.');
+    event.target.value = '';
+  };
+
+  const cancelCamera = () => {
+    stopCamera();
+    setCameraMode('idle');
+    setCameraMessage('');
+  };
+
+  const uploadLocationPhoto = async () => {
+    if (!capturedPhoto || !selectedSlip) return;
+
+    setVerificationUploading(true);
+    setCameraMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('verification_photo', capturedPhoto);
+
+      const response = await fetch(`${API_BASE_URL}/api/locator-slips/${selectedSlip.id}/verify-location`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+        body: formData,
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatScanApiMessage(data.errors) || formatScanApiMessage(data.message) || 'Failed to upload location verification photo.');
+      }
+
+      setCameraMode('uploaded');
+      setSubmittedPhotoUrl(data.data?.verification?.image_url || capturedPreview);
+      localStorage.removeItem('edurouteVerifySlipId');
+      setCameraMessage(formatScanApiMessage(data.message) || 'Location verification photo uploaded successfully.');
+    } catch (error) {
+      setCameraMessage(error.message);
+    } finally {
+      setVerificationUploading(false);
+    }
+  };
 
   return (
     <div className="dashboard-wrapper scan-wrapper">
@@ -3253,6 +3610,23 @@ const ScanView = ({ setView, profileData, selectedSlip }) => {
 
         <div className="location-camera-stage">
           <div className="location-camera-frame">
+            {cameraMode === 'idle' && (
+              <button type="button" className="camera-open-btn" onClick={startCamera}>
+                Use Camera
+              </button>
+            )}
+            {cameraMode === 'requesting' && (
+              <div className="camera-state-text">Requesting camera permission...</div>
+            )}
+            {cameraMode === 'camera' && (
+              <video ref={videoRef} className="location-camera-video" playsInline muted />
+            )}
+            {['preview', 'uploaded'].includes(cameraMode) && capturedPreview && (
+              <img src={capturedPreview} alt="Captured location preview" className="location-camera-preview" />
+            )}
+            {cameraMode === 'uploaded' && (
+              <div className="camera-uploaded-badge">Submitted</div>
+            )}
             <div className="scanner-corner top-left"></div>
             <div className="scanner-corner top-right"></div>
             <div className="scanner-corner bottom-left"></div>
@@ -3260,16 +3634,67 @@ const ScanView = ({ setView, profileData, selectedSlip }) => {
           </div>
         </div>
 
-        <div className="location-camera-controls">
-          <button type="button" className="camera-side-btn">
-            <FlashlightIcon color="white" />
-          </button>
-          <button type="button" className="camera-shutter-btn" aria-label="Capture location photo" />
-          <button type="button" className="camera-side-btn">
-            <RefreshIcon color="white" />
-          </button>
+        {cameraMessage && <div className="location-camera-message">{cameraMessage}</div>}
+
+        <div className="location-camera-text-actions">
+          {cameraMode === 'idle' && (
+            <button type="button" onClick={startCamera}>
+              Open Phone Camera
+            </button>
+          )}
+          {cameraMode === 'camera' && (
+            <>
+              <button type="button" onClick={captureLocationPhoto}>
+                Capture Photo
+              </button>
+              <button type="button" className="secondary" onClick={cancelCamera}>
+                Cancel
+              </button>
+            </>
+          )}
+          {cameraMode === 'preview' && (
+            <>
+              <button type="button" onClick={uploadLocationPhoto} disabled={verificationUploading}>
+                {verificationUploading ? 'Uploading...' : 'Upload Image'}
+              </button>
+              <button type="button" className="secondary" onClick={retakeLocationPhoto} disabled={verificationUploading}>
+                Retake
+              </button>
+            </>
+          )}
+          {cameraMode === 'uploaded' && (
+            <span>Verification photo submitted</span>
+          )}
         </div>
 
+        {cameraMode === 'uploaded' && (
+          <div className="location-submitted-card">
+            <span className="location-submitted-kicker">UPLOADED PHOTO</span>
+            <h2>Location Verification Submitted</h2>
+            <p>Your photo has been uploaded and attached to this locator slip for review.</p>
+            {submittedPhotoUrl && (
+              <img src={submittedPhotoUrl} alt="Uploaded location verification" />
+            )}
+            <div className="location-submitted-actions">
+              <button type="button" onClick={() => setView('status')}>
+                Back to Status
+              </button>
+              <button type="button" className="secondary" onClick={() => setView('dashboard')}>
+                Dashboard
+              </button>
+            </div>
+          </div>
+        )}
+
+        <canvas ref={canvasRef} hidden />
+        <input
+          ref={verificationFileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          hidden
+          onChange={handleVerificationFile}
+        />
       </div>
       <BottomNav active="status" setView={setView} />
     </div>

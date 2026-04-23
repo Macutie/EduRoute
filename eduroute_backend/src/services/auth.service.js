@@ -7,6 +7,7 @@ const { validatePasswordPolicy } = require('../utils/passwordPolicy');
 const { generateResetCode, hashResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
 const cloudinary = require('../config/cloudinary');
+const { optimizeImage } = require('./imageOptimization.service');
 
 const ROLE_LABELS = {
     faculty: 'Faculty',
@@ -268,7 +269,7 @@ const updateCurrentFacultyProfile = async (facultyId, payload) => {
     return getCurrentFaculty(facultyId);
 };
 
-const uploadToCloudinary = (fileBuffer, facultyId) =>
+const uploadToCloudinary = (optimizedImage, facultyId) =>
     new Promise((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
             {
@@ -276,10 +277,7 @@ const uploadToCloudinary = (fileBuffer, facultyId) =>
                 public_id: `faculty-${facultyId}-${Date.now()}`,
                 overwrite: true,
                 resource_type: 'image',
-                transformation: [
-                    { width: 500, height: 500, crop: 'fill', gravity: 'face' },
-                    { quality: 'auto', fetch_format: 'auto' }
-                ]
+                format: optimizedImage.extension
             },
             (error, result) => {
                 if (error) return reject(error);
@@ -287,7 +285,7 @@ const uploadToCloudinary = (fileBuffer, facultyId) =>
             }
         );
 
-        uploadStream.end(fileBuffer);
+        uploadStream.end(optimizedImage.buffer);
     });
 
 const updateCurrentFacultyProfileImage = async (facultyId, file) => {
@@ -299,15 +297,30 @@ const updateCurrentFacultyProfileImage = async (facultyId, file) => {
         'SELECT profile_image_public_id FROM faculty_users WHERE id = $1',
         [facultyId]
     );
-    const uploadResult = await uploadToCloudinary(file.buffer, facultyId);
+    const optimizedImage = await optimizeImage(file, 'profile');
+    const uploadResult = await uploadToCloudinary(optimizedImage, facultyId);
 
     await pool.query(
         `UPDATE faculty_users
          SET profile_image_url = $2,
              profile_image_public_id = $3,
+             profile_image_mime_type = $4,
+             profile_image_file_size = $5,
+             profile_image_original_file_size = $6,
+             profile_image_width = $7,
+             profile_image_height = $8,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $1`,
-        [facultyId, uploadResult.secure_url, uploadResult.public_id]
+        [
+            facultyId,
+            uploadResult.secure_url,
+            uploadResult.public_id,
+            optimizedImage.mimetype,
+            optimizedImage.size,
+            optimizedImage.original.size,
+            optimizedImage.width,
+            optimizedImage.height
+        ]
     );
 
     const currentPublicId = currentImageResult.rows[0]?.profile_image_public_id;

@@ -1529,11 +1529,11 @@ label {
 
 .primary-action-bg-deco {
   position: absolute;
-  top: -40px;
-  right: -20px;
-  width: 150px;
-  height: 150px;
-  opacity: 0.12;
+  top: -18px;
+  right: -30px;
+  width: 132px;
+  height: 132px;
+  opacity: 0.32;
   pointer-events: none;
 }
 
@@ -2835,6 +2835,210 @@ label {
   cursor: pointer;
 }
 
+.camera-shutter-btn:disabled,
+.camera-side-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.location-camera-video,
+.location-camera-preview {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 16px;
+  object-fit: cover;
+}
+
+.camera-open-btn,
+.camera-state-text {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  z-index: 1;
+}
+
+.camera-open-btn {
+  min-width: 150px;
+  min-height: 48px;
+  padding: 0 22px;
+  border: 1px solid rgba(110, 224, 122, 0.45);
+  border-radius: 999px;
+  background: rgba(12, 78, 31, 0.72);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+
+.camera-state-text {
+  max-width: 220px;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.camera-uploaded-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(11, 150, 23, 0.92);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.location-camera-message {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 14px 28px;
+  background: #1f2221;
+  color: #dff6e3;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.location-camera-action-label {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 0 24px 96px;
+  background: #121514;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.location-camera-text-actions {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 34px 28px 96px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  background: linear-gradient(180deg, #1f2221 0%, #121514 100%);
+  text-align: center;
+}
+
+.location-camera-text-actions button {
+  min-height: 52px;
+  border: none;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #121514;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.location-camera-text-actions button.secondary {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.location-camera-text-actions button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.location-camera-text-actions span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.location-submitted-card {
+  margin: -64px 0 88px;
+  padding: 22px;
+  position: relative;
+  z-index: 3;
+  border: 1px solid rgba(110, 224, 122, 0.25);
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+  text-align: center;
+}
+
+.location-submitted-kicker {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.6px;
+}
+
+.location-submitted-card h2 {
+  margin: 0 0 8px;
+  color: var(--text-dark);
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.location-submitted-card p {
+  margin: 0 0 16px;
+  color: var(--text-gray);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.location-submitted-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  border-radius: 18px;
+  object-fit: cover;
+  background: #eef3ef;
+  border: 1px solid #dce8dd;
+}
+
+.location-submitted-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.location-submitted-actions button {
+  min-height: 48px;
+  border: none;
+  border-radius: 999px;
+  background: var(--green);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+}
+
+.location-submitted-actions button.secondary {
+  background: #eef7ef;
+  color: var(--green);
+}
+
 /* --- Slip Submitted View --- */
 .submitted-wrapper {
   background: #F9FAFB;
@@ -2930,6 +3134,16 @@ label {
   border-radius: 16px;
   letter-spacing: 0.5px;
   margin-bottom: 16px;
+}
+
+.status-pill-rejected {
+  background: #f4dddd;
+  color: #7f1d1d;
+}
+
+.status-pill-approved {
+  background: #cfead4;
+  color: #12391c;
 }
 
 .submitted-status-text h2 {
@@ -3039,6 +3253,10 @@ label {
   border-color: #c9191f;
 }
 
+.graphic-circle-dashed.approved {
+  border-color: var(--green);
+}
+
 .info-cards-container {
   padding: 0 24px;
   display: flex;
@@ -3115,6 +3333,10 @@ label {
   width: 100%;
 }
 
+.progress-track.rejected .progress-fill {
+  width: 100%;
+}
+
 .approved-detail-actions {
   display: flex;
   flex-direction: column;
@@ -3126,7 +3348,8 @@ label {
 }
 
 .approved-view-route-btn,
-.approved-verify-location-btn {
+.approved-verify-location-btn,
+.approved-view-proof-btn {
   width: 100%;
   min-height: 54px;
   border: none;
@@ -3147,6 +3370,56 @@ label {
 .approved-verify-location-btn {
   background: var(--yellow);
   color: #111827;
+}
+
+.approved-view-proof-btn {
+  background: #ecf8ee;
+  color: var(--green);
+  border: 1px solid rgba(11, 150, 23, 0.18);
+}
+
+.location-proof-card {
+  margin: 0 24px 24px;
+  padding: 20px;
+  border-radius: 24px;
+  background: #ffffff;
+  border: 1px solid rgba(11, 150, 23, 0.12);
+  box-shadow: 0 14px 34px rgba(16, 24, 40, 0.08);
+  text-align: center;
+}
+
+.location-proof-kicker {
+  display: inline-block;
+  margin-bottom: 8px;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+}
+
+.location-proof-card h3 {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-size: 19px;
+  font-weight: 900;
+}
+
+.location-proof-card p {
+  margin: 0 0 14px;
+  color: var(--text-gray);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.location-proof-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: block;
+  border-radius: 18px;
+  object-fit: cover;
+  background: #eef3ef;
+  border: 1px solid #dce8dd;
 }
 
 .rejected-dashboard-btn {

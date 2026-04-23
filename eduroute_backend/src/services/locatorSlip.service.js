@@ -1,6 +1,8 @@
 const pool = require('../db/pool');
 const AppError = require('../utils/appError');
 const { formatDateTime } = require('../utils/dateFormatter');
+const cloudinary = require('../config/cloudinary');
+const { optimizeImage } = require('./imageOptimization.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
 
@@ -158,11 +160,116 @@ const cancelLocatorSlip = async (facultyUserId, locatorSlipId) => {
     return getLocatorSlipById(facultyUserId, rows[0].id);
 };
 
+const uploadVerificationToCloudinary = (optimizedImage, locatorSlipId) =>
+    new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: 'eduroute/location-verifications',
+                public_id: `locator-${locatorSlipId}-${Date.now()}`,
+                overwrite: true,
+                resource_type: 'image',
+                format: optimizedImage.extension
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                return resolve(result);
+            }
+        );
+
+        uploadStream.end(optimizedImage.buffer);
+    });
+
+const verifyLocation = async (facultyUserId, locatorSlipId, file) => {
+    if (!file) {
+        throw new AppError('Location verification photo is required.', 422);
+    }
+
+    const locatorSlip = await getLocatorSlipById(facultyUserId, locatorSlipId);
+
+    if (locatorSlip.status !== 'approved') {
+        throw new AppError('Only approved locator slips can be verified by location photo.', 409);
+    }
+
+    const optimizedImage = await optimizeImage(file, 'locationVerification');
+    const uploadResult = await uploadVerificationToCloudinary(optimizedImage, locatorSlipId);
+
+    const query = `
+        INSERT INTO locator_slip_location_verifications (
+            locator_slip_id,
+            faculty_user_id,
+            target_location,
+            image_url,
+            image_public_id,
+            mime_type,
+            file_size,
+            original_file_size,
+            image_width,
+            image_height,
+            verification_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'submitted')
+        RETURNING *
+    `;
+
+    const { rows } = await pool.query(query, [
+        locatorSlipId,
+        facultyUserId,
+        locatorSlip.destination,
+        uploadResult.secure_url,
+        uploadResult.public_id,
+        optimizedImage.mimetype,
+        optimizedImage.size,
+        optimizedImage.original.size,
+        optimizedImage.width,
+        optimizedImage.height
+    ]);
+
+    return {
+        locator_slip: locatorSlip,
+        verification: rows[0]
+    };
+};
+
+const getLocationVerification = async (facultyUserId, locatorSlipId) => {
+    const locatorSlip = await getLocatorSlipById(facultyUserId, locatorSlipId);
+
+    const query = `
+        SELECT
+            id,
+            locator_slip_id,
+            faculty_user_id,
+            target_location,
+            image_url,
+            image_public_id,
+            mime_type,
+            file_size,
+            original_file_size,
+            image_width,
+            image_height,
+            verification_status,
+            created_at
+        FROM locator_slip_location_verifications
+        WHERE locator_slip_id = $1
+          AND faculty_user_id = $2
+        ORDER BY created_at DESC
+        LIMIT 1
+    `;
+
+    const { rows } = await pool.query(query, [locatorSlipId, facultyUserId]);
+
+    return {
+        locator_slip: locatorSlip,
+        verification: rows[0] || null
+    };
+};
+
 module.exports = {
     LOCATOR_SLIP_STATUSES,
     getFacultyProfile,
     createLocatorSlip,
     getMyLocatorSlips,
     getLocatorSlipById,
-    cancelLocatorSlip
+    cancelLocatorSlip,
+    verifyLocation,
+    getLocationVerification
 };

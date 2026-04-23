@@ -5,6 +5,13 @@ const notFoundHandler = (req, res) => {
 };
 
 const errorHandler = (error, req, res, next) => {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+        const maxSize = req.originalUrl.includes('/verify-location') ? '10MB' : '3MB';
+        return res.status(413).json(
+            errorResponse(`Image is too large. Maximum file size is ${maxSize}.`, [])
+        );
+    }
+
     const statusCode = error.statusCode || 500;
 
     if (process.env.NODE_ENV !== 'production') {
