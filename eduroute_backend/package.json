@@ -8,7 +8,9 @@
         "start": "node src/server.js",
         "migrate:locator-slips": "node scripts/run-sql-file.js sql/locator_slips.sql",
         "migrate:profile-image": "node scripts/run-sql-file.js sql/faculty_profile_image.sql",
-        "migrate:permissions": "node scripts/run-sql-file.js sql/faculty_permissions.sql"
+        "migrate:permissions": "node scripts/run-sql-file.js sql/faculty_permissions.sql",
+        "migrate:user-roles": "node scripts/run-sql-file.js sql/faculty_user_roles.sql",
+        "migrate:role-registration": "node scripts/run-sql-file.js sql/faculty_user_role_registration.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",

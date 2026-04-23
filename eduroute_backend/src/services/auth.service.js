@@ -8,6 +8,13 @@ const { generateResetCode, hashResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
 const cloudinary = require('../config/cloudinary');
 
+const ROLE_LABELS = {
+    faculty: 'Faculty',
+    hrmu: 'HRMU',
+    cssu: 'CSSU',
+    admin: 'Admin'
+};
+
 const getDepartments = async () => {
     const query = `
     SELECT id, department_name
@@ -24,6 +31,7 @@ const sanitizeFaculty = (faculty) => ({
     full_name: faculty.full_name,
     employee_id: faculty.employee_id,
     email: faculty.email,
+    account_role: faculty.account_role,
     status: faculty.status,
     department_id: faculty.department_id,
     department_name: faculty.department_name,
@@ -36,9 +44,10 @@ const registerFaculty = async (payload) => {
     const client = await pool.connect();
 
     try {
+        const accountRole = payload.account_role || 'faculty';
         const fullName = payload.full_name.trim();
         const employeeId = payload.employee_id.trim();
-        const departmentId = Number(payload.department_id);
+        const departmentId = ['faculty', 'admin'].includes(accountRole) ? Number(payload.department_id) : null;
         const email = payload.email.trim().toLowerCase();
         const password = payload.password;
         const termsAccepted = payload.terms_accepted === true;
@@ -56,13 +65,19 @@ const registerFaculty = async (payload) => {
 
         await client.query('BEGIN');
 
-        const departmentResult = await client.query(
-            'SELECT id, department_name FROM departments WHERE id = $1',
-            [departmentId]
-        );
+        let department = null;
 
-        if (departmentResult.rowCount === 0) {
-            throw new AppError('Selected department does not exist.', 404);
+        if (departmentId) {
+            const departmentResult = await client.query(
+                'SELECT id, department_name FROM departments WHERE id = $1',
+                [departmentId]
+            );
+
+            if (departmentResult.rowCount === 0) {
+                throw new AppError('Selected department does not exist.', 404);
+            }
+
+            department = departmentResult.rows[0];
         }
 
         const duplicateEmail = await client.query(
@@ -92,18 +107,19 @@ const registerFaculty = async (payload) => {
         department_id,
         email,
         password_hash,
+        account_role,
         terms_accepted
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING id, full_name, employee_id, department_id, email, status, created_at, last_login_at`,
-            [fullName, employeeId, departmentId, email, passwordHash, termsAccepted]
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING id, full_name, employee_id, department_id, email, account_role, status, created_at, last_login_at`,
+            [fullName, employeeId, departmentId, email, passwordHash, accountRole, termsAccepted]
         );
 
         await client.query('COMMIT');
 
         return {
             ...insertResult.rows[0],
-            department_name: departmentResult.rows[0].department_name
+            department_name: department?.department_name || null
         };
     } catch (error) {
         try {
@@ -117,8 +133,9 @@ const registerFaculty = async (payload) => {
     }
 };
 
-const loginFaculty = async ({ email_or_employee_id, password }) => {
+const loginFaculty = async ({ email_or_employee_id, password, portal_role = 'faculty' }) => {
     const identifier = email_or_employee_id.trim();
+    const selectedPortalRole = portal_role || 'faculty';
 
     const query = `
     SELECT
@@ -127,6 +144,7 @@ const loginFaculty = async ({ email_or_employee_id, password }) => {
       fu.employee_id,
       fu.email,
       fu.password_hash,
+      fu.account_role,
       fu.status,
       fu.department_id,
       fu.profile_image_url,
@@ -135,7 +153,7 @@ const loginFaculty = async ({ email_or_employee_id, password }) => {
       fu.created_at,
       d.department_name
     FROM faculty_users fu
-    JOIN departments d ON d.id = fu.department_id
+    LEFT JOIN departments d ON d.id = fu.department_id
     WHERE LOWER(fu.email) = LOWER($1)
        OR fu.employee_id = $1
     LIMIT 1
@@ -158,6 +176,15 @@ const loginFaculty = async ({ email_or_employee_id, password }) => {
         throw new AppError('This account is not active.', 403);
     }
 
+    if (user.account_role !== selectedPortalRole) {
+        const actualRole = ROLE_LABELS[user.account_role] || user.account_role;
+        const requestedRole = ROLE_LABELS[selectedPortalRole] || selectedPortalRole;
+        throw new AppError(
+            `Access denied. This account is registered for the ${actualRole} portal and cannot log in to the ${requestedRole} portal.`,
+            403
+        );
+    }
+
     const updateResult = await pool.query(
         `UPDATE faculty_users
      SET last_login_at = CURRENT_TIMESTAMP
@@ -169,7 +196,7 @@ const loginFaculty = async ({ email_or_employee_id, password }) => {
     const token = signAccessToken({
         sub: user.id,
         email: user.email,
-        role: 'faculty'
+        role: user.account_role
     });
 
     return {
@@ -188,6 +215,7 @@ const getCurrentFaculty = async (facultyId) => {
       fu.full_name,
       fu.employee_id,
       fu.email,
+      fu.account_role,
       fu.status,
       fu.department_id,
       fu.profile_image_url,
@@ -196,7 +224,7 @@ const getCurrentFaculty = async (facultyId) => {
       fu.created_at,
       d.department_name
     FROM faculty_users fu
-    JOIN departments d ON d.id = fu.department_id
+    LEFT JOIN departments d ON d.id = fu.department_id
     WHERE fu.id = $1
     LIMIT 1
   `;

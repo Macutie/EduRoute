@@ -2,6 +2,8 @@ const pool = require('../db/pool');
 const AppError = require('../utils/appError');
 const { formatDateTime } = require('../utils/dateFormatter');
 
+const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
+
 const locatorSlipColumns = `
     ls.id,
     ls.faculty_user_id,
@@ -94,17 +96,25 @@ const createLocatorSlip = async (facultyUserId, payload) => {
     return getLocatorSlipById(facultyUserId, rows[0].id);
 };
 
-const getMyLocatorSlips = async (facultyUserId) => {
+const getMyLocatorSlips = async (facultyUserId, status = null) => {
+    if (status && !LOCATOR_SLIP_STATUSES.includes(status)) {
+        throw new AppError('Locator slip status filter is invalid.', 400);
+    }
+
     const query = `
         SELECT ${locatorSlipColumns}
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = fu.department_id
         WHERE ls.faculty_user_id = $1
+          AND (
+            ($2::varchar IS NULL AND ls.status <> 'cancelled')
+            OR ls.status = $2
+          )
         ORDER BY ls.created_at DESC
     `;
 
-    const { rows } = await pool.query(query, [facultyUserId]);
+    const { rows } = await pool.query(query, [facultyUserId, status]);
     return rows.map(formatLocatorSlip);
 };
 
@@ -128,9 +138,31 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
     return formatLocatorSlip(rows[0]);
 };
 
+const cancelLocatorSlip = async (facultyUserId, locatorSlipId) => {
+    const query = `
+        UPDATE locator_slips
+        SET status = 'cancelled',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+          AND faculty_user_id = $2
+          AND status = 'pending'
+        RETURNING id
+    `;
+
+    const { rows, rowCount } = await pool.query(query, [locatorSlipId, facultyUserId]);
+
+    if (rowCount === 0) {
+        throw new AppError('Pending locator slip not found or cannot be cancelled.', 404);
+    }
+
+    return getLocatorSlipById(facultyUserId, rows[0].id);
+};
+
 module.exports = {
+    LOCATOR_SLIP_STATUSES,
     getFacultyProfile,
     createLocatorSlip,
     getMyLocatorSlips,
-    getLocatorSlipById
+    getLocatorSlipById,
+    cancelLocatorSlip
 };

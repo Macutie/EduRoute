@@ -28,12 +28,14 @@ function App() {
   const [resetCode, setResetCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [selectedStatusSlip, setSelectedStatusSlip] = useState(null);
   const [newPasswordForm, setNewPasswordForm] = useState({
     password: '',
     confirm_password: '',
   });
 
   const [registerForm, setRegisterForm] = useState({
+    account_role: 'faculty',
     full_name: '',
     employee_id: '',
     department_id: '',
@@ -217,7 +219,9 @@ function App() {
     try {
       const data = await registerApi({
         ...registerForm,
-        department_id: Number(registerForm.department_id)
+        department_id: ['faculty', 'admin'].includes(registerForm.account_role)
+          ? Number(registerForm.department_id)
+          : null
       });
 
       alert(formatApiMessage(data.message) || 'Registration successful.');
@@ -229,12 +233,15 @@ function App() {
     }
   };
 
-  const handleLogin = async (e) => {
+  const handleLogin = async (e, portalRole = 'faculty') => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      const data = await loginApi(loginForm);
+      const data = await loginApi({
+        ...loginForm,
+        portal_role: portalRole,
+      });
       localStorage.setItem('token', data.data.token);
       setProfileData((prev) => ({
         ...prev,
@@ -523,7 +530,27 @@ function App() {
       )}
 
       {view === 'dashboard' && <DashboardView setView={setView} profileData={profileData} />}
-      {view === 'scan' && <ScanView setView={setView} profileData={profileData} />}
+      {view === 'scan' && (
+        <ScanView
+          setView={setView}
+          profileData={profileData}
+          selectedSlip={selectedStatusSlip}
+        />
+      )}
+      {view === 'status' && (
+        <StatusView
+          setView={setView}
+          profileData={profileData}
+          setSelectedStatusSlip={setSelectedStatusSlip}
+        />
+      )}
+      {view === 'locator-slip-detail' && (
+        <LocatorSlipDetailView
+          setView={setView}
+          profileData={profileData}
+          selectedSlip={selectedStatusSlip}
+        />
+      )}
       {view === 'locator-slip' && <LocatorSlipView setView={setView} profileData={profileData} />}
       {view === 'updates' && <UpdatesView setView={setView} profileData={profileData} />}
       {view === 'route-approved' && <RouteApprovedView setView={setView} profileData={profileData} />}
@@ -999,12 +1026,29 @@ const HelpIcon = ({ color = "currentColor" }) => (
 );
 
 const HourglassIcon = ({ color = "currentColor" }) => (
-  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 4h16c.55 0 1 .45 1 1v1.5c0 .35-.15.68-.4.9l-5.6 5.6 5.6 5.6c.25.22.4.55.4.9V20c0 .55-.45 1-1 1H4c-.55 0-1-.45-1-1v-1.5c0-.35.15-.68.4-.9l5.6-5.6-5.6-5.6A1.25 1.25 0 0 1 3 6.5V5c0-.55.45-1 1-1z" />
-    <path d="M7 14.5V20" />
-    <path d="M17 14.5V20" />
-    <path d="M7 4v5.5" />
-    <path d="M17 4v5.5" />
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+    <path
+      d="M18 8h28M18 56h28"
+      stroke={color}
+      strokeWidth="5"
+      strokeLinecap="round"
+    />
+    <path
+      d="M22 12c0 10 4.5 16 10 20-5.5 4-10 10-10 20M42 12c0 10-4.5 16-10 20 5.5 4 10 10 10 20"
+      stroke={color}
+      strokeWidth="5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M26 18h12c-.8 4.5-2.9 7.4-6 9.8-3.1-2.4-5.2-5.3-6-9.8Z"
+      fill={color}
+      opacity="0.18"
+    />
+    <path
+      d="M25 49c1.5-5.6 4-8.3 7-10.6 3 2.3 5.5 5 7 10.6H25Z"
+      fill={color}
+    />
   </svg>
 );
 
@@ -1123,6 +1167,56 @@ const PinIcon = ({ color = "currentColor", size = "20" }) => (
   </svg>
 );
 
+const FacultyRoleIcon = ({ color = "currentColor", size = "22" }) => (
+  <svg width={size} height={size} viewBox="0 0 32 28" fill="none" aria-hidden="true">
+    <path d="M16 2L2 9.25L16 16.5L30 9.25L16 2Z" stroke={color} strokeWidth="3" strokeLinejoin="round" />
+    <path d="M7.5 12.8V20.2L16 25L24.5 20.2V12.8" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const HrmuRoleIcon = ({ color = "currentColor", size = "22" }) => (
+  <svg width={size} height={size} viewBox="0 0 32 28" fill="none" aria-hidden="true">
+    <rect x="2.5" y="7.5" width="27" height="18" rx="1.5" stroke={color} strokeWidth="3" />
+    <path d="M12 7V3H20V7" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    <circle cx="12" cy="15" r="2" fill={color} />
+    <path d="M8.5 21C9.35 18.8 14.65 18.8 15.5 21" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M19 14H25" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M19 19H25" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
+const CssuRoleIcon = ({ color = "currentColor", size = "22" }) => (
+  <svg width={size} height={size} viewBox="0 0 28 32" fill="none" aria-hidden="true">
+    <path d="M14 2L25 6.8V14.2C25 22.6 19 28.2 14 30C9 28.2 3 22.6 3 14.2V6.8L14 2Z" stroke={color} strokeWidth="3" strokeLinejoin="round" />
+    <path d="M14 5.3V26.6C10.2 24.7 6.2 20.4 6.2 14.4V9L14 5.3Z" fill={color} opacity="0.35" />
+  </svg>
+);
+
+const AdminRoleIcon = ({ color = "currentColor", size = "22" }) => (
+  <svg width={size} height={size} viewBox="0 0 28 32" fill="none" aria-hidden="true">
+    <path d="M14 2L25 6.8V14.2C25 22.6 19 28.2 14 30C9 28.2 3 22.6 3 14.2V6.8L14 2Z" stroke={color} strokeWidth="3" strokeLinejoin="round" />
+    <circle cx="16.5" cy="17" r="3" stroke={color} strokeWidth="2.4" />
+    <path d="M11.2 24C12.1 21.2 20.9 21.2 21.8 24" stroke={color} strokeWidth="2.4" strokeLinecap="round" />
+  </svg>
+);
+
+const BriefcaseIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="7" width="18" height="13" rx="2" />
+    <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    <path d="M3 12h18" />
+    <path d="M10 11h4v3h-4z" />
+  </svg>
+);
+
+const AdminBadgeIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    <path d="M15.5 10.5a3.5 3.5 0 1 1-6.4 2" />
+    <path d="M12 7v5h5" />
+  </svg>
+);
+
 const EwanIcon = ({ color = "currentColor", size = "20" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <polygon points="12 4 4 9 12 14 20 9 12 4"></polygon>
@@ -1130,107 +1224,145 @@ const EwanIcon = ({ color = "currentColor", size = "20" }) => (
   </svg>
 );
 
-const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLoginPassword, setShowLoginPassword }) => (
-  <div className="content fade-in">
-    <div className="logo-container">
-      <div className="logo-box">
-        <MapIcon />
-      </div>
-      <h1>EduRoute</h1>
-      <h2>GORDON COLLEGE FACULTY PORTAL</h2>
-    </div>
+const LOGIN_ROLES = [
+  { key: 'faculty', label: 'Faculty', title: 'Gordon College Faculty Portal', icon: FacultyRoleIcon },
+  { key: 'hrmu', label: 'HRMU', title: 'Gordon College HRMU Portal', icon: HrmuRoleIcon },
+  { key: 'cssu', label: 'CSSU', title: 'Gordon College CSSU Portal', icon: CssuRoleIcon },
+  { key: 'admin', label: 'Admin', title: 'Gordon College Admin Portal', icon: AdminRoleIcon },
+];
 
-    <form className="card" onSubmit={onLogin}>
-      <div className="input-group">
-        <label>EMAIL OR EMPLOYEE ID</label>
-        <div className="input-wrapper">
-          <BadgeIcon />
-          <input
-            type="text"
-            placeholder="j.smith@gordon.edu"
-            value={loginForm.email_or_employee_id}
-            onChange={(e) =>
-              setLoginForm((prev) => ({
-                ...prev,
-                email_or_employee_id: e.target.value
-              }))
-            }
-          />
+const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLoginPassword, setShowLoginPassword }) => {
+  const [selectedRole, setSelectedRole] = useState('faculty');
+  const activeRole = LOGIN_ROLES.find((role) => role.key === selectedRole) || LOGIN_ROLES[0];
+
+  return (
+    <div className="content fade-in login-content">
+      <div className="logo-container login-logo-container">
+        <div className="logo-box login-logo-box">
+          <MapIcon />
         </div>
+        <h1>EduRoute</h1>
+        <h2 className="login-portal-title">{activeRole.title.toUpperCase()}</h2>
       </div>
 
-      <div className="input-group">
-        <div className="label-row">
-          <label>PASSWORD</label>
-          <a
-            href="#"
-            className="forgot-link"
-            onClick={(e) => {
-              e.preventDefault();
-              setView('forgot-password');
-            }}
-          >
-            Forgot Password?
-          </a>
+      <form className="card login-card" onSubmit={(e) => onLogin(e, selectedRole)}>
+        <div className="role-selector" aria-label="Select portal role">
+          {LOGIN_ROLES.map((role) => {
+            const RoleIcon = role.icon;
+            const isActive = selectedRole === role.key;
+
+            return (
+              <button
+                type="button"
+                key={role.key}
+                className={`role-tab ${isActive ? 'active' : ''}`}
+                onClick={() => setSelectedRole(role.key)}
+              >
+                <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="23" />
+                <span>{role.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="input-wrapper">
-          <LockIcon />
-          <input
-            type={showLoginPassword ? 'text' : 'password'}
-            placeholder="••••••••"
-            value={loginForm.password}
-            onChange={(e) =>
-              setLoginForm((prev) => ({
-                ...prev,
-                password: e.target.value
-              }))
-            }
-          />
+        <div className="login-form-body">
+          <div className="input-group">
+            <label>EMAIL OR EMPLOYEE ID</label>
+            <div className="input-wrapper">
+              <BadgeIcon />
+              <input
+                type="text"
+                placeholder="j.smith@gordon.edu"
+                value={loginForm.email_or_employee_id}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({
+                    ...prev,
+                    email_or_employee_id: e.target.value
+                  }))
+                }
+              />
+            </div>
+          </div>
 
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => setShowLoginPassword((prev) => !prev)}
-          >
-            <EyeIcon />
+          <div className="input-group">
+            <div className="label-row">
+              <label>PASSWORD</label>
+              <a
+                href="#"
+                className="forgot-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setView('forgot-password');
+                }}
+              >
+                Forgot Password?
+              </a>
+            </div>
+
+            <div className="input-wrapper">
+              <LockIcon />
+              <input
+                type={showLoginPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={loginForm.password}
+                onChange={(e) =>
+                  setLoginForm((prev) => ({
+                    ...prev,
+                    password: e.target.value
+                  }))
+                }
+              />
+
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => setShowLoginPassword((prev) => !prev)}
+              >
+                <EyeIcon />
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" className="primary-btn" disabled={loading}>
+            {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
           </button>
+
+          <div className="divider">
+            <hr />
+            <span>NEW TO EDUROUTE?</span>
+            <hr />
+          </div>
+
+          <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
+            Sign Up
+          </button>
+
+          <div className="login-security-version">
+            <span className="login-security-dot" />
+            <span>Institutional Security System v2.4.1</span>
+          </div>
+        </div>
+      </form>
+
+
+      <div className="footer">
+        <div className="footer-logo">
+          <CapIcon />
+        </div>
+        <div className="footer-text">
+          <span className="footer-developed">DEVELOPED BY</span>
+          <span className="footer-brand">ARCHONS</span>
         </div>
       </div>
-
-      <button type="submit" className="primary-btn" disabled={loading}>
-        {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
-      </button>
-
-      <div className="divider">
-        <hr />
-        <span>NEW TO EDUROUTE?</span>
-        <hr />
-      </div>
-
-      <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
-        Sign Up
-      </button>
-    </form>
-
-
-    <div className="footer">
-      <div className="footer-logo">
-        <CapIcon />
-      </div>
-      <div className="footer-text">
-        <span className="footer-developed">DEVELOPED BY</span>
-        <span className="footer-brand">ARCHONS</span>
-      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading }) => (
   <div className="content fade-in forgot-pw-content">
     <div className="recovery-header">
       <CapIcon />
-      <span>EduRoute Faculty</span>
+      <span>EduRoute Portal</span>
     </div>
 
     <div className="recovery-title-box">
@@ -1239,12 +1371,12 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
     </div>
 
     <p className="recovery-desc">
-      Enter your registered faculty email to receive a secure password reset link.
+      Enter your registered institutional email to receive a secure password reset link.
     </p>
 
     <form className="card recovery-card" onSubmit={onForgotPassword}>
       <div className="input-group">
-        <label>FACULTY EMAIL</label>
+        <label>INSTITUTIONAL EMAIL</label>
         <div className="input-wrapper tall-input-wrapper">
           <div className="at-icon-wrapper"><AtSymbolIcon /></div>
           <textarea
@@ -1267,7 +1399,7 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
       </button>
 
       <button type="button" className="ghost-btn" onClick={() => setView('login')}>
-        <LoginDoorIcon /> Back to Faculty Login
+        <LoginDoorIcon /> Back to Login
       </button>
     </form>
 
@@ -1547,6 +1679,9 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
+  const selectedSignupRole = registerForm.account_role || 'faculty';
+  const signupRole = LOGIN_ROLES.find((role) => role.key === selectedSignupRole) || LOGIN_ROLES[0];
+  const signupNeedsDepartment = ['faculty', 'admin'].includes(selectedSignupRole);
 
   const signupPasswordPolicy = useMemo(() => {
     const password = registerForm.password;
@@ -1571,7 +1706,12 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
     registerForm.password.length > 0 && registerForm.password === registerForm.confirm_password;
   const signupPolicyComplete =
     signupPasswordPolicy.minLength && signupPasswordPolicy.symbolsNumbers && signupPasswordPolicy.noPersonal;
-  const canRegister = signupPolicyComplete && signupPasswordsMatch && registerForm.terms_accepted && !loading;
+  const canRegister =
+    signupPolicyComplete &&
+    signupPasswordsMatch &&
+    registerForm.terms_accepted &&
+    (!signupNeedsDepartment || registerForm.department_id) &&
+    !loading;
 
   const handleSignupSubmit = (e) => {
     if (!canRegister) {
@@ -1586,8 +1726,33 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
     <div className="content fade-in signup-content">
       <form className="card signup-card" onSubmit={handleSignupSubmit}>
         <div className="signup-header">
-          <h1>Create Faculty<br />Account</h1>
+          <h1>Create {signupRole.label}<br />Account</h1>
           <p>Please enter your institutional details to begin.</p>
+        </div>
+
+        <div className="signup-role-selector" aria-label="Select account role">
+          {LOGIN_ROLES.map((role) => {
+            const RoleIcon = role.icon;
+            const isActive = selectedSignupRole === role.key;
+
+            return (
+              <button
+                type="button"
+                key={role.key}
+                className={`signup-role-tab ${isActive ? 'active' : ''}`}
+                onClick={() =>
+                  setRegisterForm((prev) => ({
+                    ...prev,
+                    account_role: role.key,
+                    department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : '',
+                  }))
+                }
+              >
+                <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
+                <span>{role.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="input-group">
@@ -1618,27 +1783,29 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
           </div>
         </div>
 
-        <div className="input-group">
-          <label>DEPARTMENT</label>
-          <div className="input-wrapper plain-input-wrapper select-wrapper">
-            <select
-              value={registerForm.department_id}
-              onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
-              }
-            >
-              <option value="" disabled>Select Department</option>
-              {departments.map((dept) => (
-                <option key={dept.id} value={dept.id}>
-                  {dept.department_name}
-                </option>
-              ))}
-            </select>
-            <div className="select-icon">
-              <ChevronDownIcon />
+        {signupNeedsDepartment && (
+          <div className="input-group">
+            <label>DEPARTMENT</label>
+            <div className="input-wrapper plain-input-wrapper select-wrapper">
+              <select
+                value={registerForm.department_id}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+                }
+              >
+                <option value="" disabled>Select Department</option>
+                {departments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {dept.department_name}
+                  </option>
+                ))}
+              </select>
+              <div className="select-icon">
+                <ChevronDownIcon />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="input-group">
           <label>EMAIL ADDRESS</label>
@@ -1787,14 +1954,14 @@ const BottomNav = ({ active = 'home', setView }) => (
         <><HomeNavIcon color="var(--text-gray)" /><span>HOME</span></>
       )}
     </div>
-    <div className={`nav-item ${active === 'scan' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('scan')}>
-      {active === 'scan' ? (
+    <div className={`nav-item ${active === 'status' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('status')}>
+      {active === 'status' ? (
         <div className="nav-pill-bg">
-          <img src="/QR Icon.svg" alt="Scan QR Icon" />
-          <span>SCAN</span>
+          <StatusGraphIcon color="white" />
+          <span>STATUS</span>
         </div>
       ) : (
-        <><ScanQRIcon /><span>SCAN</span></>
+        <><StatusGraphIcon color="var(--text-gray)" /><span>STATUS</span></>
       )}
     </div>
     <div className={`nav-item ${active === 'slips' ? 'active-nav-pill' : ''}`} onClick={() => setView && setView('locator-slip')}>
@@ -1832,6 +1999,7 @@ const BottomNav = ({ active = 'home', setView }) => (
 
 const DashboardView = ({ setView, profileData }) => {
   const [facultyProfile, setFacultyProfile] = useState(null);
+  const [recentLocatorSlips, setRecentLocatorSlips] = useState([]);
 
   useEffect(() => {
     const loadDashboardProfile = async () => {
@@ -1854,6 +2022,27 @@ const DashboardView = ({ setView, profileData }) => {
     loadDashboardProfile();
   }, []);
 
+  useEffect(() => {
+    const loadRecentLocatorSlips = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/locator-slips/my-slips`, {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+          setRecentLocatorSlips((data.data || []).slice(0, 3));
+        }
+      } catch (error) {
+        console.error('Failed to load recent locator slips:', error);
+      }
+    };
+
+    loadRecentLocatorSlips();
+  }, []);
+
   const hour = new Date().getHours();
   const dayPart = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'night';
   const registeredName = facultyProfile?.full_name || profileData.fullName || '';
@@ -1864,105 +2053,133 @@ const DashboardView = ({ setView, profileData }) => {
   const departmentLabel = facultyProfile?.department_name || profileData.department || 'Faculty Department';
 
   return (
-  <div className="dashboard-wrapper">
-    <div className="content fade-in dash-content">
+    <div className="dashboard-wrapper">
+      <div className="content fade-in dash-content">
 
-      <div className="dash-top-nav">
-        <div className="dash-menu-left">
-          <GridIcon />
-          <span className="dash-logo-text">EduRoute</span>
-        </div>
-        <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
-          <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        </div>
-      </div>
-
-      <div className="dash-header">
-        <p>Good {dayPart}, Prof. {firstName}</p>
-        <h1>Faculty Dashboard</h1>
-        <div className="dept-pill">
-          <CapIcon color="var(--green)" outline={true} /> {departmentLabel.toUpperCase()}
-        </div>
-      </div>
-
-      <div className="action-grid">
-        <div className="primary-action-card" onClick={() => setView('scan')} style={{ cursor: 'pointer' }}>
-          <div className="primary-action-bg-deco">
-            <img src="/Translucent Icon.svg" alt="Decoration Layout" />
+        <div className="dash-top-nav">
+          <div className="dash-menu-left">
+            <GridIcon />
+            <span className="dash-logo-text">EduRoute</span>
           </div>
-          <div className="primary-icon-wrapper">
-            <img src="/QR Icon.svg" alt="Scan QR Icon" />
-          </div>
-          <h2>Scan QR Code</h2>
-          <p>Instant faculty check-in/out</p>
-        </div>
-
-        <div className="secondary-action-grid">
-          <div className="secondary-action-card" onClick={() => setView('locator-slip')} style={{ cursor: 'pointer' }}>
-            <div className="sec-icon-bg green-bg"><SlipIcon color="var(--green)" /></div>
-            <h3>New Slip</h3>
-            <p>Create locator</p>
-          </div>
-          <div className="secondary-action-card" onClick={() => setView('slip-submitted')} style={{ cursor: 'pointer' }}>
-            <div className="sec-icon-bg yellow-bg"><StatusGraphIcon color="#B88A00" /></div>
-            <h3>Status</h3>
-            <p>Track progress</p>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
-      </div>
 
-      <div className="recent-activity-section">
-        <div className="activity-header">
-          <h3>Recent Activity</h3>
-          <span className="see-all">SEE ALL</span>
+        <div className="dash-header">
+          <p>Good {dayPart}, Prof. {firstName}</p>
+          <h1>Faculty Dashboard</h1>
+          <div className="dept-pill">
+            <CapIcon color="var(--green)" outline={true} /> {departmentLabel.toUpperCase()}
+          </div>
         </div>
 
-        <div className="activity-list">
-          <div className="activity-card">
-            <div className="act-icon-bg act-green-bg"><LocationPinIcon color="var(--green)" /></div>
-            <div className="act-details">
-              <h4>Research Symposium</h4>
-              <p>External Visit • Manila Hotel</p>
-              <span className="status-badge badge-approved">APPROVED</span>
+        <div className="action-grid">
+          <div className="primary-action-card" onClick={() => setView('scan')} style={{ cursor: 'pointer' }}>
+            <div className="primary-action-bg-deco">
+              <img src="/Translucent Icon.svg" alt="Decoration Layout" />
             </div>
-            <span className="act-time">10:45 AM</span>
-          </div>
-
-          <div className="activity-card">
-            <div className="act-icon-bg act-gray-bg"><DocumentIcon color="var(--green)" /></div>
-            <div className="act-details">
-              <h4>Curriculum Workshop</h4>
-              <p>Official Business • Main Library</p>
-              <span className="status-badge badge-pending">PENDING</span>
+            <div className="primary-icon-wrapper">
+              <img src="/QR Icon.svg" alt="Scan QR Icon" />
             </div>
-            <span className="act-time">Yesterday</span>
+            <h2>Verify Location</h2>
+            <p>Instant location verification</p>
           </div>
 
-          <div className="activity-card">
-            <div className="act-icon-bg act-gray-bg act-red-icon"><SlashedPersonIcon color="#FF4D4D" /></div>
-            <div className="act-details">
-              <h4>Personal Leave</h4>
-              <p>Emergency • Out of Office</p>
-              <span className="status-badge badge-rejected">REJECTED</span>
+          <div className="secondary-action-grid">
+            <div className="secondary-action-card" onClick={() => setView('locator-slip')} style={{ cursor: 'pointer' }}>
+              <div className="sec-icon-bg green-bg"><SlipIcon color="var(--green)" /></div>
+              <h3>New Slip</h3>
+              <p>Create locator</p>
             </div>
-            <span className="act-time">Oct 24</span>
+            <div className="secondary-action-card" onClick={() => setView('status')} style={{ cursor: 'pointer' }}>
+              <div className="sec-icon-bg yellow-bg"><StatusGraphIcon color="#B88A00" /></div>
+              <h3>Status</h3>
+              <p>Track progress</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="map-card-container">
-        <div className="map-bg-wrapper">
-          <img src="/Map Image.png" alt="Map Background" className="map-dummy-texture" />
-        </div>
-        <div className="map-floating-element" onClick={() => setView('map')} style={{ cursor: 'pointer' }}>
-          <MapFoldIcon color="var(--green)" width="32" height="32" />
-          <span>View Live Campus Map</span>
-        </div>
-      </div>
+        <div className="recent-activity-section">
+          <div className="activity-header">
+            <h3>Recent Activity</h3>
+            <span className="see-all" onClick={() => setView('status')}>SEE ALL</span>
+          </div>
 
+          <div className="activity-list">
+            {recentLocatorSlips.length === 0 && (
+              <div className="activity-card">
+                <div className="act-icon-bg act-gray-bg"><DocumentIcon color="var(--green)" /></div>
+                <div className="act-details">
+                  <h4>No locator slips yet</h4>
+                  <p>Create your first locator slip to see activity here.</p>
+                </div>
+              </div>
+            )}
+
+            {recentLocatorSlips.map((slip) => (
+              <div key={slip.id} className="activity-card" onClick={() => setView('status')} style={{ cursor: 'pointer' }}>
+                <div className={`act-icon-bg ${slip.status === 'approved' ? 'act-green-bg' : 'act-gray-bg'} ${slip.status === 'rejected' ? 'act-red-icon' : ''}`}>
+                  {slip.status === 'rejected'
+                    ? <SlashedPersonIcon color="#FF4D4D" />
+                    : <DocumentIcon color="var(--green)" />}
+                </div>
+                <div className="act-details">
+                  <h4>{getSlipTitle(slip)}</h4>
+                  <p>{slip.destination}</p>
+                  <span className={`status-badge badge-${slip.status}`}>{slip.status.toUpperCase()}</span>
+                </div>
+                <span className="act-time">{formatStatusDate(slip.created_at)}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="activity-list dashboard-static-activity">
+            <div className="activity-card">
+              <div className="act-icon-bg act-green-bg"><LocationPinIcon color="var(--green)" /></div>
+              <div className="act-details">
+                <h4>Research Symposium</h4>
+                <p>External Visit • Manila Hotel</p>
+                <span className="status-badge badge-approved">APPROVED</span>
+              </div>
+              <span className="act-time">10:45 AM</span>
+            </div>
+
+            <div className="activity-card">
+              <div className="act-icon-bg act-gray-bg"><DocumentIcon color="var(--green)" /></div>
+              <div className="act-details">
+                <h4>Curriculum Workshop</h4>
+                <p>Official Business • Main Library</p>
+                <span className="status-badge badge-pending">PENDING</span>
+              </div>
+              <span className="act-time">Yesterday</span>
+            </div>
+
+            <div className="activity-card">
+              <div className="act-icon-bg act-gray-bg act-red-icon"><SlashedPersonIcon color="#FF4D4D" /></div>
+              <div className="act-details">
+                <h4>Personal Leave</h4>
+                <p>Emergency • Out of Office</p>
+                <span className="status-badge badge-rejected">REJECTED</span>
+              </div>
+              <span className="act-time">Oct 24</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="map-card-container">
+          <div className="map-bg-wrapper">
+            <img src="/Map Image.png" alt="Map Background" className="map-dummy-texture" />
+          </div>
+          <div className="map-floating-element" onClick={() => setView('map')} style={{ cursor: 'pointer' }}>
+            <MapFoldIcon color="var(--green)" width="32" height="32" />
+            <span>View Live Campus Map</span>
+          </div>
+        </div>
+
+      </div>
+      <BottomNav active="home" setView={setView} />
     </div>
-    <BottomNav active="home" setView={setView} />
-  </div>
   );
 };
 
@@ -1973,6 +2190,33 @@ const LOCATOR_PURPOSE_OPTIONS = [
   'Field Inspection/Monitoring',
   'Others',
 ];
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'rejected', label: 'Rejected' },
+];
+
+const formatStatusDate = (value) => {
+  if (!value) return 'No date set';
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return 'No date set';
+
+  return date.toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};
+
+const getSlipTitle = (slip) => {
+  if (slip.custom_purpose) return slip.custom_purpose;
+  if (slip.purpose_of_travel === 'Others') return 'Other Official Travel';
+  return slip.purpose_of_travel || 'Locator Slip';
+};
 
 const toDateTimeLocalValue = (date) => {
   const offsetDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -2334,6 +2578,305 @@ const LocatorSlipView = ({ setView, profileData }) => {
   );
 };
 
+const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [locatorSlips, setLocatorSlips] = useState([]);
+  const [statusLoading, setStatusLoading] = useState(false);
+
+  const fetchStatusSlips = async (filter) => {
+    setStatusLoading(true);
+
+    try {
+      const query = filter === 'all' ? '' : `?status=${encodeURIComponent(filter)}`;
+      const response = await fetch(`${API_BASE_URL}/api/locator-slips/my-slips${query}`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatApiError(data.errors) || formatApiError(data.message) || 'Failed to load locator slips.');
+      }
+
+      setLocatorSlips(data.data || []);
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
+  const formatApiError = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatApiError).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatApiError).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  useEffect(() => {
+    fetchStatusSlips(activeFilter);
+  }, [activeFilter]);
+
+  return (
+    <div className="dashboard-wrapper status-wrapper">
+      <div className="content fade-in dash-content status-content">
+        <div className="status-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="status-filter-row">
+          {STATUS_FILTERS.map((filter) => (
+            <button
+              key={filter.key}
+              type="button"
+              className={`status-filter-chip ${activeFilter === filter.key ? 'active' : ''}`}
+              onClick={() => setActiveFilter(filter.key)}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="status-slip-list">
+          {statusLoading && <div className="status-empty-card">Loading locator slips...</div>}
+
+          {!statusLoading && locatorSlips.length === 0 && (
+            <div className="status-empty-card">
+              No {activeFilter === 'all' ? '' : activeFilter} locator slips found.
+            </div>
+          )}
+
+          {!statusLoading && locatorSlips.map((slip) => (
+            <button
+              key={slip.id}
+              type="button"
+              className={`status-slip-card ${slip.status}`}
+              onClick={() => {
+                setSelectedStatusSlip(slip);
+                setView('locator-slip-detail');
+              }}
+            >
+              <div className="status-slip-header">
+                <h3>{getSlipTitle(slip)}</h3>
+                <span className={`status-badge badge-${slip.status}`}>{slip.status}</span>
+              </div>
+
+              <div className="status-slip-meta">
+                <div className="status-slip-row">
+                  <GlobeSmIcon color="var(--text-gray)" />
+                  <span>{slip.destination}</span>
+                </div>
+                <div className="status-slip-row">
+                  <ClockIcon color="var(--text-gray)" />
+                  <span>{formatStatusDate(slip.departure_datetime)}</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+      <BottomNav active="status" setView={setView} />
+    </div>
+  );
+};
+
+const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const slip = selectedSlip;
+
+  useEffect(() => {
+    if (!slip) {
+      setView('status');
+    }
+  }, [slip, setView]);
+
+  if (!slip) return null;
+
+  const isPending = slip.status === 'pending';
+  const isApproved = slip.status === 'approved';
+  const isRejected = slip.status === 'rejected';
+  const title = isPending ? 'Verification in' : (isApproved || isRejected) ? 'Verification' : `${slip.status.charAt(0).toUpperCase()}${slip.status.slice(1)}`;
+  const referralId = `FAC-${String(slip.id).slice(0, 8).toUpperCase()}`;
+
+  const cancelRequest = async () => {
+    if (!isPending || cancelLoading) return;
+
+    const confirmed = window.confirm('Cancel this pending locator slip request? It will be archived from your active status list.');
+
+    if (!confirmed) return;
+
+    setCancelLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/locator-slips/${slip.id}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+        },
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to cancel locator slip.');
+      }
+
+      alert(data.message || 'Locator slip request cancelled successfully.');
+      setView('status');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  return (
+    <div className="dashboard-wrapper submitted-wrapper">
+      <div className="content fade-in dash-content">
+        <div className="slip-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('status')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="submitted-graphic-container">
+          <div className={`graphic-circle-dashed ${isRejected ? 'rejected' : ''}`}>
+            <div className="graphic-circle-solid">
+              {isApproved && <CheckCircleSolidIcon color="var(--green)" size="66" />}
+              {isRejected && <ExclamationCircleIcon color="#c9191f" size="74" />}
+              {!isApproved && !isRejected && <HourglassIcon color="var(--green)" />}
+            </div>
+            <div className="graphic-shield-badge">
+              <ShieldCheckSmallIcon color="white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="submitted-status-text">
+          <div className={`status-pill-yellow status-pill-${slip.status}`}>
+            STATUS: {isPending ? 'PENDING APPROVAL' : isApproved ? 'VERIFIED' : slip.status.toUpperCase()}
+          </div>
+          <h2>
+            {title}{' '}
+            {isPending && <span className="text-green">Progress</span>}
+            {isApproved && <span className="text-green">Approved</span>}
+            {isRejected && <span className="text-red">Rejected</span>}
+          </h2>
+          <p>
+            {isPending
+              ? 'Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.'
+              : isApproved
+                ? 'Your request has been reviewed and approved. You may now view your route or verify your location.'
+                : isRejected
+                  ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
+              : `This locator slip request is currently marked as ${slip.status}.`}
+          </p>
+        </div>
+
+        {(isPending || isApproved || isRejected) && (
+          <div className="progress-bar-container">
+            <div className={`progress-track ${isApproved ? 'approved' : ''}`}>
+              <div className="progress-fill"></div>
+            </div>
+            <div className="progress-points">
+              <div className="progress-point active">
+                <div className="point-dot green-dot-solid"></div>
+                <span className="point-label">APPLIED</span>
+              </div>
+              <div className="progress-point current">
+                <div className="point-icon-wrapper yellow-bg">
+                  <ProgressReviewIcon color="var(--text-dark)" />
+                </div>
+                <span className="point-label green-label">REVIEW</span>
+              </div>
+              <div className={`progress-point ${(isApproved || isRejected) ? 'active' : 'pending'}`}>
+                <div className={`point-dot ${(isApproved || isRejected) ? 'green-dot-solid' : 'grey-dot-solid'}`}></div>
+                <span className={`point-label ${isApproved ? 'green-label' : ''} ${isRejected ? 'red-label' : ''}`}>
+                  {isRejected ? 'INACTIVE' : 'ACTIVE'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="info-cards-container">
+          <div className="info-card">
+            <div className="info-icon green-light-bg">
+              <FilledClockIcon color="var(--green)" />
+            </div>
+            <div className="info-text">
+              <h4>{getSlipTitle(slip)}</h4>
+              <p>{slip.destination} • {formatStatusDate(slip.departure_datetime)}</p>
+            </div>
+          </div>
+
+          <div className="info-card">
+            <div className="info-icon yellow-light-bg">
+              <HelpIcon color="#B88A00" />
+            </div>
+            <div className="info-text">
+              <h4>Need Help?</h4>
+              <p>Contact support at admin.eduroute.system@gmail.com</p>
+            </div>
+          </div>
+        </div>
+
+        {isPending && (
+          <button className="cancel-request-btn" onClick={cancelRequest} disabled={cancelLoading}>
+            {cancelLoading ? 'CANCELLING...' : 'CANCEL REQUEST'}
+          </button>
+        )}
+
+        {isApproved && (
+          <div className="approved-detail-actions">
+            <button type="button" className="approved-view-route-btn" onClick={() => setView('map')}>
+              VIEW ROUTE
+            </button>
+            <button
+              type="button"
+              className="approved-verify-location-btn"
+              onClick={() => {
+                setView('scan');
+              }}
+            >
+              VERIFY LOCATION
+            </button>
+          </div>
+        )}
+
+        {isRejected && (
+          <div className="approved-detail-actions">
+            <button type="button" className="approved-view-route-btn" onClick={() => setView('locator-slip')}>
+              REQUEST AGAIN
+            </button>
+            <button type="button" className="rejected-dashboard-btn" onClick={() => setView('dashboard')}>
+              RETURN TO DASHBOARD
+            </button>
+          </div>
+        )}
+
+        <div className="referral-id">
+          REFERRAL ID: {referralId}
+        </div>
+      </div>
+      <BottomNav active="status" setView={setView} />
+    </div>
+  );
+};
+
 const UpdatesView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper" style={{ background: '#F9FAFB' }}>
     <div className="content fade-in dash-content updates-content">
@@ -2682,59 +3225,56 @@ const ProfileView = ({ setView, profileData, onLogout }) => {
   );
 };
 
-const ScanView = ({ setView, profileData }) => (
-  <div className="dashboard-wrapper scan-wrapper">
-    <div className="content fade-in dash-content">
+const ScanView = ({ setView, profileData, selectedSlip }) => {
+  const targetLocation = selectedSlip?.destination || 'Select an approved locator slip from Status';
 
-      <div className="slip-top-nav scan-top-nav">
-        <div className="slip-nav-left" onClick={() => setView('dashboard')}>
-          <BackArrowIcon color="white" />
-          <span className="dash-logo-text" style={{ color: 'white' }}>EduRoute</span>
-        </div>
-        <div className="scan-nav-right">
-          <FlashlightIcon color="white" />
-          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer', marginLeft: '16px' }}>
+  return (
+    <div className="dashboard-wrapper scan-wrapper">
+      <div className="content fade-in dash-content scan-content">
+
+        <div className="slip-top-nav scan-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('status')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
             <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
         </div>
-      </div>
 
-      <div className="scanner-status-container">
-        <div className="scanner-active-pill">
-          <div className="green-dot"></div>
-          <span>SCANNER ACTIVE</span>
+        <div className="location-verification-header">
+          <h1>Location Verification</h1>
+          <p>Capture a photo of your current location to verify your locator slip.</p>
+          <div className="target-location-card">
+            <LocationPinIcon color="#6ee07a" />
+            <span>TARGET LOCATION: {targetLocation.toUpperCase()}</span>
+          </div>
         </div>
-      </div>
 
-      <div className="scanner-frame-section">
-        <div className="scanner-frame-wrapper">
-          <div className="scanner-frame-bg"></div>
-
-          <div className="scanner-corner top-left"></div>
-          <div className="scanner-corner top-right"></div>
-          <div className="scanner-corner bottom-left"></div>
-          <div className="scanner-corner bottom-right"></div>
+        <div className="location-camera-stage">
+          <div className="location-camera-frame">
+            <div className="scanner-corner top-left"></div>
+            <div className="scanner-corner top-right"></div>
+            <div className="scanner-corner bottom-left"></div>
+            <div className="scanner-corner bottom-right"></div>
+          </div>
         </div>
-      </div>
 
-      <div className="scanner-text-container">
-        <h2>Scan your Faculty ID QR Code</h2>
-        <p>Align the QR code within the frame to verify your identity and unlock route tracking.</p>
-      </div>
+        <div className="location-camera-controls">
+          <button type="button" className="camera-side-btn">
+            <FlashlightIcon color="white" />
+          </button>
+          <button type="button" className="camera-shutter-btn" aria-label="Capture location photo" />
+          <button type="button" className="camera-side-btn">
+            <RefreshIcon color="white" />
+          </button>
+        </div>
 
-      <div className="scan-actions-container">
-        <button className="scan-action-btn dark-btn">
-          <UploadIcon /> UPLOAD IMAGE
-        </button>
-        <button className="scan-action-btn green-btn">
-          <HelpIcon /> HELP
-        </button>
       </div>
-
+      <BottomNav active="status" setView={setView} />
     </div>
-    <BottomNav active="scan" setView={setView} />
-  </div>
-);
+  );
+};
 
 const SlipSubmittedView = ({ setView, profileData }) => (
   <div className="dashboard-wrapper submitted-wrapper">

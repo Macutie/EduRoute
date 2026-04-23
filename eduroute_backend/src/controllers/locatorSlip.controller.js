@@ -21,7 +21,7 @@ const createLocatorSlip = async (req, res, next) => {
 
 const getMyLocatorSlips = async (req, res, next) => {
     try {
-        const locatorSlips = await locatorSlipService.getMyLocatorSlips(req.user.sub);
+        const locatorSlips = await locatorSlipService.getMyLocatorSlips(req.user.sub, req.query.status || null);
         return res.json(successResponse('Locator slips fetched successfully.', locatorSlips));
     } catch (error) {
         return next(error);
@@ -37,9 +37,19 @@ const getLocatorSlipById = async (req, res, next) => {
     }
 };
 
+const cancelLocatorSlip = async (req, res, next) => {
+    try {
+        const locatorSlip = await locatorSlipService.cancelLocatorSlip(req.user.sub, req.params.id);
+        return res.json(successResponse('Locator slip request cancelled successfully.', locatorSlip));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     getFacultyProfile,
     createLocatorSlip,
     getMyLocatorSlips,
-    getLocatorSlipById
+    getLocatorSlipById,
+    cancelLocatorSlip
 };

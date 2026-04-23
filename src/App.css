@@ -24,7 +24,7 @@
 @media (min-width: 480px) {
   .mobile-container {
     width: 390px;
-    height: 884px;
+    height: 945px;
     border-radius: 40px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
     margin: 20px auto;
@@ -256,6 +256,170 @@ label {
 
 .secondary-btn:active {
   transform: scale(0.98);
+}
+
+.login-content {
+  padding: 0 16px;
+  position: relative;
+}
+
+.login-logo-container {
+  flex-shrink: 0;
+  margin-top: 2px;
+  margin-bottom: 24px;
+  height: 169px;
+  min-height: 169px;
+  justify-content: flex-start;
+  overflow: visible;
+}
+
+.login-logo-box {
+  width: 78px;
+  height: 78px;
+  border-radius: 20px;
+  box-shadow: 0 12px 24px rgba(10, 67, 20, 0.07);
+}
+
+.login-logo-box svg {
+  width: 34px;
+  height: 34px;
+}
+
+.login-logo-container h1 {
+  font-size: 30px;
+  margin-bottom: 6px;
+  line-height: 1.1;
+}
+
+.login-portal-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 1.1px;
+  text-align: center;
+  width: 100%;
+  height: 16px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: #4b5158;
+  margin: 0;
+}
+
+.login-card {
+  border-radius: 8px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(11, 150, 23, 0.22);
+  box-shadow: none;
+  background: #ffffff;
+  flex-shrink: 0;
+  margin-bottom: 0;
+}
+
+.role-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid rgba(11, 150, 23, 0.2);
+  background: #f7fbf3;
+}
+
+.role-tab {
+  min-height: 78px;
+  border: none;
+  border-right: 1px solid rgba(11, 150, 23, 0.18);
+  background: #f3f8ee;
+  color: #34403a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.role-tab:last-child {
+  border-right: none;
+}
+
+.role-tab svg {
+  flex-shrink: 0;
+}
+
+.role-tab span {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.role-tab.active {
+  background: #ffffff;
+  color: var(--green);
+  box-shadow: inset 0 -2px 0 #ffffff;
+}
+
+.role-tab.active span {
+  color: var(--green);
+}
+
+.login-form-body {
+  padding: 46px 32px 28px;
+}
+
+.login-form-body .primary-btn {
+  height: 57px;
+  border-radius: 7px;
+  margin-top: 34px;
+  margin-bottom: 26px;
+}
+
+.login-form-body .secondary-btn {
+  height: 56px;
+  border-radius: 7px;
+  margin-bottom: 30px;
+}
+
+.login-form-body .divider {
+  margin-bottom: 24px;
+}
+
+.login-form-body .divider span {
+  font-weight: 500;
+  color: #8a918c;
+}
+
+.login-form-body .input-wrapper {
+  background: #eef4eb;
+}
+
+.login-security-version {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #3f4740;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.1px;
+}
+
+.login-security-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(11, 150, 23, 0.08);
+}
+
+.login-content .footer {
+  margin-top: -12px;
+  margin-bottom: 0;
+  position: relative;
+  z-index: 4;
+  flex-shrink: 0;
+  width: 100%;
+  height: 122px;
+  justify-content: center;
 }
 
 .permission-modal-backdrop {
@@ -909,6 +1073,45 @@ label {
   margin-bottom: 24px;
 }
 
+.signup-role-selector {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  overflow: hidden;
+  border: 1px solid rgba(11, 150, 23, 0.18);
+  border-radius: 18px;
+  background: #f3f8ee;
+  margin-bottom: 30px;
+}
+
+.signup-role-tab {
+  min-height: 66px;
+  border: none;
+  border-right: 1px solid rgba(11, 150, 23, 0.16);
+  background: transparent;
+  color: #34403a;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.signup-role-tab:last-child {
+  border-right: none;
+}
+
+.signup-role-tab span {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.signup-role-tab.active {
+  background: #ffffff;
+  color: var(--green);
+}
+
 .signup-card label:not(.checkbox-container) {
   color: #4c4f55;
   font-size: 11px;
@@ -1450,6 +1653,10 @@ label {
   gap: 12px;
 }
 
+.dashboard-static-activity {
+  display: none;
+}
+
 .activity-card {
   background: white;
   border-radius: 20px;
@@ -1519,6 +1726,20 @@ label {
 .badge-rejected {
   background: #fee2e2;
   color: #ef4444;
+}
+
+.badge-completed {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.badge-cancelled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.status-pill-approved {
+  background: #cfead4;
 }
 
 .act-time {
@@ -1630,6 +1851,154 @@ label {
 /* ========================================================= */
 /* LOCATOR SLIP SPECIFIC STYLES                              */
 /* ========================================================= */
+
+.status-wrapper {
+  background:
+    radial-gradient(circle at -16% 30%, rgba(4, 149, 22, 0.32), transparent 28%),
+    radial-gradient(circle at 108% 73%, rgba(255, 213, 23, 0.32), transparent 28%),
+    #f8faf8;
+}
+
+.status-content {
+  padding: 0 24px 120px;
+}
+
+.status-top-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 18px;
+  padding-bottom: 18px;
+  margin: 0 -24px 16px;
+  padding-left: 24px;
+  padding-right: 24px;
+  background: rgba(248, 250, 248, 0.92);
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.status-filter-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 18px;
+  margin: 0 -24px 8px;
+  padding-left: 24px;
+  padding-right: 24px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  touch-action: pan-x;
+}
+
+.status-filter-row::-webkit-scrollbar {
+  display: none;
+}
+
+.status-filter-chip {
+  flex: 0 0 auto;
+  border: 1px solid #cdd8c9;
+  background: #eef5eb;
+  color: #3f4a3f;
+  border-radius: 999px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  scroll-snap-align: start;
+}
+
+.status-filter-chip.active {
+  color: #ffffff;
+  background: var(--green);
+  border-color: var(--green);
+}
+
+.status-slip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.status-slip-card {
+  width: 100%;
+  font-family: inherit;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #cdd8c9;
+  border-left: 4px solid var(--green);
+  border-radius: 10px;
+  padding: 24px 22px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+}
+
+.status-slip-card.pending {
+  border-left-color: var(--yellow);
+}
+
+.status-slip-card.rejected {
+  border-left-color: #ef4444;
+}
+
+.status-slip-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.status-slip-header h3 {
+  color: #202329;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.status-slip-header .status-badge {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-radius: 999px;
+  padding: 6px 12px;
+}
+
+.status-slip-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.status-slip-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  color: #4f555b;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.status-slip-row svg {
+  min-width: 17px;
+  margin-top: 1px;
+}
+
+.status-empty-card {
+  background: #ffffff;
+  border: 1px dashed #cdd8c9;
+  border-radius: 18px;
+  padding: 28px 20px;
+  color: var(--text-gray);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+}
 
 .slip-content {
   padding: 0 24px;
@@ -2339,6 +2708,133 @@ label {
   transform: scale(0.98);
 }
 
+/* --- Location Verification View --- */
+.scan-wrapper {
+  background: linear-gradient(180deg, #252728 0%, #535657 58%, #151817 100%);
+}
+
+.scan-content {
+  padding: 0 24px 120px;
+}
+
+.scan-top-nav {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 24px 24px 22px;
+  background: #f8faf8;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+  z-index: 2;
+}
+
+.scan-top-nav .dash-logo-text {
+  color: var(--green);
+}
+
+.location-verification-header {
+  text-align: center;
+  width: calc(100% + 48px);
+  padding: 48px 24px 50px;
+  background: #242627;
+  margin: 0 -24px;
+}
+
+.location-verification-header h1 {
+  color: #ffffff;
+  font-size: 27px;
+  line-height: 1.15;
+  font-weight: 900;
+  margin: 0 0 20px;
+  letter-spacing: 0.4px;
+}
+
+.location-verification-header p {
+  color: #e5e7eb;
+  font-size: 18px;
+  line-height: 1.55;
+  margin: 0 auto 34px;
+  max-width: 320px;
+}
+
+.target-location-card {
+  width: 100%;
+  min-height: 78px;
+  border: 1px solid rgba(11, 150, 23, 0.55);
+  border-radius: 12px;
+  background: rgba(12, 78, 31, 0.42);
+  color: #6ee07a;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  text-align: left;
+}
+
+.target-location-card span {
+  font-size: 18px;
+  line-height: 1.18;
+  font-weight: 900;
+  letter-spacing: 2.4px;
+}
+
+.location-camera-stage {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 88px 24px;
+  background: #555858;
+  display: flex;
+  justify-content: center;
+}
+
+.location-camera-frame {
+  width: 100%;
+  max-width: 324px;
+  aspect-ratio: 1 / 1;
+  border: 2px solid rgba(255, 255, 255, 0.42);
+  border-radius: 18px;
+  position: relative;
+}
+
+.location-camera-frame .scanner-corner {
+  width: 48px;
+  height: 48px;
+  border-width: 5px;
+  border-color: #6ee067;
+}
+
+.location-camera-controls {
+  width: calc(100% + 48px);
+  margin: 0 -24px;
+  padding: 58px 56px 34px;
+  background: linear-gradient(180deg, #1f2221 0%, #121514 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.camera-side-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.camera-shutter-btn {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 8px solid #171a19;
+  box-shadow: 0 0 0 6px #f8faf8;
+  cursor: pointer;
+}
+
 /* --- Slip Submitted View --- */
 .submitted-wrapper {
   background: #F9FAFB;
@@ -2447,6 +2943,10 @@ label {
   color: var(--green);
 }
 
+.text-red {
+  color: #c9191f;
+}
+
 .submitted-status-text p {
   color: var(--text-gray);
   font-size: 14px;
@@ -2531,6 +3031,14 @@ label {
   color: var(--green);
 }
 
+.red-label {
+  color: #c9191f;
+}
+
+.graphic-circle-dashed.rejected {
+  border-color: #c9191f;
+}
+
 .info-cards-container {
   padding: 0 24px;
   display: flex;
@@ -2596,6 +3104,63 @@ label {
   position: relative;
   z-index: 1;
   min-height: 50px;
+}
+
+.cancel-request-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.progress-track.approved .progress-fill {
+  width: 100%;
+}
+
+.approved-detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: calc(100% - 48px);
+  margin: 0 24px 20px;
+  position: relative;
+  z-index: 1;
+}
+
+.approved-view-route-btn,
+.approved-verify-location-btn {
+  width: 100%;
+  min-height: 54px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+}
+
+.approved-view-route-btn {
+  background: var(--green);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(11, 150, 23, 0.18);
+}
+
+.approved-verify-location-btn {
+  background: var(--yellow);
+  color: #111827;
+}
+
+.rejected-dashboard-btn {
+  width: 100%;
+  min-height: 54px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  cursor: pointer;
+  background: #e5e7eb;
+  color: #202329;
 }
 
 .referral-id {

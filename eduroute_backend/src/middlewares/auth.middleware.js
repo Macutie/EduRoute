@@ -19,6 +19,15 @@ const protect = (req, res, next) => {
     }
 };
 
+const requireRole = (...allowedRoles) => (req, res, next) => {
+    if (!req.user?.role || !allowedRoles.includes(req.user.role)) {
+        return next(new AppError('You do not have permission to access this portal resource.', 403));
+    }
+
+    return next();
+};
+
 module.exports = {
-    protect
+    protect,
+    requireRole
 };

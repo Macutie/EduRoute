@@ -1,6 +1,8 @@
 const { body, validationResult } = require('express-validator');
 const AppError = require('../utils/appError');
 
+const ROLE_OPTIONS = ['faculty', 'hrmu', 'cssu', 'admin'];
+
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
 
@@ -17,9 +19,24 @@ const handleValidation = (req, res, next) => {
 };
 
 const registerValidator = [
+    body('account_role')
+        .optional()
+        .isIn(ROLE_OPTIONS)
+        .withMessage('Selected account role is invalid.'),
     body('full_name').trim().notEmpty().withMessage('Full name is required.'),
     body('employee_id').trim().notEmpty().withMessage('Employee ID is required.'),
-    body('department_id').isInt({ min: 1 }).withMessage('A valid department is required.'),
+    body('department_id')
+        .custom((value, { req }) => {
+            const role = req.body.account_role || 'faculty';
+
+            if (['faculty', 'admin'].includes(role)) {
+                if (!Number.isInteger(Number(value)) || Number(value) < 1) {
+                    throw new Error('A valid department is required.');
+                }
+            }
+
+            return true;
+        }),
     body('email').trim().isEmail().withMessage('A valid email address is required.').normalizeEmail(),
     body('password').isString().notEmpty().withMessage('Password is required.'),
     body('confirm_password')
@@ -34,6 +51,10 @@ const registerValidator = [
 const loginValidator = [
     body('email_or_employee_id').trim().notEmpty().withMessage('Email or Employee ID is required.'),
     body('password').isString().notEmpty().withMessage('Password is required.'),
+    body('portal_role')
+        .optional()
+        .isIn(ROLE_OPTIONS)
+        .withMessage('Selected portal role is invalid.'),
     handleValidation
 ];
 
@@ -74,6 +95,7 @@ const changePasswordValidator = [
 ];
 
 module.exports = {
+    ROLE_OPTIONS,
     registerValidator,
     loginValidator,
     forgotPasswordValidator,
