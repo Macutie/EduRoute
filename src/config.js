@@ -15,6 +15,11 @@ const getApiBaseUrl = () => {
     const configuredUrl = new URL(configuredApiBaseUrl);
     const appIsRunningOnLanHost = !['localhost', '127.0.0.1'].includes(hostname);
     const apiIsConfiguredForLocalhost = ['localhost', '127.0.0.1'].includes(configuredUrl.hostname);
+    const appIsRunningOnNgrok = /\.ngrok(-free)?\.(app|dev)$/i.test(hostname);
+
+    if (appIsRunningOnNgrok && apiIsConfiguredForLocalhost) {
+      return '';
+    }
 
     if (appIsRunningOnLanHost && apiIsConfiguredForLocalhost) {
       configuredUrl.hostname = hostname;
@@ -28,3 +33,5 @@ const getApiBaseUrl = () => {
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+const configuredMapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || '';
+export const MAPBOX_PUBLIC_TOKEN = configuredMapboxToken.startsWith('your_') ? '' : configuredMapboxToken;

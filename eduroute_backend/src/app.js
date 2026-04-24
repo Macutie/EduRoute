@@ -5,6 +5,9 @@ const authRoutes = require('./routes/auth.routes');
 const departmentRoutes = require('./routes/department.routes');
 const locatorSlipRoutes = require('./routes/locatorSlip.routes');
 const permissionRoutes = require('./routes/permission.routes');
+const mapRoutes = require('./routes/map.routes');
+const tripRoutes = require('./routes/trip.routes');
+const searchRoutes = require('./routes/search.routes');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const env = require('./config/env');
 
@@ -18,8 +21,9 @@ app.use(
 
             const isConfiguredOrigin = env.frontendUrls.includes(origin);
             const isLocalNetworkOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})(:\d+)?$/.test(origin);
+            const isNgrokOrigin = /^https?:\/\/[a-z0-9-]+\.ngrok(-free)?\.(app|dev)$/.test(origin);
 
-            if (isConfiguredOrigin || (env.nodeEnv !== 'production' && isLocalNetworkOrigin)) {
+            if (isConfiguredOrigin || (env.nodeEnv !== 'production' && (isLocalNetworkOrigin || isNgrokOrigin))) {
                 return callback(null, true);
             }
 
@@ -39,6 +43,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/locator-slips', locatorSlipRoutes);
 app.use('/api/permissions', permissionRoutes);
+app.use('/api/search', searchRoutes);
+app.use('/api/maps', mapRoutes);
+app.use('/api/trips', tripRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

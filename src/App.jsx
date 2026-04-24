@@ -1,6 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
+import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
+import { SearchBox } from '@mapbox/search-js-react';
 import './App.css';
-import { API_BASE_URL } from './config';
+import { API_BASE_URL, MAPBOX_PUBLIC_TOKEN } from './config';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
 
@@ -33,6 +36,7 @@ function App() {
   const [resetToken, setResetToken] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [selectedStatusSlip, setSelectedStatusSlip] = useState(null);
+  const [selectedAdminRequest, setSelectedAdminRequest] = useState(null);
   const [newPasswordForm, setNewPasswordForm] = useState({
     password: '',
     confirm_password: '',
@@ -613,6 +617,28 @@ function App() {
         />
       )}
       {view === 'privacy-security' && <PrivacySecurityView setView={setView} profileData={profileData} />}
+      {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
+      {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
+      {view === 'admin-approval-requests' && (
+        <AdminApprovalRequestsView
+          setView={setView}
+          profileData={profileData}
+          setSelectedAdminRequest={setSelectedAdminRequest}
+        />
+      )}
+      {view === 'admin-approval-detail' && (
+        <AdminApprovalDetailView
+          setView={setView}
+          profileData={profileData}
+          request={selectedAdminRequest}
+        />
+      )}
+      {view === 'admin-registry' && <AdminRegistryView setView={setView} profileData={profileData} />}
+      {view === 'admin-faculty' && <AdminFacultyView setView={setView} profileData={profileData} />}
+      {view === 'admin-profile' && <AdminProfileView setView={setView} profileData={profileData} />}
+      {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" />}
+      {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
+
 
       {isAuthView(view) && (
         <div
@@ -3125,75 +3151,1087 @@ const RouteApprovedView = ({ setView, profileData }) => (
   </div>
 );
 
-const MapTrackingView = ({ setView, profileData }) => (
-  <div className="dashboard-wrapper map-view-wrapper">
-    <div className="map-bg-container">
-      <img src="/Map view.png" alt="Map Route" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-    </div>
+const MapTrackingView = ({ setView, profileData }) => {
+  const LIVE_TRACKING_MAX_ACCEPTED_ACCURACY_METERS = 30;
+  const LIVE_TRACKING_MIN_MOVEMENT_METERS = 18;
+  const LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS = 28;
+  const LIVE_TRACKING_MIN_REROUTE_INTERVAL_MS = 5000;
+  const LIVE_TRACKING_STATIONARY_SPEED_MPS = 0.8;
 
-    <div className="map-top-nav">
-      <div className="nav-left">
-        <GridIcon />
-        <span className="nav-title">Active Journey</span>
-      </div>
-      <div className="dash-avatar" onClick={() => setView('profile')} style={{ background: '#E8F5E9', padding: '2px' }}>
-        <img src={profileData.image} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-      </div>
-    </div>
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const originMarkerRef = useRef(null);
+  const destinationMarkerRef = useRef(null);
+  const locationWatchRef = useRef(null);
+  const lastRerouteAtRef = useRef(0);
+  const lastAcceptedOriginRef = useRef(null);
+  const lastRouteOriginRef = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [origin, setOrigin] = useState(null);
+  const [destination, setDestination] = useState(null);
+  const [activeTrip, setActiveTrip] = useState(null);
+  const [routeSummary, setRouteSummary] = useState(null);
+  const [routeMode, setRouteMode] = useState('mapbox/driving-traffic');
+  const [modeEstimates, setModeEstimates] = useState([]);
+  const [activeRoutePanel, setActiveRoutePanel] = useState(null);
+  const [selectedAlternativeIndex, setSelectedAlternativeIndex] = useState(-1);
+  const [highlightedStepIndex, setHighlightedStepIndex] = useState(-1);
+  const [isPinMode, setIsPinMode] = useState(false);
+  const [searchValue, setSearchValue] = useState('');
+  const [showSearchPanel, setShowSearchPanel] = useState(true);
+  const [showActionBoard, setShowActionBoard] = useState(true);
+  const [showTripMetrics, setShowTripMetrics] = useState(false);
+  const [showRouteTools, setShowRouteTools] = useState(true);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [mapError, setMapError] = useState('');
+  const [overlayOffsets, setOverlayOffsets] = useState({
+    search: { x: 0, y: 0 },
+    action: { x: 0, y: 0 },
+    metrics: { x: 0, y: 0 },
+    tools: { x: 0, y: 0 },
+    panel: { x: 0, y: 0 },
+  });
+  const dragStateRef = useRef(null);
 
-    <div className="map-marker-container fade-in">
-      <div className="map-marker-dot">
-        <div className="dot-inner">
-          <div className="dot-core"></div>
+  const routeModes = [
+    { key: 'mapbox/driving-traffic', label: 'Best Route', tone: 'green' },
+    { key: 'mapbox/driving', label: 'Driving', tone: 'yellow' },
+    { key: 'mapbox/walking', label: 'Walking', tone: 'gray' },
+  ];
+
+  const authHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  const formatDistance = (meters) => {
+    const value = Number(meters);
+    if (!Number.isFinite(value)) return '0 km';
+    return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
+  };
+
+  const formatDuration = (seconds) => {
+    const value = Number(seconds);
+    if (!Number.isFinite(value)) return '0 min';
+    const minutes = Math.max(1, Math.round(value / 60));
+    return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
+  };
+
+  const activeAlternatives = routeSummary?.alternatives || [];
+  const displayedRoute = selectedAlternativeIndex >= 0 ? activeAlternatives[selectedAlternativeIndex] : routeSummary;
+  const activeSteps = displayedRoute?.steps || [];
+  const selectedModeMeta = routeModes.find((mode) => mode.key === routeMode) || routeModes[0];
+  const activeModeEta = useMemo(
+    () => modeEstimates.find((estimate) => estimate.profile === routeMode) || null,
+    [modeEstimates, routeMode]
+  );
+  const toggleRoutePanel = (panelKey) => {
+    setActiveRoutePanel((currentPanel) => (currentPanel === panelKey ? null : panelKey));
+  };
+  const getPointerPosition = (event) => {
+    const point = event.touches?.[0] || event.changedTouches?.[0] || event;
+    return { x: point.clientX, y: point.clientY };
+  };
+  const startOverlayDrag = (overlayKey) => (event) => {
+    const { x, y } = getPointerPosition(event);
+    const baseOffset = overlayOffsets[overlayKey] || { x: 0, y: 0 };
+    dragStateRef.current = {
+      key: overlayKey,
+      startX: x,
+      startY: y,
+      baseX: baseOffset.x,
+      baseY: baseOffset.y,
+    };
+  };
+  const getOverlayStyle = (overlayKey) => ({
+    transform: `translate(${overlayOffsets[overlayKey]?.x || 0}px, ${overlayOffsets[overlayKey]?.y || 0}px)`,
+  });
+
+  const getDistanceBetweenMeters = (first, second) => {
+    if (!first || !second) return Number.POSITIVE_INFINITY;
+
+    const toRadians = (degrees) => (degrees * Math.PI) / 180;
+    const earthRadiusMeters = 6371000;
+    const deltaLatitude = toRadians(second.latitude - first.latitude);
+    const deltaLongitude = toRadians(second.longitude - first.longitude);
+    const startLatitude = toRadians(first.latitude);
+    const endLatitude = toRadians(second.latitude);
+
+    const haversine =
+      Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) +
+      Math.cos(startLatitude) *
+        Math.cos(endLatitude) *
+        Math.sin(deltaLongitude / 2) *
+        Math.sin(deltaLongitude / 2);
+
+    return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+  };
+
+  const drawRoute = (geometry) => {
+    const map = mapRef.current;
+    if (!map || !geometry) return;
+
+    const routeFeature = { type: 'Feature', properties: {}, geometry };
+
+    if (map.getSource('active-trip-route')) {
+      map.getSource('active-trip-route').setData(routeFeature);
+    } else {
+      map.addSource('active-trip-route', { type: 'geojson', data: routeFeature });
+      map.addLayer({
+        id: 'active-trip-route-line',
+        type: 'line',
+        source: 'active-trip-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#049516', 'line-width': 5, 'line-opacity': 0.92 },
+      });
+    }
+
+    const coordinates = geometry.coordinates || [];
+    if (coordinates.length > 1) {
+      const bounds = coordinates.reduce(
+        (currentBounds, coordinate) => currentBounds.extend(coordinate),
+        new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+      );
+      map.fitBounds(bounds, { padding: 56, maxZoom: 16, duration: 900 });
+    }
+  };
+
+  const drawHighlightedStep = (geometry) => {
+    const map = mapRef.current;
+    if (!map || !geometry) return;
+
+    const stepFeature = { type: 'Feature', properties: {}, geometry };
+
+    if (map.getSource('active-trip-step-highlight')) {
+      map.getSource('active-trip-step-highlight').setData(stepFeature);
+    } else {
+      map.addSource('active-trip-step-highlight', { type: 'geojson', data: stepFeature });
+      map.addLayer({
+        id: 'active-trip-step-highlight-line',
+        type: 'line',
+        source: 'active-trip-step-highlight',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#FFD517', 'line-width': 7, 'line-opacity': 0.96 },
+      });
+    }
+  };
+
+  const clearHighlightedStep = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (map.getLayer('active-trip-step-highlight-line')) map.removeLayer('active-trip-step-highlight-line');
+    if (map.getSource('active-trip-step-highlight')) map.removeSource('active-trip-step-highlight');
+  };
+
+  const clearRoute = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (map.getLayer('active-trip-route-line')) map.removeLayer('active-trip-route-line');
+    if (map.getSource('active-trip-route')) map.removeSource('active-trip-route');
+    clearHighlightedStep();
+  };
+
+  const stopLiveLocationWatch = () => {
+    if (locationWatchRef.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(locationWatchRef.current);
+      locationWatchRef.current = null;
+    }
+  };
+
+  const setOriginMarker = (coordinate, { recenter = true } = {}) => {
+    const map = mapRef.current;
+    if (!map || !coordinate) return;
+    const lngLat = [coordinate.longitude, coordinate.latitude];
+
+    if (!originMarkerRef.current) {
+      originMarkerRef.current = new mapboxgl.Marker({ color: '#049516' }).setLngLat(lngLat).addTo(map);
+    } else {
+      originMarkerRef.current.setLngLat(lngLat);
+    }
+
+    if (recenter) {
+      map.flyTo({ center: lngLat, zoom: 15, essential: true });
+    }
+  };
+
+  const setDestinationMarker = (coordinate) => {
+    const map = mapRef.current;
+    if (!map || !coordinate) return;
+    const lngLat = [coordinate.longitude, coordinate.latitude];
+
+    if (!destinationMarkerRef.current) {
+      destinationMarkerRef.current = new mapboxgl.Marker({ color: '#FFD517' }).setLngLat(lngLat).addTo(map);
+    } else {
+      destinationMarkerRef.current.setLngLat(lngLat);
+    }
+
+    map.flyTo({ center: lngLat, zoom: 15, essential: true });
+  };
+
+  const handleDestinationRetrieve = (result) => {
+    const feature = result?.features?.[0] || result?.feature || result;
+    const coordinates = feature?.geometry?.coordinates;
+
+    if (!coordinates || coordinates.length < 2) {
+      setMapError('Selected destination has no coordinates.');
+      return;
+    }
+
+    const nextDestination = {
+      longitude: coordinates[0],
+      latitude: coordinates[1],
+      name: feature.properties?.full_address || feature.properties?.name || feature.properties?.place_formatted || 'Selected destination',
+    };
+
+    setDestination(nextDestination);
+    setSearchValue(nextDestination.name);
+    setSelectedAlternativeIndex(-1);
+    setHighlightedStepIndex(-1);
+    setIsPinMode(false);
+    setDestinationMarker(nextDestination);
+    setMapError('');
+  };
+
+  const handlePinnedDestination = (lngLat) => {
+    const nextDestination = {
+      longitude: lngLat.lng,
+      latitude: lngLat.lat,
+      name: `Pinned location (${lngLat.lat.toFixed(5)}, ${lngLat.lng.toFixed(5)})`,
+      isPinned: true,
+    };
+
+    setDestination(nextDestination);
+    setSearchValue(nextDestination.name);
+    setSelectedAlternativeIndex(-1);
+    setHighlightedStepIndex(-1);
+    setDestinationMarker(nextDestination);
+    setMapError('');
+  };
+
+  const clearPinnedDestination = () => {
+    if (!destination?.isPinned) return;
+
+    setDestination(null);
+    setSelectedAlternativeIndex(-1);
+    setHighlightedStepIndex(-1);
+    setRouteSummary(null);
+    clearRoute();
+
+    if (destinationMarkerRef.current) {
+      destinationMarkerRef.current.remove();
+      destinationMarkerRef.current = null;
+    }
+  };
+
+  const requestCurrentLocation = () => {
+    setMapError('');
+
+    if (!navigator.geolocation) {
+      setMapError('Location is not supported on this browser.');
+      return;
+    }
+
+    setMapLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const coordinate = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading,
+          timestamp: position.timestamp,
+        };
+        setOrigin(coordinate);
+        lastAcceptedOriginRef.current = coordinate;
+        lastRouteOriginRef.current = coordinate;
+        setOriginMarker(coordinate, { recenter: true });
+        setMapLoading(false);
+      },
+      (error) => {
+        setMapError(error.code === error.PERMISSION_DENIED
+          ? 'Location permission was denied. Enable location access to start a trip from your current location.'
+          : 'Unable to get your current location. Please try again.');
+        setMapLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 15000 }
+    );
+  };
+
+  const refreshRouteFromOrigin = async (nextOrigin, { skipFit = true, profile = routeMode, alternatives } = {}) => {
+    if (!destination || !nextOrigin) return null;
+
+    const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({
+        origin: nextOrigin,
+        destination,
+        profile,
+        alternatives: alternatives ?? profile === 'mapbox/driving-traffic',
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to refresh trip route.');
+    }
+
+    setRouteSummary(data.data);
+    setSelectedAlternativeIndex(-1);
+    setHighlightedStepIndex(-1);
+    clearHighlightedStep();
+    drawRoute(data.data.geometry);
+
+    if (skipFit && mapRef.current && nextOrigin) {
+      mapRef.current.easeTo({
+        center: [nextOrigin.longitude, nextOrigin.latitude],
+        duration: 700,
+        zoom: Math.max(mapRef.current.getZoom(), 15),
+        essential: true,
+      });
+    }
+
+    return data.data;
+  };
+
+  const applyDisplayedRoute = (route, { flyTo = false } = {}) => {
+    if (!route?.geometry) return;
+    drawRoute(route.geometry);
+
+    if (flyTo && mapRef.current) {
+      const coordinates = route.geometry.coordinates || [];
+      if (coordinates.length > 1) {
+        const bounds = coordinates.reduce(
+          (currentBounds, coordinate) => currentBounds.extend(coordinate),
+          new mapboxgl.LngLatBounds(coordinates[0], coordinates[0])
+        );
+        mapRef.current.fitBounds(bounds, { padding: 64, maxZoom: 16, duration: 800 });
+      }
+    }
+  };
+
+  const handleModeSelection = async (profile) => {
+    setRouteMode(profile);
+    setSelectedAlternativeIndex(-1);
+    setHighlightedStepIndex(-1);
+    clearHighlightedStep();
+
+    if (!origin || !destination) return;
+
+    try {
+      setMapLoading(true);
+      setMapError('');
+      await refreshRouteFromOrigin(origin, {
+        skipFit: false,
+        profile,
+        alternatives: profile === 'mapbox/driving-traffic',
+      });
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  const handleAlternativeSelection = (alternativeIndex) => {
+    const alternativeRoute = activeAlternatives[alternativeIndex];
+    if (!alternativeRoute) return;
+
+    setSelectedAlternativeIndex(alternativeIndex);
+    setHighlightedStepIndex(-1);
+    clearHighlightedStep();
+    applyDisplayedRoute(alternativeRoute, { flyTo: true });
+  };
+
+  const handleStepSelection = (step, stepIndex) => {
+    setHighlightedStepIndex(stepIndex);
+
+    if (step.geometry) {
+      drawHighlightedStep(step.geometry);
+    }
+
+    const [lng, lat] = step.location || [];
+    if (mapRef.current && Number.isFinite(lng) && Number.isFinite(lat)) {
+      mapRef.current.flyTo({
+        center: [lng, lat],
+        zoom: Math.max(mapRef.current.getZoom(), 16),
+        essential: true,
+        duration: 700,
+      });
+    }
+  };
+
+  const startLiveLocationWatch = () => {
+    if (!navigator.geolocation || !activeTrip || !destination) return;
+
+    stopLiveLocationWatch();
+
+    locationWatchRef.current = navigator.geolocation.watchPosition(
+      async (position) => {
+        const nextOrigin = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed,
+          heading: position.coords.heading,
+          timestamp: position.timestamp,
+        };
+
+        const lastAcceptedOrigin = lastAcceptedOriginRef.current;
+        const lastRouteOrigin = lastRouteOriginRef.current;
+        const movedDistanceMeters = getDistanceBetweenMeters(lastAcceptedOrigin, nextOrigin);
+        const movedSinceRerouteMeters = getDistanceBetweenMeters(lastRouteOrigin, nextOrigin);
+        const accuracyMeters = Number(position.coords.accuracy);
+        const speedMetersPerSecond = Number.isFinite(position.coords.speed) ? Number(position.coords.speed) : null;
+        const hasReliableAccuracy = Number.isFinite(accuracyMeters) ? accuracyMeters <= LIVE_TRACKING_MAX_ACCEPTED_ACCURACY_METERS : true;
+        const minimumAcceptedMovement = Math.max(
+          LIVE_TRACKING_MIN_MOVEMENT_METERS,
+          Number.isFinite(accuracyMeters) ? Math.min(accuracyMeters, 24) : LIVE_TRACKING_MIN_MOVEMENT_METERS
+        );
+        const hasMeaningfulMovement = movedDistanceMeters >= minimumAcceptedMovement;
+        const isStationary = speedMetersPerSecond !== null
+          ? speedMetersPerSecond < LIVE_TRACKING_STATIONARY_SPEED_MPS
+          : !hasMeaningfulMovement;
+
+        if (!lastAcceptedOrigin || (hasReliableAccuracy && hasMeaningfulMovement && !isStationary)) {
+          lastAcceptedOriginRef.current = nextOrigin;
+          setOrigin(nextOrigin);
+          setOriginMarker(nextOrigin, { recenter: false });
+        } else {
+          return;
+        }
+
+        const now = Date.now();
+        if (now - lastRerouteAtRef.current < LIVE_TRACKING_MIN_REROUTE_INTERVAL_MS) return;
+        if (movedSinceRerouteMeters < LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS) return;
+        lastRerouteAtRef.current = now;
+
+        try {
+          await refreshRouteFromOrigin(nextOrigin);
+          lastRouteOriginRef.current = nextOrigin;
+          setMapError('');
+        } catch (error) {
+          setMapError(error.message);
+        }
+      },
+      (error) => {
+        setMapError(
+          error.code === error.PERMISSION_DENIED
+            ? 'Location permission was denied during live tracking. Re-enable it to keep the trip distance updated.'
+            : 'Unable to refresh your live trip location.'
+        );
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  const startTrip = async () => {
+    if (!destination) {
+      setMapError('Search and select a destination first.');
+      return;
+    }
+
+    if (!origin) {
+      requestCurrentLocation();
+      setMapError('Current location is needed before starting a trip.');
+      return;
+    }
+
+    setMapLoading(true);
+    setMapError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maps/trips/start`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          origin,
+          destination,
+          profile: routeMode,
+          alternatives: routeMode === 'mapbox/driving-traffic',
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message || 'Failed to start trip.');
+
+      setActiveTrip(data.data.trip);
+      setRouteSummary(data.data.route);
+      lastAcceptedOriginRef.current = origin;
+      lastRouteOriginRef.current = origin;
+      setShowTripMetrics(false);
+      setShowRouteTools(true);
+      setSelectedAlternativeIndex(-1);
+      setHighlightedStepIndex(-1);
+      drawRoute(data.data.route.geometry);
+      lastRerouteAtRef.current = Date.now();
+      setActiveRoutePanel('summary');
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  const endTrip = async (status = 'completed') => {
+    if (!activeTrip) return;
+
+    setMapLoading(true);
+    setMapError('');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/maps/trips/${activeTrip.id}/end`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ status }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) throw new Error(data.message || 'Failed to end trip.');
+
+      setActiveTrip(null);
+      setRouteSummary(null);
+      setActiveRoutePanel(null);
+      setShowTripMetrics(false);
+      setShowRouteTools(true);
+      setSelectedAlternativeIndex(-1);
+      setHighlightedStepIndex(-1);
+      lastAcceptedOriginRef.current = null;
+      lastRouteOriginRef.current = null;
+      stopLiveLocationWatch();
+      clearRoute();
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!MAPBOX_PUBLIC_TOKEN || mapRef.current) return;
+
+    mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [120.2828, 14.8386],
+      zoom: 13,
+    });
+
+    map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'bottom-right');
+    map.on('load', () => setMapReady(true));
+    mapRef.current = map;
+
+    return () => {
+      stopLiveLocationWatch();
+      originMarkerRef.current?.remove();
+      destinationMarkerRef.current?.remove();
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return undefined;
+
+    const handleMapClickForPin = (event) => {
+      if (!isPinMode) return;
+      handlePinnedDestination(event.lngLat);
+    };
+
+    map.on('click', handleMapClickForPin);
+
+    return () => {
+      map.off('click', handleMapClickForPin);
+    };
+  }, [isPinMode]);
+
+  useEffect(() => {
+    const loadActiveTrip = async () => {
+      if (!mapReady) return;
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/maps/trips/active`, { headers: authHeaders() });
+        const data = await response.json();
+
+        if (!response.ok || !data.data) return;
+
+        const trip = data.data;
+        setActiveTrip(trip);
+        setOrigin(trip.origin);
+        lastAcceptedOriginRef.current = trip.origin;
+        lastRouteOriginRef.current = trip.origin;
+        setDestination(trip.destination);
+        setRouteSummary({
+          distance_meters: trip.distance_meters,
+          duration_seconds: trip.duration_seconds,
+          geometry: trip.route_geometry,
+          steps: [],
+          alternatives: [],
+        });
+        setShowTripMetrics(false);
+        setShowRouteTools(true);
+        setSelectedAlternativeIndex(-1);
+        setActiveRoutePanel(null);
+        setOriginMarker(trip.origin);
+        setDestinationMarker(trip.destination);
+        drawRoute(trip.route_geometry);
+      } catch (error) {
+        console.error('Failed to load active trip:', error);
+      }
+    };
+
+    loadActiveTrip();
+  }, [mapReady]);
+
+  useEffect(() => {
+    if (!origin || !destination || activeTrip) return undefined;
+
+    let cancelled = false;
+
+    const compareModes = async () => {
+      try {
+        const profiles = ['mapbox/driving-traffic', 'mapbox/driving', 'mapbox/walking'];
+        const responses = await Promise.all(
+          profiles.map(async (profile) => {
+            const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                origin,
+                destination,
+                profile,
+                alternatives: profile === 'mapbox/driving-traffic',
+              }),
+            });
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(data.message || 'Failed to compare route modes.');
+            }
+
+            return data.data;
+          })
+        );
+
+        if (!cancelled) {
+          setModeEstimates(responses);
+          const suggestedMode = responses.reduce((bestRoute, nextRoute) =>
+            !bestRoute || nextRoute.duration_seconds < bestRoute.duration_seconds ? nextRoute : bestRoute, null);
+          if (suggestedMode?.profile) {
+            setRouteMode(suggestedMode.profile);
+          }
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to compare route modes:', error);
+        }
+      }
+    };
+
+    compareModes();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [origin?.latitude, origin?.longitude, destination?.latitude, destination?.longitude, activeTrip?.id]);
+
+  useEffect(() => {
+    if (activeTrip && destination) {
+      startLiveLocationWatch();
+      return () => stopLiveLocationWatch();
+    }
+
+    stopLiveLocationWatch();
+    return undefined;
+  }, [activeTrip?.id, destination?.longitude, destination?.latitude]);
+
+  useEffect(() => {
+    const handleMove = (event) => {
+      if (!dragStateRef.current) return;
+
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
+      const { x, y } = getPointerPosition(event);
+      const { key, startX, startY, baseX, baseY } = dragStateRef.current;
+
+      setOverlayOffsets((currentOffsets) => ({
+        ...currentOffsets,
+        [key]: {
+          x: baseX + (x - startX),
+          y: baseY + (y - startY),
+        },
+      }));
+    };
+
+    const handleEnd = () => {
+      dragStateRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: false });
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [overlayOffsets]);
+
+  return (
+    <div className="dashboard-wrapper map-trip-wrapper">
+      <div ref={mapContainerRef} className="mapbox-canvas" />
+
+      {!MAPBOX_PUBLIC_TOKEN && (
+        <div className="map-token-warning">
+          Add VITE_MAPBOX_PUBLIC_TOKEN to .env.local to load the map.
+        </div>
+      )}
+
+      <div className="map-top-nav trip-map-top-nav">
+        <div className="nav-left" onClick={() => setView('dashboard')} style={{ cursor: 'pointer' }}>
+          <BackArrowIcon color="var(--green)" />
+          <span className="nav-title">Trip Route</span>
+        </div>
+        <div className="dash-avatar" onClick={() => setView('profile')}>
+          <img src={profileData.image} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
         </div>
       </div>
-      <div className="map-marker-label">YOU ARE HERE</div>
-    </div>
 
-    <div className="map-controls fade-in">
-      <div className="map-ctrl-btn">
-        <PinIcon color="var(--green)" />
-      </div>
-      <div className="map-ctrl-btn">
-        <EwanIcon color="var(--green)" />
-      </div>
-    </div>
-
-    <div className="tracking-board fade-in">
-      <div className="tb-header">
-        <div className="tb-header-left">
-          <div className="tb-dot"></div>
-          <span>TRACKING ACTIVE</span>
-        </div>
-        <div className="tb-header-right">
-          GPS High Accuracy
-        </div>
-      </div>
-      <div className="tb-body">
-        <div className="tb-stats-row">
-          <div className="tb-stat">
-            <label>DURATION</label>
-            <div className="tb-val">00:15:42</div>
+      {showSearchPanel ? (
+        <div className="trip-search-panel" style={getOverlayStyle('search')}>
+          <div className="overlay-card-head overlay-card-head-search">
+            <label>Destination</label>
+            <div className="overlay-card-controls">
+              {activeTrip && (
+                <button type="button" className="overlay-toggle-btn" onClick={() => setShowSearchPanel(false)}>
+                  Hide
+                </button>
+              )}
+              <button
+                type="button"
+                className="overlay-drag-handle"
+                onMouseDown={startOverlayDrag('search')}
+                onTouchStart={startOverlayDrag('search')}
+              >
+                Drag
+              </button>
+            </div>
           </div>
-          <div className="tb-stat tb-divider">
-            <label>DISTANCE</label>
-            <div className="tb-val">1.2<span className="tb-unit">km</span></div>
+          {MAPBOX_PUBLIC_TOKEN ? (
+            <SearchBox
+              accessToken={MAPBOX_PUBLIC_TOKEN}
+              map={mapRef.current}
+              mapboxgl={mapboxgl}
+              marker={false}
+              value={searchValue}
+              onChange={(nextValue) => {
+                setSearchValue(nextValue);
+                setIsPinMode(false);
+                if (nextValue.trim()) {
+                  clearPinnedDestination();
+                }
+              }}
+              onClear={() => {
+                setSearchValue('');
+                setIsPinMode(false);
+                clearPinnedDestination();
+              }}
+              onRetrieve={handleDestinationRetrieve}
+              placeholder="Search destination..."
+              options={{ language: 'en', country: 'PH' }}
+            />
+          ) : (
+            <input disabled placeholder="Mapbox token required" />
+          )}
+          <div className="trip-search-actions">
+            <button
+              type="button"
+              className={`trip-pin-btn ${isPinMode ? 'active' : ''}`}
+              onClick={() => {
+                const nextPinMode = !isPinMode;
+                setIsPinMode(nextPinMode);
+                if (nextPinMode) {
+                  setSearchValue('');
+                  clearPinnedDestination();
+                }
+                setMapError('');
+              }}
+            >
+              {isPinMode ? 'Tap Map To Pin' : 'Pin Location'}
+            </button>
           </div>
-          <div className="tb-stat tb-divider">
-            <label>SPEED</label>
-            <div className="tb-val">4.8<span className="tb-unit">kph</span></div>
-          </div>
+          {destination && (
+            <p className="trip-selected-destination">
+              {destination.name}
+              {destination.isPinned ? ' • custom pin' : ''}
+            </p>
+          )}
+          {isPinMode && (
+            <p className="trip-search-state">Tap any point on the map to set a destination when Search Box does not find it.</p>
+          )}
         </div>
-        <button className="end-trip-btn" onClick={() => setView('dashboard')}>
-          <div className="stop-icon"></div>
-          End Trip
+      ) : (
+        <button type="button" className="trip-search-restore-btn fade-in" onClick={() => setShowSearchPanel(true)}>
+          Show Destination
         </button>
-      </div>
-    </div>
+      )}
 
-    <BottomNav active="map" setView={setView} />
-  </div>
-);
+      {showActionBoard ? (
+        <div className="trip-action-board fade-in" style={getOverlayStyle('action')}>
+          <div className="tb-header">
+            <div className="tb-header-left">
+              <div className="tb-dot"></div>
+              <span>{activeTrip ? 'ACTIVE TRIP' : 'READY TO ROUTE'}</span>
+            </div>
+            <div className="tb-header-actions">
+              <div className="tb-status">{activeTrip ? 'ON ROUTE' : 'IDLE'}</div>
+              <button type="button" className="overlay-toggle-btn on-green" onClick={() => setShowActionBoard(false)}>
+                Hide
+              </button>
+              <button
+                type="button"
+                className="overlay-drag-handle on-green"
+                onMouseDown={startOverlayDrag('action')}
+                onTouchStart={startOverlayDrag('action')}
+              >
+                Drag
+              </button>
+            </div>
+          </div>
+
+          {mapError && <div className="trip-map-error">{mapError}</div>}
+
+          <div className="trip-map-actions">
+            <button type="button" className="trip-location-btn" onClick={requestCurrentLocation} disabled={mapLoading}>
+              Use My Current Location
+            </button>
+            {!activeTrip ? (
+              <button type="button" className="trip-start-btn" onClick={startTrip} disabled={mapLoading || !destination}>
+                {mapLoading ? 'Preparing...' : 'Start Trip'}
+              </button>
+            ) : (
+              <div className="trip-end-actions">
+                <button type="button" className="trip-start-btn" onClick={() => endTrip('completed')} disabled={mapLoading}>
+                  End Trip
+                </button>
+                <button type="button" className="trip-cancel-btn" onClick={() => endTrip('cancelled')} disabled={mapLoading}>
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button type="button" className="trip-action-restore-btn fade-in" onClick={() => setShowActionBoard(true)}>
+          Show Route
+        </button>
+      )}
+
+      {activeTrip && (
+        <div className={`trip-metrics-panel fade-in ${showTripMetrics ? '' : 'collapsed'}`} style={getOverlayStyle('metrics')}>
+          <div className="trip-metrics-head">
+            <span>Trip Metrics</span>
+            <div className="overlay-card-controls">
+              <button type="button" className="overlay-toggle-btn" onClick={() => setShowTripMetrics((currentValue) => !currentValue)}>
+                {showTripMetrics ? 'Hide' : 'Show'}
+              </button>
+              {showTripMetrics && (
+                <button
+                  type="button"
+                  className="overlay-drag-handle"
+                  onMouseDown={startOverlayDrag('metrics')}
+                  onTouchStart={startOverlayDrag('metrics')}
+                >
+                  Drag
+                </button>
+              )}
+            </div>
+          </div>
+          {showTripMetrics && (
+            <div className="trip-stats-strip">
+              <div className="trip-stat-pill"><span>Distance</span><strong>{formatDistance(routeSummary?.distance_meters || activeTrip?.distance_meters)}</strong></div>
+              <div className="trip-stat-pill"><span>ETA</span><strong>{formatDuration(routeSummary?.duration_seconds || activeTrip?.duration_seconds)}</strong></div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {(destination || routeSummary || activeTrip) && showRouteTools && (
+        <div className="trip-side-actions" style={getOverlayStyle('tools')}>
+          <button
+            type="button"
+            className="overlay-drag-handle small"
+            onMouseDown={startOverlayDrag('tools')}
+            onTouchStart={startOverlayDrag('tools')}
+          >
+            Drag
+          </button>
+          <button type="button" className={`trip-side-btn ${activeRoutePanel === 'summary' ? 'active' : ''}`} onClick={() => toggleRoutePanel('summary')}>
+            Best Route
+          </button>
+          <button type="button" className={`trip-side-btn ${activeRoutePanel === 'alternatives' ? 'active' : ''}`} onClick={() => toggleRoutePanel('alternatives')}>
+            Options
+          </button>
+          <button type="button" className={`trip-side-btn ${activeRoutePanel === 'steps' ? 'active' : ''}`} onClick={() => toggleRoutePanel('steps')}>
+            Steps
+          </button>
+          <button type="button" className="trip-side-btn utility" onClick={() => { setShowRouteTools(false); setActiveRoutePanel(null); }}>
+            Hide
+          </button>
+        </div>
+      )}
+
+      {activeTrip && !showRouteTools && (
+        <button type="button" className="trip-side-restore-btn fade-in" onClick={() => setShowRouteTools(true)}>
+          Show Routes
+        </button>
+      )}
+
+      {activeRoutePanel && (
+        <div className="trip-side-panel fade-in" style={getOverlayStyle('panel')}>
+          {activeRoutePanel === 'summary' && (
+            <>
+              <div className="trip-side-panel-head">
+                <span>Best Route</span>
+                <div className="overlay-card-controls">
+                  <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
+                  <button
+                    type="button"
+                    className="overlay-drag-handle"
+                    onMouseDown={startOverlayDrag('panel')}
+                    onTouchStart={startOverlayDrag('panel')}
+                  >
+                    Drag
+                  </button>
+                </div>
+              </div>
+              <div className="trip-mode-selector">
+                {routeModes.map((mode) => {
+                  const estimate = modeEstimates.find((item) => item.profile === mode.key);
+                  const isSelected = routeMode === mode.key;
+
+                  return (
+                    <button
+                      key={mode.key}
+                      type="button"
+                      className={`trip-mode-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => handleModeSelection(mode.key)}
+                      disabled={mapLoading}
+                    >
+                      <span>{mode.label}</span>
+                      <small>{estimate ? formatDuration(estimate.duration_seconds) : '--'}</small>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="trip-guidance-card">
+                <span className="trip-guidance-label">{selectedModeMeta.label}</span>
+                <h4>{routeMode === 'mapbox/driving-traffic' ? 'Traffic-aware route selected' : 'Step-by-step route ready'}</h4>
+                <p>{routeSummary?.summary || activeModeEta?.summary || 'EduRoute will use the latest route guidance for this trip.'}</p>
+              </div>
+            </>
+          )}
+
+          {activeRoutePanel === 'alternatives' && (
+            <>
+              <div className="trip-side-panel-head">
+                <span>Alternative Routes</span>
+                <div className="overlay-card-controls">
+                  <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
+                  <button
+                    type="button"
+                    className="overlay-drag-handle"
+                    onMouseDown={startOverlayDrag('panel')}
+                    onTouchStart={startOverlayDrag('panel')}
+                  >
+                    Drag
+                  </button>
+                </div>
+              </div>
+              <div className="trip-guidance-card compact">
+                <span className="trip-guidance-label">Other Options</span>
+                {activeAlternatives.length ? (
+                  activeAlternatives.map((alternative, index) => (
+                    <button
+                      key={`${alternative.profile}-${index}`}
+                      type="button"
+                      className={`trip-alt-row ${selectedAlternativeIndex === index ? 'selected' : ''}`}
+                      onClick={() => handleAlternativeSelection(index)}
+                    >
+                      <strong>Option {index + 2}</strong>
+                      <span>{formatDuration(alternative.duration_seconds)} • {formatDistance(alternative.distance_meters)}</span>
+                    </button>
+                  ))
+                ) : (
+                  <p>No faster alternate route is currently available.</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {activeRoutePanel === 'steps' && (
+            <>
+              <div className="trip-side-panel-head">
+                <span>Travel Steps</span>
+                <div className="overlay-card-controls">
+                  <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
+                  <button
+                    type="button"
+                    className="overlay-drag-handle"
+                    onMouseDown={startOverlayDrag('panel')}
+                    onTouchStart={startOverlayDrag('panel')}
+                  >
+                    Drag
+                  </button>
+                </div>
+              </div>
+              <div className="trip-steps-panel side">
+                <div className="trip-steps-head">
+                  <span>Turn-by-turn guidance</span>
+                  <small>{activeSteps.length ? `${activeSteps.length} steps` : 'Instructions will appear after routing'}</small>
+                </div>
+                <div className="trip-steps-list">
+                  {activeSteps.length ? activeSteps.slice(0, 8).map((step, index) => (
+                    <button
+                      type="button"
+                      key={`${step.instruction}-${index}`}
+                      className={`trip-step-item ${highlightedStepIndex === index ? 'selected' : ''}`}
+                      onClick={() => handleStepSelection(step, index)}
+                    >
+                      <div className="trip-step-index">{index + 1}</div>
+                      <div className="trip-step-copy">
+                        <strong>{step.instruction || 'Continue on your current road'}</strong>
+                        <span>{step.name || 'Unnamed road'} • {formatDistance(step.distance_meters)}</span>
+                      </div>
+                    </button>
+                  )) : (
+                    <div className="trip-step-empty">
+                      Select a destination and start a trip to see step-by-step instructions.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      <BottomNav active="map" setView={setView} />
+    </div>
+  );
+};
 
 const DEPT_NAMES = {
   CCS: 'College of Computer Studies',
@@ -3821,7 +4859,7 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const ChangePasswordView = ({ setView, profileData }) => {
+const ChangePasswordView = ({ setView, profileData, backView = 'profile' }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -3883,7 +4921,7 @@ const ChangePasswordView = ({ setView, profileData }) => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setView('profile');
+      setView(backView);
     } catch (error) {
       alert(error.message);
     } finally {
@@ -3896,7 +4934,7 @@ const ChangePasswordView = ({ setView, profileData }) => {
       <div className="content fade-in dash-content chpw-content">
 
         <div className="slip-top-nav chpw-top-nav">
-          <div className="slip-nav-left" onClick={() => setView('profile')}>
+          <div className="slip-nav-left" onClick={() => setView(backView)}>
             <BackArrowIcon color="var(--green)" />
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
@@ -4722,6 +5760,1474 @@ const PrivacySecurityView = ({ setView, profileData }) => {
         activeLegalDoc={activeLegalDoc}
         onClose={() => setActiveLegalDoc(null)}
       />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN DASHBOARD VIEW (Strategic Oversight)               */
+/* ======================================================== */
+
+const AdminBellIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
+const ClipboardClockIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="18" rx="2" />
+    <path d="M9 2v2" /><path d="M15 2v2" />
+    <circle cx="12" cy="14" r="4" />
+    <path d="M12 12v2l1.5 1" />
+  </svg>
+);
+
+const CheckCircleAdminIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const XCircleIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="15" y1="9" x2="9" y2="15" />
+    <line x1="9" y1="9" x2="15" y2="15" />
+  </svg>
+);
+
+const UsersAdminIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const DashboardNavIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="14" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+  </svg>
+);
+
+const RequestsNavIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    <rect x="8" y="2" width="8" height="4" rx="1" />
+    <line x1="9" y1="12" x2="15" y2="12" />
+    <line x1="9" y1="16" x2="15" y2="16" />
+  </svg>
+);
+
+const RegistryNavIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 8v13H3V8" />
+    <path d="M23 3H1v5h22V3z" />
+    <path d="M10 12h4" />
+  </svg>
+);
+
+const FacultyNavIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
+
+const AdminBottomNav = ({ active = 'dashboard', setView }) => (
+  <div className="admin-bottom-nav">
+    <div className={`admin-nav-item ${active === 'dashboard' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-dashboard')}>
+      <DashboardNavIcon color={active === 'dashboard' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Dashboard</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'requests' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-approval-requests')}>
+      <RequestsNavIcon color={active === 'requests' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Requests</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'registry' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-registry')}>
+      <RegistryNavIcon color={active === 'registry' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Registry</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-faculty')}>
+      <FacultyNavIcon color={active === 'faculty' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Faculty</span>
+    </div>
+  </div>
+);
+
+const AdminDashboardView = ({ setView, profileData }) => {
+  const notifications = [
+    { id: 1, text: 'New budget proposal from Dept. of Humanities.', time: '2 mins ago', unread: true },
+    { id: 2, text: 'Course curriculum revision needs signature.', time: '45 mins ago', unread: true },
+    { id: 3, text: 'Monthly faculty meeting reminder.', time: '3 hours ago', unread: false },
+  ];
+
+  const pendingApprovals = [
+    { initials: 'JA', name: 'Dr. Julian Anderson', dept: 'Dept. of Applied Science', purpose: 'Locator Slip', date: 'June 10, 2026', color: '#16A34A' },
+    { initials: 'EM', name: 'Elena Martinez', dept: 'Human Resources', purpose: 'Locator Slip', date: 'June 11, 2026', color: '#8B5CF6' },
+    { initials: 'WK', name: 'Prof. William Kent', dept: 'Global Relations', purpose: 'Locator Slip', date: 'June 11, 2026', color: '#F59E0B' },
+  ];
+
+  return (
+    <div className="admin-dash-wrapper">
+      <div className="admin-dash-scroll">
+
+        {/* Header */}
+        <div className="admin-header">
+          <span className="admin-logo-text">EduRoute</span>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Hero */}
+        <div className="admin-hero">
+          <h1>Strategic Oversight</h1>
+          <p>Reviewing institutional progress for March 2026</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="admin-stats-grid">
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">PENDING REQUESTS</span>
+              <span className="admin-stat-number">05</span>
+            </div>
+            <ClipboardClockIcon color="var(--green)" />
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">APPROVED TODAY</span>
+              <span className="admin-stat-number">12</span>
+            </div>
+            <CheckCircleAdminIcon color="var(--green)" />
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">REJECTED REQUESTS</span>
+              <span className="admin-stat-number">03</span>
+            </div>
+            <XCircleIcon color="#EF4444" />
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">TOTAL FACULTY</span>
+              <span className="admin-stat-number">26</span>
+            </div>
+            <UsersAdminIcon color="var(--green)" />
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="admin-notif-card">
+          <div className="admin-notif-header">
+            <h2>Notifications</h2>
+            <span className="admin-notif-viewall" onClick={() => setView('admin-notifications')}>VIEW ALL</span>
+          </div>
+          {notifications.map((n, i) => (
+            <div key={n.id}>
+              <div className="admin-notif-row">
+                {n.unread && <div className="admin-notif-dot" />}
+                <div className={`admin-notif-content ${!n.unread ? 'no-dot' : ''}`}>
+                  <p className="admin-notif-text">{n.text}</p>
+                  <span className="admin-notif-time">{n.time}</span>
+                </div>
+              </div>
+              {i < notifications.length - 1 && <div className="admin-notif-divider" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Pending Approvals */}
+        <div className="admin-approvals-card">
+          <div className="admin-approvals-header">
+            <h2>Pending Approvals</h2>
+            <button type="button" className="admin-action-queue-btn">Action Queue</button>
+          </div>
+
+          <div className="admin-approvals-table">
+            <div className="admin-approvals-thead">
+              <span>RECIPIENT</span>
+              <span>PURPOSE</span>
+              <span>DATE SUBMITTED</span>
+            </div>
+            {pendingApprovals.map((a) => (
+              <div key={a.initials} className="admin-approvals-row">
+                <div className="admin-approval-recipient">
+                  <div className="admin-approval-avatar" style={{ background: a.color }}>
+                    {a.initials}
+                  </div>
+                  <div className="admin-approval-info">
+                    <span className="admin-approval-name">{a.name}</span>
+                    <span className="admin-approval-dept">{a.dept}</span>
+                  </div>
+                </div>
+                <span className="admin-approval-purpose">{a.purpose}</span>
+                <span className="admin-approval-date">{a.date}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="admin-approvals-viewall" onClick={() => setView('admin-approval-requests')}>
+            View All 24 Requests
+          </div>
+        </div>
+
+      </div>
+      <AdminBottomNav active="dashboard" setView={setView} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN NOTIFICATIONS VIEW                                 */
+/* ======================================================== */
+
+const NotifSlipIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+  </svg>
+);
+
+const NotifPendingIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="4" width="16" height="18" rx="2" />
+    <path d="M9 2v2" /><path d="M15 2v2" />
+    <circle cx="12" cy="14" r="4" />
+    <path d="M12 12v2l1.5 1" />
+  </svg>
+);
+
+const AdminNotificationsView = ({ setView, profileData }) => {
+  const todayNotifications = [
+    {
+      id: 1,
+      type: 'slip',
+      title: 'New locator slip request submitted',
+      body: 'Mr. Ken Bau submitted a locator slip for an official event at Olongapo City Civic Center.',
+      time: '2m ago',
+      hasActions: true,
+    },
+    {
+      id: 2,
+      type: 'pending',
+      title: 'Request pending for approval',
+      body: 'The faculty locator Slip for May 23, 2026 requires your final signature before processing.',
+      time: '45m ago',
+      hasActions: false,
+    },
+  ];
+
+  const yesterdayNotifications = [
+    {
+      id: 3,
+      type: 'slip',
+      title: 'New locator slip request submitted',
+      body: 'Mr. Rey Gun submitted a locator slip for an official event at Tech Hub',
+      time: '2m ago',
+      hasActions: true,
+    },
+  ];
+
+  const renderCard = (n) => (
+    <div key={n.id} className="anotif-card">
+      <div className="anotif-card-top">
+        <div className={`anotif-icon-circle ${n.type === 'slip' ? 'green' : 'muted'}`}>
+          {n.type === 'slip' ? <NotifSlipIcon /> : <NotifPendingIcon />}
+        </div>
+        <div className="anotif-card-body">
+          <div className="anotif-card-title-row">
+            <h3>{n.title}</h3>
+            <span className="anotif-card-time">{n.time}</span>
+          </div>
+          <p>{n.body}</p>
+        </div>
+      </div>
+      {n.hasActions && (
+        <div className="anotif-card-actions">
+          <button type="button" className="anotif-btn-review">REVIEW</button>
+          <button type="button" className="anotif-btn-dismiss">DISMISS</button>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="admin-dash-wrapper">
+      <div className="admin-dash-scroll">
+
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper">
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Today Notifications */}
+        <div className="anotif-section">
+          {todayNotifications.map(renderCard)}
+        </div>
+
+        {/* Yesterday Divider */}
+        <div className="anotif-day-divider">
+          <span>Yesterday</span>
+          <div className="anotif-day-line" />
+        </div>
+
+        {/* Yesterday Notifications */}
+        <div className="anotif-section">
+          {yesterdayNotifications.map(renderCard)}
+        </div>
+
+      </div>
+      <AdminBottomNav active="dashboard" setView={setView} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN APPROVAL REQUESTS VIEW                             */
+/* ======================================================== */
+
+const AdminApprovalRequestsView = ({ setView, profileData, setSelectedAdminRequest }) => {
+  const requests = [
+    {
+      id: 1,
+      name: 'Dr. Pul Cor',
+      role: 'Instructor',
+      date: 'April 27',
+      destination: 'James Hospital',
+      purpose: 'Paternity Leave',
+      status: 'pending',
+      urgent: true,
+      slipId: 'LS-2024-091',
+      department: 'Nursing',
+      facultyId: '202312290',
+      fullPurpose: 'Paternity Leave at James Hospital',
+      departure: '08:00 AM',
+      estReturn: '12:00 PM',
+    },
+    {
+      id: 2,
+      name: 'Mr. Ken Bau',
+      role: 'Instructor',
+      date: 'April 24',
+      destination: 'Olongapo City Civic Center',
+      purpose: 'Research Seminar',
+      status: 'pending',
+      urgent: false,
+      slipId: 'LS-2024-089',
+      department: 'Computer Science',
+      facultyId: '202312291',
+      fullPurpose: 'Research Collaboration & Technical Seminar at Olongapo City Civic Center',
+      departure: '09:15 AM',
+      estReturn: '01:30 PM',
+    },
+    {
+      id: 3,
+      name: 'Mr. Rey Gun',
+      role: 'Coordinator',
+      date: 'May 25',
+      destination: 'Tech Hub',
+      purpose: 'Industry Visit',
+      status: 'pending',
+      urgent: false,
+      slipId: 'LS-2024-090',
+      department: 'Information Technology',
+      facultyId: '202312292',
+      fullPurpose: 'Industry Visit at Tech Hub',
+      departure: '10:00 AM',
+      estReturn: '03:00 PM',
+    },
+  ];
+
+  return (
+    <div className="admin-dash-wrapper">
+      <div className="admin-dash-scroll">
+
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="areq-hero">
+          <h1>Approval Requests</h1>
+          <p>Review and manage pending faculty locator slips.</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="areq-stats-grid">
+          <div className="areq-stat-card">
+            <span className="areq-stat-label">PENDING</span>
+            <span className="areq-stat-number">12</span>
+          </div>
+          <div className="areq-stat-card">
+            <span className="areq-stat-label">ON-SITE FACULTY</span>
+            <span className="areq-stat-number">08</span>
+          </div>
+          <div className="areq-stat-card">
+            <span className="areq-stat-label">OFF-SITE FACULTY</span>
+            <span className="areq-stat-number">04</span>
+          </div>
+          <div className="areq-stat-card">
+            <span className="areq-stat-label">URGENT</span>
+            <span className="areq-stat-number urgent">02</span>
+          </div>
+        </div>
+
+        {/* Request Cards */}
+        <div className="areq-cards">
+          {requests.map((r) => (
+            <div
+              key={r.id}
+              className={`areq-card ${r.urgent ? 'border-urgent' : 'border-pending'}`}
+            >
+              <div className="areq-card-header">
+                <div className="areq-card-name-row">
+                  <h3>{r.name}</h3>
+                  {r.urgent && <span className="areq-urgent-mark">!</span>}
+                </div>
+                <span className={`areq-badge ${r.urgent ? 'urgent' : 'pending'}`}>
+                  {r.status.toUpperCase()}
+                </span>
+              </div>
+              <p className="areq-card-subtitle">{r.role} • {r.date}</p>
+
+              <div className="areq-card-details">
+                <div className="areq-detail-col">
+                  <span className="areq-detail-label">DESTINATION</span>
+                  <span className="areq-detail-value">{r.destination}</span>
+                </div>
+                <div className="areq-detail-col">
+                  <span className="areq-detail-label">PURPOSE</span>
+                  <span className="areq-detail-value">{r.purpose}</span>
+                </div>
+              </div>
+
+              <button type="button" className="areq-view-btn" onClick={() => {
+                setSelectedAdminRequest(r);
+                setView('admin-approval-detail');
+              }}>View Details</button>
+            </div>
+          ))}
+        </div>
+
+      </div>
+      <AdminBottomNav active="requests" setView={setView} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN APPROVAL DETAIL VIEW                               */
+/* ======================================================== */
+
+const DetailPersonIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+    <circle cx="12" cy="7" r="4" />
+  </svg>
+);
+
+const DetailRouteIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="5" r="3" />
+    <line x1="12" y1="8" x2="12" y2="16" />
+    <circle cx="12" cy="19" r="3" />
+  </svg>
+);
+
+const DetailPinIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+    <circle cx="12" cy="10" r="3" />
+  </svg>
+);
+
+const DetailDocIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+  </svg>
+);
+
+const DetailClockIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const DetailClockReturnIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 8 14" />
+  </svg>
+);
+
+const ApproveCheckIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#554400" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const RejectXIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="15" y1="9" x2="9" y2="15" />
+    <line x1="9" y1="9" x2="15" y2="15" />
+  </svg>
+);
+
+const RemarksIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dark)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="12" y1="8" x2="12" y2="16" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+  </svg>
+);
+
+const AdminApprovalDetailView = ({ setView, profileData, request }) => {
+  if (!request) {
+    return (
+      <div className="admin-dash-wrapper">
+        <div className="admin-dash-scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p>No request selected.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isUrgent = request.urgent;
+
+  return (
+    <div className="admin-dash-wrapper">
+      <div className="admin-dash-scroll">
+
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-approval-requests')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Banner */}
+        <div className="adet-banner">
+          <div className="adet-banner-top">
+            <span className="adet-banner-label">APPROVAL REQUEST</span>
+            <span className={`adet-status-badge ${isUrgent ? 'urgent' : 'pending'}`}>
+              <span className="adet-status-dot" />
+              {isUrgent ? 'Urgent' : 'Pending'}
+            </span>
+          </div>
+          <div className="adet-banner-title-row">
+            <h2>Locator Slip #{request.slipId}</h2>
+            {isUrgent && <span className="adet-urgent-mark">!</span>}
+          </div>
+        </div>
+
+        {/* Faculty Information */}
+        <div className="adet-section-title">
+          <DetailPersonIcon />
+          <span>Faculty Information</span>
+        </div>
+        <div className="adet-info-card">
+          <div className="adet-info-row">
+            <span className="adet-info-label">FULL NAME</span>
+            <span className="adet-info-value">{request.name}</span>
+          </div>
+          <div className="adet-info-cols">
+            <div className="adet-info-col">
+              <span className="adet-info-label">DEPARTMENT</span>
+              <span className="adet-info-value">{request.department}</span>
+            </div>
+            <div className="adet-info-col">
+              <span className="adet-info-label">FACULTY ID</span>
+              <span className="adet-info-value">{request.facultyId}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Locator Slip Details */}
+        <div className="adet-section-title">
+          <DetailRouteIcon />
+          <span>Locator Slip Details</span>
+        </div>
+        <div className="adet-details-section">
+          <div className="adet-detail-item">
+            <DetailPinIcon />
+            <div className="adet-detail-text">
+              <span className="adet-detail-label">DESTINATION</span>
+              <span className="adet-detail-value">{request.destination}</span>
+            </div>
+          </div>
+          <div className="adet-detail-item">
+            <DetailDocIcon />
+            <div className="adet-detail-text">
+              <span className="adet-detail-label">PURPOSE</span>
+              <span className="adet-detail-value">{request.fullPurpose}</span>
+            </div>
+          </div>
+          <div className="adet-time-row">
+            <div className="adet-detail-item half">
+              <DetailClockIcon />
+              <div className="adet-detail-text">
+                <span className="adet-detail-label">DEPARTURE</span>
+                <span className="adet-detail-value">{request.departure}</span>
+              </div>
+            </div>
+            <div className="adet-detail-item half">
+              <DetailClockReturnIcon />
+              <div className="adet-detail-text">
+                <span className="adet-detail-label">EST. RETURN</span>
+                <span className="adet-detail-value">{request.estReturn}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="adet-actions">
+          <button type="button" className="adet-approve-btn">
+            <ApproveCheckIcon />
+            Approve Request
+          </button>
+          <div className="adet-secondary-actions">
+            <button type="button" className="adet-reject-btn">
+              <RejectXIcon />
+              Reject
+            </button>
+            <button type="button" className="adet-remarks-btn">
+              <RemarksIcon />
+              Remarks
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <AdminBottomNav active="requests" setView={setView} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN REGISTRY VIEW                                      */
+/* ======================================================== */
+
+const RegistryEyeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const RegistryDownloadIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const RegistryModalCloseIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="18" y1="6" x2="6" y2="18" />
+    <line x1="6" y1="6" x2="18" y2="18" />
+  </svg>
+);
+
+const RegistryModalVerifiedIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const RegistryModalIdIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="2" />
+    <line x1="15" y1="10" x2="19" y2="10" />
+    <line x1="15" y1="14" x2="19" y2="14" />
+    <line x1="5" y1="14" x2="13" y2="14" />
+  </svg>
+);
+
+const RegistryModalDoneIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#554400" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="16 10 11 15 8 12" />
+  </svg>
+);
+
+const RegistryDetailsModal = ({ item, onClose }) => {
+  if (!item) return null;
+
+  return (
+    <div className="rmodal-overlay" onClick={onClose}>
+      <div className="rmodal-container" onClick={e => e.stopPropagation()}>
+        {/* Header Section */}
+        <div className="rmodal-header">
+          <button className="rmodal-close-btn" onClick={onClose}>
+            <RegistryModalCloseIcon />
+          </button>
+          
+          <div className="rmodal-header-content">
+            <div className={`rmodal-status-pill ${item.status}`}>
+              {item.status === 'verified' && <RegistryModalVerifiedIcon />}
+              <span>{item.status === 'verified' ? 'VERIFIED REQUEST' : 'REJECTED REQUEST'}</span>
+            </div>
+            <h2>Request Details</h2>
+            <p className="rmodal-id">ID: RS-2023-4491-CS</p>
+          </div>
+        </div>
+
+        <div className="rmodal-divider" />
+
+        {/* Profile Section */}
+        <div className="rmodal-profile">
+          <div className="rmodal-avatar">
+            <img src={DEFAULT_PROFILE_IMAGE} alt={item.name} />
+          </div>
+          <h3>{item.name}</h3>
+          <p className="rmodal-department">Computer Science Department</p>
+          <div className="rmodal-faculty-id">
+            <RegistryModalIdIcon />
+            <span>ID 202312291</span>
+          </div>
+        </div>
+
+        <div className="rmodal-divider subtle" />
+
+        {/* Details Section */}
+        <div className="rmodal-details">
+          <div className="rmodal-detail-item">
+            <DetailPinIcon />
+            <div className="rmodal-detail-text">
+              <span className="rmodal-detail-label">DESTINATION</span>
+              <span className="rmodal-detail-value">{item.destination}</span>
+            </div>
+          </div>
+          <div className="rmodal-detail-item">
+            <DetailDocIcon />
+            <div className="rmodal-detail-text">
+              <span className="rmodal-detail-label">PURPOSE</span>
+              <span className="rmodal-detail-value">Research Collaboration & Technical Seminar at Olongapo City Civic Center</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Travel Schedule */}
+        <div className="rmodal-schedule">
+          <span className="rmodal-schedule-label">TRAVEL SCHEDULE</span>
+          <div className="rmodal-schedule-cols">
+            <div className="rmodal-schedule-col">
+              <span className="rmodal-schedule-type">DEPARTURE</span>
+              <span className="rmodal-schedule-date">Oct 24, 2023</span>
+              <span className="rmodal-schedule-time">08:30 AM</span>
+            </div>
+            <div className="rmodal-schedule-col right">
+              <span className="rmodal-schedule-type">RETURN</span>
+              <span className="rmodal-schedule-date">Oct 26, 2023</span>
+              <span className="rmodal-schedule-time">05:00 PM</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Signature */}
+        <div className="rmodal-signature">
+          <div className="rmodal-sig-divider" />
+          <span className="rmodal-sig-label">AUTHORIZED DIGITAL SIGNATURE</span>
+          <h4 className="rmodal-sig-name">Ron Uy, Ph.D.</h4>
+          <p className="rmodal-sig-role">Dean of College of<br/>Computer Studies</p>
+          <div className="rmodal-sig-stamp">DIGITALLY SIGNED</div>
+          <p className="rmodal-sig-timestamp">2023-10-20T14:22:51 UTC+8</p>
+        </div>
+
+        {/* Actions */}
+        <div className="rmodal-actions">
+          <button className="rmodal-done-btn" onClick={onClose}>
+            <RegistryModalDoneIcon />
+            DONE VIEWING
+          </button>
+          <button className="rmodal-dl-btn">
+            <RegistryDownloadIcon />
+            DOWNLOAD PDF
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+};
+
+const AdminRegistryView = ({ setView, profileData }) => {
+  const registryItems = [
+    {
+      id: 1,
+      name: 'Mr. Ken Bau',
+      role: 'Instructor',
+      status: 'verified',
+      dateLabel: 'DATE APPROVED',
+      date: 'April 24, 2026',
+      destination: 'Olongapo City Civic Center'
+    },
+    {
+      id: 2,
+      name: 'Prof. Marcus Thorne',
+      role: 'STEM Research Division',
+      status: 'rejected',
+      dateLabel: 'DATE REJECTED', // Fixed condition
+      date: 'Oct 22, 2023',
+      destination: 'MIT Tech Symposium'
+    },
+    {
+      id: 3,
+      name: 'Dr. Sarah Jenkins',
+      role: 'Medical Sciences',
+      status: 'verified',
+      dateLabel: 'DATE APPROVED',
+      date: 'Oct 19, 2023',
+      destination: 'Kyoto Health Forum'
+    }
+  ];
+
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  return (
+    <div className="admin-dash-wrapper">
+      <div className="admin-dash-scroll">
+
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Title */}
+        <div className="areg-hero">
+          <h1>Requests</h1>
+          <p>Strategic Oversight Registry</p>
+        </div>
+
+        {/* Stats */}
+        <div className="areg-stats-grid">
+          <div className="areg-stat-card">
+            <span className="areg-stat-label">MONTHLY TOTAL</span>
+            <span className="areg-stat-number">142</span>
+          </div>
+          <div className="areg-stat-card">
+            <span className="areg-stat-label">REGISTRY SIZE</span>
+            <span className="areg-stat-number">412</span>
+          </div>
+        </div>
+
+        {/* Cards */}
+        <div className="areg-cards">
+          {registryItems.map(item => (
+            <div key={item.id} className="areg-card">
+              <div className="areg-card-header">
+                <div className="areg-card-name-col">
+                  <h3>{item.name}</h3>
+                  <span className="areg-card-role">{item.role}</span>
+                </div>
+                <div className={`areg-badge ${item.status}`}>
+                  {item.status.toUpperCase()}
+                </div>
+              </div>
+
+              <div className="areg-card-details">
+                <div className="areg-detail-col">
+                  <span className="areg-detail-label">{item.dateLabel}</span>
+                  <span className="areg-detail-value">{item.date}</span>
+                </div>
+                <div className="areg-detail-col">
+                  <span className="areg-detail-label">DESTINATION</span>
+                  <span className="areg-detail-value">{item.destination}</span>
+                </div>
+              </div>
+
+              <div className="areg-card-actions">
+                <button type="button" className="areg-view-btn" onClick={() => setSelectedItem(item)}>
+                  <RegistryEyeIcon />
+                  VIEW DETAILS
+                </button>
+                <button type="button" className="areg-download-btn">
+                  <RegistryDownloadIcon />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+      <AdminBottomNav active="registry" setView={setView} />
+
+      {selectedItem && (
+        <RegistryDetailsModal 
+          item={selectedItem} 
+          onClose={() => setSelectedItem(null)} 
+        />
+      )}
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN FACULTY VIEW                                       */
+/* ======================================================== */
+
+const FacultySearchIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="8" />
+    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+  </svg>
+);
+
+const FacultyFilterIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="8" y1="12" x2="16" y2="12" />
+    <line x1="10" y1="18" x2="14" y2="18" />
+  </svg>
+);
+
+const FacultyDocIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+);
+
+const FacultyCheckCircleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none">
+    <circle cx="12" cy="12" r="10" fill="#E8F5E9" />
+    <polyline points="8 12 11 15 16 9" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const FacultyCrossCircleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none">
+    <circle cx="12" cy="12" r="10" fill="#FEE2E2" />
+    <line x1="8" y1="8" x2="16" y2="16" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+    <line x1="16" y1="8" x2="8" y2="16" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" />
+  </svg>
+);
+
+const FacultyWaitCircleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="none">
+    <circle cx="12" cy="12" r="10" fill="#FEF3C7" />
+    <circle cx="8" cy="12" r="1.5" fill="#D97706" />
+    <circle cx="12" cy="12" r="1.5" fill="#D97706" />
+    <circle cx="16" cy="12" r="1.5" fill="#D97706" />
+  </svg>
+);
+
+const FacultyChevronRightIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
+const FacultyIdBadgeIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+    <circle cx="12" cy="8" r="1.5" />
+    <line x1="10" y1="12" x2="14" y2="12" />
+  </svg>
+);
+
+const FacultyCopyIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+);
+
+const FacultyProfileModal = ({ profile, onClose }) => {
+  if (!profile) return null;
+
+  return (
+    <div className="afac-modal-overlay" onClick={onClose}>
+      <div className="afac-modal-container" onClick={e => e.stopPropagation()}>
+        <div className="afac-modal-hero" />
+        
+        <div className="afac-modal-content">
+          <div className="afac-modal-avatar">
+            <img src={DEFAULT_PROFILE_IMAGE} alt={profile.name} />
+          </div>
+          
+          <h2 className="afac-modal-name">{profile.name}</h2>
+          <p className="afac-modal-role">{profile.role}</p>
+          
+          <div className="afac-modal-badges">
+            <div className="afac-badge-box">
+              <span className="afac-badge-label">STATUS</span>
+              <div className="afac-badge-value">
+                <span className="afac-badge-dot"></span>
+                ON-SITE
+              </div>
+            </div>
+            <div className="afac-badge-box">
+              <span className="afac-badge-label">TENURE</span>
+              <div className="afac-badge-value highlight">{profile.tenure}</div>
+            </div>
+          </div>
+          
+          <div className="afac-modal-id-box">
+            <div className="afac-id-left">
+              <FacultyIdBadgeIcon />
+              <div className="afac-id-texts">
+                <span className="afac-id-label">FACULTY ID</span>
+                <span className="afac-id-number">{profile.idNumber || '202312291'}</span>
+              </div>
+            </div>
+            <button className="afac-id-copy">
+              <FacultyCopyIcon />
+            </button>
+          </div>
+          
+          <button className="afac-modal-close" onClick={onClose}>
+            CLOSE
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminFacultyView = ({ setView, profileData }) => {
+  const facultyMembers = [
+    {
+      id: 1,
+      name: 'Mr. Ken Bau',
+      role: 'Instructor',
+      tenure: 'FULL-TIME',
+      totalRequests: 18,
+      approvalRate: '92%',
+      recentStatus: ['verified', 'waiting', '+12'],
+      borderColor: 'green'
+    },
+    {
+      id: 2,
+      name: 'Mr. Rey Gun',
+      role: 'Instructor',
+      tenure: 'PART-TIME',
+      totalRequests: '05',
+      approvalRate: '60%',
+      recentStatus: ['rejected', 'verified'],
+      borderColor: 'red'
+    },
+    {
+      id: 3,
+      name: 'Mr. Lou Del',
+      role: 'Instructor',
+      tenure: 'FULL-TIME',
+      totalRequests: 12,
+      approvalRate: '100%',
+      recentStatus: ['verified', 'verified', 'verified'],
+      borderColor: 'green'
+    }
+  ];
+
+  const [selectedProfile, setSelectedProfile] = useState(null);
+
+  return (
+    <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
+      <div className="admin-dash-scroll">
+        
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="afac-stats-grid">
+          <div className="afac-stat-card">
+            <span className="afac-stat-label">TOTAL FACULTY</span>
+            <span className="afac-stat-number">24</span>
+          </div>
+          <div className="afac-stat-card">
+            <span className="afac-stat-label">ACTIVE REQUESTS</span>
+            <span className="afac-stat-number">12</span>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="afac-search-bar">
+          <div className="afac-search-input-wrapper">
+            <FacultySearchIcon />
+            <input type="text" placeholder="Search faculty members..." className="afac-search-input" />
+          </div>
+          <button className="afac-filter-btn">
+            <FacultyFilterIcon />
+          </button>
+        </div>
+
+        {/* Title */}
+        <h2 className="afac-title">Faculty Overview</h2>
+
+        {/* Cards */}
+        <div className="afac-cards">
+          {facultyMembers.map(member => (
+            <div key={member.id} className={`afac-card border-${member.borderColor}`}>
+              <div className="afac-card-header">
+                <div className="afac-card-profile">
+                  <div className="afac-card-avatar-wrapper">
+                    <img src={DEFAULT_PROFILE_IMAGE} alt={member.name} />
+                  </div>
+                  <div className="afac-card-info">
+                    <h3>{member.name}</h3>
+                    <p>{member.role}</p>
+                  </div>
+                </div>
+                <div className={`afac-tenure ${member.tenure === 'PART-TIME' ? 'part-time' : ''}`}>
+                  {member.tenure}
+                </div>
+              </div>
+              
+              <div className="afac-card-stats">
+                <div className="afac-stat">
+                  <span className="afac-stat-title">TOTAL REQUESTS</span>
+                  <div className="afac-stat-val">
+                    <FacultyDocIcon />
+                    {member.totalRequests}
+                  </div>
+                </div>
+                <div className="afac-stat">
+                  <span className="afac-stat-title">APPROVAL RATE</span>
+                  <div className="afac-stat-val green">
+                    <FacultyCheckCircleIcon />
+                    {member.approvalRate}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="afac-card-footer">
+                <div className="afac-recent-indicators">
+                  {member.recentStatus.map((status, idx) => {
+                    if (status === 'verified') return <FacultyCheckCircleIcon key={idx} />;
+                    if (status === 'rejected') return <FacultyCrossCircleIcon key={idx} />;
+                    if (status === 'waiting') return <FacultyWaitCircleIcon key={idx} />;
+                    if (status.startsWith('+')) return <div key={idx} className="afac-more-indicator">{status}</div>;
+                    return null;
+                  })}
+                </div>
+                <button className="afac-view-profile" onClick={() => setSelectedProfile(member)}>
+                  View Profile <FacultyChevronRightIcon />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+      <AdminBottomNav active="faculty" setView={setView} />
+      
+      {/* Modal */}
+      <FacultyProfileModal profile={selectedProfile} onClose={() => setSelectedProfile(null)} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN PROFILE VIEW                                       */
+/* ======================================================== */
+
+const AdminProfileEditIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h4" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
+const AdminProfilePasswordIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 2v6h-6" />
+    <path d="M21 13a9 9 0 1 1-3-7.7L21 8" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const AdminProfileLogoutIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+    <polyline points="16 17 21 12 16 7" />
+    <line x1="21" y1="12" x2="9" y2="12" />
+  </svg>
+);
+
+const AdminProfileIdIcon = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+    <circle cx="12" cy="8" r="1.5" />
+    <line x1="10" y1="12" x2="14" y2="12" />
+  </svg>
+);
+
+const AdminProfileChevronIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="9 18 15 12 9 6" />
+  </svg>
+);
+
+const AdminProfileView = ({ setView, profileData }) => {
+  return (
+    <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
+      <div className="admin-dash-scroll">
+        
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        <div className="aprof-container">
+          <div className="aprof-hero-card">
+            <div className="aprof-hero-bg-accent" />
+            <div className="aprof-hero-content">
+              <div className="aprof-avatar-wrapper">
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dr. Ron Uy" />
+                <div className="aprof-avatar-badge">CCS DEAN</div>
+              </div>
+              <h2 className="aprof-name">Dr. Ron Uy</h2>
+              <p className="aprof-role">Dean of College of Computer Studies</p>
+              <div className="aprof-id-pill">
+                <AdminProfileIdIcon />
+                <span>ID: 202123112</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="aprof-section">
+            <h3 className="aprof-section-title">ACCOUNT ADMINISTRATION</h3>
+            
+            <div className="aprof-menu">
+              <div className="aprof-menu-item" onClick={() => setView('admin-edit-profile')}>
+                <div className="aprof-menu-icon-box">
+                  <AdminProfileEditIcon />
+                </div>
+                <span className="aprof-menu-text">Edit Profile</span>
+                <AdminProfileChevronIcon />
+              </div>
+              
+              <div className="aprof-menu-item" onClick={() => setView('admin-change-password')}>
+                <div className="aprof-menu-icon-box">
+                  <AdminProfilePasswordIcon />
+                </div>
+                <span className="aprof-menu-text">Change Password</span>
+                <AdminProfileChevronIcon />
+              </div>
+            </div>
+
+            <button className="aprof-logout-btn" onClick={() => {
+              localStorage.removeItem('token');
+              localStorage.removeItem('edurouteLastView');
+              setView('login');
+            }}>
+              <AdminProfileLogoutIcon />
+              LOGOUT SESSION
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <AdminBottomNav active="" setView={setView} />
+    </div>
+  );
+};
+
+/* ======================================================== */
+/* ADMIN EDIT PROFILE VIEW                                  */
+/* ======================================================== */
+
+const AdminUserOutlineIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+    <circle cx="12" cy="7" r="4"></circle>
+  </svg>
+);
+
+const AdminEmailOutlineIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+    <polyline points="22,6 12,13 2,6"></polyline>
+  </svg>
+);
+
+const AdminSaveCheckIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+  </svg>
+);
+
+const AdminEditProfileView = ({ setView, profileData }) => {
+  return (
+    <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
+      <div className="admin-dash-scroll">
+        
+        {/* Header */}
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('admin-profile')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+
+        <div className="aedit-container">
+          <div className="aedit-officer-pill">OFFICER IDENTITY</div>
+          <h2 className="aedit-title">Edit Your Profile</h2>
+
+          <div className="aedit-photo-section">
+            <div className="aedit-photo-wrapper">
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Profile" />
+              <button className="aedit-camera-btn">
+                <CameraIcon color="white" />
+              </button>
+            </div>
+          </div>
+
+          <div className="aedit-form">
+            <div className="aedit-input-group">
+              <label>FULL NAME</label>
+              <div className="aedit-input-wrapper">
+                <input type="text" defaultValue="Dr. Ron Uy" />
+                <AdminUserOutlineIcon />
+              </div>
+            </div>
+
+            <div className="aedit-input-group">
+              <label>ACADEMIC EMAIL</label>
+              <div className="aedit-input-wrapper">
+                <input type="email" defaultValue="202123112@gordoncollege.edu.ph" />
+                <AdminEmailOutlineIcon />
+              </div>
+            </div>
+
+            <button className="aedit-save-btn" onClick={() => setView('admin-profile')}>
+              SAVE CHANGES
+              <AdminSaveCheckIcon />
+            </button>
+          </div>
+        </div>
+
+      </div>
+      <AdminBottomNav active="" setView={setView} />
     </div>
   );
 };

@@ -9,6 +9,7 @@ module.exports = {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
     frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
+    clientOrigin: process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000',
     frontendUrls: (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000')
         .split(',')
         .map((origin) => origin.trim())
@@ -23,5 +24,7 @@ module.exports = {
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,
-    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET
+    cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
+    mapboxSecretToken: process.env.MAPBOX_SECRET_TOKEN,
+    mapboxDirectionsProfile: process.env.MAPBOX_DIRECTIONS_PROFILE || 'mapbox/driving'
 };
