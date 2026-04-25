@@ -3,12 +3,14 @@ const AppError = require('../utils/appError');
 const { formatDateTime } = require('../utils/dateFormatter');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
+const notificationService = require('./notification.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
 
 const locatorSlipColumns = `
     ls.id,
     ls.faculty_user_id,
+    ls.college_id,
     fu.full_name,
     fu.employee_id,
     d.department_name,
@@ -18,6 +20,7 @@ const locatorSlipColumns = `
     ls.departure_datetime,
     ls.expected_return_datetime,
     ls.additional_remarks,
+    ls.is_urgent,
     ls.status,
     ls.created_at,
     ls.updated_at
@@ -26,6 +29,7 @@ const locatorSlipColumns = `
 const formatLocatorSlip = (row) => ({
     id: row.id,
     faculty_user_id: row.faculty_user_id,
+    college_id: row.college_id,
     faculty: {
         full_name: row.full_name,
         employee_id: row.employee_id,
@@ -39,6 +43,7 @@ const formatLocatorSlip = (row) => ({
     formatted_departure_datetime: formatDateTime(row.departure_datetime),
     formatted_expected_return_datetime: formatDateTime(row.expected_return_datetime),
     additional_remarks: row.additional_remarks,
+    is_urgent: row.is_urgent === true,
     status: row.status,
     created_at: row.created_at,
     updated_at: row.updated_at
@@ -67,35 +72,87 @@ const createLocatorSlip = async (facultyUserId, payload) => {
     const purposeOfTravel = payload.purpose_of_travel.trim();
     const customPurpose = purposeOfTravel === 'Others' ? payload.custom_purpose?.trim() : null;
     const additionalRemarks = payload.additional_remarks?.trim() || null;
+    const isUrgent = payload.is_urgent === true;
+    const client = await pool.connect();
 
-    const query = `
-        INSERT INTO locator_slips (
-            faculty_user_id,
+    try {
+        await client.query('BEGIN');
+
+        const facultyResult = await client.query(
+            `SELECT
+                fu.id,
+                fu.full_name,
+                fu.department_id,
+                d.department_name
+             FROM faculty_users fu
+             JOIN departments d ON d.id = fu.department_id
+             WHERE fu.id = $1
+               AND fu.account_role = 'faculty'
+               AND fu.status = 'active'
+             LIMIT 1`,
+            [facultyUserId]
+        );
+
+        if (facultyResult.rowCount === 0) {
+            throw new AppError('Faculty user not found or cannot submit locator slips.', 404);
+        }
+
+        const faculty = facultyResult.rows[0];
+
+        const query = `
+            INSERT INTO locator_slips (
+                faculty_user_id,
+                college_id,
+                destination,
+                purpose_of_travel,
+                custom_purpose,
+                departure_datetime,
+                expected_return_datetime,
+                additional_remarks,
+                is_urgent,
+                status
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
+            RETURNING *
+        `;
+
+        const values = [
+            facultyUserId,
+            faculty.department_id,
             destination,
-            purpose_of_travel,
-            custom_purpose,
-            departure_datetime,
-            expected_return_datetime,
-            additional_remarks,
-            status
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
-        RETURNING *
-    `;
+            purposeOfTravel,
+            customPurpose,
+            payload.departure_datetime,
+            payload.expected_return_datetime,
+            additionalRemarks,
+            isUrgent
+        ];
 
-    const values = [
-        facultyUserId,
-        destination,
-        purposeOfTravel,
-        customPurpose,
-        payload.departure_datetime,
-        payload.expected_return_datetime,
-        additionalRemarks
-    ];
+        const { rows } = await client.query(query, values);
+        const insertedSlip = rows[0];
 
-    const { rows } = await pool.query(query, values);
+        const notificationPayload = {
+            ...insertedSlip,
+            faculty_name: faculty.full_name,
+            college_name: faculty.department_name
+        };
 
-    return getLocatorSlipById(facultyUserId, rows[0].id);
+        await notificationService.createLocatorSlipDeanNotifications(client, notificationPayload);
+
+        await client.query('COMMIT');
+        notificationService.emitLocatorSlipDeanNotification(notificationPayload);
+
+        return getLocatorSlipById(facultyUserId, insertedSlip.id);
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('Rollback failed:', rollbackError);
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
 };
 
 const getMyLocatorSlips = async (facultyUserId, status = null) => {

@@ -94,6 +94,10 @@ const createLocatorSlipValidator = [
         .trim()
         .isLength({ max: 1000 })
         .withMessage('Additional remarks must not exceed 1000 characters.'),
+    body('is_urgent')
+        .optional()
+        .isBoolean()
+        .withMessage('Urgent matter must be true or false.'),
     handleValidation
 ];
 

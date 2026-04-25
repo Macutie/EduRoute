@@ -4,8 +4,33 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import { SearchBox } from '@mapbox/search-js-react';
 import './App.css';
 import { API_BASE_URL, MAPBOX_PUBLIC_TOKEN } from './config';
+import {
+  useDeanDashboardSummary,
+  useDeanNotifications,
+  useDeanPendingApprovals,
+  useDeanRealtimeNotifications,
+} from './hooks/useDeanDashboard';
+import {
+  getDeanFacultyOverview,
+  getDeanLocatorSlips,
+  getDeanNotifications,
+  getDeanPendingRequestsPage,
+  getDeanRegistryPage,
+  markDeanNotificationRead,
+} from './services/deanApi';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
+
+const decodeJwtPayload = (token) => {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(window.atob(normalized));
+  } catch (error) {
+    return null;
+  }
+};
 
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
@@ -19,9 +44,11 @@ function App() {
   const [departments, setDepartments] = useState([]);
   const [profileData, setProfileData] = useState({
     fullName: 'Faculty User',
+    employeeId: '',
     department: 'Faculty Department',
     email: '',
     image: DEFAULT_PROFILE_IMAGE,
+    accountRole: '',
   });
 
   const [loginForm, setLoginForm] = useState({
@@ -36,6 +63,7 @@ function App() {
   const [resetToken, setResetToken] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [selectedStatusSlip, setSelectedStatusSlip] = useState(null);
+  const [selectedDeanRequest, setSelectedDeanRequest] = useState(null);
   const [selectedAdminRequest, setSelectedAdminRequest] = useState(null);
   const [newPasswordForm, setNewPasswordForm] = useState({
     password: '',
@@ -220,13 +248,33 @@ function App() {
 
         if (!response.ok) return;
 
+        const databaseRole = data.data.account_role || '';
+        const tokenRole = decodeJwtPayload(token)?.role || '';
+
+        if (['assistant_dean', 'college_dean'].includes(databaseRole) && tokenRole !== databaseRole) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('edurouteLastView');
+          setView('login');
+          alert('Your account role was updated. Please log in again to refresh your dean access.');
+          return;
+        }
+
         setProfileData((prev) => ({
           ...prev,
           fullName: data.data.full_name || 'Faculty User',
+          employeeId: data.data.employee_id || '',
           department: data.data.department_name || 'Faculty Department',
           email: data.data.email || '',
           image: data.data.profile_image_url || DEFAULT_PROFILE_IMAGE,
+          accountRole: databaseRole,
         }));
+
+        if (
+          ['assistant_dean', 'college_dean'].includes(databaseRole)
+          && ['dashboard', 'admin-dashboard', 'profile', 'admin-profile'].includes(view)
+        ) {
+          setView('dean-dashboard');
+        }
       } catch (error) {
         console.error('Failed to sync profile:', error);
       }
@@ -291,15 +339,26 @@ function App() {
         portal_role: portalRole,
       });
       localStorage.setItem('token', data.data.token);
+      localStorage.removeItem('edurouteLastView');
       setProfileData((prev) => ({
         ...prev,
         fullName: data.data.user?.full_name || 'Faculty User',
+        employeeId: data.data.user?.employee_id || '',
         department: data.data.user?.department_name || 'Faculty Department',
         email: data.data.user?.email || '',
         image: data.data.user?.profile_image_url || DEFAULT_PROFILE_IMAGE,
+        accountRole: data.data.user?.account_role || '',
       }));
+      const accountRole = data.data.user?.account_role;
       alert(formatApiMessage(data.message) || 'Login successful.');
-      setView('dashboard');
+
+      if (['assistant_dean', 'college_dean'].includes(accountRole)) {
+        setView('dean-dashboard');
+      } else if (accountRole === 'admin') {
+        setView('admin-dashboard');
+      } else {
+        setView('dashboard');
+      }
     } catch (error) {
       alert(error.message);
     } finally {
@@ -317,9 +376,11 @@ function App() {
     setPermissionSetupMessage('');
     setProfileData({
       fullName: 'Faculty User',
+      employeeId: '',
       department: 'Faculty Department',
       email: '',
       image: DEFAULT_PROFILE_IMAGE,
+      accountRole: '',
     });
     setView('login');
   };
@@ -617,6 +678,41 @@ function App() {
         />
       )}
       {view === 'privacy-security' && <PrivacySecurityView setView={setView} profileData={profileData} />}
+      {view === 'dean-dashboard' && <DeanDashboardView setView={setView} profileData={profileData} />}
+      {view === 'dean-notifications' && <DeanNotificationsView setView={setView} profileData={profileData} />}
+      {view === 'dean-requests' && (
+        <DeanRequestsView
+          setView={setView}
+          profileData={profileData}
+          setSelectedDeanRequest={setSelectedDeanRequest}
+        />
+      )}
+      {view === 'dean-request-detail' && (
+        <DeanRequestDetailView
+          setView={setView}
+          profileData={profileData}
+          request={selectedDeanRequest}
+        />
+      )}
+      {view === 'dean-profile' && <DeanProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'dean-faculty' && <DeanFacultyView setView={setView} profileData={profileData} />}
+      {view === 'dean-registry' && (
+        <DeanRegistryView
+          setView={setView}
+          profileData={profileData}
+          setSelectedDeanRequest={setSelectedDeanRequest}
+        />
+      )}
+      {view === 'dean-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="dean-profile" />}
+      {view === 'dean-edit-profile' && (
+        <EditProfileView
+          setView={setView}
+          profileData={profileData}
+          setProfileData={setProfileData}
+          backView="dean-profile"
+          useDeanNav
+        />
+      )}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
@@ -2344,6 +2440,7 @@ const LocatorSlipView = ({ setView, profileData }) => {
     departure_datetime: '',
     expected_return_datetime: '',
     additional_remarks: '',
+    is_urgent: false,
   });
 
   const locatorSlipValidation = useMemo(() => {
@@ -2612,6 +2709,21 @@ const LocatorSlipView = ({ setView, profileData }) => {
               </div>
             )}
             {renderLocatorSlipMessage('custom_purpose')}
+          </div>
+
+          <div className="trip-field urgent-toggle-field">
+            <div>
+              <label>Urgent Matter</label>
+              <p>Mark this request urgent if it needs priority dean review.</p>
+            </div>
+            <button
+              type="button"
+              className={`urgent-toggle ${locatorSlipForm.is_urgent ? 'active' : ''}`}
+              aria-pressed={locatorSlipForm.is_urgent}
+              onClick={() => updateLocatorSlipField('is_urgent', !locatorSlipForm.is_urgent)}
+            >
+              <span />
+            </button>
           </div>
 
           <div className="trip-field">
@@ -5287,7 +5399,7 @@ const CheckCircleIcon = ({ color = "white" }) => (
   </svg>
 );
 
-const EditProfileView = ({ setView, profileData, setProfileData }) => {
+const EditProfileView = ({ setView, profileData, setProfileData, backView = 'profile', useDeanNav = false }) => {
   const [fullName, setFullName] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [departmentsList, setDepartmentsList] = useState([]);
@@ -5366,14 +5478,17 @@ const EditProfileView = ({ setView, profileData, setProfileData }) => {
         throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to update profile.');
       }
 
-      setProfileData({
+      setProfileData((prev) => ({
+        ...prev,
         fullName: data.data.full_name,
+        employeeId: data.data.employee_id || prev.employeeId,
         department: data.data.department_name,
         email: data.data.email,
         image: profileImage,
-      });
+        accountRole: data.data.account_role || prev.accountRole,
+      }));
       alert(data.message);
-      setView('profile');
+      setView(backView);
     } catch (error) {
       alert(error.message);
     } finally {
@@ -5428,7 +5543,7 @@ const EditProfileView = ({ setView, profileData, setProfileData }) => {
       <div className="content fade-in dash-content editp-content">
 
         <div className="slip-top-nav chpw-top-nav">
-          <div className="slip-nav-left" onClick={() => setView('profile')}>
+          <div className="slip-nav-left" onClick={() => setView(backView)}>
             <BackArrowIcon color="var(--green)" />
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
@@ -5522,7 +5637,11 @@ const EditProfileView = ({ setView, profileData, setProfileData }) => {
         </button>
 
       </div>
-      <BottomNav active="profile" setView={setView} />
+      {useDeanNav ? (
+        <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+      ) : (
+        <BottomNav active="profile" setView={setView} />
+      )}
     </div>
   );
 };
@@ -5864,7 +5983,796 @@ const AdminBottomNav = ({ active = 'dashboard', setView }) => (
   </div>
 );
 
+const DeanBottomNav = ({ setView, onOpenRequests, active = 'dashboard' }) => (
+  <div className="admin-bottom-nav">
+    <div className={`admin-nav-item ${active === 'dashboard' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-dashboard')}>
+      <DashboardNavIcon color={active === 'dashboard' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Dashboard</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'requests' ? 'admin-nav-active' : ''}`} onClick={onOpenRequests}>
+      <RequestsNavIcon color={active === 'requests' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Requests</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'registry' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-registry')}>
+      <RegistryNavIcon color={active === 'registry' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Registry</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-faculty')}>
+      <FacultyNavIcon color={active === 'faculty' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Faculty</span>
+    </div>
+  </div>
+);
+
+const DeanDashboardView = ({ setView, profileData }) => {
+  const { summary, setSummary, loading: summaryLoading, error: summaryError } = useDeanDashboardSummary();
+  const { notifications, setNotifications, loading: notificationsLoading } = useDeanNotifications(5);
+  const { pendingApprovals, setPendingApprovals, loading: approvalsLoading } = useDeanPendingApprovals(5);
+  const { toast } = useDeanRealtimeNotifications({ setSummary, setNotifications, setPendingApprovals });
+  const [showAllRequests, setShowAllRequests] = useState(false);
+
+  const statCards = [
+    { label: 'PENDING REQUESTS', value: summary.pendingRequests, icon: <ClipboardClockIcon color="var(--green)" /> },
+    { label: 'APPROVED TODAY', value: summary.approvedToday ?? summary.approvedRequests, icon: <CheckCircleAdminIcon color="var(--green)" /> },
+    { label: 'REJECTED REQUESTS', value: summary.rejectedRequests, icon: <XCircleIcon color="#EF4444" /> },
+    { label: 'TOTAL FACULTY', value: summary.totalFaculty, icon: <UsersAdminIcon color="var(--green)" /> },
+  ];
+
+  return (
+    <div className="admin-dash-wrapper dean-dash-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header">
+          <span className="admin-logo-text">EduRoute</span>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              {notifications.some((n) => !n.is_read) && <div className="admin-bell-dot" />}
+            </div>
+            <div className="admin-avatar" onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="admin-hero dean-hero">
+          <h1>Dean Dashboard</h1>
+          <p>{summary.college?.name || profileData?.department || 'College'} locator slip oversight</p>
+          {summaryError && <p className="dean-error-text">{summaryError}</p>}
+        </div>
+
+        <div className="admin-stats-grid">
+          {statCards.map((card) => (
+            <div className="admin-stat-card" key={card.label}>
+              <div className="admin-stat-info">
+                <span className="admin-stat-label">{card.label}</span>
+                <span className="admin-stat-number">
+                  {summaryLoading ? '...' : String(card.value || 0).padStart(2, '0')}
+                </span>
+              </div>
+              {card.icon}
+            </div>
+          ))}
+        </div>
+
+        {toast && <div className="dean-live-toast">{toast}</div>}
+
+        <div className="admin-notif-card">
+          <div className="admin-notif-header">
+            <h2>Notifications</h2>
+            <span className="admin-notif-viewall" onClick={() => setView('dean-notifications')}>VIEW ALL</span>
+          </div>
+
+          {notificationsLoading && <p className="dean-empty-text">Loading notifications...</p>}
+          {!notificationsLoading && notifications.length === 0 && (
+            <p className="dean-empty-text">No locator slip alerts yet.</p>
+          )}
+          {!notificationsLoading && notifications.map((n, i) => (
+            <div key={n.id}>
+              <div className="admin-notif-row">
+                {!n.is_read && <div className="admin-notif-dot" />}
+                <div className={`admin-notif-content ${n.is_read ? 'no-dot' : ''}`}>
+                  <p className="admin-notif-text">{n.message}</p>
+                  <span className="admin-notif-time">{n.formatted_created_at || n.created_at}</span>
+                </div>
+              </div>
+              {i < notifications.length - 1 && <div className="admin-notif-divider" />}
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-approvals-card">
+          <div className="admin-approvals-header">
+            <h2>Pending Approvals</h2>
+            <button type="button" className="admin-action-queue-btn" onClick={() => setShowAllRequests(true)}>
+              Action Queue
+            </button>
+          </div>
+
+          <div className="admin-approvals-table">
+            <div className="admin-approvals-thead">
+              <span>RECIPIENT</span>
+              <span>PURPOSE</span>
+              <span>DATE SUBMITTED</span>
+            </div>
+            {approvalsLoading && <p className="dean-empty-text">Loading pending approvals...</p>}
+            {!approvalsLoading && pendingApprovals.length === 0 && (
+              <p className="dean-empty-text">No pending locator slips for your college.</p>
+            )}
+            {!approvalsLoading && pendingApprovals.map((approval) => (
+              <div key={approval.locatorSlipId} className="admin-approvals-row">
+                <div className="admin-approval-recipient">
+                  <div className="admin-approval-avatar">
+                    {approval.facultyInitials}
+                  </div>
+                  <div className="admin-approval-info">
+                    <span className="admin-approval-name">{approval.facultyName}</span>
+                    <span className="admin-approval-dept">{approval.collegeName}</span>
+                  </div>
+                </div>
+                <span className="admin-approval-purpose">{approval.purpose}</span>
+                <span className="admin-approval-date">{approval.dateSubmitted}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="admin-approvals-viewall" onClick={() => setView('dean-requests')}>
+            View All Locator Slip Requests
+          </div>
+        </div>
+      </div>
+
+      {showAllRequests && <DeanRequestsModal onClose={() => setShowAllRequests(false)} />}
+      <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-requests')} />
+    </div>
+  );
+};
+
+const DeanNotificationDocIcon = ({ tone = 'green' }) => {
+  const isPending = tone === 'pending';
+  return (
+    <div className={`dean-notification-icon ${isPending ? 'pending' : ''}`}>
+      {isPending ? <NotifPendingIcon /> : <NotifSlipIcon />}
+    </div>
+  );
+};
+
+const formatNotificationRelativeTime = (value) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMinutes = Math.max(Math.floor(diffMs / 60000), 0);
+  if (diffMinutes < 1) return 'now';
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+};
+
+const getNotificationGroupLabel = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Earlier';
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
+
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+};
+
+const DeanNotificationsView = ({ setView, profileData }) => {
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await getDeanNotifications({ limit: 50 });
+        setNotifications(data.items || []);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadNotifications();
+  }, []);
+
+  const handleDismiss = async (notificationId) => {
+    try {
+      await markDeanNotificationRead(notificationId);
+      setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const groupedNotifications = notifications.reduce((groups, notification) => {
+    const label = getNotificationGroupLabel(notification.created_at);
+    return {
+      ...groups,
+      [label]: [...(groups[label] || []), notification],
+    };
+  }, {});
+
+  const orderedGroups = Object.entries(groupedNotifications);
+
+  return (
+    <div className="admin-dash-wrapper dean-notifications-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-notifications-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper">
+              <AdminBellIcon color="var(--text-dark)" />
+              {notifications.some((item) => !item.is_read) && <div className="admin-bell-dot" />}
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="dean-notification-list">
+          {loading && <p className="dean-empty-text">Loading notifications...</p>}
+          {error && <p className="dean-error-text">{error}</p>}
+          {!loading && !error && notifications.length === 0 && (
+            <p className="dean-empty-text">No dean notifications yet.</p>
+          )}
+
+          {!loading && orderedGroups.map(([groupLabel, items]) => (
+            <div key={groupLabel} className="dean-notification-group">
+              {groupLabel !== 'Today' && (
+                <div className="dean-notification-divider">
+                  <span>{groupLabel}</span>
+                  <div />
+                </div>
+              )}
+
+              {items.map((notification) => {
+                const isPendingNotice = /pending|approval|signature/i.test(notification.message || notification.title || '');
+
+                return (
+                  <article className="dean-notification-card" key={notification.id}>
+                    <DeanNotificationDocIcon tone={isPendingNotice ? 'pending' : 'green'} />
+                    <div className="dean-notification-body">
+                      <div className="dean-notification-title-row">
+                        <h2>{notification.title || 'New locator slip request submitted'}</h2>
+                        <time>{formatNotificationRelativeTime(notification.created_at)}</time>
+                      </div>
+                      <p>{notification.message}</p>
+                      <div className="dean-notification-actions">
+                        <button type="button" className="review" onClick={() => setView('dean-dashboard')}>
+                          REVIEW
+                        </button>
+                        <button type="button" className="dismiss" onClick={() => handleDismiss(notification.id)}>
+                          DISMISS
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+      <DeanBottomNav active="dashboard" setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+    </div>
+  );
+};
+
+const buildLocatorSlipReference = (request) => {
+  if (!request?.locatorSlipId) return 'LS-000-000';
+
+  const yearSource = request.createdAt || request.dateSubmitted;
+  const year = yearSource ? new Date(yearSource).getFullYear() : new Date().getFullYear();
+  const numericId = String(request.locatorSlipId).padStart(3, '0');
+
+  return `LS-${year}-${numericId}`;
+};
+
+const DeanRequestsView = ({ setView, profileData, setSelectedDeanRequest }) => {
+  const [requestData, setRequestData] = useState({
+    summary: {
+      pending: 0,
+      onsiteFaculty: 0,
+      offsiteFaculty: 0,
+      urgent: 0,
+    },
+    items: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const loadRequests = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        setRequestData(await getDeanPendingRequestsPage());
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadRequests();
+  }, []);
+
+  const requestStats = [
+    { label: 'PENDING', value: requestData.summary.pending, urgent: false },
+    { label: 'ON-SITE FACULTY', value: requestData.summary.onsiteFaculty, urgent: false },
+    { label: 'OFF-SITE FACULTY', value: requestData.summary.offsiteFaculty, urgent: false },
+    { label: 'URGENT', value: requestData.summary.urgent, urgent: true },
+  ];
+
+  return (
+    <div className="admin-dash-wrapper dean-requests-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-requests-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="dean-requests-hero">
+          <h1>Approval Requests</h1>
+          <p>Review and manage pending faculty locator slips.</p>
+        </div>
+
+        <div className="dean-requests-stats">
+          {requestStats.map((stat) => (
+            <div className={`dean-request-stat-card ${stat.urgent ? 'urgent' : ''}`} key={stat.label}>
+              <span>{stat.label}</span>
+              <strong>{loading ? '...' : String(stat.value || 0).padStart(2, '0')}</strong>
+            </div>
+          ))}
+        </div>
+
+        {error && <p className="dean-error-text dean-requests-message">{error}</p>}
+        {loading && <p className="dean-empty-text dean-requests-message">Loading pending locator slips...</p>}
+        {!loading && !error && requestData.items.length === 0 && (
+          <p className="dean-empty-text dean-requests-message">No pending locator slip requests right now.</p>
+        )}
+
+        <div className="dean-request-page-list">
+          {!loading && requestData.items.map((request) => (
+            <article
+              className={`dean-request-page-card ${request.isUrgent ? 'urgent' : ''}`}
+              key={request.locatorSlipId}
+            >
+              <div className="dean-request-page-top">
+                <div>
+                  <h2>
+                    {request.facultyName}
+                    {request.isUrgent && <span className="urgent-mark">!</span>}
+                  </h2>
+                  <p>{request.position || 'Instructor'} - {request.dateSubmitted}</p>
+                </div>
+                <span className="dean-request-pending-pill">PENDING</span>
+              </div>
+
+              <div className="dean-request-page-details">
+                <div>
+                  <span>DESTINATION</span>
+                  <strong>{request.destination}</strong>
+                </div>
+                <div>
+                  <span>PURPOSE</span>
+                  <strong>{request.purpose}</strong>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                className="dean-request-details-btn"
+                onClick={() => {
+                  setSelectedDeanRequest?.({ ...request, backView: 'dean-requests' });
+                  setView('dean-request-detail');
+                }}
+              >
+                View Details
+              </button>
+            </article>
+          ))}
+        </div>
+      </div>
+      <DeanBottomNav active="requests" setView={setView} onOpenRequests={() => setView('dean-requests')} />
+    </div>
+  );
+};
+
+const DeanRequestDetailView = ({ setView, profileData, request }) => {
+  if (!request) {
+    return (
+      <div className="admin-dash-wrapper dean-requests-wrapper">
+        <div className="admin-dash-scroll" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <p className="dean-empty-text">No locator slip selected.</p>
+        </div>
+        <DeanBottomNav active="requests" setView={setView} onOpenRequests={() => setView('dean-requests')} />
+      </div>
+    );
+  }
+
+  const slipReference = buildLocatorSlipReference(request);
+  const formattedDeparture = request.formattedDepartureDatetime || request.departureDatetime || 'Not provided';
+  const formattedReturn = request.formattedExpectedReturnDatetime || request.expectedReturnDatetime || 'Not provided';
+
+  const normalizedStatus = request.statusLabel || (request.status === 'approved' || request.status === 'completed'
+    ? 'verified'
+    : request.status);
+  const backView = request.backView || 'dean-requests';
+  const statusText = normalizedStatus === 'verified'
+    ? 'Verified'
+    : normalizedStatus
+      ? `${normalizedStatus.charAt(0).toUpperCase()}${normalizedStatus.slice(1)}`
+      : 'Pending';
+  const showActions = request.status === 'pending';
+
+  return (
+    <div className="admin-dash-wrapper dean-requests-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-requests-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView(backView)}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="adet-banner">
+          <div className="adet-banner-top">
+            <span className="adet-banner-label">APPROVAL REQUEST</span>
+            <span className={`adet-status-badge ${request.isUrgent && request.status === 'pending' ? 'urgent' : 'pending'} dean-request-detail-status dean-request-detail-status-${normalizedStatus || 'pending'}`}>
+              <span className="adet-status-dot" />
+              {statusText}
+            </span>
+          </div>
+          <div className="adet-banner-title-row">
+            <h2>Locator Slip #{slipReference}</h2>
+            {request.isUrgent && <span className="adet-urgent-mark">!</span>}
+          </div>
+        </div>
+
+        <div className="adet-section-title">
+          <DetailPersonIcon />
+          <span>Faculty Information</span>
+        </div>
+        <div className="adet-info-card">
+          <div className="adet-info-row">
+            <span className="adet-info-label">FULL NAME</span>
+            <span className="adet-info-value">{request.facultyName}</span>
+          </div>
+          <div className="adet-info-cols">
+            <div className="adet-info-col">
+              <span className="adet-info-label">DEPARTMENT</span>
+              <span className="adet-info-value">{request.collegeName}</span>
+            </div>
+            <div className="adet-info-col">
+              <span className="adet-info-label">FACULTY ID</span>
+              <span className="adet-info-value">{request.employeeId || 'Not assigned'}</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="adet-section-title">
+          <DetailRouteIcon />
+          <span>Locator Slip Details</span>
+        </div>
+        <div className="adet-details-section">
+          <div className="adet-detail-item">
+            <DetailPinIcon />
+            <div className="adet-detail-text">
+              <span className="adet-detail-label">DESTINATION</span>
+              <span className="adet-detail-value">{request.destination}</span>
+            </div>
+          </div>
+          <div className="adet-detail-item">
+            <DetailDocIcon />
+            <div className="adet-detail-text">
+              <span className="adet-detail-label">PURPOSE</span>
+              <span className="adet-detail-value">{request.purpose}</span>
+            </div>
+          </div>
+          <div className="adet-time-row">
+            <div className="adet-detail-item half">
+              <DetailClockIcon />
+              <div className="adet-detail-text">
+                <span className="adet-detail-label">DEPARTURE</span>
+                <span className="adet-detail-value">{formattedDeparture}</span>
+              </div>
+            </div>
+            <div className="adet-detail-item half">
+              <DetailClockReturnIcon />
+              <div className="adet-detail-text">
+                <span className="adet-detail-label">EST. RETURN</span>
+                <span className="adet-detail-value">{formattedReturn}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {showActions && (
+          <div className="adet-actions">
+            <button type="button" className="adet-approve-btn">
+              <ApproveCheckIcon />
+              Approve Request
+            </button>
+            <div className="adet-secondary-actions">
+              <button type="button" className="adet-reject-btn">
+                <RejectXIcon />
+                Reject
+              </button>
+              <button type="button" className="adet-remarks-btn">
+                <RemarksIcon />
+                Remarks
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <DeanBottomNav active="requests" setView={setView} onOpenRequests={() => setView('dean-requests')} />
+    </div>
+  );
+};
+
+const DeanRegistryView = ({ setView, profileData }) => {
+  const [registryData, setRegistryData] = useState({ summary: null, items: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedRegistryItem, setSelectedRegistryItem] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRegistry = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getDeanRegistryPage();
+        if (!active) return;
+        setRegistryData(data);
+      } catch (requestError) {
+        if (!active) return;
+        setError(requestError.message || 'Failed to load dean registry.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadRegistry();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const summary = registryData.summary || {};
+  const items = registryData.items || [];
+
+  return (
+    <div className="admin-dash-wrapper dean-requests-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-requests-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="areg-hero">
+          <h1>Requests</h1>
+          <p>Strategic Oversight Registry</p>
+        </div>
+
+        <div className="areg-stats-grid">
+          <div className="areg-stat-card">
+            <span className="areg-stat-label">MONTHLY TOTAL</span>
+            <span className="areg-stat-number">{String(summary.monthlyTotal ?? 0).padStart(2, '0')}</span>
+          </div>
+          <div className="areg-stat-card">
+            <span className="areg-stat-label">REGISTRY SIZE</span>
+            <span className="areg-stat-number">{summary.registrySize ?? 0}</span>
+          </div>
+        </div>
+
+        {error && <p className="dean-error-text dean-requests-message">{error}</p>}
+        {loading && <p className="dean-empty-text dean-requests-message">Loading request registry...</p>}
+        {!loading && !error && items.length === 0 && (
+          <p className="dean-empty-text dean-requests-message">No locator slips have been filed for this college yet.</p>
+        )}
+
+        <div className="areg-cards">
+          {items.map((item) => (
+            <div key={item.locatorSlipId} className="areg-card">
+              <div className="areg-card-header">
+                <div className="areg-card-name-col">
+                  <h3>{item.facultyName}</h3>
+                  <span className="areg-card-role">{item.position}</span>
+                </div>
+                <div className={`areg-badge ${item.statusLabel || item.status}`}>
+                  {(item.statusLabel || item.status).toUpperCase()}
+                </div>
+              </div>
+
+              <div className="areg-card-details">
+                <div className="areg-detail-col">
+                  <span className="areg-detail-label">{item.dateLabel || 'DATE SUBMITTED'}</span>
+                  <span className="areg-detail-value">{item.dateValue || item.dateSubmitted || 'Not available'}</span>
+                </div>
+                <div className="areg-detail-col">
+                  <span className="areg-detail-label">DESTINATION</span>
+                  <span className="areg-detail-value">{item.destination}</span>
+                </div>
+              </div>
+
+              <div className="areg-card-actions">
+                <button
+                  type="button"
+                  className="areg-view-btn"
+                  onClick={() => setSelectedRegistryItem(item)}
+                >
+                  <RegistryEyeIcon />
+                  VIEW DETAILS
+                </button>
+                <button type="button" className="areg-download-btn" aria-label="Download locator slip">
+                  <RegistryDownloadIcon />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <DeanBottomNav active="registry" setView={setView} onOpenRequests={() => setView('dean-requests')} />
+      {selectedRegistryItem && (
+        <RegistryDetailsModal
+          item={selectedRegistryItem}
+          onClose={() => setSelectedRegistryItem(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+const DeanRequestsModal = ({ onClose }) => {
+  const [status, setStatus] = useState('all');
+  const [search, setSearch] = useState('');
+  const [requests, setRequests] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+
+    const loadRequests = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await getDeanLocatorSlips({ status, search, limit: 50 });
+        if (active) setRequests(data.items || []);
+      } catch (err) {
+        if (active) setError(err.message);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadRequests();
+    return () => {
+      active = false;
+    };
+  }, [status, search]);
+
+  return (
+    <div className="dean-modal-backdrop" role="dialog" aria-modal="true">
+      <div className="dean-requests-modal">
+        <div className="dean-modal-header">
+          <div>
+            <h2>Locator Slip Requests</h2>
+            <p>Only faculty from your assigned college are shown.</p>
+          </div>
+          <button type="button" onClick={onClose}>Close</button>
+        </div>
+
+        <div className="dean-modal-tools">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search faculty, purpose, or destination"
+          />
+          <select value={status} onChange={(e) => setStatus(e.target.value)}>
+            <option value="all">All</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+
+        {error && <p className="dean-error-text">{error}</p>}
+        {loading && <p className="dean-empty-text">Loading requests...</p>}
+        {!loading && requests.length === 0 && <p className="dean-empty-text">No matching locator slips.</p>}
+
+        <div className="dean-request-list">
+          {requests.map((request) => (
+            <div className="dean-request-card" key={request.locatorSlipId}>
+              <div>
+                <strong>{request.facultyName}</strong>
+                <p>{request.purpose}</p>
+                <span>{request.destination}</span>
+              </div>
+              <div className={`dean-status-pill ${request.status}`}>
+                {request.status}
+              </div>
+              <time>{request.formattedCreatedAt}</time>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminDashboardView = ({ setView, profileData }) => {
+  if (['assistant_dean', 'college_dean'].includes(profileData?.accountRole)) {
+    return <DeanDashboardView setView={setView} profileData={profileData} />;
+  }
+
   const notifications = [
     { id: 1, text: 'New budget proposal from Dept. of Humanities.', time: '2 mins ago', unread: true },
     { id: 2, text: 'Course curriculum revision needs signature.', time: '45 mins ago', unread: true },
@@ -6521,6 +7429,32 @@ const RegistryModalDoneIcon = () => (
 const RegistryDetailsModal = ({ item, onClose }) => {
   if (!item) return null;
 
+  const status = item.statusLabel || item.status || 'pending';
+  const statusTitle = status === 'verified'
+    ? 'VERIFIED REQUEST'
+    : status === 'rejected'
+      ? 'REJECTED REQUEST'
+      : status === 'cancelled'
+        ? 'CANCELLED REQUEST'
+        : 'PENDING REQUEST';
+  const departureDate = item.departureDatetime
+    ? new Date(item.departureDatetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Not provided';
+  const departureTime = item.departureDatetime
+    ? new Date(item.departureDatetime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : '--:--';
+  const returnDate = item.expectedReturnDatetime
+    ? new Date(item.expectedReturnDatetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : 'Not provided';
+  const returnTime = item.expectedReturnDatetime
+    ? new Date(item.expectedReturnDatetime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+    : '--:--';
+  const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Dean';
+  const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
+  const signatureTimestamp = item.digitalSignature?.signedAt
+    ? `${new Date(item.digitalSignature.signedAt).toLocaleString('sv-SE', { hour12: false }).replace(' ', 'T')} UTC+8`
+    : '';
+
   return (
     <div className="rmodal-overlay" onClick={onClose}>
       <div className="rmodal-container" onClick={e => e.stopPropagation()}>
@@ -6531,12 +7465,12 @@ const RegistryDetailsModal = ({ item, onClose }) => {
           </button>
           
           <div className="rmodal-header-content">
-            <div className={`rmodal-status-pill ${item.status}`}>
-              {item.status === 'verified' && <RegistryModalVerifiedIcon />}
-              <span>{item.status === 'verified' ? 'VERIFIED REQUEST' : 'REJECTED REQUEST'}</span>
+            <div className={`rmodal-status-pill ${status}`}>
+              {status === 'verified' && <RegistryModalVerifiedIcon />}
+              <span>{statusTitle}</span>
             </div>
             <h2>Request Details</h2>
-            <p className="rmodal-id">ID: RS-2023-4491-CS</p>
+            <p className="rmodal-id">ID: {item.referenceNumber || 'LS-000-000'}</p>
           </div>
         </div>
 
@@ -6545,13 +7479,13 @@ const RegistryDetailsModal = ({ item, onClose }) => {
         {/* Profile Section */}
         <div className="rmodal-profile">
           <div className="rmodal-avatar">
-            <img src={DEFAULT_PROFILE_IMAGE} alt={item.name} />
+            <img src={item.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={item.facultyName || item.name} />
           </div>
-          <h3>{item.name}</h3>
-          <p className="rmodal-department">Computer Science Department</p>
+          <h3>{item.facultyName || item.name}</h3>
+          <p className="rmodal-department">{item.collegeName || 'College Department'}</p>
           <div className="rmodal-faculty-id">
             <RegistryModalIdIcon />
-            <span>ID 202312291</span>
+            <span>ID {item.employeeId || 'Not assigned'}</span>
           </div>
         </div>
 
@@ -6570,7 +7504,7 @@ const RegistryDetailsModal = ({ item, onClose }) => {
             <DetailDocIcon />
             <div className="rmodal-detail-text">
               <span className="rmodal-detail-label">PURPOSE</span>
-              <span className="rmodal-detail-value">Research Collaboration & Technical Seminar at Olongapo City Civic Center</span>
+              <span className="rmodal-detail-value">{item.purpose}</span>
             </div>
           </div>
         </div>
@@ -6581,25 +7515,30 @@ const RegistryDetailsModal = ({ item, onClose }) => {
           <div className="rmodal-schedule-cols">
             <div className="rmodal-schedule-col">
               <span className="rmodal-schedule-type">DEPARTURE</span>
-              <span className="rmodal-schedule-date">Oct 24, 2023</span>
-              <span className="rmodal-schedule-time">08:30 AM</span>
+              <span className="rmodal-schedule-date">{departureDate}</span>
+              <span className="rmodal-schedule-time">{departureTime}</span>
             </div>
             <div className="rmodal-schedule-col right">
               <span className="rmodal-schedule-type">RETURN</span>
-              <span className="rmodal-schedule-date">Oct 26, 2023</span>
-              <span className="rmodal-schedule-time">05:00 PM</span>
+              <span className="rmodal-schedule-date">{returnDate}</span>
+              <span className="rmodal-schedule-time">{returnTime}</span>
             </div>
           </div>
         </div>
 
-        {/* Signature */}
         <div className="rmodal-signature">
           <div className="rmodal-sig-divider" />
           <span className="rmodal-sig-label">AUTHORIZED DIGITAL SIGNATURE</span>
-          <h4 className="rmodal-sig-name">Ron Uy, Ph.D.</h4>
-          <p className="rmodal-sig-role">Dean of College of<br/>Computer Studies</p>
-          <div className="rmodal-sig-stamp">DIGITALLY SIGNED</div>
-          <p className="rmodal-sig-timestamp">2023-10-20T14:22:51 UTC+8</p>
+          <h4 className="rmodal-sig-name">{signatureName}</h4>
+          <p className="rmodal-sig-role">{signatureRole}</p>
+          {item.digitalSignature ? (
+            <>
+              <div className="rmodal-sig-stamp">DIGITALLY SIGNED</div>
+              <p className="rmodal-sig-timestamp">{signatureTimestamp}</p>
+            </>
+          ) : (
+            <p className="rmodal-sig-pending">Signature will appear after the locator slip is approved.</p>
+          )}
         </div>
 
         {/* Actions */}
@@ -6829,7 +7768,7 @@ const FacultyProfileModal = ({ profile, onClose }) => {
         
         <div className="afac-modal-content">
           <div className="afac-modal-avatar">
-            <img src={DEFAULT_PROFILE_IMAGE} alt={profile.name} />
+            <img src={profile.image || DEFAULT_PROFILE_IMAGE} alt={profile.name} />
           </div>
           
           <h2 className="afac-modal-name">{profile.name}</h2>
@@ -7019,6 +7958,161 @@ const AdminFacultyView = ({ setView, profileData }) => {
   );
 };
 
+const DeanFacultyView = ({ setView, profileData }) => {
+  const [search, setSearch] = useState('');
+  const [facultyData, setFacultyData] = useState({
+    summary: { totalFaculty: 0, activeRequests: 0 },
+    items: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [selectedProfile, setSelectedProfile] = useState(null);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await getDeanFacultyOverview({ search });
+        setFacultyData(data);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
+
+  const renderStatusIndicator = (status, idx) => {
+    if (status === 'approved') return <FacultyCheckCircleIcon key={`${status}-${idx}`} />;
+    if (status === 'rejected') return <FacultyCrossCircleIcon key={`${status}-${idx}`} />;
+    if (status === 'pending') return <FacultyWaitCircleIcon key={`${status}-${idx}`} />;
+    return null;
+  };
+
+  return (
+    <div className="admin-dash-wrapper dean-faculty-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="afac-stats-grid dean-faculty-stats">
+          <div className="afac-stat-card">
+            <span className="afac-stat-label">TOTAL FACULTY</span>
+            <span className="afac-stat-number">{loading ? '...' : String(facultyData.summary?.totalFaculty || 0).padStart(2, '0')}</span>
+          </div>
+          <div className="afac-stat-card">
+            <span className="afac-stat-label">ACTIVE REQUESTS</span>
+            <span className="afac-stat-number">{loading ? '...' : String(facultyData.summary?.activeRequests || 0).padStart(2, '0')}</span>
+          </div>
+        </div>
+
+        <div className="afac-search-bar">
+          <div className="afac-search-input-wrapper">
+            <FacultySearchIcon />
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search faculty members..."
+              className="afac-search-input"
+            />
+          </div>
+          <button className="afac-filter-btn" type="button" aria-label="Filter faculty">
+            <FacultyFilterIcon />
+          </button>
+        </div>
+
+        <h2 className="afac-title">Faculty Overview</h2>
+        {error && <p className="dean-error-text dean-faculty-message">{error}</p>}
+        {loading && <p className="dean-empty-text dean-faculty-message">Loading registered faculty...</p>}
+        {!loading && facultyData.items.length === 0 && (
+          <p className="dean-empty-text dean-faculty-message">No registered faculty found for your college.</p>
+        )}
+
+        <div className="afac-cards dean-faculty-cards">
+          {!loading && facultyData.items.map((member) => (
+            <div key={member.id} className={`afac-card border-${member.borderColor}`}>
+              <div className="afac-card-header">
+                <div className="afac-card-profile">
+                  <div className="afac-card-avatar-wrapper">
+                    <img src={member.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={member.fullName} />
+                  </div>
+                  <div className="afac-card-info">
+                    <h3>{member.fullName}</h3>
+                    <p>{member.position || 'Instructor'}</p>
+                  </div>
+                </div>
+                <div className={`afac-tenure ${member.employmentType === 'part_time' ? 'part-time' : ''}`}>
+                  {member.employmentLabel}
+                </div>
+              </div>
+
+              <div className="afac-card-stats">
+                <div className="afac-stat">
+                  <span className="afac-stat-title">TOTAL REQUESTS</span>
+                  <div className="afac-stat-val">
+                    <FacultyDocIcon />
+                    {String(member.totalRequests || 0).padStart(2, '0')}
+                  </div>
+                </div>
+                <div className="afac-stat">
+                  <span className="afac-stat-title">APPROVAL RATE</span>
+                  <div className="afac-stat-val green">
+                    <FacultyCheckCircleIcon />
+                    {member.approvalRateLabel}
+                  </div>
+                </div>
+              </div>
+
+              <div className="afac-card-footer">
+                <div className="afac-recent-indicators">
+                  {member.recentStatuses.map(renderStatusIndicator)}
+                  {member.remainingStatusCount > 0 && (
+                    <div className="afac-more-indicator">+{member.remainingStatusCount}</div>
+                  )}
+                </div>
+                <button
+                  className="afac-view-profile"
+                  type="button"
+                  onClick={() => setSelectedProfile({
+                    name: member.fullName,
+                    role: member.position || 'Instructor',
+                    tenure: member.employmentLabel,
+                    idNumber: member.employeeId,
+                    image: member.profileImageUrl || DEFAULT_PROFILE_IMAGE,
+                  })}
+                >
+                  View Profile <FacultyChevronRightIcon />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <DeanBottomNav active="faculty" setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+      <FacultyProfileModal profile={selectedProfile} onClose={() => setSelectedProfile(null)} />
+    </div>
+  );
+};
+
 /* ======================================================== */
 /* ADMIN PROFILE VIEW                                       */
 /* ======================================================== */
@@ -7060,6 +8154,98 @@ const AdminProfileChevronIcon = () => (
     <polyline points="9 18 15 12 9 6" />
   </svg>
 );
+
+const getDeanRoleLabel = (accountRole) =>
+  accountRole === 'assistant_dean' ? 'Assistant Dean' : 'Dean';
+
+const getDeanBadgeLabel = (department = '', accountRole = '') => {
+  const acronym = department
+    .replace(/^College of\s+/i, '')
+    .split(/\s+|,/)
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase())
+    .join('')
+    .slice(0, 4) || 'DEAN';
+
+  return `${acronym} ${accountRole === 'assistant_dean' ? 'ASST' : 'DEAN'}`;
+};
+
+const DeanProfileView = ({ setView, profileData, onLogout }) => {
+  const roleLabel = getDeanRoleLabel(profileData?.accountRole);
+  const department = profileData?.department || 'College of Computer Studies';
+
+  return (
+    <div className="admin-dash-wrapper dean-profile-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-profile-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar dean-profile-top-avatar">
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean profile" />
+            </div>
+          </div>
+        </div>
+
+        <div className="aprof-container dean-profile-container">
+          <div className="aprof-hero-card dean-profile-hero-card">
+            <div className="aprof-hero-bg-accent" />
+            <div className="aprof-hero-content">
+              <div className="aprof-avatar-wrapper dean-profile-avatar-wrapper">
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={profileData?.fullName || 'Dean'} />
+                <div className="aprof-avatar-badge dean-profile-badge">
+                  {getDeanBadgeLabel(department, profileData?.accountRole)}
+                </div>
+              </div>
+              <h2 className="aprof-name dean-profile-name">{profileData?.fullName || 'Dean User'}</h2>
+              <p className="aprof-role dean-profile-role">{roleLabel} of {department}</p>
+              <div className="aprof-id-pill dean-profile-id-pill">
+                <AdminProfileIdIcon />
+                <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="aprof-section dean-profile-section">
+            <h3 className="aprof-section-title">ACCOUNT ADMINISTRATION</h3>
+
+            <div className="aprof-menu">
+              <button type="button" className="aprof-menu-item dean-profile-menu-item" onClick={() => setView('dean-edit-profile')}>
+                <div className="aprof-menu-icon-box">
+                  <AdminProfileEditIcon />
+                </div>
+                <span className="aprof-menu-text">Edit Profile</span>
+                <AdminProfileChevronIcon />
+              </button>
+
+              <button type="button" className="aprof-menu-item dean-profile-menu-item" onClick={() => setView('dean-change-password')}>
+                <div className="aprof-menu-icon-box">
+                  <AdminProfilePasswordIcon />
+                </div>
+                <span className="aprof-menu-text">Change Password</span>
+                <AdminProfileChevronIcon />
+              </button>
+            </div>
+
+            <button className="aprof-logout-btn dean-profile-logout-btn" onClick={onLogout}>
+              <AdminProfileLogoutIcon />
+              LOGOUT SESSION
+            </button>
+          </div>
+        </div>
+      </div>
+      <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+    </div>
+  );
+};
 
 const AdminProfileView = ({ setView, profileData }) => {
   return (

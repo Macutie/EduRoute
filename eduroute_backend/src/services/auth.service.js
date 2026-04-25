@@ -13,7 +13,9 @@ const ROLE_LABELS = {
     faculty: 'Faculty',
     hrmu: 'HRMU',
     cssu: 'CSSU',
-    admin: 'Admin'
+    admin: 'Admin',
+    assistant_dean: 'Assistant Dean',
+    college_dean: 'College Dean'
 };
 
 const getDepartments = async () => {
@@ -48,7 +50,9 @@ const registerFaculty = async (payload) => {
         const accountRole = payload.account_role || 'faculty';
         const fullName = payload.full_name.trim();
         const employeeId = payload.employee_id.trim();
-        const departmentId = ['faculty', 'admin'].includes(accountRole) ? Number(payload.department_id) : null;
+        const departmentId = ['faculty', 'admin', 'assistant_dean', 'college_dean'].includes(accountRole)
+            ? Number(payload.department_id)
+            : null;
         const email = payload.email.trim().toLowerCase();
         const password = payload.password;
         const termsAccepted = payload.terms_accepted === true;
@@ -177,7 +181,10 @@ const loginFaculty = async ({ email_or_employee_id, password, portal_role = 'fac
         throw new AppError('This account is not active.', 403);
     }
 
-    if (user.account_role !== selectedPortalRole) {
+    const adminPortalDeanRoles = ['assistant_dean', 'college_dean'];
+    const isDeanUsingAdminPortal = selectedPortalRole === 'admin' && adminPortalDeanRoles.includes(user.account_role);
+
+    if (user.account_role !== selectedPortalRole && !isDeanUsingAdminPortal) {
         const actualRole = ROLE_LABELS[user.account_role] || user.account_role;
         const requestedRole = ROLE_LABELS[selectedPortalRole] || selectedPortalRole;
         throw new AppError(

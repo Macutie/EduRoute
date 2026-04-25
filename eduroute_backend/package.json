@@ -12,7 +12,8 @@
         "migrate:user-roles": "node scripts/run-sql-file.js sql/faculty_user_roles.sql",
         "migrate:role-registration": "node scripts/run-sql-file.js sql/faculty_user_role_registration.sql",
         "migrate:trips": "node scripts/run-sql-file.js sql/trips.sql",
-        "migrate:trip-tracking": "node scripts/run-sql-file.js sql/trip_tracking.sql"
+        "migrate:trip-tracking": "node scripts/run-sql-file.js sql/trip_tracking.sql",
+        "migrate:dean-dashboard": "node scripts/run-sql-file.js sql/dean_dashboard.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",

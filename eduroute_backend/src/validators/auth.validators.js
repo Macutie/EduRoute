@@ -1,7 +1,7 @@
 const { body, validationResult } = require('express-validator');
 const AppError = require('../utils/appError');
 
-const ROLE_OPTIONS = ['faculty', 'hrmu', 'cssu', 'admin'];
+const ROLE_OPTIONS = ['faculty', 'hrmu', 'cssu', 'admin', 'assistant_dean', 'college_dean'];
 
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
@@ -29,7 +29,7 @@ const registerValidator = [
         .custom((value, { req }) => {
             const role = req.body.account_role || 'faculty';
 
-            if (['faculty', 'admin'].includes(role)) {
+            if (['faculty', 'admin', 'assistant_dean', 'college_dean'].includes(role)) {
                 if (!Number.isInteger(Number(value)) || Number(value) < 1) {
                     throw new Error('A valid department is required.');
                 }

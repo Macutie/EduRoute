@@ -8,6 +8,7 @@ const permissionRoutes = require('./routes/permission.routes');
 const mapRoutes = require('./routes/map.routes');
 const tripRoutes = require('./routes/trip.routes');
 const searchRoutes = require('./routes/search.routes');
+const deanDashboardRoutes = require('./routes/deanDashboard.routes');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const env = require('./config/env');
 
@@ -46,6 +47,7 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/dean', deanDashboardRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

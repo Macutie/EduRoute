@@ -3,6 +3,8 @@ const env = require('../config/env');
 const AppError = require('../utils/appError');
 const { verifyAccessToken } = require('../utils/jwt');
 const tripTrackingService = require('../services/tripTracking.service');
+const { setSocketServer } = require('./socketBus');
+const { registerDeanNotificationSocketHandlers } = require('./deanNotifications.socket');
 
 const SOCKET_EVENTS = {
     subscribe: 'trip:subscribe',
@@ -37,6 +39,8 @@ const createTripTrackingSocketServer = (httpServer) => {
         }
     });
 
+    setSocketServer(io);
+
     io.use((socket, next) => {
         try {
             const bearerToken = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace(/^Bearer\s+/i, '');
@@ -51,6 +55,8 @@ const createTripTrackingSocketServer = (httpServer) => {
             return next(new AppError('Invalid or expired socket token.', 401));
         }
     });
+
+    registerDeanNotificationSocketHandlers(io);
 
     io.on('connection', (socket) => {
         socket.on(SOCKET_EVENTS.subscribe, ({ tripId }) => {
