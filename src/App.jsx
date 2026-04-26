@@ -353,7 +353,9 @@ function App() {
       const accountRole = data.data.user?.account_role;
       alert(formatApiMessage(data.message) || 'Login successful.');
 
-      if (['assistant_dean', 'college_dean'].includes(accountRole)) {
+      if (portalRole === 'hrmu') {
+        setView('hrmu-dashboard');
+      } else if (['assistant_dean', 'college_dean'].includes(accountRole)) {
         setView('dean-dashboard');
       } else if (accountRole === 'admin') {
         setView('admin-dashboard');
@@ -575,7 +577,7 @@ function App() {
   };
 
   return (
-    <div className="mobile-container">
+    <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${['hrmu-dashboard', 'hrmu-verification'].includes(view) ? 'workspace-shell' : ''}`}>
       {isAuthView(view) && (
         <div className="status-bar">
           <span className="time">9:41</span>
@@ -714,6 +716,8 @@ function App() {
           useDeanNav
         />
       )}
+      {view === 'hrmu-dashboard' && <HrmuDashboardView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-verification' && <HrmuVerificationView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
@@ -739,6 +743,7 @@ function App() {
 
       {isAuthView(view) && (
         <div
+          className={`auth-bottom-accent ${isAuthView(view) ? 'auth-view-bottom-accent' : ''}`}
           style={{
             position: 'absolute',
             bottom: 0,
@@ -884,6 +889,14 @@ const ChevronDownIcon = () => (
 const ArrowRightIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M4 12H20M20 12L13 5M20 12L13 19" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const InfoIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"></circle>
+    <line x1="12" y1="16" x2="12" y2="12"></line>
+    <line x1="12" y1="8" x2="12.01" y2="8"></line>
   </svg>
 );
 
@@ -1405,183 +1418,431 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
   const activeRole = LOGIN_ROLES.find((role) => role.key === selectedRole) || LOGIN_ROLES[0];
 
   return (
-    <div className="content fade-in login-content">
-      <div className="logo-container login-logo-container">
-        <div className="logo-box login-logo-box">
-          <MapIcon />
+    <>
+      {/* DESKTOP VIEW */}
+      <div className="desktop-view">
+        <div className="dlogin-page">
+          <div className="dlogin-wrapper fade-in">
+            {/* Left Panel */}
+            <div className="dlogin-left">
+              <div className="dlogin-left-inner">
+              <div className="dlogin-logo-section">
+                <div className="dlogin-logo-box">
+                  <MapIcon />
+                </div>
+                <h1>EduRoute</h1>
+                <h2>{activeRole.title.toUpperCase()}</h2>
+              </div>
+
+              <div className="dlogin-role-section">
+                <p className="dlogin-role-header">SELECT DEPARTMENT ROLE</p>
+                <div className="dlogin-role-grid">
+                  {LOGIN_ROLES.map((role) => {
+                    const RoleIcon = role.icon;
+                    const isActive = selectedRole === role.key;
+                    return (
+                      <button
+                        type="button"
+                        key={role.key}
+                        className={`dlogin-role-btn ${isActive ? 'active' : ''}`}
+                        onClick={() => setSelectedRole(role.key)}
+                      >
+                        <RoleIcon color={isActive ? 'var(--green)' : '#4B5563'} size="20" />
+                        <span>{role.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="dlogin-footer">
+                <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
+                <p>Privacy Policy &nbsp;&nbsp;&nbsp; System Status</p>
+              </div>
+              
+              </div>
+              <div className="dlogin-bg-circle"></div>
+            </div>
+
+            {/* Right Panel */}
+            <div className="dlogin-right">
+              <div className="dlogin-form-inner">
+              <form className="dlogin-form-container" onSubmit={(e) => onLogin(e, selectedRole)}>
+                <div className="dlogin-form-header">
+                  <h2>Campus Gateway</h2>
+                  <p>Verify your credentials to access the secure administrative environment.</p>
+                </div>
+
+                <div className="dlogin-form-body">
+                  <div className="dlogin-input-group">
+                    <label>Staff ID / Email</label>
+                    <div className="dlogin-input-wrapper">
+                      <BadgeIcon color="#9CA3AF" size="18" />
+                      <input
+                        type="text"
+                        placeholder="e.g. admin.01@eduroute.edu"
+                        value={loginForm.email_or_employee_id}
+                        onChange={(e) =>
+                          setLoginForm((prev) => ({
+                            ...prev,
+                            email_or_employee_id: e.target.value
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="dlogin-input-group">
+                    <div className="dlogin-label-row">
+                      <label>Security Passkey</label>
+                      <a
+                        href="#"
+                        className="dlogin-forgot-link"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setView('forgot-password');
+                        }}
+                      >
+                        Forgot Password
+                      </a>
+                    </div>
+                    <div className="dlogin-input-wrapper">
+                      <LockIcon color="#9CA3AF" size="18" />
+                      <input
+                        type={showLoginPassword ? 'text' : 'password'}
+                        placeholder="••••••••••••"
+                        value={loginForm.password}
+                        onChange={(e) =>
+                          setLoginForm((prev) => ({
+                            ...prev,
+                            password: e.target.value
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="dlogin-eye-btn"
+                        onClick={() => setShowLoginPassword((prev) => !prev)}
+                      >
+                        <EyeIcon color="#9CA3AF" size="18" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="submit" className="dlogin-submit-btn" disabled={loading}>
+                  {loading ? 'Logging in...' : (
+                    <>Login <ArrowRightIcon color="white" size="18" /></>
+                  )}
+                </button>
+
+                <div className="dlogin-divider">
+                  <hr />
+                  <span>OR</span>
+                  <hr />
+                </div>
+
+                <button type="button" className="dlogin-signup-btn" onClick={() => setView('signup')}>
+                  Sign Up
+                </button>
+
+                <div className="dlogin-security-box">
+                  <InfoIcon color="#92400E" size="20" />
+                  <p>Security Advisory: Unauthorized access attempts are logged and reported to the institutional security board. Please ensure you are using a secure connection.</p>
+                </div>
+              </form>
+              </div>
+            </div>
+          </div>
         </div>
-        <h1>EduRoute</h1>
-        <h2 className="login-portal-title">{activeRole.title.toUpperCase()}</h2>
       </div>
 
-      <form className="card login-card" onSubmit={(e) => onLogin(e, selectedRole)}>
-        <div className="role-selector" aria-label="Select portal role">
-          {LOGIN_ROLES.map((role) => {
-            const RoleIcon = role.icon;
-            const isActive = selectedRole === role.key;
+      {/* MOBILE VIEW */}
+      <div className="mobile-view">
+        <div className="content fade-in login-content">
+          <div className="logo-container login-logo-container">
+            <div className="logo-box login-logo-box">
+              <MapIcon />
+            </div>
+            <h1>EduRoute</h1>
+            <h2 className="login-portal-title">{activeRole.title.toUpperCase()}</h2>
+          </div>
 
-            return (
-              <button
-                type="button"
-                key={role.key}
-                className={`role-tab ${isActive ? 'active' : ''}`}
-                onClick={() => setSelectedRole(role.key)}
-              >
-                <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="23" />
-                <span>{role.label}</span>
+          <form className="card login-card" onSubmit={(e) => onLogin(e, selectedRole)}>
+            <div className="role-selector" aria-label="Select portal role">
+              {LOGIN_ROLES.map((role) => {
+                const RoleIcon = role.icon;
+                const isActive = selectedRole === role.key;
+
+                return (
+                  <button
+                    type="button"
+                    key={role.key}
+                    className={`role-tab ${isActive ? 'active' : ''}`}
+                    onClick={() => setSelectedRole(role.key)}
+                  >
+                    <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="23" />
+                    <span>{role.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="login-form-body">
+              <div className="input-group">
+                <label>EMAIL OR EMPLOYEE ID</label>
+                <div className="input-wrapper">
+                  <BadgeIcon />
+                  <input
+                    type="text"
+                    placeholder="j.smith@gordon.edu"
+                    value={loginForm.email_or_employee_id}
+                    onChange={(e) =>
+                      setLoginForm((prev) => ({
+                        ...prev,
+                        email_or_employee_id: e.target.value
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <div className="label-row">
+                  <label>PASSWORD</label>
+                  <a
+                    href="#"
+                    className="forgot-link"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setView('forgot-password');
+                    }}
+                  >
+                    Forgot Password?
+                  </a>
+                </div>
+
+                <div className="input-wrapper">
+                  <LockIcon />
+                  <input
+                    type={showLoginPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    value={loginForm.password}
+                    onChange={(e) =>
+                      setLoginForm((prev) => ({
+                        ...prev,
+                        password: e.target.value
+                      }))
+                    }
+                  />
+
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => setShowLoginPassword((prev) => !prev)}
+                  >
+                    <EyeIcon />
+                  </button>
+                </div>
+              </div>
+
+              <button type="submit" className="primary-btn" disabled={loading}>
+                {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
               </button>
-            );
-          })}
-        </div>
 
-        <div className="login-form-body">
-          <div className="input-group">
-            <label>EMAIL OR EMPLOYEE ID</label>
-            <div className="input-wrapper">
-              <BadgeIcon />
-              <input
-                type="text"
-                placeholder="j.smith@gordon.edu"
-                value={loginForm.email_or_employee_id}
-                onChange={(e) =>
-                  setLoginForm((prev) => ({
-                    ...prev,
-                    email_or_employee_id: e.target.value
-                  }))
-                }
-              />
-            </div>
-          </div>
+              <div className="divider">
+                <hr />
+                <span>NEW TO EDUROUTE?</span>
+                <hr />
+              </div>
 
-          <div className="input-group">
-            <div className="label-row">
-              <label>PASSWORD</label>
-              <a
-                href="#"
-                className="forgot-link"
-                onClick={(e) => {
-                  e.preventDefault();
-                  setView('forgot-password');
-                }}
-              >
-                Forgot Password?
-              </a>
-            </div>
-
-            <div className="input-wrapper">
-              <LockIcon />
-              <input
-                type={showLoginPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                value={loginForm.password}
-                onChange={(e) =>
-                  setLoginForm((prev) => ({
-                    ...prev,
-                    password: e.target.value
-                  }))
-                }
-              />
-
-              <button
-                type="button"
-                className="icon-btn"
-                onClick={() => setShowLoginPassword((prev) => !prev)}
-              >
-                <EyeIcon />
+              <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
+                Sign Up
               </button>
+
+              <div className="login-security-version">
+                <span className="login-security-dot" />
+                <span>Institutional Security System v2.4.1</span>
+              </div>
+            </div>
+          </form>
+
+          <div className="footer">
+            <div className="footer-logo">
+              <CapIcon />
+            </div>
+            <div className="footer-text">
+              <span className="footer-developed">DEVELOPED BY</span>
+              <span className="footer-brand">ARCHONS</span>
             </div>
           </div>
-
-          <button type="submit" className="primary-btn" disabled={loading}>
-            {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
-          </button>
-
-          <div className="divider">
-            <hr />
-            <span>NEW TO EDUROUTE?</span>
-            <hr />
-          </div>
-
-          <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
-            Sign Up
-          </button>
-
-          <div className="login-security-version">
-            <span className="login-security-dot" />
-            <span>Institutional Security System v2.4.1</span>
-          </div>
-        </div>
-      </form>
-
-
-      <div className="footer">
-        <div className="footer-logo">
-          <CapIcon />
-        </div>
-        <div className="footer-text">
-          <span className="footer-developed">DEVELOPED BY</span>
-          <span className="footer-brand">ARCHONS</span>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
-const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading }) => (
-  <div className="content fade-in forgot-pw-content">
-    <div className="recovery-header">
-      <CapIcon />
-      <span>EduRoute Portal</span>
-    </div>
+const DesktopAuthShell = ({
+  portalLabel,
+  sideEyebrow,
+  sideTitle,
+  sideDescription,
+  formTitle,
+  formDescription,
+  children,
+}) => (
+  <div className="auth-desktop-view fade-in">
+    <div className="dlogin-page dauth-page">
+      <div className="dlogin-wrapper dauth-wrapper">
+        <div className="dlogin-left dauth-left">
+          <div className="dlogin-left-inner dauth-left-inner">
+            <div className="dlogin-logo-section dauth-logo-section">
+              <div className="dlogin-logo-box dauth-logo-box">
+                <MapIcon />
+              </div>
+              <h1>EduRoute</h1>
+              <h2>{portalLabel}</h2>
+            </div>
 
-    <div className="recovery-title-box">
-      <div className="yellow-bar"></div>
-      <h1>Account<br />Recovery</h1>
-    </div>
+            <div className="dauth-side-copy">
+              <span className="dauth-side-eyebrow">{sideEyebrow}</span>
+              <h3>{sideTitle}</h3>
+              <p>{sideDescription}</p>
+            </div>
 
-    <p className="recovery-desc">
-      Enter your registered institutional email to receive a secure password reset link.
-    </p>
+            <div className="dlogin-footer dauth-footer">
+              <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
+              <div className="dauth-footer-links">
+                <span>Privacy Policy</span>
+                <span>System Status</span>
+              </div>
+            </div>
+          </div>
 
-    <form className="card recovery-card" onSubmit={onForgotPassword}>
-      <div className="input-group">
-        <label>INSTITUTIONAL EMAIL</label>
-        <div className="input-wrapper tall-input-wrapper">
-          <div className="at-icon-wrapper"><AtSymbolIcon /></div>
-          <textarea
-            placeholder="e.g.&#10;professor.name@eduroute.edu"
-            rows={2}
-            spellCheck="false"
-            value={forgotForm.email}
-            onChange={(e) =>
-              setForgotForm((prev) => ({
-                ...prev,
-                email: e.target.value
-              }))
-            }
-          />
+          <div className="dlogin-bg-circle dauth-bg-circle" />
         </div>
-      </div>
 
-      <button type="submit" className="primary-btn" disabled={loading}>
-        {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
-      </button>
-
-      <button type="button" className="ghost-btn" onClick={() => setView('login')}>
-        <LoginDoorIcon /> Back to Login
-      </button>
-    </form>
-
-    <div className="support-badge">
-      <div className="support-icon">
-        <HeadsetIcon />
-      </div>
-      <div className="support-text">
-        Issue persists? Contact<br />
-        <span>IT Support Desk</span>
+        <div className="dlogin-right dauth-right">
+          <div className="dlogin-form-inner dauth-form-inner">
+            <div className="dauth-form-scroll">
+              <div className="dlogin-form-header dauth-form-header">
+                <h2>{formTitle}</h2>
+                <p>{formDescription}</p>
+              </div>
+              {children}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
+);
+
+const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading }) => (
+  <>
+    <DesktopAuthShell
+      portalLabel="ACCOUNT RECOVERY PORTAL"
+      sideEyebrow="PASSWORD SUPPORT"
+      sideTitle="Recover Access"
+      sideDescription="Use your registered institutional email to receive a secure reset link and restore access to your account."
+      formTitle="Account Recovery"
+      formDescription="Enter your registered institutional email to receive a secure password reset link."
+    >
+      <form className="card recovery-card dauth-card dauth-recovery-card" onSubmit={onForgotPassword}>
+        <div className="input-group">
+          <label>INSTITUTIONAL EMAIL</label>
+          <div className="input-wrapper tall-input-wrapper">
+            <div className="at-icon-wrapper"><AtSymbolIcon /></div>
+            <textarea
+              placeholder="e.g.&#10;professor.name@eduroute.edu"
+              rows={2}
+              spellCheck="false"
+              value={forgotForm.email}
+              onChange={(e) =>
+                setForgotForm((prev) => ({
+                  ...prev,
+                  email: e.target.value
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        <button type="submit" className="primary-btn" disabled={loading}>
+          {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
+        </button>
+
+        <button type="button" className="ghost-btn" onClick={() => setView('login')}>
+          <LoginDoorIcon /> Back to Login
+        </button>
+      </form>
+
+      <div className="support-badge dauth-support-badge">
+        <div className="support-icon">
+          <HeadsetIcon />
+        </div>
+        <div className="support-text">
+          Issue persists? Contact<br />
+          <span>IT Support Desk</span>
+        </div>
+      </div>
+    </DesktopAuthShell>
+
+    <div className="auth-mobile-view content fade-in forgot-pw-content">
+      <div className="recovery-header">
+        <CapIcon />
+        <span>EduRoute Portal</span>
+      </div>
+
+      <div className="recovery-title-box">
+        <div className="yellow-bar"></div>
+        <h1>Account<br />Recovery</h1>
+      </div>
+
+      <p className="recovery-desc">
+        Enter your registered institutional email to receive a secure password reset link.
+      </p>
+
+      <form className="card recovery-card" onSubmit={onForgotPassword}>
+        <div className="input-group">
+          <label>INSTITUTIONAL EMAIL</label>
+          <div className="input-wrapper tall-input-wrapper">
+            <div className="at-icon-wrapper"><AtSymbolIcon /></div>
+            <textarea
+              placeholder="e.g.&#10;professor.name@eduroute.edu"
+              rows={2}
+              spellCheck="false"
+              value={forgotForm.email}
+              onChange={(e) =>
+                setForgotForm((prev) => ({
+                  ...prev,
+                  email: e.target.value
+                }))
+              }
+            />
+          </div>
+        </div>
+
+        <button type="submit" className="primary-btn" disabled={loading}>
+          {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
+        </button>
+
+        <button type="button" className="ghost-btn" onClick={() => setView('login')}>
+          <LoginDoorIcon /> Back to Login
+        </button>
+      </form>
+
+      <div className="support-badge">
+        <div className="support-icon">
+          <HeadsetIcon />
+        </div>
+        <div className="support-text">
+          Issue persists? Contact<br />
+          <span>IT Support Desk</span>
+        </div>
+      </div>
+    </div>
+  </>
 );
 
 const ResetCodeView = ({
@@ -1622,73 +1883,136 @@ const ResetCodeView = ({
   };
 
   return (
-    <div className="content fade-in forgot-pw-content reset-code-content">
-      <div className="recovery-header">
-        <CapIcon />
-        <span>EduRoute Faculty</span>
-      </div>
+    <>
+      <DesktopAuthShell
+        portalLabel="ACCOUNT RECOVERY PORTAL"
+        sideEyebrow="VERIFICATION STEP"
+        sideTitle="Confirm Reset Code"
+        sideDescription="Enter the six-digit reset code sent to the registered account so we can verify this password recovery request."
+        formTitle="Enter Reset Code"
+        formDescription="Type the six-digit verification code and continue to set a new password."
+      >
+        <form className="card recovery-card reset-code-card dauth-card dauth-recovery-card" onSubmit={onVerifyResetCode}>
+          <div className="input-group">
+            <label>TYPE OTP CODE</label>
+            <div className="otp-code-row" onPaste={handleCodePaste}>
+              {digits.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(node) => {
+                    codeInputRefs.current[index] = node;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  className="otp-code-box"
+                  value={digit}
+                  aria-label={`Reset code digit ${index + 1}`}
+                  onChange={(e) => updateDigit(index, e.target.value)}
+                  onKeyDown={(e) => handleCodeKeyDown(index, e)}
+                />
+              ))}
+            </div>
+          </div>
 
-      <div className="recovery-title-box reset-code-title-box">
-        <div className="yellow-bar"></div>
-        <h1>Account<br />Recovery</h1>
-      </div>
+          <button
+            type="button"
+            className="resend-code-btn"
+            disabled={!canResend}
+            onClick={onResendResetCode}
+          >
+            {canResend ? 'RESEND CODE' : `RESEND IN ${resendCooldown}s`}
+          </button>
 
-      <p className="recovery-desc reset-code-desc">
-        Enter your registered faculty email to receive a secure password reset link.
-      </p>
+          <button type="submit" className="primary-btn reset-verify-btn" disabled={loading || resetCode.length !== 6}>
+            {loading ? 'Verifying...' : <>Verify <ArrowRightIcon /></>}
+          </button>
 
-      <form className="card recovery-card reset-code-card" onSubmit={onVerifyResetCode}>
-        <div className="input-group">
-          <label>TYPE OTP CODE</label>
-          <div className="otp-code-row" onPaste={handleCodePaste}>
-            {digits.map((digit, index) => (
-              <input
-                key={index}
-                ref={(node) => {
-                  codeInputRefs.current[index] = node;
-                }}
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={1}
-                className="otp-code-box"
-                value={digit}
-                aria-label={`Reset code digit ${index + 1}`}
-                onChange={(e) => updateDigit(index, e.target.value)}
-                onKeyDown={(e) => handleCodeKeyDown(index, e)}
-              />
-            ))}
+          <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
+            <LoginDoorIcon /> Back to Faculty Login
+          </button>
+        </form>
+
+        <div className="support-badge dauth-support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
           </div>
         </div>
+      </DesktopAuthShell>
 
-        <button
-          type="button"
-          className="resend-code-btn"
-          disabled={!canResend}
-          onClick={onResendResetCode}
-        >
-          {canResend ? 'RESEND CODE' : `RESEND IN ${resendCooldown}s`}
-        </button>
-
-        <button type="submit" className="primary-btn reset-verify-btn" disabled={loading || resetCode.length !== 6}>
-          {loading ? 'Verifying...' : <>Verify <ArrowRightIcon /></>}
-        </button>
-
-        <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
-          <LoginDoorIcon /> Back to Faculty Login
-        </button>
-      </form>
-
-      <div className="support-badge">
-        <div className="support-icon">
-          <HeadsetIcon />
+      <div className="auth-mobile-view content fade-in forgot-pw-content reset-code-content">
+        <div className="recovery-header">
+          <CapIcon />
+          <span>EduRoute Faculty</span>
         </div>
-        <div className="support-text">
-          Issue persists? Contact<br />
-          <span>IT Support Desk</span>
+
+        <div className="recovery-title-box reset-code-title-box">
+          <div className="yellow-bar"></div>
+          <h1>Account<br />Recovery</h1>
+        </div>
+
+        <p className="recovery-desc reset-code-desc">
+          Enter your registered faculty email to receive a secure password reset link.
+        </p>
+
+        <form className="card recovery-card reset-code-card" onSubmit={onVerifyResetCode}>
+          <div className="input-group">
+            <label>TYPE OTP CODE</label>
+            <div className="otp-code-row" onPaste={handleCodePaste}>
+              {digits.map((digit, index) => (
+                <input
+                  key={index}
+                  ref={(node) => {
+                    codeInputRefs.current[index] = node;
+                  }}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={1}
+                  className="otp-code-box"
+                  value={digit}
+                  aria-label={`Reset code digit ${index + 1}`}
+                  onChange={(e) => updateDigit(index, e.target.value)}
+                  onKeyDown={(e) => handleCodeKeyDown(index, e)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="resend-code-btn"
+            disabled={!canResend}
+            onClick={onResendResetCode}
+          >
+            {canResend ? 'RESEND CODE' : `RESEND IN ${resendCooldown}s`}
+          </button>
+
+          <button type="submit" className="primary-btn reset-verify-btn" disabled={loading || resetCode.length !== 6}>
+            {loading ? 'Verifying...' : <>Verify <ArrowRightIcon /></>}
+          </button>
+
+          <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
+            <LoginDoorIcon /> Back to Faculty Login
+          </button>
+        </form>
+
+        <div className="support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -1729,7 +2053,114 @@ const SetNewPasswordView = ({
   };
 
   return (
-    <div className="content fade-in forgot-pw-content set-password-content">
+    <>
+      <DesktopAuthShell
+        portalLabel="ACCOUNT RECOVERY PORTAL"
+        sideEyebrow="SECURE RESET"
+        sideTitle="Create A New Password"
+        sideDescription="Set a fresh password that meets the institutional policy before access is restored."
+        formTitle="Set New Password"
+        formDescription="Create a strong new password and confirm it to finish the account recovery flow."
+      >
+        <div className="password-policy-card set-password-policy-card dauth-policy-card">
+          <div className="policy-heading">
+            <PolicyBulbIcon />
+            <span>PASSWORD POLICY</span>
+          </div>
+          <div className="policy-list">
+            <div className={`policy-item ${resetPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.minLength} />
+              <span>Minimum 10 characters</span>
+            </div>
+            <div className={`policy-item ${resetPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.symbolsNumbers} />
+              <span>Include symbols &amp; numbers</span>
+            </div>
+            <div className={`policy-item ${resetPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.noPersonal} />
+              <span>No personal information</span>
+            </div>
+          </div>
+        </div>
+
+        <form className="card recovery-card set-password-card dauth-card dauth-set-password-card" onSubmit={handleSubmit}>
+          <h2 className="set-password-card-title">SET NEW PASSWORD</h2>
+
+          <div className="input-group">
+            <label>PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showResetPassword ? 'text' : 'password'}
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                value={newPasswordForm.password}
+                onChange={(e) =>
+                  setNewPasswordForm((prev) => ({
+                    ...prev,
+                    password: e.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowResetPassword((prev) => !prev)}
+              >
+                {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>CONFIRM PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showResetConfirmPassword ? 'text' : 'password'}
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                value={newPasswordForm.confirm_password}
+                onChange={(e) =>
+                  setNewPasswordForm((prev) => ({
+                    ...prev,
+                    confirm_password: e.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showResetConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onClick={() => setShowResetConfirmPassword((prev) => !prev)}
+              >
+                {showResetConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          {newPasswordForm.confirm_password.length > 0 && !passwordsMatch && (
+            <span className="set-password-mismatch">Passwords do not match</span>
+          )}
+
+          <button
+            type="submit"
+            className={`primary-btn set-password-save-btn ${canSavePassword ? 'ready' : 'disabled'}`}
+            disabled={!canSavePassword}
+          >
+            {loading ? 'Saving...' : <>Save Password <ArrowRightIcon /></>}
+          </button>
+        </form>
+
+        <div className="support-badge dauth-support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
+          </div>
+        </div>
+      </DesktopAuthShell>
+
+      <div className="auth-mobile-view content fade-in forgot-pw-content set-password-content">
       <div className="recovery-header">
         <CapIcon />
         <span>EduRoute Faculty</span>
@@ -1840,7 +2271,8 @@ const SetNewPasswordView = ({
           <span>IT Support Desk</span>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 
@@ -1892,7 +2324,209 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
   };
 
   return (
-    <div className="content fade-in signup-content">
+    <>
+      <DesktopAuthShell
+        portalLabel={signupRole.title.toUpperCase()}
+        sideEyebrow="INSTITUTIONAL ONBOARDING"
+        sideTitle={`Create ${signupRole.label} Access`}
+        sideDescription="Set up a secure EduRoute account with institutional details and a compliant password."
+        formTitle={`Create ${signupRole.label} Account`}
+        formDescription="Enter your institutional details to begin and review the password policy before submitting."
+      >
+        <form className="card signup-card dauth-card dauth-signup-card" onSubmit={handleSignupSubmit}>
+          <div className="signup-header">
+            <h1>Create {signupRole.label}<br />Account</h1>
+            <p>Please enter your institutional details to begin.</p>
+          </div>
+
+          <div className="signup-role-selector" aria-label="Select account role">
+            {LOGIN_ROLES.map((role) => {
+              const RoleIcon = role.icon;
+              const isActive = selectedSignupRole === role.key;
+
+              return (
+                <button
+                  type="button"
+                  key={role.key}
+                  className={`signup-role-tab ${isActive ? 'active' : ''}`}
+                  onClick={() =>
+                    setRegisterForm((prev) => ({
+                      ...prev,
+                      account_role: role.key,
+                      department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : '',
+                    }))
+                  }
+                >
+                  <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
+                  <span>{role.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="input-group">
+            <label>FULL NAME</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="text"
+                placeholder="Dr. Julian Vane"
+                value={registerForm.full_name}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>EMPLOYEE ID</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="text"
+                placeholder="FAC-88920"
+                value={registerForm.employee_id}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          {signupNeedsDepartment && (
+            <div className="input-group">
+              <label>DEPARTMENT</label>
+              <div className="input-wrapper plain-input-wrapper select-wrapper">
+                <select
+                  value={registerForm.department_id}
+                  onChange={(e) =>
+                    setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+                  }
+                >
+                  <option value="" disabled>Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.department_name}
+                    </option>
+                  ))}
+                </select>
+                <div className="select-icon">
+                  <ChevronDownIcon />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="input-group">
+            <label>EMAIL ADDRESS</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="email"
+                placeholder="faculty@university.edu"
+                value={registerForm.email}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="password-policy-card dauth-policy-card">
+            <div className="policy-heading">
+              <PolicyBulbIcon />
+              <span>PASSWORD POLICY</span>
+            </div>
+            <div className="policy-list">
+              <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
+                <span>Minimum 10 characters</span>
+              </div>
+              <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
+                <span>Include symbols &amp; numbers</span>
+              </div>
+              <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
+                <span>No personal information</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showSignupPassword ? 'text' : 'password'}
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                value={registerForm.password}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowSignupPassword((prev) => !prev)}
+              >
+                {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>CONFIRM PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showSignupConfirmPassword ? 'text' : 'password'}
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
+                value={registerForm.confirm_password}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
+              >
+                {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <label className="checkbox-container">
+            <input
+              type="checkbox"
+              checked={registerForm.terms_accepted}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
+              }
+            />
+            <span className="checkmark"></span>
+            <span className="checkbox-label">
+              I agree to the{' '}
+              <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
+                Terms of Service
+              </button>{' '}
+              and{' '}
+              <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
+                Privacy Policy
+              </button>.
+            </span>
+          </label>
+
+          <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
+            {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
+          </button>
+
+          <div className="signup-footer-link">
+            Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+          </div>
+        </form>
+      </DesktopAuthShell>
+
+      <div className="auth-mobile-view content fade-in signup-content">
       <form className="card signup-card" onSubmit={handleSignupSubmit}>
         <div className="signup-header">
           <h1>Create {signupRole.label}<br />Account</h1>
@@ -2095,11 +2729,13 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
         </div>
       </div>
 
+      </div>
+
       <LegalDocumentModal
         activeLegalDoc={activeLegalDoc}
         onClose={() => setActiveLegalDoc(null)}
       />
-    </div>
+    </>
   );
 };
 
@@ -6783,6 +7419,499 @@ const DeanRequestsModal = ({ onClose }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+const HrmuSidebarGridIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="4" y="4" width="6" height="6" rx="1.2" />
+    <rect x="14" y="4" width="6" height="6" rx="1.2" />
+    <rect x="4" y="14" width="6" height="6" rx="1.2" />
+    <rect x="14" y="14" width="6" height="6" rx="1.2" />
+  </svg>
+);
+
+const HrmuVerificationIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 3l7 3v5c0 5-3.4 8.6-7 10-3.6-1.4-7-5-7-10V6l7-3z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
+const HrmuChartIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20V4" />
+    <path d="M4 20h16" />
+    <rect x="7" y="12" width="3" height="5" rx="1" />
+    <rect x="12" y="8" width="3" height="9" rx="1" />
+    <rect x="17" y="5" width="3" height="12" rx="1" />
+  </svg>
+);
+
+const HrmuMapRouteIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2V6z" />
+    <path d="M9 4v14" />
+    <path d="M15 6v14" />
+  </svg>
+);
+
+const HrmuReportIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M7 3h7l5 5v13H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+    <path d="M14 3v5h5" />
+    <path d="M10 13h6" />
+    <path d="M10 17h4" />
+  </svg>
+);
+
+const HrmuWarningIcon = ({ color = "#C81E1E" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4l8 15H4L12 4z" />
+    <path d="M12 9v4" />
+    <circle cx="12" cy="17" r="1" fill={color} stroke="none" />
+  </svg>
+);
+
+const HrmuSyncIcon = ({ color = "#A27A00" }) => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 12a9 9 0 0 1 15-6l2 2" />
+    <path d="M21 12a9 9 0 0 1-15 6l-2-2" />
+    <path d="M18 4v4h-4" />
+    <path d="M6 20v-4h4" />
+  </svg>
+);
+
+const HrmuMiniCheckIcon = ({ color = "var(--green)" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="M8.6 12.2l2.2 2.2 4.8-5" />
+  </svg>
+);
+
+const HrmuFilterIcon = ({ color = "#5F645F" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 7h16" />
+    <path d="M7 12h10" />
+    <path d="M10 17h4" />
+  </svg>
+);
+
+const HrmuExportIcon = ({ color = "white" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 4v10" />
+    <path d="M8 10l4 4 4-4" />
+    <path d="M5 20h14" />
+  </svg>
+);
+
+const TogaLogoIcon = ({ size = 24 }) => (
+  <svg width={size} height={Math.round((size * 18) / 22)} viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <path d="M20 14V7.1L11 12L0 6L11 0L22 6V14H20ZM11 18L4 14.2V9.2L11 13L18 9.2V14.2L11 18Z" fill="currentColor" />
+  </svg>
+);
+
+const HrmuViewRouteIcon = ({ color = 'currentColor' }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 5h5v5" />
+    <path d="M10 14 19 5" />
+    <path d="M5 19h14" />
+  </svg>
+);
+
+const HrmuPinMiniIcon = ({ color = 'var(--green)' }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 21s-6-4.35-6-10a6 6 0 1 1 12 0c0 5.65-6 10-6 10Z" />
+    <circle cx="12" cy="11" r="2.2" />
+  </svg>
+);
+
+const HrmuEyeMiniIcon = ({ color = 'currentColor' }) => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const HrmuCheckTinyIcon = ({ color = 'white' }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m5 12 4 4 10-10" />
+  </svg>
+);
+
+const HrmuAlertTinyIcon = ({ color = '#3B3B3B' }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+  </svg>
+);
+
+const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, children }) => {
+  const sidebarItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: HrmuSidebarGridIcon, target: 'hrmu-dashboard' },
+    { key: 'verification', label: 'Verification', icon: HrmuVerificationIcon, target: 'hrmu-verification' },
+    { key: 'analytics', label: 'Analytics', icon: HrmuChartIcon },
+    { key: 'live', label: 'Live Tracking', icon: HrmuMapRouteIcon },
+    { key: 'reports', label: 'Reports', icon: HrmuReportIcon },
+  ];
+
+  return (
+    <div className="hrmu-workspace">
+      <aside className="hrmu-sidebar">
+        <div className="hrmu-sidebar-top">
+          <div className="hrmu-brand-lockup">
+            <div className="hrmu-brand-badge">
+              <TogaLogoIcon size={24} />
+            </div>
+            <div className="hrmu-brand-text">
+              <strong>EduRoute</strong>
+              <span>HRMU ADMIN</span>
+            </div>
+          </div>
+
+          <nav className="hrmu-sidebar-nav">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.key === activeKey;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`hrmu-nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => item.target && setView(item.target)}
+                >
+                  <Icon color={isActive ? 'var(--green)' : '#4B5563'} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="hrmu-sidebar-bottom">
+          <button type="button" className="hrmu-logout-btn" onClick={onLogout}>Log Out</button>
+          <button type="button" className="hrmu-support-link">
+            <HeadsetIcon />
+            <span>Support</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="hrmu-main">
+        <header className="hrmu-topbar">
+          <span className="hrmu-topbar-logo">EduRoute</span>
+          <div className="hrmu-topbar-right">
+            <div className="admin-bell-wrapper">
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="hrmu-manager-copy">
+              <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
+              <span>ADMIN PANEL</span>
+            </div>
+            <div className="admin-avatar">
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
+            </div>
+          </div>
+        </header>
+
+        <div className="hrmu-main-scroll">
+          {children}
+          <button type="button" className="hrmu-floating-map-btn" aria-label="Open map">
+            <MapIcon />
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
+  const sidebarItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: HrmuSidebarGridIcon, active: true },
+    { key: 'verification', label: 'Verification', icon: HrmuVerificationIcon },
+    { key: 'analytics', label: 'Analytics', icon: HrmuChartIcon },
+    { key: 'live', label: 'Live Tracking', icon: HrmuMapRouteIcon },
+    { key: 'reports', label: 'Reports', icon: HrmuReportIcon },
+  ];
+
+  const stats = [
+    { label: 'TOTAL FACULTY OUTSIDE', value: '24', accent: 'green', meta: 'LIVE UPDATE', submeta: 'Last activity 2m ago' },
+    { label: 'VERIFIED LOCATOR SLIPS', value: '18', accent: 'yellow' },
+    { label: 'UNVERIFIED CASES', value: '06', accent: 'red', meta: 'NEEDS ATTENTION' },
+  ];
+
+  const notifications = [
+    {
+      title: 'Faculty Outside Hours',
+      body: 'Dr. Elena Ross detected outside without active clearance.',
+      meta: 'FLAGGED 5M AGO',
+      tone: 'red',
+      icon: <HrmuWarningIcon />,
+    },
+    {
+      title: 'Locator Slip Verified',
+      body: 'Mr. Ken Bau request for Academic Conference approved.',
+      meta: 'TODAY 10:45 AM',
+      tone: 'green',
+      icon: <HrmuMiniCheckIcon color="var(--green)" />,
+    },
+    {
+      title: 'Daily Report Ready',
+      body: 'Attendance & Exit analytics for this month are now available.',
+      meta: 'YESTERDAY',
+      tone: 'yellow',
+      icon: <HrmuSyncIcon />,
+    },
+  ];
+
+  const logRows = [
+    { initials: 'AM', name: 'Aris Miller', dept: 'CAHS Department', departure: '08:15 AM', returnTime: '05:00 PM', purpose: 'Research Gathering', verification: 'QR VERIFIED', verificationTone: 'green', status: 'OFF-SITE', statusTone: 'green' },
+    { initials: 'ER', name: 'Rey Gun', dept: 'CCS Department', departure: '09:30 AM', returnTime: '12:00 PM', purpose: 'Field Supervision', verification: 'UNVERIFIED', verificationTone: 'red', status: 'MISSING SLIP', statusTone: 'red' },
+    { initials: 'JC', name: 'Dr. Lin Case', dept: 'CCS Department', departure: '07:00 AM', returnTime: '11:30 AM', purpose: 'Regional Seminar', verification: 'QR VERIFIED', verificationTone: 'green', status: 'RETURNED', statusTone: 'yellow' },
+  ];
+
+  return (
+    <HrmuWorkspaceShell activeKey="dashboard" setView={setView} profileData={profileData} onLogout={onLogout}>
+          <section className="hrmu-stats-grid">
+            {stats.map((stat) => (
+              <article key={stat.label} className={`hrmu-stat-card ${stat.accent}`}>
+                <span className="hrmu-stat-label">{stat.label}</span>
+                <strong className="hrmu-stat-value">{stat.value}</strong>
+                {stat.meta && (
+                  <div className="hrmu-stat-meta-row">
+                    <span className={`hrmu-stat-chip ${stat.accent}`}>{stat.meta}</span>
+                    {stat.submeta && <small>{stat.submeta}</small>}
+                  </div>
+                )}
+              </article>
+            ))}
+          </section>
+
+          <section className="hrmu-overview-grid">
+            <article className="hrmu-route-panel">
+              <div className="hrmu-panel-heading">
+                <h2>Live Faculty Route</h2>
+                <button type="button">↗ View Full Map</button>
+              </div>
+              <div className="hrmu-map-card">
+                <div className="hrmu-map-surface" aria-hidden="true">
+                  <div className="hrmu-map-road road-a" />
+                  <div className="hrmu-map-road road-b" />
+                  <div className="hrmu-map-road road-c" />
+                  <div className="hrmu-map-spot spot-a" />
+                  <div className="hrmu-map-spot spot-b" />
+                  <div className="hrmu-map-spot spot-c" />
+                </div>
+                <div className="hrmu-map-pin" />
+                <div className="hrmu-map-summary">
+                  <div>
+                    <span>OLONGAPO ZONE</span>
+                    <strong>14</strong>
+                    <small>ACTIVE SLIPS</small>
+                  </div>
+                  <div>
+                    <strong>100%</strong>
+                    <small>SIGNAL</small>
+                  </div>
+                </div>
+              </div>
+            </article>
+
+            <aside className="hrmu-notifications-panel">
+              <div className="hrmu-panel-heading notifications">
+                <h2>Notifications</h2>
+                <span className="hrmu-alert-pill">02 ALERTS</span>
+              </div>
+              <div className="hrmu-notification-list">
+                {notifications.map((note) => (
+                  <article key={note.title} className={`hrmu-notification-card ${note.tone}`}>
+                    <div className="hrmu-notification-icon">{note.icon}</div>
+                    <div className="hrmu-notification-copy">
+                      <h3>{note.title}</h3>
+                      <p>{note.body}</p>
+                      <span>{note.meta}</span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+              <button type="button" className="hrmu-history-link">VIEW ALL HISTORY</button>
+            </aside>
+          </section>
+
+          <section className="hrmu-log-section">
+            <div className="hrmu-log-header">
+              <div>
+                <h2>Recent Activity Log</h2>
+                <p>Detailed record of campus entries and exits</p>
+              </div>
+              <div className="hrmu-log-actions">
+                <button type="button" className="hrmu-filter-btn"><HrmuFilterIcon /> <span>Filter</span></button>
+                <button type="button" className="hrmu-export-btn"><HrmuExportIcon /> <span>Export CSV</span></button>
+              </div>
+            </div>
+
+            <div className="hrmu-log-card">
+              <div className="hrmu-log-table">
+                <div className="hrmu-log-head">
+                  <span>FACULTY MEMBER</span>
+                  <span>DEPARTURE</span>
+                  <span>EXPECTED RETURN</span>
+                  <span>PURPOSE</span>
+                  <span>VERIFICATION</span>
+                  <span>STATUS</span>
+                </div>
+
+                {logRows.map((row) => (
+                  <div key={row.name} className="hrmu-log-row">
+                    <div className="hrmu-faculty-cell">
+                      <div className="hrmu-initials-badge">{row.initials}</div>
+                      <div>
+                        <strong>{row.name}</strong>
+                        <span>{row.dept}</span>
+                      </div>
+                    </div>
+                    <span>{row.departure}</span>
+                    <span>{row.returnTime}</span>
+                    <span>{row.purpose}</span>
+                    <span className={`hrmu-verification ${row.verificationTone}`}>{row.verification}</span>
+                    <span className={`hrmu-status-pill ${row.statusTone}`}>{row.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
+  const verificationStats = [
+    { label: 'ON-MISSION', value: '24', tone: 'green', decorate: true },
+    { label: 'PENDING VERIFY', value: '08', tone: 'neutral' },
+  ];
+
+  const registryRows = [
+    {
+      name: 'Dr. Elias Thorne',
+      id: '202120022',
+      department: 'College of Business and Accountancy',
+      timeout: '09:15 AM',
+      destination: 'City Hall',
+      status: 'VERIFIED',
+      statusTone: 'green',
+      actionLabel: 'Details',
+      actionTone: 'ghost',
+      actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
+    },
+    {
+      name: 'Mr. Ken Bau',
+      id: '202312290',
+      department: 'College of Computer Studies',
+      timeout: '08:45 AM',
+      destination: 'Civic Center',
+      status: 'PENDING',
+      statusTone: 'yellow',
+      actionLabel: 'Verify',
+      actionTone: 'green',
+      actionIcon: <HrmuCheckTinyIcon />,
+    },
+    {
+      name: 'Mr. Lau Del',
+      id: '201999280',
+      department: 'College of Computer Studies',
+      timeout: '10:05 AM',
+      destination: 'Med-Lab Center',
+      status: 'FLAGGED',
+      statusTone: 'red',
+      actionLabel: 'Review',
+      actionTone: 'gray',
+      actionIcon: <HrmuAlertTinyIcon />,
+    },
+  ];
+
+  return (
+    <HrmuWorkspaceShell activeKey="verification" setView={setView} profileData={profileData} onLogout={onLogout}>
+      <section className="hrmu-verification-hero">
+        <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
+        <h1>External Faculty Verification</h1>
+        <p>Live monitoring of academic personnel currently dispatched for off-campus engagements.</p>
+      </section>
+
+      <section className="hrmu-verification-stats">
+        {verificationStats.map((card) => (
+          <article key={card.label} className={`hrmu-verify-stat-card ${card.tone}`}>
+            <span className="hrmu-verify-stat-label">{card.label}</span>
+            <strong className="hrmu-verify-stat-value">{card.value}</strong>
+            {card.decorate && <div className="hrmu-verify-card-mark" aria-hidden="true" />}
+          </article>
+        ))}
+        <article className="hrmu-verify-rate-card">
+          <span className="hrmu-verify-stat-label inverse">VERIFICATION RATE</span>
+          <div className="hrmu-verify-rate-row">
+            <strong>94.2%</strong>
+            <div className="hrmu-verify-bars" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section className="hrmu-verify-registry-card">
+        <div className="hrmu-verify-registry-header">
+          <div className="hrmu-verify-registry-title">
+            <span className="hrmu-verify-registry-accent" aria-hidden="true" />
+            <h2>Active Dispatch Registry</h2>
+          </div>
+          <div className="hrmu-verify-registry-tools">
+            <button type="button" className="hrmu-verify-filter-chip">Filter: All Departments</button>
+            <button type="button" className="hrmu-verify-filter-chip">Sort: Time Out</button>
+          </div>
+        </div>
+
+        <div className="hrmu-verify-table">
+          <div className="hrmu-verify-table-head">
+            <span>FACULTY MEMBER</span>
+            <span>DEPARTMENT</span>
+            <span>TIME OUT</span>
+            <span>DESTINATION</span>
+            <span>STATUS</span>
+            <span>ACTIONS</span>
+          </div>
+
+          {registryRows.map((row) => (
+            <div key={row.name} className="hrmu-verify-row">
+              <div className="hrmu-verify-faculty">
+                <div className="hrmu-verify-avatar">
+                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={row.name} />
+                </div>
+                <div>
+                  <strong>{row.name}</strong>
+                  <span>ID:</span>
+                  <small>{row.id}</small>
+                </div>
+              </div>
+              <div className="hrmu-verify-dept">{row.department}</div>
+              <div className="hrmu-verify-time">{row.timeout}</div>
+              <div className="hrmu-verify-destination"><HrmuPinMiniIcon /> <span>{row.destination}</span></div>
+              <span className={`hrmu-verify-status ${row.statusTone}`}>{row.status}</span>
+              <div className="hrmu-verify-actions">
+                <button type="button" className={`hrmu-verify-action-btn ${row.actionTone}`}>
+                  {row.actionIcon}
+                  <span>{row.actionLabel}</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button type="button" className="hrmu-verify-footer-link">View All 15 Dispatched Faculty</button>
+      </section>
+    </HrmuWorkspaceShell>
   );
 };
 
