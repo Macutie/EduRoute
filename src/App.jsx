@@ -11,6 +11,7 @@ import {
   useDeanRealtimeNotifications,
 } from './hooks/useDeanDashboard';
 import {
+  approveDeanLocatorSlipRequest,
   getDeanFacultyOverview,
   getDeanLocatorSlips,
   getDeanNotifications,
@@ -6416,6 +6417,8 @@ const DeanRequestsView = ({ setView, profileData, setSelectedDeanRequest }) => {
 };
 
 const DeanRequestDetailView = ({ setView, profileData, request }) => {
+  const [approving, setApproving] = useState(false);
+
   if (!request) {
     return (
       <div className="admin-dash-wrapper dean-requests-wrapper">
@@ -6441,6 +6444,21 @@ const DeanRequestDetailView = ({ setView, profileData, request }) => {
       ? `${normalizedStatus.charAt(0).toUpperCase()}${normalizedStatus.slice(1)}`
       : 'Pending';
   const showActions = request.status === 'pending';
+
+  const handleApproveRequest = async () => {
+    if (!request?.locatorSlipId || approving) return;
+
+    try {
+      setApproving(true);
+      await approveDeanLocatorSlipRequest(request.locatorSlipId);
+      alert('Locator slip approved successfully.');
+      setView('dean-requests');
+    } catch (error) {
+      alert(error.message || 'Failed to approve locator slip.');
+    } finally {
+      setApproving(false);
+    }
+  };
 
   return (
     <div className="admin-dash-wrapper dean-requests-wrapper">
@@ -6537,9 +6555,9 @@ const DeanRequestDetailView = ({ setView, profileData, request }) => {
 
         {showActions && (
           <div className="adet-actions">
-            <button type="button" className="adet-approve-btn">
+            <button type="button" className="adet-approve-btn" onClick={handleApproveRequest} disabled={approving}>
               <ApproveCheckIcon />
-              Approve Request
+              {approving ? 'Approving...' : 'Approve Request'}
             </button>
             <div className="adet-secondary-actions">
               <button type="button" className="adet-reject-btn">
@@ -7437,18 +7455,31 @@ const RegistryDetailsModal = ({ item, onClose }) => {
       : status === 'cancelled'
         ? 'CANCELLED REQUEST'
         : 'PENDING REQUEST';
-  const departureDate = item.departureDatetime
-    ? new Date(item.departureDatetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Not provided';
-  const departureTime = item.departureDatetime
-    ? new Date(item.departureDatetime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    : '--:--';
-  const returnDate = item.expectedReturnDatetime
-    ? new Date(item.expectedReturnDatetime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : 'Not provided';
-  const returnTime = item.expectedReturnDatetime
-    ? new Date(item.expectedReturnDatetime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-    : '--:--';
+  const splitDateTime = (formattedValue, rawValue) => {
+    if (formattedValue && formattedValue.includes(' ')) {
+      const parts = formattedValue.split(' ');
+      return {
+        date: parts.slice(0, 1).join(' ') || 'Not provided',
+        time: parts.slice(1).join(' ') || '--:--'
+      };
+    }
+
+    if (rawValue) {
+      const parsedDate = new Date(rawValue);
+      return {
+        date: parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        time: parsedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      };
+    }
+
+    return {
+      date: 'Not provided',
+      time: '--:--'
+    };
+  };
+
+  const departureSchedule = splitDateTime(item.formattedDepartureDatetime, item.departureDatetime);
+  const returnSchedule = splitDateTime(item.formattedExpectedReturnDatetime, item.expectedReturnDatetime);
   const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Dean';
   const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
   const signatureTimestamp = item.digitalSignature?.signedAt
@@ -7510,18 +7541,20 @@ const RegistryDetailsModal = ({ item, onClose }) => {
         </div>
 
         {/* Travel Schedule */}
-        <div className="rmodal-schedule">
-          <span className="rmodal-schedule-label">TRAVEL SCHEDULE</span>
-          <div className="rmodal-schedule-cols">
-            <div className="rmodal-schedule-col">
-              <span className="rmodal-schedule-type">DEPARTURE</span>
-              <span className="rmodal-schedule-date">{departureDate}</span>
-              <span className="rmodal-schedule-time">{departureTime}</span>
-            </div>
-            <div className="rmodal-schedule-col right">
-              <span className="rmodal-schedule-type">RETURN</span>
-              <span className="rmodal-schedule-date">{returnDate}</span>
-              <span className="rmodal-schedule-time">{returnTime}</span>
+        <div className="rmodal-schedule-wrap">
+          <div className="rmodal-schedule">
+            <span className="rmodal-schedule-label">TRAVEL SCHEDULE</span>
+            <div className="rmodal-schedule-cols">
+              <div className="rmodal-schedule-col">
+                <span className="rmodal-schedule-type">DEPARTURE</span>
+                <span className="rmodal-schedule-date">{departureSchedule.date}</span>
+                <span className="rmodal-schedule-time">{departureSchedule.time}</span>
+              </div>
+              <div className="rmodal-schedule-col right">
+                <span className="rmodal-schedule-type">RETURN</span>
+                <span className="rmodal-schedule-date">{returnSchedule.date}</span>
+                <span className="rmodal-schedule-time">{returnSchedule.time}</span>
+              </div>
             </div>
           </div>
         </div>

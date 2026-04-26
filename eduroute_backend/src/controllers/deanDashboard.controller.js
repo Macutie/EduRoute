@@ -73,6 +73,15 @@ const getRegistryPage = async (req, res, next) => {
     }
 };
 
+const approveLocatorSlipRequest = async (req, res, next) => {
+    try {
+        const approvedSlip = await deanDashboardService.approveLocatorSlipRequest(req.user.sub, req.params.id);
+        return res.json(successResponse('Locator slip approved successfully.', approvedSlip));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     getSummary,
     getNotifications,
@@ -81,5 +90,6 @@ module.exports = {
     getPendingApprovals,
     getFacultyOverview,
     getPendingRequestsPage,
-    getRegistryPage
+    getRegistryPage,
+    approveLocatorSlipRequest
 };

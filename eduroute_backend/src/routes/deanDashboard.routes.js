@@ -13,6 +13,7 @@ router.get('/locator-slips', deanDashboardController.getLocatorSlips);
 router.get('/pending-approvals', deanDashboardController.getPendingApprovals);
 router.get('/faculty', deanDashboardController.getFacultyOverview);
 router.get('/requests/pending', deanDashboardController.getPendingRequestsPage);
+router.patch('/requests/:id/approve', deanDashboardController.approveLocatorSlipRequest);
 router.get('/registry', deanDashboardController.getRegistryPage);
 
 module.exports = router;

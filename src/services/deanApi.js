@@ -56,3 +56,8 @@ export const getDeanPendingRequestsPage = () =>
 
 export const getDeanRegistryPage = () =>
   deanApiRequest('/api/dean/registry');
+
+export const approveDeanLocatorSlipRequest = (locatorSlipId) =>
+  deanApiRequest(`/api/dean/requests/${locatorSlipId}/approve`, {
+    method: 'PATCH',
+  });
