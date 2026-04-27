@@ -577,7 +577,7 @@ function App() {
   };
 
   return (
-    <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${['hrmu-dashboard', 'hrmu-verification'].includes(view) ? 'workspace-shell' : ''}`}>
+    <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${['hrmu-dashboard', 'hrmu-verification', 'hrmu-analytics', 'hrmu-reports', 'hrmu-live', 'hrmu-notifications'].includes(view) ? 'workspace-shell' : ''}`}>
       {isAuthView(view) && (
         <div className="status-bar">
           <span className="time">9:41</span>
@@ -718,6 +718,10 @@ function App() {
       )}
       {view === 'hrmu-dashboard' && <HrmuDashboardView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'hrmu-verification' && <HrmuVerificationView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-analytics' && <HrmuAnalyticsReportsView setView={setView} profileData={profileData} onLogout={handleLogout} activeKey="analytics" />}
+      {view === 'hrmu-reports' && <HrmuReportsView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-live' && <HrmuLiveTrackingView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-notifications' && <HrmuNotificationsView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
@@ -7547,13 +7551,13 @@ const HrmuAlertTinyIcon = ({ color = '#3B3B3B' }) => (
   </svg>
 );
 
-const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, children }) => {
+const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, bellActive = false, children }) => {
   const sidebarItems = [
     { key: 'dashboard', label: 'Dashboard', icon: HrmuSidebarGridIcon, target: 'hrmu-dashboard' },
     { key: 'verification', label: 'Verification', icon: HrmuVerificationIcon, target: 'hrmu-verification' },
-    { key: 'analytics', label: 'Analytics', icon: HrmuChartIcon },
-    { key: 'live', label: 'Live Tracking', icon: HrmuMapRouteIcon },
-    { key: 'reports', label: 'Reports', icon: HrmuReportIcon },
+    { key: 'analytics', label: 'Analytics', icon: HrmuChartIcon, target: 'hrmu-analytics' },
+    { key: 'live', label: 'Live Tracking', icon: HrmuMapRouteIcon, target: 'hrmu-live' },
+    { key: 'reports', label: 'Reports', icon: HrmuReportIcon, target: 'hrmu-reports' },
   ];
 
   return (
@@ -7602,7 +7606,7 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
         <header className="hrmu-topbar">
           <span className="hrmu-topbar-logo">EduRoute</span>
           <div className="hrmu-topbar-right">
-            <div className="admin-bell-wrapper">
+            <div className={`admin-bell-wrapper hrmu-bell-wrapper ${bellActive ? 'active' : ''}`} onClick={() => setView('hrmu-notifications')}>
               <AdminBellIcon color="var(--text-dark)" />
               <div className="admin-bell-dot" />
             </div>
@@ -7618,9 +7622,6 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
 
         <div className="hrmu-main-scroll">
           {children}
-          <button type="button" className="hrmu-floating-map-btn" aria-label="Open map">
-            <MapIcon />
-          </button>
         </div>
       </main>
     </div>
@@ -7787,10 +7788,29 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
+  const [selectedRegistryRow, setSelectedRegistryRow] = useState(null);
+  const [statementRequestOpen, setStatementRequestOpen] = useState(false);
+  const [statementReasons, setStatementReasons] = useState(['Unauthorized Location Entry']);
+  const [statementComment, setStatementComment] = useState('');
   const verificationStats = [
     { label: 'ON-MISSION', value: '24', tone: 'green', decorate: true },
     { label: 'PENDING VERIFY', value: '08', tone: 'neutral' },
   ];
+
+  const statementOptions = [
+    'Unauthorized Location Entry',
+    'After-Hours Access',
+    'Missing Locator Slip',
+    'Device Tethering Alert',
+  ];
+
+  const toggleStatementReason = (reason) => {
+    setStatementReasons((current) => (
+      current.includes(reason)
+        ? current.filter((item) => item !== reason)
+        : [...current, reason]
+    ));
+  };
 
   const registryRows = [
     {
@@ -7804,6 +7824,19 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       actionLabel: 'Details',
       actionTone: 'ghost',
       actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
+      requestedBy: "Dean's Office - CBA",
+      slipNumber: 'LS-99231',
+      purposeOfTravel: 'Attend the emergency meeting at Olongapo City Hall',
+      timeoutFull: '09:15 AM',
+      returnFull: '01:30 PM',
+      deanName: 'Dr. Ana Bell',
+      deanRole: 'COLLEGE DEAN',
+      signatureTime: '2023-10-20T14:22:51 UTC+8',
+      coordinates: '14.5995° N, 120.9842° E',
+      distanceFromCampus: '4.2km from Campus',
+      verificationStatus: 'REACHED DESTINATION',
+      verificationBody: 'Identity confirmed via GPS geo-fencing at Tech Hub Plaza. Faculty has checked in using the mobile concierge app.',
+      syncStatus: 'CONNECTED',
     },
     {
       name: 'Mr. Ken Bau',
@@ -7816,6 +7849,19 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       actionLabel: 'Verify',
       actionTone: 'green',
       actionIcon: <HrmuCheckTinyIcon />,
+      requestedBy: "Dean's Office - CCS",
+      slipNumber: 'LS-99231',
+      purposeOfTravel: 'Research Collaboration & Technical Seminar at Olongapo City Civic Center',
+      timeoutFull: '09:15 AM',
+      returnFull: '01:30 PM',
+      deanName: 'Dr. Ron Uy',
+      deanRole: 'COLLEGE DEAN',
+      signatureTime: '2023-10-20T14:22:51 UTC+8',
+      coordinates: '14.5995° N, 120.9842° E',
+      distanceFromCampus: '4.2km from Campus',
+      verificationStatus: 'REACHED DESTINATION',
+      verificationBody: 'Identity confirmed via GPS geo-fencing at Tech Hub Plaza. Faculty has checked in using the mobile concierge app.',
+      syncStatus: 'CONNECTED',
     },
     {
       name: 'Mr. Lau Del',
@@ -7828,6 +7874,19 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       actionLabel: 'Review',
       actionTone: 'gray',
       actionIcon: <HrmuAlertTinyIcon />,
+      requestedBy: "Dean's Office - CBA",
+      slipNumber: 'LS-99231',
+      purposeOfTravel: 'Research Collaboration & Technical Seminar at Olongapo City Civic Center',
+      timeoutFull: '10:05 AM',
+      returnFull: '02:30 PM',
+      deanName: 'Dr. Ana Bell',
+      deanRole: 'COLLEGE DEAN',
+      signatureTime: '2023-10-20T14:22:51 UTC+8',
+      coordinates: '25.5995° N, 100.9842° E',
+      distanceFromCampus: '16.2km from Campus',
+      verificationStatus: 'Off Destination',
+      verificationBody: 'Identity confirmed via GPS 10km away from destination. Faculty has checked in using the mobile concierge app.',
+      syncStatus: 'CONNECTED',
     },
   ];
 
@@ -7900,7 +7959,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
               <div className="hrmu-verify-destination"><HrmuPinMiniIcon /> <span>{row.destination}</span></div>
               <span className={`hrmu-verify-status ${row.statusTone}`}>{row.status}</span>
               <div className="hrmu-verify-actions">
-                <button type="button" className={`hrmu-verify-action-btn ${row.actionTone}`}>
+                <button
+                  type="button"
+                  className={`hrmu-verify-action-btn ${row.actionTone}`}
+                  onClick={() => ['Verify', 'Details', 'Review'].includes(row.actionLabel) && setSelectedRegistryRow(row)}
+                >
                   {row.actionIcon}
                   <span>{row.actionLabel}</span>
                 </button>
@@ -7910,6 +7973,619 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         </div>
 
         <button type="button" className="hrmu-verify-footer-link">View All 15 Dispatched Faculty</button>
+      </section>
+
+      {selectedRegistryRow && !statementRequestOpen && (
+        <div className="hrmu-verify-modal-overlay" role="presentation" onClick={() => setSelectedRegistryRow(null)}>
+          <div className="hrmu-verify-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-verify-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="hrmu-verify-modal-header">
+              <div className="hrmu-verify-modal-person">
+                <div className="hrmu-verify-modal-avatar">
+                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
+                </div>
+                <div className="hrmu-verify-modal-person-copy">
+                  <div className="hrmu-verify-modal-topline">
+                    <h2 id="hrmu-verify-modal-title">{selectedRegistryRow.name}</h2>
+                    <span className="hrmu-verify-modal-pill">ON MISSION</span>
+                  </div>
+                  <p>Instructor • {selectedRegistryRow.department}</p>
+                  <div className="hrmu-verify-modal-times">
+                    <span>Out: {selectedRegistryRow.timeoutFull}</span>
+                    <span>Est. Return: {selectedRegistryRow.returnFull}</span>
+                  </div>
+                </div>
+              </div>
+              <button type="button" className="hrmu-verify-modal-close" onClick={() => setSelectedRegistryRow(null)} aria-label="Close verification modal">
+                ×
+              </button>
+            </div>
+
+            <div className="hrmu-verify-modal-body">
+              <div className="hrmu-verify-modal-left">
+                <div className="hrmu-verify-modal-label">OFFICIAL LOCATOR SLIP #{selectedRegistryRow.slipNumber}</div>
+
+                <div className="hrmu-verify-modal-card">
+                  <div className="hrmu-verify-modal-meta-grid">
+                    <div>
+                      <span>PURPOSE OF TRAVEL</span>
+                      <strong>{selectedRegistryRow.purposeOfTravel}</strong>
+                    </div>
+                    <div>
+                      <span>REQUESTED BY</span>
+                      <strong>{selectedRegistryRow.requestedBy}</strong>
+                    </div>
+                  </div>
+
+                  <div className="hrmu-verify-modal-signature-block">
+                    <span>APPROVAL SIGNATURE</span>
+                    <div className="hrmu-verify-signature-card">
+                      <div className="hrmu-verify-signature-art">
+                        <div className="hrmu-verify-signature-scribble" />
+                        <div className="hrmu-verify-signature-watermark">DIGITALLY VERIFIED</div>
+                      </div>
+                      <div className="hrmu-verify-signature-copy">
+                        <strong>{selectedRegistryRow.deanName}</strong>
+                        <span>{selectedRegistryRow.deanRole}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="hrmu-verify-modal-label">LIVE VERIFICATION CHECKS</div>
+                <div className="hrmu-verify-check-grid">
+                  <div className="hrmu-verify-check-card">
+                    <span>MOBILE SYNC</span>
+                    <strong>{selectedRegistryRow.syncStatus}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="hrmu-verify-modal-right">
+                <div className="hrmu-verify-map-preview">
+                  <div className="hrmu-verify-map-surface" aria-hidden="true">
+                    <div className="hrmu-verify-map-road road-a" />
+                    <div className="hrmu-verify-map-road road-b" />
+                    <div className="hrmu-verify-map-road road-c" />
+                    <div className="hrmu-verify-map-target" />
+                  </div>
+                  <div className="hrmu-verify-map-chip">
+                    <span>{selectedRegistryRow.coordinates}</span>
+                    <strong>{selectedRegistryRow.distanceFromCampus}</strong>
+                  </div>
+                </div>
+
+                <div className="hrmu-verify-current-status">
+                  <div className={`hrmu-verify-current-status-row ${selectedRegistryRow.actionLabel === 'Review' ? 'review' : ''}`}>
+                    <span>CURRENT STATUS</span>
+                    <strong>{selectedRegistryRow.verificationStatus}</strong>
+                  </div>
+                  <div className={`hrmu-verify-status-bar ${selectedRegistryRow.actionLabel === 'Review' ? 'review' : ''}`} aria-hidden="true" />
+                  <p>{selectedRegistryRow.verificationBody}</p>
+                </div>
+
+                {selectedRegistryRow.actionLabel === 'Verify' && (
+                  <button type="button" className="hrmu-verify-confirm-btn">Confirm Verification</button>
+                )}
+                {selectedRegistryRow.actionLabel === 'Review' && (
+                  <div className="hrmu-verify-review-actions">
+                    <button
+                      type="button"
+                      className="hrmu-verify-request-btn"
+                      onClick={() => setStatementRequestOpen(true)}
+                    >
+                      Request Statement
+                    </button>
+                    <button type="button" className="hrmu-verify-clear-btn">Clear Flag</button>
+                  </div>
+                )}
+                <button type="button" className="hrmu-verify-return-btn" onClick={() => setSelectedRegistryRow(null)}>Return to Registry</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedRegistryRow && statementRequestOpen && (
+        <div className="hrmu-verify-modal-overlay" role="presentation" onClick={() => setStatementRequestOpen(false)}>
+          <div className="hrmu-verify-modal hrmu-statement-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-statement-modal-title" onClick={(event) => event.stopPropagation()}>
+            <div className="hrmu-verify-modal-header">
+              <div className="hrmu-verify-modal-person">
+                <div className="hrmu-verify-modal-avatar">
+                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
+                </div>
+                <div className="hrmu-verify-modal-person-copy">
+                  <div className="hrmu-verify-modal-topline">
+                    <h2 id="hrmu-statement-modal-title">{selectedRegistryRow.name}</h2>
+                    <span className="hrmu-verify-modal-pill">ON MISSION</span>
+                  </div>
+                  <p>Instructor • {selectedRegistryRow.department}</p>
+                  <div className="hrmu-verify-modal-times">
+                    <span>Out: {selectedRegistryRow.timeoutFull}</span>
+                    <span>Est. Return: {selectedRegistryRow.returnFull}</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="hrmu-verify-modal-close"
+                onClick={() => setStatementRequestOpen(false)}
+                aria-label="Close statement request modal"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="hrmu-statement-modal-body">
+              <h3>Request Official Statement</h3>
+              <p>
+                Formal request for explanation regarding flagged incident
+                {' '}
+                <strong>#INC-2024-0892</strong>
+              </p>
+
+              <div className="hrmu-statement-section">
+                <span>SELECT DISCREPANCIES TO ADDRESS</span>
+                <div className="hrmu-statement-grid">
+                  {statementOptions.map((option) => {
+                    const checked = statementReasons.includes(option);
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        className={`hrmu-statement-option ${checked ? 'checked' : ''}`}
+                        onClick={() => toggleStatementReason(option)}
+                      >
+                        <span className="hrmu-statement-checkbox" aria-hidden="true">{checked ? '✓' : ''}</span>
+                        <span>{option}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="hrmu-statement-section">
+                <span>REVIEWER COMMENTS/INSTRUCTIONS</span>
+                <textarea
+                  className="hrmu-statement-textarea"
+                  value={statementComment}
+                  onChange={(event) => setStatementComment(event.target.value)}
+                  placeholder="Please provide specific details for the faculty member to address. Mention any witness logs relevant to this discrepancy..."
+                />
+              </div>
+
+              <div className="hrmu-statement-actions">
+                <button type="button" className="hrmu-statement-cancel-btn" onClick={() => setStatementRequestOpen(false)}>Cancel</button>
+                <button type="button" className="hrmu-statement-submit-btn">Send Statement Request</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
+  const destinationRows = [
+    { rank: 1, label: 'City Hall', count: 850, width: '84%' },
+    { rank: 2, label: 'Philippine Island B...', count: 624, width: '60%' },
+    { rank: 3, label: 'Civic Center', count: 451, width: '46%' },
+  ];
+
+  const summaryCards = [
+    { label: 'TOTAL TRIPS', value: '12,482', note: '↑ 12% MoM', tone: 'green' },
+    { label: 'AVG. DISTANCE', value: '4.2 km', note: 'Optimized', tone: 'yellow' },
+    { label: 'USERS', value: '1,240', note: '98% Engaged', tone: 'green' },
+    { label: 'PEAK HOUR', value: '08:45 AM', note: 'Shift A', tone: 'dark' },
+  ];
+
+  const chartBars = [
+    { day: 'MON', height: 34 },
+    { day: 'TUE', height: 54 },
+    { day: 'WED', height: 78 },
+    { day: 'THU', height: 44 },
+    { day: 'FRI', height: 86 },
+    { day: 'SAT', height: 62 },
+    { day: 'SUN', height: 38 },
+  ];
+
+  return (
+    <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
+      <section className="hrmu-analytics-hero">
+        <div className="hrmu-analytics-copy">
+          <span className="hrmu-analytics-tag">RECEIVED FROM CCSU</span>
+          <h1>Analytics &amp; Reporting</h1>
+          <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
+        </div>
+        <div className="hrmu-analytics-actions">
+          <button type="button" className="hrmu-analytics-export ghost"><HrmuExportIcon color="#5F645F" /> <span>CSV</span></button>
+          <button type="button" className="hrmu-analytics-export primary"><HrmuReportIcon color="white" /> <span>Export PDF</span></button>
+        </div>
+      </section>
+
+      <section className="hrmu-analytics-filter-card">
+        <div className="hrmu-analytics-filter-group">
+          <span>DATE RANGE</span>
+          <button type="button" className="hrmu-analytics-select">
+            <span>Last 30 Days (Jan 12 - Feb 11)</span>
+            <span>⌄</span>
+          </button>
+        </div>
+        <div className="hrmu-analytics-filter-group">
+          <span>DEPARTMENT</span>
+          <button type="button" className="hrmu-analytics-select">
+            <span>All Departments</span>
+            <span>⌄</span>
+          </button>
+        </div>
+        <button type="button" className="hrmu-analytics-apply-btn">Apply Filters</button>
+      </section>
+
+      <section className="hrmu-analytics-top-grid">
+        <article className="hrmu-analytics-chart-card">
+          <div className="hrmu-analytics-panel-head">
+            <div>
+              <h2>Daily Faculty Movement</h2>
+              <p>Tracking peak mobility periods across campus</p>
+            </div>
+            <div className="hrmu-analytics-legend">
+              <span className="departures">Departures</span>
+              <span className="arrivals">Arrivals</span>
+            </div>
+          </div>
+          <div className="hrmu-analytics-chart">
+            {chartBars.map((bar) => (
+              <div key={bar.day} className="hrmu-analytics-chart-col">
+                <div className="hrmu-analytics-bar" style={{ height: `${bar.height}%` }} />
+                <span>{bar.day}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="hrmu-analytics-rate-card">
+          <h2>Approval Rate</h2>
+          <p>Request vs Approval efficiency</p>
+          <div className="hrmu-analytics-ring">
+            <div>
+              <strong>94%</strong>
+              <span>SUCCESS</span>
+            </div>
+          </div>
+          <div className="hrmu-analytics-growth">↗ +2.4% increase from last period</div>
+        </article>
+      </section>
+
+      <section className="hrmu-analytics-bottom-grid">
+        <article className="hrmu-analytics-destinations-card">
+          <h2>Frequent Destinations</h2>
+          <div className="hrmu-analytics-destination-list">
+            {destinationRows.map((row) => (
+              <div key={row.rank} className="hrmu-analytics-destination-item">
+                <div className="hrmu-analytics-rank">{row.rank}</div>
+                <div className="hrmu-analytics-destination-copy">
+                  <strong>{row.label}</strong>
+                  <div className="hrmu-analytics-destination-bar-track">
+                    <div className="hrmu-analytics-destination-bar-fill" style={{ width: row.width }} />
+                  </div>
+                </div>
+                <span>{row.count}</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="hrmu-analytics-summary-card">
+          <h2>Monthly Performance Summary</h2>
+          <div className="hrmu-analytics-summary-grid">
+            {summaryCards.map((card) => (
+              <div key={card.label} className={`hrmu-analytics-mini-card ${card.tone}`}>
+                <span>{card.label}</span>
+                <strong>{card.value}</strong>
+                <small>{card.note}</small>
+              </div>
+            ))}
+          </div>
+          <div className="hrmu-analytics-milestone">
+            <div className="hrmu-analytics-milestone-track">
+              <span className="done">1</span>
+              <span className="done">2</span>
+              <span className="current">3</span>
+              <span>4</span>
+              <span>5</span>
+            </div>
+            <div className="hrmu-analytics-milestone-copy">
+              <small>CURRENT MILESTONE</small>
+              <strong>HRMU Verification Finalized</strong>
+            </div>
+          </div>
+        </article>
+      </section>
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuReportsView = ({ setView, profileData, onLogout }) => {
+  const reportRows = [
+    { timestamp: 'Mar 28, 14:22', location: 'Gate 4 - Warehouse B', personnel: 'Marcus C. (ID-928)', status: 'FLAGGED', tone: 'red' },
+    { timestamp: 'Mar 27, 09:15', location: 'Main Hub - Receiving', personnel: 'System Automated', status: 'VERIFIED', tone: 'green' },
+    { timestamp: 'Mar 26, 23:45', location: 'Sector 7 Perimeter', personnel: 'Sarah L. (ID-114)', status: 'MODERATE', tone: 'yellow' },
+    { timestamp: 'Mar 25, 12:10', location: 'Internal Audit Path', personnel: 'James K. (ID-002)', status: 'VERIFIED', tone: 'green' },
+  ];
+
+  return (
+    <HrmuWorkspaceShell activeKey="reports" setView={setView} profileData={profileData} onLogout={onLogout}>
+      <section className="hrmu-reports-page">
+        <div className="hrmu-reports-toolbar">
+          <div className="hrmu-reports-titlebar">
+            <button type="button" className="hrmu-reports-back-btn" aria-label="Back to dashboard">←</button>
+            <strong>Monthly Security Report - March 2026</strong>
+            <span className="hrmu-reports-badge">CONFIDENTIAL</span>
+          </div>
+
+          <div className="hrmu-reports-tools">
+            <div className="hrmu-reports-pager">
+              <button type="button" aria-label="Previous page">‹</button>
+              <strong>1</strong>
+              <span>/ 12</span>
+              <button type="button" aria-label="Next page">›</button>
+            </div>
+            <div className="hrmu-reports-zoom">
+              <button type="button" aria-label="Zoom out">−</button>
+              <strong>100%</strong>
+              <button type="button" aria-label="Zoom in">+</button>
+            </div>
+            <button type="button" className="hrmu-reports-icon-btn" aria-label="Download report">↓</button>
+            <button type="button" className="hrmu-reports-icon-btn" aria-label="Print report">⎙</button>
+          </div>
+        </div>
+
+        <div className="hrmu-reports-canvas">
+          <article className="hrmu-reports-sheet">
+            <div className="hrmu-reports-sheet-head">
+              <div className="hrmu-reports-brand-block">
+                <div className="hrmu-reports-brand-icon">
+                  <TogaLogoIcon size={36} />
+                </div>
+                <div>
+                  <strong>EduRoute HRMU</strong>
+                  <span>FACULTY MOVEMENT</span>
+                </div>
+              </div>
+
+              <div className="hrmu-reports-doc-meta">
+                <strong>OFFICIAL DOCUMENT</strong>
+                <span>Report ID: HRMU-2026-03-SEC</span>
+                <span>Generated: March 31, 2026</span>
+              </div>
+            </div>
+
+            <div className="hrmu-reports-divider" />
+
+            <div className="hrmu-reports-section">
+              <h1>Monthly Movement &amp; Violation Summary</h1>
+              <div className="hrmu-reports-subdivider" />
+              <p>
+                This report provides a comprehensive overview of logistical activities, security transitions,
+                and recorded violations within the HRMU jurisdiction for the fiscal month of March 2026.
+              </p>
+            </div>
+
+            <div className="hrmu-reports-summary-grid">
+              <article className="hrmu-reports-summary-card green">
+                <span>TOTAL MOVEMENTS</span>
+                <strong>1,284</strong>
+                <small>↗ 12% from Feb</small>
+              </article>
+              <article className="hrmu-reports-summary-card red">
+                <span>FLAGGED INCIDENTS</span>
+                <strong>14</strong>
+                <small>⚠ 4 High Priority</small>
+              </article>
+              <article className="hrmu-reports-summary-card yellow">
+                <span>COMPLIANCE RATE</span>
+                <strong>98.2%</strong>
+                <small>Target: 99.5%</small>
+              </article>
+            </div>
+
+            <div className="hrmu-reports-log-head">
+              <div className="hrmu-reports-log-title">
+                <span className="hrmu-reports-log-icon">▣</span>
+                <h2>Key Incident Log</h2>
+              </div>
+            </div>
+
+            <div className="hrmu-reports-table-wrap">
+              <div className="hrmu-reports-table-head">
+                <span>TIMESTAMP</span>
+                <span>LOCATION</span>
+                <span>PERSONNEL</span>
+                <span>STATUS</span>
+                <span>ACTION</span>
+              </div>
+              {reportRows.map((row) => (
+                <div key={`${row.timestamp}-${row.personnel}`} className="hrmu-reports-table-row">
+                  <span>{row.timestamp}</span>
+                  <span>{row.location}</span>
+                  <span>{row.personnel}</span>
+                  <span><em className={`hrmu-reports-status-pill ${row.tone}`}>{row.status}</em></span>
+                  <button type="button" className="hrmu-reports-detail-link">Details</button>
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+      </section>
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
+  return (
+    <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
+      <section className="hrmu-alerts-page">
+        <div className="hrmu-alerts-hero">
+          <div className="hrmu-alerts-copy">
+            <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
+            <h1>System Alerts</h1>
+            <p>Real-time monitoring and security notifications for HRMU faculty and campus operations.</p>
+          </div>
+          <div className="hrmu-alerts-actions">
+            <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
+            <button type="button" className="hrmu-alerts-btn primary"><span aria-hidden="true">⌁</span><span>Filters</span></button>
+          </div>
+        </div>
+
+        <section className="hrmu-alerts-grid">
+          <article className="hrmu-alert-main-card">
+            <div className="hrmu-alert-main-accent" aria-hidden="true" />
+            <div className="hrmu-alert-main-body">
+              <div className="hrmu-alert-main-icon">
+                <HrmuWarningIcon />
+              </div>
+              <div className="hrmu-alert-main-copy">
+                <div className="hrmu-alert-main-head">
+                  <div className="hrmu-alert-main-badges">
+                    <span className="hrmu-alert-critical-pill">CRITICAL</span>
+                  </div>
+                  <span className="hrmu-alert-main-time">2 mins ago</span>
+                </div>
+                <h2>Faculty outside without verification</h2>
+                <p>System detected Dr. Rey Gun exited Main Gate. No Locator Slip verification found in the last 15 minutes.</p>
+                <div className="hrmu-alert-main-actions">
+                  <button type="button" className="hrmu-alert-primary-btn">Initiate Contact</button>
+                  <button type="button" className="hrmu-alert-text-btn">Review Maps</button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="hrmu-alerts-side-column">
+            <article className="hrmu-alert-summary-card">
+              <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
+              <div className="hrmu-alert-summary-row">
+                <span>Critical Issues</span>
+                <strong>01</strong>
+              </div>
+              <div className="hrmu-alert-summary-row">
+                <span>Active Warnings</span>
+                <strong>03</strong>
+              </div>
+              <div className="hrmu-alert-summary-row">
+                <span>Verified Cleared</span>
+                <strong className="yellow">88%</strong>
+              </div>
+              <div className="hrmu-alert-summary-mark" aria-hidden="true" />
+            </article>
+
+            <article className="hrmu-alert-report-card">
+              <div className="hrmu-alert-report-icon">
+                <HrmuSyncIcon />
+              </div>
+              <h3>Monthly Log Report</h3>
+              <p>30-days summary is ready for download.</p>
+              <button type="button" className="hrmu-alert-download-btn">DOWNLOAD PDF</button>
+            </article>
+          </aside>
+        </section>
+      </section>
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
+  const liveActivities = [
+    { id: 1, title: 'Asset #442 (Faculty)', body: 'Entered Zone: Science Block B', meta: '14 SECONDS AGO', tone: 'green' },
+    { id: 2, title: 'Asset #109 (Staff)', body: 'Exit Clearance Initiated', meta: '2 MINS AGO', tone: 'yellow' },
+    { id: 3, title: 'System Check', body: 'Gateway CCSU-North OK', meta: '5 MINS AGO', tone: 'neutral' },
+  ];
+
+  const liveMarkers = [
+    { id: 1, name: 'Mr. Michael Rivera', top: '28%', left: '42%' },
+    { id: 2, name: 'Dr. Elena Ross', top: '35%', left: '66%' },
+    { id: 3, name: 'Mr. Ken Bau', top: '58%', left: '34%' },
+  ];
+
+  return (
+    <HrmuWorkspaceShell activeKey="live" setView={setView} profileData={profileData} onLogout={onLogout}>
+      <section className="hrmu-live-page">
+        <div className="hrmu-live-map-stage">
+          <div className="hrmu-live-map-surface" aria-hidden="true">
+            <div className="hrmu-live-road route-a" />
+            <div className="hrmu-live-road route-b" />
+            <div className="hrmu-live-road route-c" />
+            <div className="hrmu-live-road route-d" />
+            <div className="hrmu-live-road route-e" />
+            <div className="hrmu-live-grid vertical-a" />
+            <div className="hrmu-live-grid vertical-b" />
+            <div className="hrmu-live-grid vertical-c" />
+            <div className="hrmu-live-grid horizontal-a" />
+            <div className="hrmu-live-grid horizontal-b" />
+            <div className="hrmu-live-grid horizontal-c" />
+          </div>
+
+          {liveMarkers.map((marker) => (
+            <div
+              key={marker.id}
+              className="hrmu-live-marker"
+              style={{ top: marker.top, left: marker.left }}
+              title={marker.name}
+            >
+              <img src={DEFAULT_PROFILE_IMAGE} alt={marker.name} />
+            </div>
+          ))}
+
+          <div className="hrmu-live-controls">
+            <button type="button" className="hrmu-live-control-btn" aria-label="Zoom in">+</button>
+            <button type="button" className="hrmu-live-control-btn" aria-label="Zoom out">−</button>
+            <button type="button" className="hrmu-live-control-btn" aria-label="Locate faculty">◎</button>
+            <button type="button" className="hrmu-live-control-btn" aria-label="Toggle map layers">◈</button>
+          </div>
+
+          <article className="hrmu-live-activity-card">
+            <div className="hrmu-live-activity-head">
+              <h2>Live Activity</h2>
+              <span className="hrmu-live-pill"><span /> LIVE</span>
+            </div>
+            <div className="hrmu-live-activity-list">
+              {liveActivities.map((item) => (
+                <div key={item.id} className={`hrmu-live-activity-item ${item.tone}`}>
+                  <div className="hrmu-live-activity-accent" />
+                  <div className="hrmu-live-activity-copy">
+                    <strong>{item.title}</strong>
+                    <p>{item.body}</p>
+                    <small>{item.meta}</small>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="hrmu-live-log-btn">VIEW ALL LOGS</button>
+          </article>
+
+          <article className="hrmu-live-profile-card">
+            <div className="hrmu-live-profile-tag" aria-hidden="true" />
+            <h2>Mr. Michael Rivera</h2>
+            <p>SENIOR FACULTY · INSTRUCTOR</p>
+            <div className="hrmu-live-profile-meta">
+              <div>
+                <span>CURRENT SPEED</span>
+                <strong>3.4 km/h</strong>
+              </div>
+              <div>
+                <span>LAST UPDATE</span>
+                <strong className="fresh">Just now</strong>
+              </div>
+            </div>
+            <div className="hrmu-live-destination-card">
+              <div>
+                <span>PREDICTED DESTINATION</span>
+                <strong>City Hall</strong>
+              </div>
+              <span className="hrmu-live-destination-icon">⌘</span>
+            </div>
+          </article>
+        </div>
       </section>
     </HrmuWorkspaceShell>
   );
