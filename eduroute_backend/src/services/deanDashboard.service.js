@@ -2,6 +2,8 @@ const pool = require('../db/pool');
 const AppError = require('../utils/appError');
 const { formatDateTime } = require('../utils/dateFormatter');
 const notificationService = require('./notification.service');
+const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const DEAN_ROLES = ['assistant_dean', 'college_dean'];
 
@@ -571,7 +573,16 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
             [locatorSlipId, dean.id]
         );
 
+        const hrmuNotificationPayload = await hrmuDashboardRepository.createApprovalNotificationsForHrmu(client, locatorSlipId);
+
         await client.query('COMMIT');
+
+        await socketBroadcasterService.broadcastHrmuNotificationNew(hrmuNotificationPayload).catch((broadcastError) => {
+            console.error('Failed to broadcast HRMU approval notification:', broadcastError);
+        });
+        await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch((broadcastError) => {
+            console.error('Failed to broadcast HRMU dashboard update after approval:', broadcastError);
+        });
 
         return {
             ...normalizeLocatorSlipRow({

@@ -13,7 +13,11 @@
         "migrate:role-registration": "node scripts/run-sql-file.js sql/faculty_user_role_registration.sql",
         "migrate:trips": "node scripts/run-sql-file.js sql/trips.sql",
         "migrate:trip-tracking": "node scripts/run-sql-file.js sql/trip_tracking.sql",
-        "migrate:dean-dashboard": "node scripts/run-sql-file.js sql/dean_dashboard.sql"
+        "migrate:dean-dashboard": "node scripts/run-sql-file.js sql/dean_dashboard.sql",
+        "migrate:hrmu-dashboard": "node scripts/run-sql-file.js sql/hrmu_dashboard.sql",
+        "migrate:hrmu-analytics": "node scripts/run-sql-file.js sql/hrmu_analytics.sql",
+        "migrate:hrmu-live-tracking": "node scripts/run-sql-file.js sql/hrmu_live_tracking.sql",
+        "migrate:hrmu-reports-incidents": "node scripts/run-sql-file.js sql/hrmu_reports_incidents.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",

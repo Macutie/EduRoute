@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+let tripEventsTableExistsCache = null;
 
 const mapTripRow = (row) => ({
     id: row.id,
@@ -47,6 +48,33 @@ const findTripByIdForUser = async (tripId, userId) => {
     );
 
     return rows[0] ? mapTripRow(rows[0]) : null;
+};
+
+const findApprovedLocatorSlipForTripStart = async (client, userId, destinationName) => {
+    const normalizedDestination = String(destinationName || '').trim().toLowerCase();
+    const { rows } = await client.query(
+        `SELECT
+            ls.id,
+            ls.destination,
+            ls.departure_datetime,
+            ls.expected_return_datetime,
+            ls.status
+         FROM locator_slips ls
+         WHERE ls.faculty_user_id = $1
+           AND ls.status = 'approved'
+           AND ls.expected_return_datetime >= CURRENT_TIMESTAMP
+         ORDER BY
+            CASE
+                WHEN LOWER(TRIM(COALESCE(ls.destination, ''))) = $2 THEN 0
+                ELSE 1
+            END,
+            ABS(EXTRACT(EPOCH FROM (ls.departure_datetime - CURRENT_TIMESTAMP))) ASC,
+            COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC
+         LIMIT 1`,
+        [userId, normalizedDestination]
+    );
+
+    return rows[0] || null;
 };
 
 const cancelExistingActiveTrips = async (client, userId) => {
@@ -109,7 +137,7 @@ const updateTripStatus = async (tripId, userId, status) => {
     return rows[0] ? mapTripRow(rows[0]) : null;
 };
 
-const insertTripEvent = async (client, event) => {
+const insertTripLocationLog = async (client, event) => {
     await client.query(
         `INSERT INTO trip_location_logs (
             trip_id,
@@ -163,7 +191,7 @@ const appendLocationUpdate = async (payload) => {
     try {
         await client.query('BEGIN');
         await upsertLatestLocation(client, payload);
-        await insertTripEvent(client, payload);
+        await insertTripLocationLog(client, payload);
         await client.query('COMMIT');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -173,11 +201,57 @@ const appendLocationUpdate = async (payload) => {
     }
 };
 
+const getTripEventsTableExists = async (client = pool) => {
+    if (tripEventsTableExistsCache !== null) {
+        return tripEventsTableExistsCache;
+    }
+
+    const { rows } = await client.query(`SELECT to_regclass('public.trip_events') AS table_name`);
+    tripEventsTableExistsCache = Boolean(rows[0]?.table_name);
+    return tripEventsTableExistsCache;
+};
+
+const insertTripEvent = async (client, event) => {
+    const hasTripEventsTable = await getTripEventsTableExists(client);
+
+    if (!hasTripEventsTable) {
+        return null;
+    }
+
+    const { rows } = await client.query(
+        `INSERT INTO trip_events (
+            trip_id,
+            faculty_user_id,
+            event_type,
+            title,
+            subtitle,
+            metadata,
+            occurred_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING id, trip_id, faculty_user_id, event_type, title, subtitle, metadata, occurred_at, created_at`,
+        [
+            event.tripId,
+            event.userId,
+            event.eventType,
+            event.title,
+            event.subtitle,
+            event.metadata ? JSON.stringify(event.metadata) : null,
+            event.occurredAt
+        ]
+    );
+
+    return rows[0] || null;
+};
+
 module.exports = {
     findActiveTripByUserId,
     findTripByIdForUser,
+    findApprovedLocatorSlipForTripStart,
     cancelExistingActiveTrips,
     insertTrip,
     updateTripStatus,
-    appendLocationUpdate
+    appendLocationUpdate,
+    getTripEventsTableExists,
+    insertTripEvent
 };

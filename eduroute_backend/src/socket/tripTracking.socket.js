@@ -5,11 +5,13 @@ const { verifyAccessToken } = require('../utils/jwt');
 const tripTrackingService = require('../services/tripTracking.service');
 const { setSocketServer } = require('./socketBus');
 const { registerDeanNotificationSocketHandlers } = require('./deanNotifications.socket');
+const { registerHrmuSocketHandlers } = require('./hrmu.socket');
 
 const SOCKET_EVENTS = {
     subscribe: 'trip:subscribe',
     unsubscribe: 'trip:unsubscribe',
     updateLocation: 'trip:location:update',
+    facultyLocationUpdate: 'faculty:location:update',
     locationBroadcast: 'trip:location:broadcast',
     error: 'trip:error'
 };
@@ -57,6 +59,7 @@ const createTripTrackingSocketServer = (httpServer) => {
     });
 
     registerDeanNotificationSocketHandlers(io);
+    registerHrmuSocketHandlers(io);
 
     io.on('connection', (socket) => {
         socket.on(SOCKET_EVENTS.subscribe, ({ tripId }) => {
@@ -73,7 +76,7 @@ const createTripTrackingSocketServer = (httpServer) => {
             socket.leave(`trip:${tripId}`);
         });
 
-        socket.on(SOCKET_EVENTS.updateLocation, async (payload, acknowledge) => {
+        const handleLocationUpdate = async (payload, acknowledge) => {
             try {
                 const update = await tripTrackingService.recordLiveLocation(socket.user.sub, payload);
                 io.to(`trip:${update.tripId}`).emit(SOCKET_EVENTS.locationBroadcast, update);
@@ -82,7 +85,10 @@ const createTripTrackingSocketServer = (httpServer) => {
                 socket.emit(SOCKET_EVENTS.error, { message: error.message });
                 if (typeof acknowledge === 'function') acknowledge({ ok: false, message: error.message });
             }
-        });
+        };
+
+        socket.on(SOCKET_EVENTS.updateLocation, handleLocationUpdate);
+        socket.on(SOCKET_EVENTS.facultyLocationUpdate, handleLocationUpdate);
     });
 
     return io;

@@ -1,0 +1,65 @@
+const { successResponse } = require('../utils/apiResponse');
+const hrmuDashboardService = require('../services/hrmuDashboard.service');
+
+const getSummary = async (req, res, next) => {
+    try {
+        const summary = await hrmuDashboardService.getDashboardSummary(req.user.sub);
+        return res.json(successResponse('HRMU dashboard summary fetched successfully.', summary));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getLiveFaculty = async (req, res, next) => {
+    try {
+        const faculty = await hrmuDashboardService.getLiveFaculty(req.user.sub);
+        return res.json(successResponse('HRMU live faculty route data fetched successfully.', faculty));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getNotifications = async (req, res, next) => {
+    try {
+        const notifications = await hrmuDashboardService.getNotifications(req.user.sub, req.query);
+        return res.json(successResponse('HRMU notifications fetched successfully.', notifications));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getRecentActivity = async (req, res, next) => {
+    try {
+        const activity = await hrmuDashboardService.getRecentActivity(req.user.sub, req.query);
+        return res.json(successResponse('HRMU recent activity fetched successfully.', activity));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getLiveTracking = async (req, res, next) => {
+    try {
+        const tracking = await hrmuDashboardService.getLiveTracking(req.user.sub);
+        return res.json(successResponse('HRMU live tracking data fetched successfully.', tracking));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const exportRecentActivityCsv = async (req, res, next) => {
+    try {
+        const placeholder = await hrmuDashboardService.getExportCsvPlaceholder(req.user.sub);
+        return res.json(successResponse('HRMU export placeholder returned successfully.', placeholder));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+module.exports = {
+    getSummary,
+    getLiveFaculty,
+    getNotifications,
+    getRecentActivity,
+    getLiveTracking,
+    exportRecentActivityCsv
+};

@@ -10,6 +10,8 @@ import {
   useDeanPendingApprovals,
   useDeanRealtimeNotifications,
 } from './hooks/useDeanDashboard';
+import { useHrmuAnalytics } from './hooks/useHrmuAnalytics';
+import { useHrmuMonthlyReport } from './hooks/useHrmuMonthlyReport';
 import {
   approveDeanLocatorSlipRequest,
   getDeanFacultyOverview,
@@ -19,6 +21,17 @@ import {
   getDeanRegistryPage,
   markDeanNotificationRead,
 } from './services/deanApi';
+import {
+  exportHrmuRecentActivityCsvPlaceholder,
+  getHrmuDashboardSummary,
+  getHrmuLiveFaculty,
+  getHrmuNotifications,
+  getHrmuRecentActivity,
+} from './services/hrmuApi';
+import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
+import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
+import FacultyActivityLog from './components/hrmu/FacultyActivityLog';
+import { downloadHrmuMonthlyReportPdf, getHrmuFlaggedTrips, getHrmuVerificationIncidentSummary } from './services/hrmuReportsApi';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
 
@@ -721,8 +734,13 @@ function App() {
       {view === 'hrmu-analytics' && <HrmuAnalyticsReportsView setView={setView} profileData={profileData} onLogout={handleLogout} activeKey="analytics" />}
       {view === 'hrmu-reports' && <HrmuReportsView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'hrmu-live' && <HrmuLiveTrackingView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'hrmu-notifications' && <HrmuNotificationsView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-notifications' && <HrmuNotificationsRealtimeView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
+      {view === 'cssu-dashboard' && <CSSUDashboardView setView={setView} profileData={profileData} />}
+      {view === 'cssu-map' && <div className="mobile-container"><div className="content"><div className="header"><h1>Map</h1></div><CSSUBottomNav active="map" setView={setView} /></div></div>}
+      {view === 'cssu-incidents' && <div className="mobile-container"><div className="content"><div className="header"><h1>Incidents</h1></div><CSSUBottomNav active="incidents" setView={setView} /></div></div>}
+      {view === 'cssu-scan' && <div className="mobile-container"><div className="content"><div className="header"><h1>Scan</h1></div><CSSUBottomNav active="scan" setView={setView} /></div></div>}
+      {view === 'cssu-reports' && <div className="mobile-container"><div className="content"><div className="header"><h1>Reports</h1></div><CSSUBottomNav active="reports" setView={setView} /></div></div>}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
         <AdminApprovalRequestsView
@@ -1410,16 +1428,51 @@ const EwanIcon = ({ color = "currentColor", size = "20" }) => (
   </svg>
 );
 
-const LOGIN_ROLES = [
+const AUTH_ACCOUNT_ROLES = [
   { key: 'faculty', label: 'Faculty', title: 'Gordon College Faculty Portal', icon: FacultyRoleIcon },
   { key: 'hrmu', label: 'HRMU', title: 'Gordon College HRMU Portal', icon: HrmuRoleIcon },
   { key: 'cssu', label: 'CSSU', title: 'Gordon College CSSU Portal', icon: CssuRoleIcon },
   { key: 'admin', label: 'Admin', title: 'Gordon College Admin Portal', icon: AdminRoleIcon },
 ];
 
+const LOGIN_PORTAL_ROLES = [
+  { key: 'faculty', label: 'Faculty', title: 'Gordon College Faculty Portal', icon: FacultyRoleIcon, portalRole: 'faculty', viewports: ['mobile'] },
+  { key: 'dean', label: 'Dean', title: 'Gordon College Dean Portal', icon: AdminRoleIcon, portalRole: 'admin', viewports: ['mobile'] },
+  { key: 'hrmu', label: 'HRMU', title: 'Gordon College HRMU Portal', icon: HrmuRoleIcon, portalRole: 'hrmu', viewports: ['desktop'] },
+  { key: 'cssu', label: 'CSSU', title: 'Gordon College CSSU Portal', icon: CssuRoleIcon, portalRole: 'cssu', viewports: ['mobile', 'desktop'] },
+];
+
 const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLoginPassword, setShowLoginPassword }) => {
-  const [selectedRole, setSelectedRole] = useState('faculty');
-  const activeRole = LOGIN_ROLES.find((role) => role.key === selectedRole) || LOGIN_ROLES[0];
+  const getDesktopRoleViewport = () => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+  const [isDesktopRoleViewport, setIsDesktopRoleViewport] = useState(getDesktopRoleViewport);
+  const [selectedRole, setSelectedRole] = useState(() => (getDesktopRoleViewport() ? 'hrmu' : 'faculty'));
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktopRoleViewport(window.innerWidth >= 768);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const availableRoles = useMemo(
+    () =>
+      LOGIN_PORTAL_ROLES.filter((role) =>
+        role.viewports.includes(isDesktopRoleViewport ? 'desktop' : 'mobile')
+      ),
+    [isDesktopRoleViewport]
+  );
+
+  useEffect(() => {
+    if (!availableRoles.some((role) => role.key === selectedRole) && availableRoles.length > 0) {
+      setSelectedRole(availableRoles[0].key);
+    }
+  }, [availableRoles, selectedRole]);
+
+  const activeRole = availableRoles.find((role) => role.key === selectedRole) || availableRoles[0] || LOGIN_PORTAL_ROLES[0];
+  const submitPortalRole = activeRole?.portalRole || activeRole?.key || 'faculty';
 
   return (
     <>
@@ -1440,8 +1493,8 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
 
               <div className="dlogin-role-section">
                 <p className="dlogin-role-header">SELECT DEPARTMENT ROLE</p>
-                <div className="dlogin-role-grid">
-                  {LOGIN_ROLES.map((role) => {
+                <div className={`dlogin-role-grid dlogin-role-grid--${availableRoles.length}`}>
+                  {availableRoles.map((role) => {
                     const RoleIcon = role.icon;
                     const isActive = selectedRole === role.key;
                     return (
@@ -1471,7 +1524,7 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
             {/* Right Panel */}
             <div className="dlogin-right">
               <div className="dlogin-form-inner">
-              <form className="dlogin-form-container" onSubmit={(e) => onLogin(e, selectedRole)}>
+              <form className="dlogin-form-container" onSubmit={(e) => onLogin(e, submitPortalRole)}>
                 <div className="dlogin-form-header">
                   <h2>Campus Gateway</h2>
                   <p>Verify your credentials to access the secure administrative environment.</p>
@@ -1572,9 +1625,9 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
             <h2 className="login-portal-title">{activeRole.title.toUpperCase()}</h2>
           </div>
 
-          <form className="card login-card" onSubmit={(e) => onLogin(e, selectedRole)}>
-            <div className="role-selector" aria-label="Select portal role">
-              {LOGIN_ROLES.map((role) => {
+          <form className="card login-card" onSubmit={(e) => onLogin(e, submitPortalRole)}>
+            <div className={`role-selector role-selector--${availableRoles.length}`} aria-label="Select portal role">
+              {availableRoles.map((role) => {
                 const RoleIcon = role.icon;
                 const isActive = selectedRole === role.key;
 
@@ -2285,7 +2338,7 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
   const selectedSignupRole = registerForm.account_role || 'faculty';
-  const signupRole = LOGIN_ROLES.find((role) => role.key === selectedSignupRole) || LOGIN_ROLES[0];
+  const signupRole = AUTH_ACCOUNT_ROLES.find((role) => role.key === selectedSignupRole) || AUTH_ACCOUNT_ROLES[0];
   const signupNeedsDepartment = ['faculty', 'admin'].includes(selectedSignupRole);
 
   const signupPasswordPolicy = useMemo(() => {
@@ -2344,7 +2397,7 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
           </div>
 
           <div className="signup-role-selector" aria-label="Select account role">
-            {LOGIN_ROLES.map((role) => {
+            {AUTH_ACCOUNT_ROLES.map((role) => {
               const RoleIcon = role.icon;
               const isActive = selectedSignupRole === role.key;
 
@@ -2537,8 +2590,8 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
           <p>Please enter your institutional details to begin.</p>
         </div>
 
-        <div className="signup-role-selector" aria-label="Select account role">
-          {LOGIN_ROLES.map((role) => {
+          <div className="signup-role-selector" aria-label="Select account role">
+          {AUTH_ACCOUNT_ROLES.map((role) => {
             const RoleIcon = role.icon;
             const isActive = selectedSignupRole === role.key;
 
@@ -7509,11 +7562,163 @@ const HrmuExportIcon = ({ color = "white" }) => (
   </svg>
 );
 
+const OLONGAPO_CENTER = [120.2822, 14.8386];
+
+const HrmuLiveMapPanel = ({
+  faculty = [],
+  compact = false,
+  className = '',
+  center = OLONGAPO_CENTER,
+  selectedFacultyUserId = null,
+  onMarkerSelect = null,
+  focusOnOlongapo = false,
+}) => {
+  const mapContainerRef = useRef(null);
+  const mapRef = useRef(null);
+  const markersRef = useRef([]);
+  const [mapReady, setMapReady] = useState(Boolean(MAPBOX_PUBLIC_TOKEN));
+
+  useEffect(() => {
+    if (!MAPBOX_PUBLIC_TOKEN || !mapContainerRef.current || mapRef.current) {
+      if (!MAPBOX_PUBLIC_TOKEN) {
+        setMapReady(false);
+      }
+      return;
+    }
+
+    mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
+      const map = new mapboxgl.Map({
+        container: mapContainerRef.current,
+        style: 'mapbox://styles/mapbox/light-v11',
+        center,
+        zoom: compact ? 13 : 13.5,
+        attributionControl: false,
+        interactive: true,
+      });
+
+    mapRef.current = map;
+    map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false, showCompass: false }), 'top-right');
+
+    map.on('load', () => {
+      setMapReady(true);
+      map.resize();
+    });
+
+    return () => {
+      markersRef.current.forEach((marker) => marker.remove());
+      markersRef.current = [];
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [compact]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current = [];
+
+    const validFaculty = faculty.filter((item) => Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
+
+      validFaculty.forEach((item) => {
+        const markerElement = document.createElement('button');
+        markerElement.type = 'button';
+        markerElement.className = `hrmu-map-live-marker ${item?.marker?.status === 'stale' ? 'stale' : 'active'}${selectedFacultyUserId === item.facultyUserId ? ' selected' : ''}`;
+        markerElement.title = item.facultyName || 'Faculty in trip';
+        markerElement.setAttribute('aria-label', item.facultyName || 'Faculty in trip');
+        markerElement.innerHTML = `
+          <span class="hrmu-map-live-marker-pulse"></span>
+          <span class="hrmu-map-live-marker-core"></span>
+      `;
+      markerElement.addEventListener('click', () => {
+        if (onMarkerSelect) onMarkerSelect(item);
+      });
+
+      const marker = new mapboxgl.Marker({ element: markerElement, anchor: 'center' })
+        .setLngLat([item.lng, item.lat])
+        .addTo(map);
+
+      markersRef.current.push(marker);
+    });
+
+      if (!validFaculty.length) {
+        map.easeTo({
+          center,
+          zoom: compact ? 13 : 13.5,
+          duration: 600,
+        });
+        return;
+      }
+
+    if (validFaculty.length === 1) {
+        if (focusOnOlongapo) {
+          const bounds = new mapboxgl.LngLatBounds(center, center);
+          bounds.extend([validFaculty[0].lng, validFaculty[0].lat]);
+          map.fitBounds(bounds, {
+            padding: compact ? 72 : 104,
+            duration: 600,
+          maxZoom: compact ? 12.5 : 13.1,
+        });
+        return;
+      }
+
+      map.easeTo({
+        center: [validFaculty[0].lng, validFaculty[0].lat],
+        zoom: compact ? 12.5 : 13.2,
+        duration: 600,
+      });
+      return;
+    }
+
+      const bounds = validFaculty.reduce((acc, item) => {
+        acc.extend([item.lng, item.lat]);
+        return acc;
+      }, new mapboxgl.LngLatBounds(
+        focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
+        focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
+      ));
+
+    map.fitBounds(bounds, {
+      padding: compact ? 64 : 96,
+      duration: 700,
+      maxZoom: compact ? 12.8 : 13.4,
+    });
+  }, [center, faculty, compact, focusOnOlongapo, onMarkerSelect, selectedFacultyUserId]);
+
+  return (
+    <div className={`hrmu-live-map-frame ${className}`.trim()}>
+      <div ref={mapContainerRef} className="hrmu-live-mapbox-canvas" />
+      {!mapReady && (
+        <div className="hrmu-live-map-fallback">
+          <strong>Map unavailable</strong>
+          <span>Add a valid Mapbox public token to display live faculty around Olongapo.</span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const TogaLogoIcon = ({ size = 24 }) => (
   <svg width={size} height={Math.round((size * 18) / 22)} viewBox="0 0 22 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <path d="M20 14V7.1L11 12L0 6L11 0L22 6V14H20ZM11 18L4 14.2V9.2L11 13L18 9.2V14.2L11 18Z" fill="currentColor" />
   </svg>
 );
+
+const REPORT_SEQUENCE_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const HrmuViewRouteIcon = ({ color = 'currentColor' }) => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -7629,6 +7834,239 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
 };
 
 const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
+  const hrmuCollegeOptions = [
+    { label: 'All Departments', value: 'all' },
+    { label: 'College of Education, Arts and Sciences', value: 'College of Education, Arts and Sciences' },
+    { label: 'College of Business and Accountancy', value: 'College of Business and Accountancy' },
+    { label: 'College of Allied Health Studies', value: 'College of Allied Health Studies' },
+    { label: 'College of Hospitality and Tourism Management', value: 'College of Tourism and Hospitality Management' },
+    { label: 'College of Computer Studies', value: 'College of Computer Studies' },
+  ];
+  const [summary, setSummary] = useState({
+    totalFacultyOutside: 0,
+    latestActivity: null,
+    verifiedLocatorSlips: 0,
+    pendingSlips: 0,
+  });
+  const [selectedCollegeFilter, setSelectedCollegeFilter] = useState('all');
+  const [recentActivityRows, setRecentActivityRows] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [notificationRows, setNotificationRows] = useState([]);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [liveFacultyRows, setLiveFacultyRows] = useState([]);
+  const [liveFacultyLoading, setLiveFacultyLoading] = useState(false);
+
+  const formatActivityTime = (value) => {
+    if (!value) return '--';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--';
+
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const formatNotificationMeta = (value) => {
+    if (!value) return 'Verification time unavailable';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Verification time unavailable';
+
+    const now = new Date();
+    const sameDay = now.toDateString() === date.toDateString();
+
+    const timePart = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    if (sameDay) {
+      return `VERIFIED TODAY ${timePart}`;
+    }
+
+    const datePart = date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    return `VERIFIED ${datePart} ${timePart}`;
+  };
+
+  const getInitials = (name) => {
+    if (!name) return 'HR';
+
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || '')
+      .join('');
+  };
+
+  const mapTripStatus = (row) => {
+    if (row.tripStatus === 'active' || row.tripStatus === 'arrived') {
+      return { label: 'OFF-SITE', tone: 'green' };
+    }
+
+    if (row.tripStatus === 'completed') {
+      return { label: 'RETURNED', tone: 'yellow' };
+    }
+
+    return { label: 'ON-SITE', tone: 'green' };
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSummary = async () => {
+      try {
+        const data = await getHrmuDashboardSummary();
+        if (!isMounted || !data) return;
+
+        setSummary({
+          totalFacultyOutside: Number(data.totalFacultyOutside || 0),
+          latestActivity: data.latestActivity || null,
+          verifiedLocatorSlips: Number(data.verifiedLocatorSlips || 0),
+          pendingSlips: Number(data.pendingSlips || data.unverifiedCases || 0),
+        });
+      } catch (error) {
+        console.error('Failed to load HRMU dashboard summary:', error);
+      }
+    };
+
+    loadSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadLiveFaculty = async () => {
+      setLiveFacultyLoading(true);
+
+      try {
+        const data = await getHrmuLiveFaculty();
+        if (!isMounted || !data) return;
+
+        setLiveFacultyRows(Array.isArray(data.faculty) ? data.faculty : []);
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU live faculty:', error);
+          setLiveFacultyRows([]);
+        }
+      } finally {
+        if (isMounted) {
+          setLiveFacultyLoading(false);
+        }
+      }
+    };
+
+    loadLiveFaculty();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadNotifications = async () => {
+      setNotificationLoading(true);
+
+      try {
+        const data = await getHrmuNotifications({ page: 1, limit: 3 });
+        if (!isMounted || !data) return;
+
+        const rows = Array.isArray(data.notifications) ? data.notifications : [];
+        setNotificationRows(rows.map((notification) => ({
+          id: notification.id,
+          title: 'Locator Slip Verified',
+          body: `${notification.facultyName} request for ${notification.purpose} approved.`,
+          meta: formatNotificationMeta(notification.approvedAt),
+          tone: 'green',
+          icon: <HrmuMiniCheckIcon color="var(--green)" />,
+        })));
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU notifications:', error);
+          setNotificationRows([]);
+        }
+      } finally {
+        if (isMounted) {
+          setNotificationLoading(false);
+        }
+      }
+    };
+
+    loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRecentActivity = async () => {
+      setActivityLoading(true);
+
+      try {
+        const filters = { page: 1, limit: 10 };
+        if (selectedCollegeFilter !== 'all') {
+          filters.collegeName = selectedCollegeFilter;
+        }
+
+        const data = await getHrmuRecentActivity(filters);
+        if (!isMounted || !data) return;
+
+        const rows = Array.isArray(data.activities) ? data.activities : [];
+        setRecentActivityRows(rows.map((row) => {
+          const verificationIsVerified = ['approved', 'completed'].includes(row.verificationStatus);
+          const mappedTripStatus = mapTripStatus(row);
+
+          return {
+            key: `${row.locatorSlipId}-${row.tripId || 'na'}`,
+            initials: getInitials(row.facultyName),
+            name: row.facultyName,
+            dept: row.collegeName || row.departmentName || 'Unknown college',
+            departure: formatActivityTime(row.departureTime),
+            returnTime: formatActivityTime(row.expectedReturnTime),
+            purpose: row.purpose || 'No purpose provided',
+            verification: verificationIsVerified ? 'VERIFIED' : 'UNVERIFIED',
+            verificationTone: verificationIsVerified ? 'green' : 'red',
+            status: mappedTripStatus.label,
+            statusTone: mappedTripStatus.tone,
+          };
+        }));
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU recent activity:', error);
+          setRecentActivityRows([]);
+        }
+      } finally {
+        if (isMounted) {
+          setActivityLoading(false);
+        }
+      }
+    };
+
+    loadRecentActivity();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCollegeFilter]);
+
   const sidebarItems = [
     { key: 'dashboard', label: 'Dashboard', icon: HrmuSidebarGridIcon, active: true },
     { key: 'verification', label: 'Verification', icon: HrmuVerificationIcon },
@@ -7638,39 +8076,24 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
   ];
 
   const stats = [
-    { label: 'TOTAL FACULTY OUTSIDE', value: '24', accent: 'green', meta: 'LIVE UPDATE', submeta: 'Last activity 2m ago' },
-    { label: 'VERIFIED LOCATOR SLIPS', value: '18', accent: 'yellow' },
-    { label: 'UNVERIFIED CASES', value: '06', accent: 'red', meta: 'NEEDS ATTENTION' },
-  ];
-
-  const notifications = [
     {
-      title: 'Faculty Outside Hours',
-      body: 'Dr. Elena Ross detected outside without active clearance.',
-      meta: 'FLAGGED 5M AGO',
-      tone: 'red',
-      icon: <HrmuWarningIcon />,
+      label: 'TOTAL FACULTY OUTSIDE',
+      value: String(summary.totalFacultyOutside).padStart(2, '0'),
+      accent: 'green',
+      meta: 'LIVE UPDATE',
+      submeta: summary.latestActivity ? `Last activity ${summary.latestActivity}` : 'No active trips',
     },
     {
-      title: 'Locator Slip Verified',
-      body: 'Mr. Ken Bau request for Academic Conference approved.',
-      meta: 'TODAY 10:45 AM',
-      tone: 'green',
-      icon: <HrmuMiniCheckIcon color="var(--green)" />,
+      label: 'VERIFIED LOCATOR SLIPS',
+      value: String(summary.verifiedLocatorSlips).padStart(2, '0'),
+      accent: 'yellow',
     },
     {
-      title: 'Daily Report Ready',
-      body: 'Attendance & Exit analytics for this month are now available.',
-      meta: 'YESTERDAY',
-      tone: 'yellow',
-      icon: <HrmuSyncIcon />,
+      label: 'PENDING SLIPS',
+      value: String(summary.pendingSlips).padStart(2, '0'),
+      accent: 'red',
+      meta: 'NEEDS ATTENTION',
     },
-  ];
-
-  const logRows = [
-    { initials: 'AM', name: 'Aris Miller', dept: 'CAHS Department', departure: '08:15 AM', returnTime: '05:00 PM', purpose: 'Research Gathering', verification: 'QR VERIFIED', verificationTone: 'green', status: 'OFF-SITE', statusTone: 'green' },
-    { initials: 'ER', name: 'Rey Gun', dept: 'CCS Department', departure: '09:30 AM', returnTime: '12:00 PM', purpose: 'Field Supervision', verification: 'UNVERIFIED', verificationTone: 'red', status: 'MISSING SLIP', statusTone: 'red' },
-    { initials: 'JC', name: 'Dr. Lin Case', dept: 'CCS Department', departure: '07:00 AM', returnTime: '11:30 AM', purpose: 'Regional Seminar', verification: 'QR VERIFIED', verificationTone: 'green', status: 'RETURNED', statusTone: 'yellow' },
   ];
 
   return (
@@ -7697,24 +8120,16 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
                 <button type="button">↗ View Full Map</button>
               </div>
               <div className="hrmu-map-card">
-                <div className="hrmu-map-surface" aria-hidden="true">
-                  <div className="hrmu-map-road road-a" />
-                  <div className="hrmu-map-road road-b" />
-                  <div className="hrmu-map-road road-c" />
-                  <div className="hrmu-map-spot spot-a" />
-                  <div className="hrmu-map-spot spot-b" />
-                  <div className="hrmu-map-spot spot-c" />
-                </div>
-                <div className="hrmu-map-pin" />
+                <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
                 <div className="hrmu-map-summary">
                   <div>
                     <span>OLONGAPO ZONE</span>
-                    <strong>14</strong>
+                    <strong>{String(liveFacultyRows.length).padStart(2, '0')}</strong>
                     <small>ACTIVE SLIPS</small>
                   </div>
                   <div>
-                    <strong>100%</strong>
-                    <small>SIGNAL</small>
+                    <strong>{liveFacultyLoading ? '...' : `${liveFacultyRows.length ? 100 : 0}%`}</strong>
+                    <small>LIVE COVERAGE</small>
                   </div>
                 </div>
               </div>
@@ -7723,11 +8138,17 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             <aside className="hrmu-notifications-panel">
               <div className="hrmu-panel-heading notifications">
                 <h2>Notifications</h2>
-                <span className="hrmu-alert-pill">02 ALERTS</span>
+                <span className="hrmu-alert-pill">{String(notificationRows.length).padStart(2, '0')} ALERTS</span>
               </div>
               <div className="hrmu-notification-list">
-                {notifications.map((note) => (
-                  <article key={note.title} className={`hrmu-notification-card ${note.tone}`}>
+                {notificationLoading && (
+                  <div className="hrmu-notification-empty">Loading verification updates...</div>
+                )}
+                {!notificationLoading && notificationRows.length === 0 && (
+                  <div className="hrmu-notification-empty">No verified locator slip notifications yet.</div>
+                )}
+                {!notificationLoading && notificationRows.map((note) => (
+                  <article key={note.id} className={`hrmu-notification-card ${note.tone}`}>
                     <div className="hrmu-notification-icon">{note.icon}</div>
                     <div className="hrmu-notification-copy">
                       <h3>{note.title}</h3>
@@ -7737,7 +8158,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
                   </article>
                 ))}
               </div>
-              <button type="button" className="hrmu-history-link">VIEW ALL HISTORY</button>
+              <button type="button" className="hrmu-history-link" onClick={() => setView('hrmu-notifications')}>VIEW ALL HISTORY</button>
             </aside>
           </section>
 
@@ -7748,8 +8169,35 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
                 <p>Detailed record of campus entries and exits</p>
               </div>
               <div className="hrmu-log-actions">
-                <button type="button" className="hrmu-filter-btn"><HrmuFilterIcon /> <span>Filter</span></button>
-                <button type="button" className="hrmu-export-btn"><HrmuExportIcon /> <span>Export CSV</span></button>
+                <label className="hrmu-filter-control">
+                  <HrmuFilterIcon />
+                  <select
+                    value={selectedCollegeFilter}
+                    onChange={(event) => setSelectedCollegeFilter(event.target.value)}
+                    aria-label="Filter recent activity by college"
+                  >
+                    {hrmuCollegeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className="hrmu-export-btn"
+                  onClick={async () => {
+                    try {
+                      const result = await exportHrmuRecentActivityCsvPlaceholder();
+                      window.alert(result?.message || 'CSV export is not implemented yet.');
+                    } catch (error) {
+                      window.alert(error.message || 'CSV export is not available right now.');
+                    }
+                  }}
+                >
+                  <HrmuExportIcon />
+                  <span>Export CSV</span>
+                </button>
               </div>
             </div>
 
@@ -7764,8 +8212,16 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
                   <span>STATUS</span>
                 </div>
 
-                {logRows.map((row) => (
-                  <div key={row.name} className="hrmu-log-row">
+                {activityLoading && (
+                  <div className="hrmu-log-empty-state">Loading recent activity...</div>
+                )}
+
+                {!activityLoading && recentActivityRows.length === 0 && (
+                  <div className="hrmu-log-empty-state">No recent activity found for the selected college.</div>
+                )}
+
+                {!activityLoading && recentActivityRows.map((row) => (
+                  <div key={row.key} className="hrmu-log-row">
                     <div className="hrmu-faculty-cell">
                       <div className="hrmu-initials-badge">{row.initials}</div>
                       <div>
@@ -7789,105 +8245,157 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
 const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const [selectedRegistryRow, setSelectedRegistryRow] = useState(null);
-  const [statementRequestOpen, setStatementRequestOpen] = useState(false);
-  const [statementReasons, setStatementReasons] = useState(['Unauthorized Location Entry']);
-  const [statementComment, setStatementComment] = useState('');
-  const verificationStats = [
-    { label: 'ON-MISSION', value: '24', tone: 'green', decorate: true },
-    { label: 'PENDING VERIFY', value: '08', tone: 'neutral' },
-  ];
+  const [summary, setSummary] = useState({
+    totalFacultyOutside: 0,
+    pendingSlips: 0,
+    verificationRate: 0,
+  });
+  const [registryRows, setRegistryRows] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const statementOptions = [
-    'Unauthorized Location Entry',
-    'After-Hours Access',
-    'Missing Locator Slip',
-    'Device Tethering Alert',
-  ];
-
-  const toggleStatementReason = (reason) => {
-    setStatementReasons((current) => (
-      current.includes(reason)
-        ? current.filter((item) => item !== reason)
-        : [...current, reason]
-    ));
+  const formatShortTime = (value) => {
+    if (!value) return '--';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--';
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
   };
 
-  const registryRows = [
-    {
-      name: 'Dr. Elias Thorne',
-      id: '202120022',
-      department: 'College of Business and Accountancy',
-      timeout: '09:15 AM',
-      destination: 'City Hall',
-      status: 'VERIFIED',
-      statusTone: 'green',
-      actionLabel: 'Details',
-      actionTone: 'ghost',
-      actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
-      requestedBy: "Dean's Office - CBA",
-      slipNumber: 'LS-99231',
-      purposeOfTravel: 'Attend the emergency meeting at Olongapo City Hall',
-      timeoutFull: '09:15 AM',
-      returnFull: '01:30 PM',
-      deanName: 'Dr. Ana Bell',
-      deanRole: 'COLLEGE DEAN',
-      signatureTime: '2023-10-20T14:22:51 UTC+8',
-      coordinates: '14.5995° N, 120.9842° E',
-      distanceFromCampus: '4.2km from Campus',
-      verificationStatus: 'REACHED DESTINATION',
-      verificationBody: 'Identity confirmed via GPS geo-fencing at Tech Hub Plaza. Faculty has checked in using the mobile concierge app.',
-      syncStatus: 'CONNECTED',
-    },
-    {
-      name: 'Mr. Ken Bau',
-      id: '202312290',
-      department: 'College of Computer Studies',
-      timeout: '08:45 AM',
-      destination: 'Civic Center',
-      status: 'PENDING',
-      statusTone: 'yellow',
-      actionLabel: 'Verify',
-      actionTone: 'green',
-      actionIcon: <HrmuCheckTinyIcon />,
-      requestedBy: "Dean's Office - CCS",
-      slipNumber: 'LS-99231',
-      purposeOfTravel: 'Research Collaboration & Technical Seminar at Olongapo City Civic Center',
-      timeoutFull: '09:15 AM',
-      returnFull: '01:30 PM',
-      deanName: 'Dr. Ron Uy',
-      deanRole: 'COLLEGE DEAN',
-      signatureTime: '2023-10-20T14:22:51 UTC+8',
-      coordinates: '14.5995° N, 120.9842° E',
-      distanceFromCampus: '4.2km from Campus',
-      verificationStatus: 'REACHED DESTINATION',
-      verificationBody: 'Identity confirmed via GPS geo-fencing at Tech Hub Plaza. Faculty has checked in using the mobile concierge app.',
-      syncStatus: 'CONNECTED',
-    },
-    {
-      name: 'Mr. Lau Del',
-      id: '201999280',
-      department: 'College of Computer Studies',
-      timeout: '10:05 AM',
-      destination: 'Med-Lab Center',
-      status: 'FLAGGED',
-      statusTone: 'red',
-      actionLabel: 'Review',
-      actionTone: 'gray',
-      actionIcon: <HrmuAlertTinyIcon />,
-      requestedBy: "Dean's Office - CBA",
-      slipNumber: 'LS-99231',
-      purposeOfTravel: 'Research Collaboration & Technical Seminar at Olongapo City Civic Center',
-      timeoutFull: '10:05 AM',
-      returnFull: '02:30 PM',
-      deanName: 'Dr. Ana Bell',
-      deanRole: 'COLLEGE DEAN',
-      signatureTime: '2023-10-20T14:22:51 UTC+8',
-      coordinates: '25.5995° N, 100.9842° E',
-      distanceFromCampus: '16.2km from Campus',
-      verificationStatus: 'Off Destination',
-      verificationBody: 'Identity confirmed via GPS 10km away from destination. Faculty has checked in using the mobile concierge app.',
-      syncStatus: 'CONNECTED',
-    },
+  const formatFullDateTime = (value) => {
+    if (!value) return 'Not available';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Not available';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
+  const formatCoordinateLabel = (lat, lng) => {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      return 'Live coordinate unavailable';
+    }
+
+    const latDirection = lat >= 0 ? 'N' : 'S';
+    const lngDirection = lng >= 0 ? 'E' : 'W';
+    return `${Math.abs(lat).toFixed(4)} deg ${latDirection}, ${Math.abs(lng).toFixed(4)} deg ${lngDirection}`;
+  };
+
+  const formatReviewerRole = (role, collegeName) => {
+    if (role === 'assistant_dean') return `Assistant Dean - ${collegeName}`;
+    if (role === 'college_dean') return `College Dean - ${collegeName}`;
+    if (role === 'admin') return `Admin - ${collegeName}`;
+    return collegeName || 'Approving authority';
+  };
+
+  const buildSlipReference = (locatorSlipId) => {
+    const normalized = String(locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
+    return normalized ? `LS-${normalized}` : 'Locator Slip';
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+      const loadVerificationPage = async ({ silent = false } = {}) => {
+        if (!silent && isMounted) {
+          setLoading(true);
+        }
+
+      try {
+        const summaryData = await getHrmuDashboardSummary();
+        if (isMounted && summaryData) {
+          setSummary({
+            totalFacultyOutside: Number(summaryData.totalFacultyOutside || 0),
+            pendingSlips: Number(summaryData.pendingSlips || summaryData.unverifiedCases || 0),
+            verificationRate: Number(summaryData.verificationRate || 0),
+          });
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU verification summary:', error);
+          setSummary({
+            totalFacultyOutside: 0,
+            pendingSlips: 0,
+            verificationRate: 0,
+          });
+        }
+      }
+
+        try {
+          const [liveFacultyData, flaggedTripsData] = await Promise.all([
+            getHrmuLiveFaculty(),
+            getHrmuFlaggedTrips().catch(() => ({ trips: [] })),
+          ]);
+          if (!isMounted) return;
+
+          const liveRows = Array.isArray(liveFacultyData?.faculty) ? liveFacultyData.faculty : [];
+          const flaggedTrips = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
+          const flaggedTripMap = new Map(flaggedTrips.map((item) => [item.tripId, item]));
+          const mappedRows = liveRows.map((row) => ({
+            ...(flaggedTripMap.get(row.tripId) || {}),
+            key: row.tripId || row.locatorSlipId || row.facultyUserId,
+            name: row.facultyName,
+            id: row.employeeId || 'N/A',
+            department: row.collegeName || 'Unknown college',
+            timeout: formatShortTime(row.departureTime),
+            destination: row.destination || 'Active trip route',
+            status: flaggedTripMap.has(row.tripId) ? 'FLAGGED' : 'VERIFIED',
+            statusTone: flaggedTripMap.has(row.tripId) ? 'red' : 'green',
+            actionLabel: 'Details',
+            actionTone: 'ghost',
+            actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
+            requestedBy: formatReviewerRole(row.reviewedByRole, row.collegeName),
+            slipNumber: buildSlipReference(row.locatorSlipId),
+          purposeOfTravel: row.purpose || row.purposeOfTravel || 'No purpose provided.',
+          timeoutFull: formatFullDateTime(row.departureTime),
+          returnFull: formatFullDateTime(row.expectedReturnTime),
+          deanName: row.reviewedByName || 'Approved by dean',
+          deanRole: formatReviewerRole(row.reviewedByRole, row.collegeName),
+            signatureTime: formatFullDateTime(row.approvedAt),
+            coordinates: formatCoordinateLabel(row.lat, row.lng),
+            distanceFromCampus: 'Live coordinates from active trip tracking',
+            verificationStatus: flaggedTripMap.has(row.tripId) ? 'FLAGGED INCIDENT DETECTED' : 'APPROVED FOR TRAVEL',
+            verificationBody: flaggedTripMap.has(row.tripId)
+              ? `${row.facultyName} has active flagged conditions: ${(flaggedTripMap.get(row.tripId)?.incidentLabels || []).join(', ')}.`
+              : `${row.facultyName} is currently in an active trip and was allowed to start only after an approved locator slip was found in the backend.`,
+            syncStatus: row.lastUpdatedAt ? `LAST SYNC ${formatShortTime(row.lastUpdatedAt)}` : 'AWAITING LIVE UPDATE',
+            position: row.position || 'Instructor',
+            flaggedReasons: flaggedTripMap.get(row.tripId)?.incidentLabels || [],
+          }));
+
+        setRegistryRows(mappedRows);
+        setSelectedRegistryRow((current) => {
+          if (!current) return null;
+          return mappedRows.find((row) => row.key === current.key) || null;
+        });
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU verification registry:', error);
+          setRegistryRows([]);
+          setSelectedRegistryRow(null);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadVerificationPage();
+    const intervalId = window.setInterval(() => loadVerificationPage({ silent: true }), 15000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  const verificationStats = [
+    { label: 'ON-MISSION', value: String(summary.totalFacultyOutside).padStart(2, '0'), tone: 'green', decorate: true },
+    { label: 'PENDING SLIPS', value: String(summary.pendingSlips).padStart(2, '0'), tone: 'neutral' },
   ];
 
   return (
@@ -7909,7 +8417,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         <article className="hrmu-verify-rate-card">
           <span className="hrmu-verify-stat-label inverse">VERIFICATION RATE</span>
           <div className="hrmu-verify-rate-row">
-            <strong>94.2%</strong>
+            <strong>{summary.verificationRate.toFixed(1)}%</strong>
             <div className="hrmu-verify-bars" aria-hidden="true">
               <span />
               <span />
@@ -7926,10 +8434,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
             <span className="hrmu-verify-registry-accent" aria-hidden="true" />
             <h2>Active Dispatch Registry</h2>
           </div>
-          <div className="hrmu-verify-registry-tools">
-            <button type="button" className="hrmu-verify-filter-chip">Filter: All Departments</button>
-            <button type="button" className="hrmu-verify-filter-chip">Sort: Time Out</button>
-          </div>
         </div>
 
         <div className="hrmu-verify-table">
@@ -7942,11 +8446,23 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
             <span>ACTIONS</span>
           </div>
 
-          {registryRows.map((row) => (
-            <div key={row.name} className="hrmu-verify-row">
+          {loading && (
+            <div className="hrmu-verify-row hrmu-verify-empty-row">
+              <div className="hrmu-verify-faculty"><strong>Loading active dispatch registry...</strong></div>
+            </div>
+          )}
+
+          {!loading && registryRows.length === 0 && (
+            <div className="hrmu-verify-row hrmu-verify-empty-row">
+              <div className="hrmu-verify-faculty"><strong>No faculty are currently in an active trip.</strong></div>
+            </div>
+          )}
+
+          {!loading && registryRows.map((row) => (
+            <div key={row.key} className="hrmu-verify-row">
               <div className="hrmu-verify-faculty">
                 <div className="hrmu-verify-avatar">
-                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={row.name} />
+                  <img src={DEFAULT_PROFILE_IMAGE} alt={row.name} />
                 </div>
                 <div>
                   <strong>{row.name}</strong>
@@ -7962,7 +8478,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                 <button
                   type="button"
                   className={`hrmu-verify-action-btn ${row.actionTone}`}
-                  onClick={() => ['Verify', 'Details', 'Review'].includes(row.actionLabel) && setSelectedRegistryRow(row)}
+                  onClick={() => setSelectedRegistryRow(row)}
                 >
                   {row.actionIcon}
                   <span>{row.actionLabel}</span>
@@ -7972,23 +8488,25 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           ))}
         </div>
 
-        <button type="button" className="hrmu-verify-footer-link">View All 15 Dispatched Faculty</button>
+        <button type="button" className="hrmu-verify-footer-link">
+          View All {registryRows.length} Dispatched Faculty
+        </button>
       </section>
 
-      {selectedRegistryRow && !statementRequestOpen && (
+      {selectedRegistryRow && (
         <div className="hrmu-verify-modal-overlay" role="presentation" onClick={() => setSelectedRegistryRow(null)}>
           <div className="hrmu-verify-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-verify-modal-title" onClick={(event) => event.stopPropagation()}>
             <div className="hrmu-verify-modal-header">
               <div className="hrmu-verify-modal-person">
                 <div className="hrmu-verify-modal-avatar">
-                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
+                  <img src={DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
                 </div>
                 <div className="hrmu-verify-modal-person-copy">
                   <div className="hrmu-verify-modal-topline">
                     <h2 id="hrmu-verify-modal-title">{selectedRegistryRow.name}</h2>
                     <span className="hrmu-verify-modal-pill">ON MISSION</span>
                   </div>
-                  <p>Instructor • {selectedRegistryRow.department}</p>
+                  <p>{selectedRegistryRow.position} - {selectedRegistryRow.department}</p>
                   <div className="hrmu-verify-modal-times">
                     <span>Out: {selectedRegistryRow.timeoutFull}</span>
                     <span>Est. Return: {selectedRegistryRow.returnFull}</span>
@@ -7996,7 +8514,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                 </div>
               </div>
               <button type="button" className="hrmu-verify-modal-close" onClick={() => setSelectedRegistryRow(null)} aria-label="Close verification modal">
-                ×
+                x
               </button>
             </div>
 
@@ -8026,6 +8544,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                       <div className="hrmu-verify-signature-copy">
                         <strong>{selectedRegistryRow.deanName}</strong>
                         <span>{selectedRegistryRow.deanRole}</span>
+                        <small>{selectedRegistryRow.signatureTime}</small>
                       </div>
                     </div>
                   </div>
@@ -8055,107 +8574,15 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                 </div>
 
                 <div className="hrmu-verify-current-status">
-                  <div className={`hrmu-verify-current-status-row ${selectedRegistryRow.actionLabel === 'Review' ? 'review' : ''}`}>
+                  <div className="hrmu-verify-current-status-row">
                     <span>CURRENT STATUS</span>
                     <strong>{selectedRegistryRow.verificationStatus}</strong>
                   </div>
-                  <div className={`hrmu-verify-status-bar ${selectedRegistryRow.actionLabel === 'Review' ? 'review' : ''}`} aria-hidden="true" />
+                  <div className="hrmu-verify-status-bar" aria-hidden="true" />
                   <p>{selectedRegistryRow.verificationBody}</p>
                 </div>
 
-                {selectedRegistryRow.actionLabel === 'Verify' && (
-                  <button type="button" className="hrmu-verify-confirm-btn">Confirm Verification</button>
-                )}
-                {selectedRegistryRow.actionLabel === 'Review' && (
-                  <div className="hrmu-verify-review-actions">
-                    <button
-                      type="button"
-                      className="hrmu-verify-request-btn"
-                      onClick={() => setStatementRequestOpen(true)}
-                    >
-                      Request Statement
-                    </button>
-                    <button type="button" className="hrmu-verify-clear-btn">Clear Flag</button>
-                  </div>
-                )}
                 <button type="button" className="hrmu-verify-return-btn" onClick={() => setSelectedRegistryRow(null)}>Return to Registry</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedRegistryRow && statementRequestOpen && (
-        <div className="hrmu-verify-modal-overlay" role="presentation" onClick={() => setStatementRequestOpen(false)}>
-          <div className="hrmu-verify-modal hrmu-statement-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-statement-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="hrmu-verify-modal-header">
-              <div className="hrmu-verify-modal-person">
-                <div className="hrmu-verify-modal-avatar">
-                  <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
-                </div>
-                <div className="hrmu-verify-modal-person-copy">
-                  <div className="hrmu-verify-modal-topline">
-                    <h2 id="hrmu-statement-modal-title">{selectedRegistryRow.name}</h2>
-                    <span className="hrmu-verify-modal-pill">ON MISSION</span>
-                  </div>
-                  <p>Instructor • {selectedRegistryRow.department}</p>
-                  <div className="hrmu-verify-modal-times">
-                    <span>Out: {selectedRegistryRow.timeoutFull}</span>
-                    <span>Est. Return: {selectedRegistryRow.returnFull}</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="hrmu-verify-modal-close"
-                onClick={() => setStatementRequestOpen(false)}
-                aria-label="Close statement request modal"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="hrmu-statement-modal-body">
-              <h3>Request Official Statement</h3>
-              <p>
-                Formal request for explanation regarding flagged incident
-                {' '}
-                <strong>#INC-2024-0892</strong>
-              </p>
-
-              <div className="hrmu-statement-section">
-                <span>SELECT DISCREPANCIES TO ADDRESS</span>
-                <div className="hrmu-statement-grid">
-                  {statementOptions.map((option) => {
-                    const checked = statementReasons.includes(option);
-                    return (
-                      <button
-                        key={option}
-                        type="button"
-                        className={`hrmu-statement-option ${checked ? 'checked' : ''}`}
-                        onClick={() => toggleStatementReason(option)}
-                      >
-                        <span className="hrmu-statement-checkbox" aria-hidden="true">{checked ? '✓' : ''}</span>
-                        <span>{option}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="hrmu-statement-section">
-                <span>REVIEWER COMMENTS/INSTRUCTIONS</span>
-                <textarea
-                  className="hrmu-statement-textarea"
-                  value={statementComment}
-                  onChange={(event) => setStatementComment(event.target.value)}
-                  placeholder="Please provide specific details for the faculty member to address. Mention any witness logs relevant to this discrepancy..."
-                />
-              </div>
-
-              <div className="hrmu-statement-actions">
-                <button type="button" className="hrmu-statement-cancel-btn" onClick={() => setStatementRequestOpen(false)}>Cancel</button>
-                <button type="button" className="hrmu-statement-submit-btn">Send Statement Request</button>
               </div>
             </div>
           </div>
@@ -8166,28 +8593,96 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
-  const destinationRows = [
-    { rank: 1, label: 'City Hall', count: 850, width: '84%' },
-    { rank: 2, label: 'Philippine Island B...', count: 624, width: '60%' },
-    { rank: 3, label: 'Civic Center', count: 451, width: '46%' },
-  ];
+  const {
+    filters,
+    analytics,
+    loading,
+    error,
+    exportMessage,
+    departmentOptions,
+    monthOptions,
+    updateFilter,
+    applyFilters,
+    exportCsv,
+    exportPdf,
+  } = useHrmuAnalytics();
+
+  const numberFormatter = new Intl.NumberFormat('en-PH');
+  const percentFormatter = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+  const decimalFormatter = new Intl.NumberFormat('en-PH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+
+  const chartLabels = analytics?.dailyFacultyMovement?.labels || ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+  const chartValues = analytics?.dailyFacultyMovement?.values || [];
+  const maxChartValue = chartValues.length ? Math.max(...chartValues, 0) : 0;
+  const approvalRate = analytics?.approvalRate || {};
+  const frequentDestinations = analytics?.frequentDestinations || [];
+  const monthlySummary = analytics?.monthlyPerformanceSummary || {};
+  const selectedCollegeLabel = departmentOptions.find((option) => option.value === String(filters.collegeName || ''))?.label || 'All Departments';
+
+  const weeklyDirectionLabel = approvalRate.weeklyChangeDirection === 'decrease'
+    ? 'decrease'
+    : approvalRate.weeklyChangeDirection === 'increase'
+      ? 'increase'
+      : 'no change';
+  const weeklyDirectionSymbol = approvalRate.weeklyChangeDirection === 'decrease'
+    ? 'v'
+    : approvalRate.weeklyChangeDirection === 'increase'
+      ? '^'
+      : '-';
+  const tripsDirectionSymbol = monthlySummary.tripsMonthOverMonthDirection === 'decrease'
+    ? 'v'
+    : monthlySummary.tripsMonthOverMonthDirection === 'increase'
+      ? '^'
+      : '-';
 
   const summaryCards = [
-    { label: 'TOTAL TRIPS', value: '12,482', note: '↑ 12% MoM', tone: 'green' },
-    { label: 'AVG. DISTANCE', value: '4.2 km', note: 'Optimized', tone: 'yellow' },
-    { label: 'USERS', value: '1,240', note: '98% Engaged', tone: 'green' },
-    { label: 'PEAK HOUR', value: '08:45 AM', note: 'Shift A', tone: 'dark' },
+    {
+      label: 'TOTAL TRIPS',
+      value: numberFormatter.format(monthlySummary.totalTripsCompleted || 0),
+      note: `${tripsDirectionSymbol} ${percentFormatter.format(monthlySummary.tripsMonthOverMonthPercent || 0)}% MoM`,
+      tone: 'green',
+    },
+    {
+      label: 'AVG. DISTANCE',
+      value: `${decimalFormatter.format(monthlySummary.averageDistanceKm || 0)} km`,
+      note: monthlySummary.averageDistanceLabel || 'Optimized',
+      tone: 'yellow',
+    },
+    {
+      label: 'USERS',
+      value: numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0),
+      note: `${percentFormatter.format(monthlySummary.engagementRatePercent || 0)}% Engaged`,
+      tone: 'green',
+    },
+    {
+      label: 'PEAK HOUR',
+      value: monthlySummary.peakHour || '--',
+      note: monthlySummary.peakHourLabel || 'No peak hour',
+      tone: 'dark',
+    },
   ];
 
-  const chartBars = [
-    { day: 'MON', height: 34 },
-    { day: 'TUE', height: 54 },
-    { day: 'WED', height: 78 },
-    { day: 'THU', height: 44 },
-    { day: 'FRI', height: 86 },
-    { day: 'SAT', height: 62 },
-    { day: 'SUN', height: 38 },
-  ];
+  const handleExportCsv = async () => {
+    try {
+      await exportCsv();
+    } catch (requestError) {
+      console.error('CSV export placeholder failed:', requestError);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      await exportPdf();
+    } catch (requestError) {
+      console.error('PDF export placeholder failed:', requestError);
+    }
+  };
 
   return (
     <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
@@ -8198,49 +8693,91 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
         </div>
         <div className="hrmu-analytics-actions">
-          <button type="button" className="hrmu-analytics-export ghost"><HrmuExportIcon color="#5F645F" /> <span>CSV</span></button>
-          <button type="button" className="hrmu-analytics-export primary"><HrmuReportIcon color="white" /> <span>Export PDF</span></button>
+          <button type="button" className="hrmu-analytics-export ghost" onClick={handleExportCsv}>
+            <HrmuExportIcon color="#5F645F" />
+            <span>CSV</span>
+          </button>
+          <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf}>
+            <HrmuReportIcon color="white" />
+            <span>Export PDF</span>
+          </button>
         </div>
       </section>
 
-      <section className="hrmu-analytics-filter-card">
-        <div className="hrmu-analytics-filter-group">
-          <span>DATE RANGE</span>
-          <button type="button" className="hrmu-analytics-select">
-            <span>Last 30 Days (Jan 12 - Feb 11)</span>
-            <span>⌄</span>
-          </button>
+        <section className="hrmu-analytics-filter-card">
+          <div className="hrmu-analytics-filter-group">
+            <span>DATE RANGE</span>
+            <select
+              className="hrmu-analytics-select hrmu-analytics-select-input"
+              value={filters.month}
+              onChange={(event) => updateFilter('month', event.target.value)}
+            >
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="hrmu-analytics-filter-group">
+            <span>DEPARTMENT</span>
+            <select
+              className="hrmu-analytics-select hrmu-analytics-select-input"
+              value={filters.collegeName}
+              onChange={(event) => updateFilter('collegeName', event.target.value)}
+            >
+              {departmentOptions.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <div className="hrmu-analytics-filter-group">
-          <span>DEPARTMENT</span>
-          <button type="button" className="hrmu-analytics-select">
-            <span>All Departments</span>
-            <span>⌄</span>
-          </button>
-        </div>
-        <button type="button" className="hrmu-analytics-apply-btn">Apply Filters</button>
+        <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters}>
+          Apply Filters
+        </button>
       </section>
+
+      {(error || exportMessage) && (
+        <div className="hrmu-analytics-feedback">
+          {error ? <span>{error}</span> : null}
+          {exportMessage ? <span>{exportMessage}</span> : null}
+        </div>
+      )}
 
       <section className="hrmu-analytics-top-grid">
         <article className="hrmu-analytics-chart-card">
           <div className="hrmu-analytics-panel-head">
             <div>
               <h2>Daily Faculty Movement</h2>
-              <p>Tracking peak mobility periods across campus</p>
+              <p>
+                {selectedCollegeLabel === 'All Departments'
+                  ? 'Tracking locator slip volume across the five HRMU colleges'
+                  : `Tracking locator slip volume for ${selectedCollegeLabel}`}
+              </p>
             </div>
             <div className="hrmu-analytics-legend">
-              <span className="departures">Departures</span>
-              <span className="arrivals">Arrivals</span>
+              <span className="departures">Locator Slips</span>
+              <span className="arrivals">{analytics?.dateRange?.label || 'Current Month'}</span>
             </div>
           </div>
-          <div className="hrmu-analytics-chart">
-            {chartBars.map((bar) => (
-              <div key={bar.day} className="hrmu-analytics-chart-col">
-                <div className="hrmu-analytics-bar" style={{ height: `${bar.height}%` }} />
-                <span>{bar.day}</span>
-              </div>
-            ))}
-          </div>
+          {loading ? (
+            <div className="hrmu-analytics-loading">Loading analytics...</div>
+          ) : (
+            <div className="hrmu-analytics-chart">
+              {chartLabels.map((label, index) => {
+                const currentValue = Number(chartValues[index] || 0);
+                const height = maxChartValue > 0 ? Math.max((currentValue / maxChartValue) * 100, 12) : 12;
+
+                return (
+                  <div key={label} className="hrmu-analytics-chart-col">
+                    <div className="hrmu-analytics-bar" style={{ height: `${height}%` }} title={`${label}: ${currentValue}`} />
+                    <span>{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </article>
 
         <article className="hrmu-analytics-rate-card">
@@ -8248,11 +8785,16 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           <p>Request vs Approval efficiency</p>
           <div className="hrmu-analytics-ring">
             <div>
-              <strong>94%</strong>
-              <span>SUCCESS</span>
+              <strong>{percentFormatter.format(approvalRate.percentage || 0)}%</strong>
+              <span>{(approvalRate.percentage || 0) >= 50 ? 'SUCCESS' : 'IN REVIEW'}</span>
             </div>
           </div>
-          <div className="hrmu-analytics-growth">↗ +2.4% increase from last period</div>
+          <div className="hrmu-analytics-growth">
+            {`${weeklyDirectionSymbol} ${percentFormatter.format(approvalRate.weeklyChangePercent || 0)}% ${weeklyDirectionLabel} from last period`}
+          </div>
+          <small className="hrmu-analytics-rate-meta">
+            {`${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`}
+          </small>
         </article>
       </section>
 
@@ -8260,18 +8802,27 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
         <article className="hrmu-analytics-destinations-card">
           <h2>Frequent Destinations</h2>
           <div className="hrmu-analytics-destination-list">
-            {destinationRows.map((row) => (
-              <div key={row.rank} className="hrmu-analytics-destination-item">
-                <div className="hrmu-analytics-rank">{row.rank}</div>
-                <div className="hrmu-analytics-destination-copy">
-                  <strong>{row.label}</strong>
-                  <div className="hrmu-analytics-destination-bar-track">
-                    <div className="hrmu-analytics-destination-bar-fill" style={{ width: row.width }} />
+            {frequentDestinations.length ? (
+              frequentDestinations.slice(0, 5).map((row) => {
+                const topCount = frequentDestinations[0]?.count || 1;
+                const width = `${Math.max((Number(row.count || 0) / topCount) * 100, 10)}%`;
+
+                return (
+                  <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item">
+                    <div className="hrmu-analytics-rank">{row.rank}</div>
+                    <div className="hrmu-analytics-destination-copy">
+                      <strong title={row.label}>{row.label}</strong>
+                      <div className="hrmu-analytics-destination-bar-track">
+                        <div className="hrmu-analytics-destination-bar-fill" style={{ width }} />
+                      </div>
+                    </div>
+                    <span>{numberFormatter.format(row.count || 0)}</span>
                   </div>
-                </div>
-                <span>{row.count}</span>
-              </div>
-            ))}
+                );
+              })
+            ) : (
+              <div className="hrmu-analytics-empty">No destination history found for this month.</div>
+            )}
           </div>
         </article>
 
@@ -8304,44 +8855,110 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
     </HrmuWorkspaceShell>
   );
 };
-
 const HrmuReportsView = ({ setView, profileData, onLogout }) => {
-  const reportRows = [
-    { timestamp: 'Mar 28, 14:22', location: 'Gate 4 - Warehouse B', personnel: 'Marcus C. (ID-928)', status: 'FLAGGED', tone: 'red' },
-    { timestamp: 'Mar 27, 09:15', location: 'Main Hub - Receiving', personnel: 'System Automated', status: 'VERIFIED', tone: 'green' },
-    { timestamp: 'Mar 26, 23:45', location: 'Sector 7 Perimeter', personnel: 'Sarah L. (ID-114)', status: 'MODERATE', tone: 'yellow' },
-    { timestamp: 'Mar 25, 12:10', location: 'Internal Audit Path', personnel: 'James K. (ID-002)', status: 'VERIFIED', tone: 'green' },
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const {
+    monthIndex,
+    baseYear,
+    report,
+    loading,
+    error,
+    detailLoading,
+    selectedDetail,
+    setSelectedDetail,
+    goPrevious,
+    goNext,
+    openDetails,
+  } = useHrmuMonthlyReport({ initialMonthIndex: 1, initialYear: 2026 });
+
+  const summary = report?.summary || {};
+  const reportRows = Array.isArray(report?.locatorSlipLogs) ? report.locatorSlipLogs : [];
+  const reportMeta = report?.reportMeta || {};
+  const sequenceMonthName = REPORT_SEQUENCE_MONTHS[monthIndex - 1] || 'January';
+  const flaggedSummaryNote = `${summary.lateReturns || 0} late | ${summary.unverifiedLocations || 0} unverified | ${summary.disconnectedLocations || 0} disconnected`;
+
+  const summaryCards = [
+    { label: 'TOTAL MOVEMENTS', value: String(summary.totalMovements || 0), note: `${summary.successfulTrips || 0} successful trips`, tone: 'green' },
+    { label: 'FLAGGED INCIDENTS', value: String(summary.flaggedIncidents || 0), note: `${summary.lateReturns || 0} late • ${summary.unverifiedLocations || 0} unverified • ${summary.disconnectedLocations || 0} disconnected`, tone: 'red' },
+    { label: 'COMPLIANCE RATE', value: `${Number(summary.complianceRate || 0).toFixed(1)}%`, note: `${summary.successfulTrips || 0} compliant / ${summary.totalMovements || 0} total`, tone: 'yellow' },
   ];
+  summaryCards[1].note = flaggedSummaryNote;
+
+  const mapStatusTone = (status) => {
+    if (status === 'VERIFIED') return 'green';
+    if (status === 'REJECTED') return 'red';
+    return 'red';
+  };
+
+  const handleDownloadReport = async () => {
+    if (loading || downloadLoading) return;
+
+    setDownloadLoading(true);
+    try {
+      const { blob, filename } = await downloadHrmuMonthlyReportPdf({ monthIndex, baseYear });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      window.alert(error.message || 'Unable to download the monthly report.');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
+  const handlePrintReport = () => {
+    if (loading) return;
+    window.print();
+  };
 
   return (
     <HrmuWorkspaceShell activeKey="reports" setView={setView} profileData={profileData} onLogout={onLogout}>
       <section className="hrmu-reports-page">
-        <div className="hrmu-reports-toolbar">
+        <div className="hrmu-reports-toolbar no-print">
           <div className="hrmu-reports-titlebar">
-            <button type="button" className="hrmu-reports-back-btn" aria-label="Back to dashboard">←</button>
-            <strong>Monthly Security Report - March 2026</strong>
+            <button type="button" className="hrmu-reports-back-btn" aria-label="Back to dashboard" onClick={() => setView('hrmu-dashboard')}>
+              <BackArrowIcon color="currentColor" />
+            </button>
+            <strong>{reportMeta.title || 'Monthly Security Report'}</strong>
             <span className="hrmu-reports-badge">CONFIDENTIAL</span>
           </div>
 
           <div className="hrmu-reports-tools">
             <div className="hrmu-reports-pager">
-              <button type="button" aria-label="Previous page">‹</button>
-              <strong>1</strong>
+              <button type="button" aria-label="Previous page" onClick={goPrevious} disabled={reportMeta.isFirst}>
+                <span className="hrmu-reports-chevron-prev">
+                  <ChevronRightIcon color="currentColor" />
+                </span>
+              </button>
+              <strong>{monthIndex}</strong>
               <span>/ 12</span>
-              <button type="button" aria-label="Next page">›</button>
+              <button type="button" aria-label="Next page" onClick={goNext} disabled={reportMeta.isLast}>
+                <span className="hrmu-reports-chevron-next">
+                  <ChevronRightIcon color="currentColor" />
+                </span>
+              </button>
             </div>
             <div className="hrmu-reports-zoom">
-              <button type="button" aria-label="Zoom out">−</button>
+              <button type="button" aria-label="Zoom out">-</button>
               <strong>100%</strong>
               <button type="button" aria-label="Zoom in">+</button>
             </div>
-            <button type="button" className="hrmu-reports-icon-btn" aria-label="Download report">↓</button>
-            <button type="button" className="hrmu-reports-icon-btn" aria-label="Print report">⎙</button>
+            <button type="button" className="hrmu-reports-icon-btn" aria-label="Download report" onClick={handleDownloadReport} disabled={downloadLoading || loading}>
+              <RegistryDownloadIcon />
+            </button>
+            <button type="button" className="hrmu-reports-icon-btn" aria-label="Print report" onClick={handlePrintReport} disabled={loading}>
+              <ReportPrintIcon />
+            </button>
           </div>
         </div>
 
         <div className="hrmu-reports-canvas">
-          <article className="hrmu-reports-sheet">
+          <article className="hrmu-reports-sheet" id="hrmu-monthly-report-print-area">
             <div className="hrmu-reports-sheet-head">
               <div className="hrmu-reports-brand-block">
                 <div className="hrmu-reports-brand-icon">
@@ -8355,43 +8972,37 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
 
               <div className="hrmu-reports-doc-meta">
                 <strong>OFFICIAL DOCUMENT</strong>
-                <span>Report ID: HRMU-2026-03-SEC</span>
-                <span>Generated: March 31, 2026</span>
+                <span>{`Report Sequence: ${monthIndex} / 12`}</span>
+                <span>{`Coverage: ${reportMeta.monthName || sequenceMonthName}, ${reportMeta.year || baseYear}`}</span>
               </div>
             </div>
 
             <div className="hrmu-reports-divider" />
 
-            <div className="hrmu-reports-section">
-              <h1>Monthly Movement &amp; Violation Summary</h1>
-              <div className="hrmu-reports-subdivider" />
-              <p>
-                This report provides a comprehensive overview of logistical activities, security transitions,
-                and recorded violations within the HRMU jurisdiction for the fiscal month of March 2026.
-              </p>
-            </div>
+              <div className="hrmu-reports-section">
+                <h1>Monthly Movement &amp; Violation Summary</h1>
+                <div className="hrmu-reports-subdivider" />
+                <p>
+                  This report provides a comprehensive overview of logistical activities, security transitions,
+                  and flagged trip incidents within the HRMU jurisdiction for month of {reportMeta.monthName || sequenceMonthName}.
+                </p>
+              </div>
 
             <div className="hrmu-reports-summary-grid">
-              <article className="hrmu-reports-summary-card green">
-                <span>TOTAL MOVEMENTS</span>
-                <strong>1,284</strong>
-                <small>↗ 12% from Feb</small>
-              </article>
-              <article className="hrmu-reports-summary-card red">
-                <span>FLAGGED INCIDENTS</span>
-                <strong>14</strong>
-                <small>⚠ 4 High Priority</small>
-              </article>
-              <article className="hrmu-reports-summary-card yellow">
-                <span>COMPLIANCE RATE</span>
-                <strong>98.2%</strong>
-                <small>Target: 99.5%</small>
-              </article>
+              {summaryCards.map((card) => (
+                <article key={card.label} className={`hrmu-reports-summary-card ${card.tone}`}>
+                  <span>{card.label}</span>
+                  <strong>{loading ? '--' : card.value}</strong>
+                  <small>{loading ? 'Loading...' : card.note}</small>
+                </article>
+              ))}
             </div>
 
             <div className="hrmu-reports-log-head">
               <div className="hrmu-reports-log-title">
-                <span className="hrmu-reports-log-icon">▣</span>
+                <span className="hrmu-reports-log-icon">
+                  <DocumentIcon color="currentColor" width="24" height="24" />
+                </span>
                 <h2>Key Incident Log</h2>
               </div>
             </div>
@@ -8404,23 +9015,57 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
                 <span>STATUS</span>
                 <span>ACTION</span>
               </div>
-              {reportRows.map((row) => (
-                <div key={`${row.timestamp}-${row.personnel}`} className="hrmu-reports-table-row">
-                  <span>{row.timestamp}</span>
+              {loading && <div className="hrmu-reports-table-row"><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span></div>}
+              {!loading && reportRows.length === 0 && <div className="hrmu-reports-table-row"><span>No data</span><span>No logs found for this month.</span><span>--</span><span>--</span><span>--</span></div>}
+              {!loading && reportRows.map((row) => (
+                <div key={`${row.timestamp}-${row.personnel}-${row.status}`} className="hrmu-reports-table-row">
+                  <span>{row.timestampLabel}</span>
                   <span>{row.location}</span>
                   <span>{row.personnel}</span>
-                  <span><em className={`hrmu-reports-status-pill ${row.tone}`}>{row.status}</em></span>
-                  <button type="button" className="hrmu-reports-detail-link">Details</button>
+                  <span><em className={`hrmu-reports-status-pill ${mapStatusTone(row.status)}`}>{row.status}</em></span>
+                  <button type="button" className="hrmu-reports-detail-link" onClick={() => openDetails(row.locatorSlipId)}>Details</button>
                 </div>
               ))}
             </div>
+            {error && <p className="hrmu-reports-inline-error">{error}</p>}
           </article>
         </div>
+
+        {selectedDetail && (
+          <div className="hrmu-reports-detail-overlay" role="presentation" onClick={() => setSelectedDetail(null)}>
+            <div className="hrmu-reports-detail-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+              <div className="hrmu-reports-detail-head">
+                <h3>{selectedDetail.facultyName}</h3>
+                <button type="button" className="hrmu-reports-detail-close" onClick={() => setSelectedDetail(null)} aria-label="Close details">
+                  <RegistryModalCloseIcon />
+                </button>
+              </div>
+              {detailLoading ? <p>Loading details...</p> : (
+                <div className="hrmu-reports-detail-grid">
+                  <p><strong>College:</strong> {selectedDetail.collegeName}</p>
+                  <p><strong>Destination:</strong> {selectedDetail.destination}</p>
+                  <p><strong>Purpose:</strong> {selectedDetail.purpose}</p>
+                  <p><strong>Locator Status:</strong> {selectedDetail.locatorStatus}</p>
+                  <p><strong>Trip Status:</strong> {selectedDetail.tripStatus || 'No linked trip'}</p>
+                  <p><strong>Verification:</strong> {selectedDetail.verificationStatus || 'missing'}</p>
+                  <div className="hrmu-reports-detail-reasons">
+                    <strong>Flagged Reasons</strong>
+                    {Array.isArray(selectedDetail.flaggedReasons) && selectedDetail.flaggedReasons.length > 0 ? selectedDetail.flaggedReasons.map((reason) => (
+                      <div key={`${reason.type}-${reason.detectedAt || ''}`} className="hrmu-reports-detail-reason">
+                        <span>{reason.label}</span>
+                        <small>{reason.severity}</small>
+                      </div>
+                    )) : <p>No flagged incidents attached.</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </HrmuWorkspaceShell>
   );
 };
-
 const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
   return (
     <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
@@ -8494,103 +9139,293 @@ const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
   );
 };
 
-const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
-  const liveActivities = [
-    { id: 1, title: 'Asset #442 (Faculty)', body: 'Entered Zone: Science Block B', meta: '14 SECONDS AGO', tone: 'green' },
-    { id: 2, title: 'Asset #109 (Staff)', body: 'Exit Clearance Initiated', meta: '2 MINS AGO', tone: 'yellow' },
-    { id: 3, title: 'System Check', body: 'Gateway CCSU-North OK', meta: '5 MINS AGO', tone: 'neutral' },
-  ];
+const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
+  const [alerts, setAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState('');
+  const [alertFilter, setAlertFilter] = useState('all');
+  const [incidentSummary, setIncidentSummary] = useState({
+    lateReturns: 0,
+    unverifiedLocations: 0,
+    disconnectedLocations: 0,
+  });
 
-  const liveMarkers = [
-    { id: 1, name: 'Mr. Michael Rivera', top: '28%', left: '42%' },
-    { id: 2, name: 'Dr. Elena Ross', top: '35%', left: '66%' },
-    { id: 3, name: 'Mr. Ken Bau', top: '58%', left: '34%' },
-  ];
+  useEffect(() => {
+    let isMounted = true;
+
+    const formatRelativeAlertTime = (value) => {
+      if (!value) return 'Time unavailable';
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'Time unavailable';
+
+      const diffMs = Date.now() - date.getTime();
+      const diffMinutes = Math.max(Math.round(diffMs / 60000), 0);
+
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`;
+
+      const diffHours = Math.round(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+
+    const loadAlerts = async () => {
+      setAlertsLoading(true);
+      setAlertsError('');
+
+      try {
+        const [notificationData, summaryData, flaggedTripsData] = await Promise.all([
+          getHrmuNotifications({ page: 1, limit: 6 }),
+          getHrmuVerificationIncidentSummary(),
+          getHrmuFlaggedTrips(),
+        ]);
+
+        if (!isMounted) return;
+
+        const notificationRows = Array.isArray(notificationData?.notifications) ? notificationData.notifications : [];
+        const flaggedRows = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
+
+        const verifiedAlerts = notificationRows.map((notification) => ({
+          id: `verified-${notification.id}`,
+          type: 'verified',
+          title: 'Locator Slip Verified',
+          body: notification.message || `${notification.facultyName} locator slip approved.`,
+          time: formatRelativeAlertTime(notification.approvedAt),
+          sortDate: notification.approvedAt ? new Date(notification.approvedAt).getTime() : 0,
+          actionLabelPrimary: 'Open Dashboard',
+          actionLabelSecondary: 'Review Verification',
+        }));
+
+        const violationAlerts = flaggedRows.map((trip) => ({
+          id: `violation-${trip.tripId}`,
+          type: 'violation',
+          title: trip.incidentLabels?.[0] || 'Trip Incident Detected',
+          body: `${trip.facultyName} has active incident conditions${trip.destination ? ` en route to ${trip.destination}` : ''}. Reasons: ${(trip.incidentLabels || []).join(', ') || 'Review required'}.`,
+          time: formatRelativeAlertTime(trip.latestDetectedAt),
+          sortDate: trip.latestDetectedAt ? new Date(trip.latestDetectedAt).getTime() : 0,
+          actionLabelPrimary: 'Review Verification',
+          actionLabelSecondary: 'Open Reports',
+        }));
+
+        const mergedAlerts = [...violationAlerts, ...verifiedAlerts]
+          .sort((left, right) => (right.sortDate || 0) - (left.sortDate || 0));
+
+        setAlerts(mergedAlerts);
+
+        setIncidentSummary({
+          lateReturns: Number(summaryData?.lateReturns || 0),
+          unverifiedLocations: Number(summaryData?.unverifiedLocations || 0),
+          disconnectedLocations: Number(summaryData?.disconnectedLocations || 0),
+        });
+      } catch (error) {
+        if (isMounted) {
+          console.error('Failed to load HRMU alerts:', error);
+          setAlerts([]);
+          setIncidentSummary({
+            lateReturns: 0,
+            unverifiedLocations: 0,
+            disconnectedLocations: 0,
+          });
+          setAlertsError(error.message || 'Failed to load HRMU alerts.');
+        }
+      } finally {
+        if (isMounted) {
+          setAlertsLoading(false);
+        }
+      }
+    };
+
+    loadAlerts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredAlerts = alerts.filter((alert) => {
+    if (alertFilter === 'verified') return alert.type === 'verified';
+    if (alertFilter === 'flagged') return alert.type === 'violation';
+    return true;
+  });
+
+  const featuredAlert = filteredAlerts[0] || null;
+  const featuredTone = featuredAlert?.type === 'violation' ? 'incident' : 'verified';
+  const featuredPillLabel = alertsLoading
+    ? 'LOADING'
+    : featuredAlert?.type === 'violation'
+      ? 'VIOLATION'
+      : featuredAlert
+        ? 'VERIFIED'
+        : 'NO ALERTS';
+  const filterLabel = alertFilter === 'all'
+    ? 'All'
+    : alertFilter === 'verified'
+      ? 'Verified'
+      : 'Flagged';
 
   return (
-    <HrmuWorkspaceShell activeKey="live" setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-live-page">
-        <div className="hrmu-live-map-stage">
-          <div className="hrmu-live-map-surface" aria-hidden="true">
-            <div className="hrmu-live-road route-a" />
-            <div className="hrmu-live-road route-b" />
-            <div className="hrmu-live-road route-c" />
-            <div className="hrmu-live-road route-d" />
-            <div className="hrmu-live-road route-e" />
-            <div className="hrmu-live-grid vertical-a" />
-            <div className="hrmu-live-grid vertical-b" />
-            <div className="hrmu-live-grid vertical-c" />
-            <div className="hrmu-live-grid horizontal-a" />
-            <div className="hrmu-live-grid horizontal-b" />
-            <div className="hrmu-live-grid horizontal-c" />
+    <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
+      <section className="hrmu-alerts-page">
+        <div className="hrmu-alerts-hero">
+          <div className="hrmu-alerts-copy">
+            <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
+            <h1>System Alerts</h1>
+            <p>Real-time monitoring and security notifications for HRMU faculty and campus operations.</p>
           </div>
-
-          {liveMarkers.map((marker) => (
-            <div
-              key={marker.id}
-              className="hrmu-live-marker"
-              style={{ top: marker.top, left: marker.left }}
-              title={marker.name}
-            >
-              <img src={DEFAULT_PROFILE_IMAGE} alt={marker.name} />
-            </div>
-          ))}
-
-          <div className="hrmu-live-controls">
-            <button type="button" className="hrmu-live-control-btn" aria-label="Zoom in">+</button>
-            <button type="button" className="hrmu-live-control-btn" aria-label="Zoom out">−</button>
-            <button type="button" className="hrmu-live-control-btn" aria-label="Locate faculty">◎</button>
-            <button type="button" className="hrmu-live-control-btn" aria-label="Toggle map layers">◈</button>
+          <div className="hrmu-alerts-actions">
+            <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
+            <label className="hrmu-alerts-filter">
+              <StatusGraphIcon color="currentColor" />
+              <select value={alertFilter} onChange={(event) => setAlertFilter(event.target.value)} aria-label="Filter alerts">
+                <option value="all">All</option>
+                <option value="verified">Verified</option>
+                <option value="flagged">Flagged</option>
+              </select>
+            </label>
           </div>
-
-          <article className="hrmu-live-activity-card">
-            <div className="hrmu-live-activity-head">
-              <h2>Live Activity</h2>
-              <span className="hrmu-live-pill"><span /> LIVE</span>
-            </div>
-            <div className="hrmu-live-activity-list">
-              {liveActivities.map((item) => (
-                <div key={item.id} className={`hrmu-live-activity-item ${item.tone}`}>
-                  <div className="hrmu-live-activity-accent" />
-                  <div className="hrmu-live-activity-copy">
-                    <strong>{item.title}</strong>
-                    <p>{item.body}</p>
-                    <small>{item.meta}</small>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <button type="button" className="hrmu-live-log-btn">VIEW ALL LOGS</button>
-          </article>
-
-          <article className="hrmu-live-profile-card">
-            <div className="hrmu-live-profile-tag" aria-hidden="true" />
-            <h2>Mr. Michael Rivera</h2>
-            <p>SENIOR FACULTY · INSTRUCTOR</p>
-            <div className="hrmu-live-profile-meta">
-              <div>
-                <span>CURRENT SPEED</span>
-                <strong>3.4 km/h</strong>
-              </div>
-              <div>
-                <span>LAST UPDATE</span>
-                <strong className="fresh">Just now</strong>
-              </div>
-            </div>
-            <div className="hrmu-live-destination-card">
-              <div>
-                <span>PREDICTED DESTINATION</span>
-                <strong>City Hall</strong>
-              </div>
-              <span className="hrmu-live-destination-icon">⌘</span>
-            </div>
-          </article>
         </div>
+
+        <section className="hrmu-alerts-grid">
+          <article className={`hrmu-alert-main-card ${featuredTone}`}>
+            <div className="hrmu-alert-main-accent" aria-hidden="true" />
+            <div className="hrmu-alert-main-body">
+              <div className="hrmu-alert-main-icon">
+                {featuredAlert?.type === 'violation' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+              </div>
+              <div className="hrmu-alert-main-copy">
+                <div className="hrmu-alert-main-head">
+                  <div className="hrmu-alert-main-badges">
+                    <span className={`hrmu-alert-critical-pill ${featuredTone}`}>{featuredPillLabel}</span>
+                  </div>
+                  <span className="hrmu-alert-main-time">{featuredAlert?.time || 'Awaiting updates'}</span>
+                </div>
+                <h2>{featuredAlert?.title || 'No HRMU notifications yet'}</h2>
+                <p>
+                  {featuredAlert
+                    ? featuredAlert.body
+                    : `No ${filterLabel.toLowerCase()} alerts available right now.`}
+                </p>
+                <div className="hrmu-alert-main-actions">
+                  <button
+                    type="button"
+                    className={`hrmu-alert-primary-btn ${featuredTone}`}
+                    onClick={() => setView(featuredAlert?.type === 'violation' ? 'hrmu-verification' : 'hrmu-dashboard')}
+                  >
+                    {featuredAlert?.actionLabelPrimary || 'Open Dashboard'}
+                  </button>
+                  <button
+                    type="button"
+                    className="hrmu-alert-text-btn"
+                    onClick={() => setView(featuredAlert?.type === 'violation' ? 'hrmu-reports' : 'hrmu-verification')}
+                  >
+                    {featuredAlert?.actionLabelSecondary || 'Review Verification'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="hrmu-alerts-side-column">
+            <article className="hrmu-alert-summary-card">
+              <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
+              <div className="hrmu-alert-summary-row">
+                <span>Late Return</span>
+                <strong>{String(incidentSummary.lateReturns || 0).padStart(2, '0')}</strong>
+              </div>
+              <div className="hrmu-alert-summary-row">
+                <span>Unverified Location</span>
+                <strong>{String(incidentSummary.unverifiedLocations || 0).padStart(2, '0')}</strong>
+              </div>
+              <div className="hrmu-alert-summary-row">
+                <span>Disconnected Location</span>
+                <strong>{String(incidentSummary.disconnectedLocations || 0).padStart(2, '0')}</strong>
+              </div>
+              <div className="hrmu-alert-summary-mark" aria-hidden="true" />
+            </article>
+
+            <article className="hrmu-alert-report-card">
+              <div className="hrmu-alert-report-icon">
+                <HrmuSyncIcon />
+              </div>
+              <h3>Monthly Log Report</h3>
+              <p>30-days summary is ready for download.</p>
+              <button type="button" className="hrmu-alert-download-btn">DOWNLOAD PDF</button>
+            </article>
+          </aside>
+        </section>
+        {alertsError ? <p className="hrmu-alerts-inline-error">{alertsError}</p> : null}
       </section>
     </HrmuWorkspaceShell>
   );
 };
 
+const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
+  const {
+    center,
+    facultyLocations,
+    selectedFaculty,
+    selectedFacultyDetail,
+    activityItems,
+    loading,
+    detailLoading,
+    activityLoading,
+    error,
+    selectFaculty,
+    reload,
+    loadMoreActivity,
+  } = useHrmuLiveTracking();
+
+  const mapCenter = useMemo(() => [
+    Number(center?.lng || OLONGAPO_CENTER[0]),
+    Number(center?.lat || OLONGAPO_CENTER[1]),
+  ], [center?.lat, center?.lng]);
+
+  return (
+    <HrmuWorkspaceShell activeKey="live" setView={setView} profileData={profileData} onLogout={onLogout}>
+      <section className="hrmu-live-page">
+          <div className="hrmu-live-map-stage">
+            <HrmuLiveMapPanel
+              faculty={facultyLocations}
+              center={mapCenter}
+              selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+              onMarkerSelect={selectFaculty}
+              focusOnOlongapo
+              className="hrmu-live-stage-map"
+            />
+
+          <div className="hrmu-live-controls">
+            <button type="button" className="hrmu-live-control-btn" aria-label="Refresh active faculty" onClick={reload}>R</button>
+            <button type="button" className="hrmu-live-control-btn" aria-label="Olongapo City focus">{center?.label?.slice(0, 1) || 'O'}</button>
+          </div>
+
+          <FacultyActivityLog
+            activity={activityItems}
+            loading={loading || activityLoading}
+            onViewAll={() => loadMoreActivity(20)}
+          />
+
+          <FacultyDetailCard
+            faculty={selectedFaculty}
+            detail={selectedFacultyDetail}
+            loading={loading || detailLoading}
+          />
+
+          {error && (
+            <div className="hrmu-live-inline-alert">
+              <strong>Live tracking error</strong>
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+      </section>
+    </HrmuWorkspaceShell>
+  );
+};
 const AdminDashboardView = ({ setView, profileData }) => {
   if (['assistant_dean', 'college_dean'].includes(profileData?.accountRole)) {
     return <DeanDashboardView setView={setView} profileData={profileData} />;
@@ -9215,6 +10050,15 @@ const RegistryDownloadIcon = () => (
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
     <polyline points="7 10 12 15 17 10" />
     <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+);
+
+const ReportPrintIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M6 9V3h12v6" />
+    <path d="M6 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1" />
+    <rect x="6" y="14" width="12" height="7" rx="1" ry="1" />
+    <circle cx="18" cy="12" r="1" fill="currentColor" stroke="none" />
   </svg>
 );
 
@@ -10081,6 +10925,251 @@ const DeanProfileView = ({ setView, profileData, onLogout }) => {
         </div>
       </div>
       <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+    </div>
+  );
+};
+
+// --------------------------------------------------------
+// CSSU DASHBOARD COMPONENTS
+// --------------------------------------------------------
+
+const CssuExitDoorIcon = ({ color = "currentColor", size = "56" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h8" />
+    <path d="M10 12h11" />
+    <path d="m18 9 3 3-3 3" />
+  </svg>
+);
+
+const CssuTrendingUpIcon = ({ color = "currentColor", size = "16" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </svg>
+);
+
+const CssuRosetteCheckIcon = ({ color = "currentColor", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2l3.09 3.09L19.46 6.54l-1.45 4.36L22 14l-2.18 3.82-4.36-1.45L12 22l-3.46-5.63-4.36 1.45L2 14l3.91-3.09L4.46 6.54l4.37-1.45L12 2z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+
+const CssuWarningTriangleIcon = ({ color = "#C81E1E", size = "20" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+    <line x1="12" y1="9" x2="12" y2="13" />
+    <line x1="12" y1="17" x2="12.01" y2="17" />
+  </svg>
+);
+
+const CssuChartIcon = ({ color = "currentColor", size = "16" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" />
+    <rect x="7" y="10" width="4" height="7" rx="1" />
+    <rect x="15" y="5" width="4" height="12" rx="1" />
+  </svg>
+);
+
+const CssuWarningCircleIcon = ({ color = "#C81E1E", size = "24" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="12" y1="8" x2="12" y2="12" />
+    <line x1="12" y1="16" x2="12.01" y2="16" />
+  </svg>
+);
+
+const CssuMapNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21" />
+    <line x1="9" y1="3" x2="9" y2="18" />
+    <line x1="15" y1="6" x2="15" y2="21" />
+  </svg>
+);
+
+const CssuIncidentsNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+    <line x1="8" y1="14" x2="16" y2="14" />
+    <line x1="8" y1="18" x2="12" y2="18" />
+  </svg>
+);
+
+const CssuScanNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+    <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+    <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+    <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+    <rect x="7" y="7" width="10" height="10" />
+  </svg>
+);
+
+const CssuReportsNavIcon = ({ color = "currentColor" }) => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 20V10" />
+    <path d="M12 20V4" />
+    <path d="M6 20v-6" />
+    <path d="M3 20h18" />
+  </svg>
+);
+
+const CSSUBottomNav = ({ active = 'dashboard', setView }) => (
+  <div className="admin-bottom-nav cssu-bottom-nav">
+    <div className={`admin-nav-item ${active === 'dashboard' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-dashboard')}>
+      <DashboardNavIcon color={active === 'dashboard' ? 'var(--green)' : '#9CA3AF'} />
+      <span>DASHBOARD</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'map' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-map')}>
+      <CssuMapNavIcon color={active === 'map' ? 'var(--green)' : '#9CA3AF'} />
+      <span>MAP</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'incidents' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-incidents')}>
+      <CssuIncidentsNavIcon color={active === 'incidents' ? 'var(--green)' : '#9CA3AF'} />
+      <span>INCIDENTS</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'scan' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-scan')}>
+      <CssuScanNavIcon color={active === 'scan' ? 'var(--green)' : '#9CA3AF'} />
+      <span>SCAN</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'reports' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-reports')}>
+      <CssuReportsNavIcon color={active === 'reports' ? 'var(--green)' : '#9CA3AF'} />
+      <span>REPORTS</span>
+    </div>
+  </div>
+);
+
+const CSSUDashboardView = ({ setView, profileData }) => {
+  return (
+    <div className="admin-dash-wrapper cssu-wrapper">
+      <div className="admin-dash-scroll cssu-scroll">
+        
+        {/* Header */}
+        <div className="cssu-header">
+          <h1>Security Command</h1>
+          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          </div>
+        </div>
+
+        <div className="cssu-content">
+          
+          {/* Hero Card */}
+          <div className="cssu-hero-card">
+            <div className="cssu-hero-left">
+              <span className="cssu-hero-label">TOTAL FACULTY EXITING</span>
+              <h2 className="cssu-hero-number">142</h2>
+              <div className="cssu-hero-trend">
+                <CssuTrendingUpIcon color="#fff" />
+                <span>+12% from yesterday</span>
+              </div>
+            </div>
+            <div className="cssu-hero-icon">
+              <CssuExitDoorIcon color="rgba(255,255,255,0.15)" size="80" />
+            </div>
+          </div>
+
+          {/* Stat Cards */}
+          <div className="cssu-stat-grid">
+            <div className="cssu-stat-card active-card">
+              <div className="cssu-stat-card-header">
+                <CssuRosetteCheckIcon color="var(--green)" />
+                <span className="cssu-stat-badge active">ACTIVE</span>
+              </div>
+              <div className="cssu-stat-card-body">
+                <h3>128</h3>
+                <p>Approved Locator Slips</p>
+              </div>
+            </div>
+            <div className="cssu-stat-card flagged-card">
+              <div className="cssu-stat-card-header">
+                <CssuWarningTriangleIcon />
+                <span className="cssu-stat-badge flagged">FLAGGED</span>
+              </div>
+              <div className="cssu-stat-card-body">
+                <h3>14</h3>
+                <p>Denied/No Slip Cases</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Summary Card */}
+          <div className="cssu-summary-card">
+            <div className="cssu-summary-header">
+              <CssuChartIcon />
+              <span>COMMAND STATUS SUMMARY</span>
+            </div>
+            <div className="cssu-summary-zone">
+              <span className="cssu-sz-label">Active Monitoring Zone</span>
+              <span className="cssu-sz-value">GATE A & B</span>
+            </div>
+            <div className="cssu-summary-progress-bg">
+              <div className="cssu-summary-progress-fill" style={{ width: '94.2%' }}></div>
+            </div>
+            <p className="cssu-summary-desc">
+              Current efficiency rating: 94.2% based on log verification speed.
+            </p>
+          </div>
+
+          {/* Live Exit Monitoring */}
+          <div className="cssu-live-section">
+            <div className="cssu-live-header">
+              <h3>Live Exit Monitoring</h3>
+              <span className="cssu-live-view-all">View All</span>
+            </div>
+            <div className="cssu-live-list">
+              
+              <div className="cssu-live-item">
+                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
+                <div className="cssu-li-info">
+                  <div className="cssu-li-top">
+                    <h4>Dr. Lin Casla</h4>
+                    <span className="cssu-li-badge verified">VERIFIED</span>
+                  </div>
+                  <p>Exited: 14:32 &bull; Back Gate</p>
+                </div>
+                <ChevronRightIcon />
+              </div>
+
+              <div className="cssu-live-item flagged-item">
+                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
+                <div className="cssu-li-info">
+                  <div className="cssu-li-top">
+                    <h4>Mr. Rey Gun</h4>
+                    <span className="cssu-li-badge flagged">FLAGGED</span>
+                  </div>
+                  <p>Exited: 14:45 &bull; Main Gate</p>
+                </div>
+                <CssuWarningCircleIcon />
+              </div>
+
+              <div className="cssu-live-item">
+                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
+                <div className="cssu-li-info">
+                  <div className="cssu-li-top">
+                    <h4>Ms. Sarah Flow</h4>
+                    <span className="cssu-li-badge verified">VERIFIED</span>
+                  </div>
+                  <p>Exited: 15:02 &bull; Main Gate</p>
+                </div>
+                <ChevronRightIcon />
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </div>
+      
+      {/* FAB */}
+      <button className="cssu-scan-fab" onClick={() => setView('cssu-scan')}>
+        <CssuScanNavIcon color="#554400" />
+      </button>
+
+      <CSSUBottomNav active="dashboard" setView={setView} />
     </div>
   );
 };

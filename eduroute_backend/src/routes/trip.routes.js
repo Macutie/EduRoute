@@ -11,5 +11,6 @@ router.post('/route', tripController.previewRoute);
 router.get('/active', tripController.getActiveTrip);
 router.post('/start', tripController.startTrip);
 router.post('/:id/end', tripController.endTrip);
+router.post('/:id/location', tripController.recordLocation);
 
 module.exports = router;

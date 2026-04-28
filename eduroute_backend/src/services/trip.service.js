@@ -62,6 +62,26 @@ const startTrip = async (facultyUserId, payload) => {
 
     try {
         await client.query('BEGIN');
+        const approvedSlipResult = await client.query(
+            `SELECT ls.id
+             FROM locator_slips ls
+             WHERE ls.faculty_user_id = $1
+               AND ls.status = 'approved'
+               AND ls.expected_return_datetime >= CURRENT_TIMESTAMP
+             ORDER BY
+                CASE
+                    WHEN LOWER(TRIM(COALESCE(ls.destination, ''))) = LOWER(TRIM($2)) THEN 0
+                    ELSE 1
+                END,
+                ABS(EXTRACT(EPOCH FROM (ls.departure_datetime - CURRENT_TIMESTAMP))) ASC,
+                COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC
+             LIMIT 1`,
+            [facultyUserId, destinationName]
+        );
+
+        if (approvedSlipResult.rowCount === 0) {
+            throw new AppError('An approved locator slip is required before starting a trip.', 409);
+        }
 
         await client.query(
             `UPDATE faculty_trips

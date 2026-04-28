@@ -46,10 +46,24 @@ const endTrip = async (req, res, next) => {
     }
 };
 
+const recordLocation = async (req, res, next) => {
+    try {
+        const update = await tripTrackingService.recordLiveLocation(req.user.sub, {
+            ...req.body,
+            tripId: req.params.id,
+            facultyUserId: req.body.facultyUserId || req.user.sub
+        });
+        return res.json(successResponse('Trip live location recorded successfully.', update));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     searchDestinations,
     previewRoute,
     startTrip,
     getActiveTrip,
-    endTrip
+    endTrip,
+    recordLocation
 };

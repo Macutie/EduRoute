@@ -4,6 +4,7 @@ const { formatDateTime } = require('../utils/dateFormatter');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
 const notificationService = require('./notification.service');
+const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
 
@@ -141,6 +142,9 @@ const createLocatorSlip = async (facultyUserId, payload) => {
 
         await client.query('COMMIT');
         notificationService.emitLocatorSlipDeanNotification(notificationPayload);
+        await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch((broadcastError) => {
+            console.error('Failed to broadcast HRMU dashboard update after locator slip creation:', broadcastError);
+        });
 
         return getLocatorSlipById(facultyUserId, insertedSlip.id);
     } catch (error) {
