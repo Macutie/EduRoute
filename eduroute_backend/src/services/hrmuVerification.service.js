@@ -18,7 +18,7 @@ const assertHrmuUser = async (userId) => {
 
 const mapVerificationTripRow = (row) => {
     const flaggedReasons = Array.isArray(row.incident_labels) ? row.incident_labels : [];
-    const displayStatus = computeLocatorSlipDisplayStatus({
+    const baseDisplayStatus = computeLocatorSlipDisplayStatus({
         locatorSlip: {
             status: row.locator_slip_status,
             expectedReturnTime: row.expected_return_datetime
@@ -29,6 +29,15 @@ const mapVerificationTripRow = (row) => {
         },
         incidents: flaggedReasons
     });
+    const displayStatus = flaggedReasons.length > 0
+        ? 'FLAGGED'
+        : row.arrival_verification_status === 'verified'
+            ? 'COMPLETED'
+            : baseDisplayStatus === 'ACTIVE'
+                ? 'LIVE'
+                : baseDisplayStatus === 'RETURNED'
+                    ? 'PENDING'
+                    : (baseDisplayStatus || 'PENDING');
 
     return {
         verificationId: row.verification_id,
@@ -96,23 +105,19 @@ const reviewArrivalVerification = async (reviewerId, verificationId, payload = {
 
     await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
 
+    const nextDisplayStatus = flaggedTrip?.incident_labels?.length
+        ? 'FLAGGED'
+        : updated.verification_status === 'verified'
+            ? 'COMPLETED'
+            : 'PENDING';
+
     return {
         verificationId: updated.id,
         locatorSlipId: verification.locator_slip_id,
         tripId: verification.trip_id,
         status: updated.verification_status,
         remarks: payload.remarks || null,
-        displayStatus: computeLocatorSlipDisplayStatus({
-            locatorSlip: {
-                status: verification.locator_slip_status,
-                expectedReturnTime: verification.expected_return_datetime
-            },
-            trip: {
-                status: verification.trip_status,
-                actualReturnTime: verification.ended_at
-            },
-            incidents: flaggedTrip?.incident_labels || []
-        }),
+        displayStatus: nextDisplayStatus,
         flaggedReasons: flaggedTrip?.incident_labels || []
     };
 };

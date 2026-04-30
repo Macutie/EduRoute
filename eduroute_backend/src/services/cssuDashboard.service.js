@@ -1,6 +1,7 @@
 const AppError = require('../utils/appError');
 const cssuDashboardRepository = require('../repositories/cssuDashboard.repository');
 const { CSSU_FLAG_INCIDENT_NOTE_PREFIX } = require('../repositories/cssuDashboard.repository');
+const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 
 const GATE_OPTIONS = new Set(['main_gate', 'back_gate']);
 const CSSU_ALLOWED_DEPARTMENTS = new Set([
@@ -431,6 +432,18 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
         validatedBy: cssuUserId,
         notes,
     });
+
+    if (status === 'validated') {
+        const hrmuValidationContext = await hrmuDashboardRepository.getApprovedLocatorSlipNotificationPayload(locatorSlipId).catch(() => null);
+        if (hrmuValidationContext) {
+            await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
+                locatorSlipId,
+                type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
+                title: 'CSSU validated exit',
+                message: `${hrmuValidationContext.faculty_name || 'A faculty member'} was cleared by CSSU through ${formatGateLabel(gate)}${hrmuValidationContext.destination ? ` for ${hrmuValidationContext.destination}` : ''}.`
+            }).catch(() => null);
+        }
+    }
 
     return {
         locatorSlipId: row.locator_slip_id,

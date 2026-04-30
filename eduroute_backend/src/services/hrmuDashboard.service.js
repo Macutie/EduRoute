@@ -89,23 +89,35 @@ const mapLiveFacultyRow = (row) => ({
 const mapRecentActivityRow = (row) => {
     const flaggedReasons = Array.isArray(row.incident_labels) ? row.incident_labels : [];
     const normalizedVerificationStatus = String(row.verification_status || '').toLowerCase();
-    const normalizedLocationVerificationStatus = String(row.location_verification_status || '').toLowerCase();
-    const effectiveSlipStatus = (
-        (['approved', 'verified'].includes(normalizedVerificationStatus) && !['accepted', 'approved', 'verified', 'submitted'].includes(normalizedLocationVerificationStatus))
-            ? 'pending'
-            : normalizedVerificationStatus
-    );
-    const displayStatus = computeLocatorSlipDisplayStatus({
+    const normalizedTripStatus = String(row.trip_status || '').toLowerCase();
+    const isFlagged = Boolean(row.is_flagged) && flaggedReasons.length > 0;
+    let displayStatus = computeLocatorSlipDisplayStatus({
         locatorSlip: {
-            status: effectiveSlipStatus,
+            status: normalizedVerificationStatus,
             expectedReturnTime: row.expected_return_time
         },
         trip: {
-            status: row.trip_status,
+            status: normalizedTripStatus,
             actualReturnTime: row.actual_return_time
         },
-        incidents: Boolean(row.is_flagged) ? flaggedReasons : []
+        incidents: isFlagged ? flaggedReasons : []
     });
+
+    if (isFlagged) {
+        displayStatus = DISPLAY_STATUSES.FLAGGED;
+    } else if (normalizedVerificationStatus === 'rejected') {
+        displayStatus = DISPLAY_STATUSES.REJECTED;
+    } else if (normalizedVerificationStatus === 'pending' || normalizedVerificationStatus === 'unverified') {
+        displayStatus = DISPLAY_STATUSES.PENDING;
+    } else if (normalizedTripStatus === 'returning') {
+        displayStatus = 'RETURNING';
+    } else if (['active', 'arrived'].includes(normalizedTripStatus)) {
+        displayStatus = 'LIVE';
+    } else if (normalizedTripStatus === 'completed' || normalizedVerificationStatus === 'completed') {
+        displayStatus = 'COMPLETED';
+    } else if (['approved', 'verified'].includes(normalizedVerificationStatus)) {
+        displayStatus = DISPLAY_STATUSES.PENDING;
+    }
 
     return {
         locatorSlipId: row.locator_slip_id,
@@ -123,7 +135,7 @@ const mapRecentActivityRow = (row) => {
         verificationStatus: row.verification_status,
         locationVerificationStatus: row.location_verification_status || null,
         tripStatus: row.trip_status,
-        isFlagged: Boolean(row.is_flagged),
+        isFlagged,
         incidentLabels: flaggedReasons,
         flaggedReasons,
         displayStatus,

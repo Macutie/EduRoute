@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { SearchBox } from '@mapbox/search-js-react';
@@ -40,7 +40,13 @@ import {
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
 import FacultyActivityLog from './components/hrmu/FacultyActivityLog';
-import { downloadHrmuMonthlyReportPdf, getHrmuFlaggedTrips, getHrmuVerificationIncidentSummary } from './services/hrmuReportsApi';
+import {
+  downloadHrmuMonthlyReportPdf,
+  getHrmuFlaggedTrips,
+  getHrmuVerificationIncidentSummary,
+  getHrmuVerificationTrips,
+  reviewHrmuArrivalVerification,
+} from './services/hrmuReportsApi';
 import {
   getApprovedFacultyLocatorSlips,
   getFacultyLocatorSlipDetails,
@@ -98,10 +104,26 @@ const getPortalBadgeLabel = (role) => {
 
 const getPortalPositionLabel = (profileData = {}) => {
   if (profileData?.position) return profileData.position;
-  if (profileData?.accountRole === 'hrmu') return 'HRMU Manager';
-  if (profileData?.accountRole === 'cssu') return 'System Registrar';
+  if (profileData?.accountRole === 'hrmu') return 'Human Resources Management Unit';
+  if (profileData?.accountRole === 'cssu') return 'Information Security';
   if (profileData?.accountRole === 'admin') return 'Administrator';
   return 'Portal User';
+};
+
+const getPortalMetaLabel = (profileData = {}) => {
+  if (profileData?.accountRole === 'cssu') return 'CSSU Administration';
+  if (profileData?.accountRole === 'hrmu') return 'HRMU Administration';
+  return profileData?.department || 'Portal Administration';
+};
+
+const getPortalAdministrationDescription = (profileData = {}) => {
+  if (profileData?.accountRole === 'cssu') {
+    return 'Manage your CSSU profile details and credential settings.';
+  }
+  if (profileData?.accountRole === 'hrmu') {
+    return 'Manage your HRMU profile details and credential settings.';
+  }
+  return 'Manage your profile details and credential settings.';
 };
 
 function App() {
@@ -6413,6 +6435,11 @@ const ChangePasswordView = ({ setView, profileData, backView = 'profile' }) => {
   const [showNewPw, setShowNewPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [changePasswordLoading, setChangePasswordLoading] = useState(false);
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const accountRole = profileData?.accountRole || '';
+  const position = getPortalPositionLabel(profileData);
+  const metaLabel = getPortalMetaLabel(profileData);
+  const badgeLabel = getPortalBadgeLabel(accountRole);
 
   const personalInfo = ['alex', 'nilo', 'eduroute', 'edu-2024', '8891'];
 
@@ -6474,6 +6501,133 @@ const ChangePasswordView = ({ setView, profileData, backView = 'profile' }) => {
       setChangePasswordLoading(false);
     }
   };
+
+  const desktopChangePasswordContent = (
+    <section className="portal-settings-desktop">
+      <div className="portal-settings-desktop-header">
+        <div>
+          <button type="button" className="portal-settings-back-btn" onClick={() => setView(backView)}>
+            <BackArrowIcon color="var(--green)" />
+            <span>Back to Profile</span>
+          </button>
+          <span className="portal-settings-desktop-kicker">Security Credentials</span>
+          <h1>Change Password</h1>
+          <p>Refresh your account credentials and keep your portal access protected.</p>
+        </div>
+      </div>
+
+      <div className="portal-settings-desktop-grid">
+        <aside className="portal-settings-desktop-profile-card">
+          <div className="portal-settings-desktop-profile-avatar">
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={profileData?.fullName || 'Profile'} />
+          </div>
+          <div className="portal-settings-desktop-profile-badge">{badgeLabel}</div>
+          <h2>{profileData?.fullName || 'Portal User'}</h2>
+          <p>{position}</p>
+          <span>{metaLabel}</span>
+        </aside>
+
+        <div className="portal-settings-desktop-form-card">
+          <div className="portal-settings-desktop-section-title">
+            <strong>Password Policy</strong>
+            <span>Use a strong password that follows the institutional security policy.</span>
+          </div>
+
+          <div className="portal-settings-policy-card">
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.minLength} />
+              <span>Minimum 10 characters</span>
+            </div>
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.symbolsNumbers} />
+              <span>Include symbols & numbers</span>
+            </div>
+            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.noPersonal} />
+              <span>No personal information</span>
+            </div>
+          </div>
+
+          <div className="portal-settings-desktop-fields">
+            <div className="portal-settings-desktop-field">
+              <label>Current Password</label>
+              <div className="chpw-input-wrapper portal-settings-input-wrapper">
+                <input
+                  type={showCurrentPw ? 'text' : 'password'}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter your current password"
+                />
+                <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowCurrentPw(!showCurrentPw)}>
+                  {showCurrentPw ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+            </div>
+
+            <div className="portal-settings-desktop-field">
+              <label>New Password</label>
+              <div className="chpw-card-input-wrapper portal-settings-input-wrapper">
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter complex password"
+                />
+                <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowNewPw(!showNewPw)}>
+                  {showNewPw ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+            </div>
+
+            <div className="portal-settings-desktop-field">
+              <label>Confirm Password</label>
+              <div className={`chpw-card-input-wrapper portal-settings-input-wrapper ${confirmPassword.length > 0 ? (passwordsMatch ? 'match' : 'mismatch') : ''}`}>
+                <input
+                  type={showConfirmPw ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-type new password"
+                />
+                <button type="button" className="icon-btn chpw-eye-btn" onClick={() => setShowConfirmPw(!showConfirmPw)}>
+                  {showConfirmPw ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              {confirmPassword.length > 0 && !passwordsMatch && (
+                <span className="chpw-mismatch-text">Passwords do not match</span>
+              )}
+            </div>
+          </div>
+
+          <div className="portal-settings-desktop-actions">
+            <button
+              type="button"
+              className={`chpw-update-btn portal-settings-save-btn ${canUpdatePassword ? 'active' : ''}`}
+              disabled={!canUpdatePassword}
+              onClick={handleChangePassword}
+            >
+              <LinkIcon /> {changePasswordLoading ? 'UPDATING...' : 'UPDATE PASSWORD'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  if ((accountRole === 'hrmu' || accountRole === 'cssu') && isDesktopViewport) {
+    if (accountRole === 'hrmu') {
+      return (
+        <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={() => setView(backView)}>
+          <section className="cssu-desktop-page">{desktopChangePasswordContent}</section>
+        </HrmuWorkspaceShell>
+      );
+    }
+
+    return (
+      <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView(backView)} hideHeader>
+        {desktopChangePasswordContent}
+      </CSSUDesktopPage>
+    );
+  }
 
   return (
     <div className="dashboard-wrapper">
@@ -8659,7 +8813,7 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
               <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
               <span>ADMIN PANEL</span>
             </div>
-            <div className="admin-avatar">
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
               <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
             </div>
           </div>
@@ -8766,36 +8920,36 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     }
 
     if (
-      normalizedDisplayStatus === 'VERIFIED'
-      ||
-      row.currentStatusLabel === 'verified'
-      || String(row.verificationStatus || '').toLowerCase() === 'verified'
+      normalizedDisplayStatus === 'LIVE'
+      || row.currentStatusLabel === 'live'
+      || row.tripStatus === 'active'
+      || row.tripStatus === 'arrived'
     ) {
-      return { label: 'VERIFIED', tone: 'green' };
+      return { label: 'LIVE', tone: 'green' };
+    }
+
+    if (
+      normalizedDisplayStatus === 'RETURNING'
+      || row.currentStatusLabel === 'returning'
+      || row.tripStatus === 'returning'
+    ) {
+      return { label: 'RETURNING', tone: 'green' };
+    }
+
+    if (
+      normalizedDisplayStatus === 'COMPLETED'
+      || row.currentStatusLabel === 'completed'
+      || row.tripStatus === 'completed'
+    ) {
+      return { label: 'COMPLETED', tone: 'green' };
     }
 
     if (
       normalizedDisplayStatus === 'REJECTED'
-      ||
-      row.currentStatusLabel === 'rejected'
+      || row.currentStatusLabel === 'rejected'
       || String(row.verificationStatus || '').toLowerCase() === 'rejected'
     ) {
       return { label: 'REJECTED', tone: 'red' };
-    }
-
-    if (
-      normalizedDisplayStatus === 'ACTIVE'
-      ||
-      row.tripStatus === 'active'
-      || row.tripStatus === 'arrived'
-      || row.tripStatus === 'returning'
-      || row.currentStatusLabel === 'active'
-    ) {
-      return { label: 'ACTIVE', tone: 'green' };
-    }
-
-    if (normalizedDisplayStatus === 'RETURNED' || row.tripStatus === 'completed') {
-      return { label: 'RETURNED', tone: 'green' };
     }
 
     return { label: 'UNKNOWN', tone: 'yellow' };
@@ -9133,12 +9287,14 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const [selectedRegistryRow, setSelectedRegistryRow] = useState(null);
   const [summary, setSummary] = useState({
-    totalFacultyOutside: 0,
-    pendingSlips: 0,
+    completedTrips: 0,
+    pendingReviews: 0,
     verificationRate: 0,
   });
   const [registryRows, setRegistryRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
 
   const formatShortTime = (value) => {
     if (!value) return '--';
@@ -9161,16 +9317,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     });
   };
 
-  const formatCoordinateLabel = (lat, lng) => {
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-      return 'Live coordinate unavailable';
-    }
-
-    const latDirection = lat >= 0 ? 'N' : 'S';
-    const lngDirection = lng >= 0 ? 'E' : 'W';
-    return `${Math.abs(lat).toFixed(4)} deg ${latDirection}, ${Math.abs(lng).toFixed(4)} deg ${lngDirection}`;
-  };
-
   const formatReviewerRole = (role, collegeName) => {
     if (role === 'assistant_dean') return `Assistant Dean - ${collegeName}`;
     if (role === 'college_dean') return `College Dean - ${collegeName}`;
@@ -9183,119 +9329,139 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     return normalized ? `LS-${normalized}` : 'Locator Slip';
   };
 
-  useEffect(() => {
-    let isMounted = true;
+  const loadVerificationPage = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setLoading(true);
+    }
 
-    const loadVerificationPage = async ({ silent = false } = {}) => {
-      if (!silent && isMounted) {
-        setLoading(true);
-      }
+    try {
+      const verificationData = await getHrmuVerificationTrips();
+      const completedTrips = Array.isArray(verificationData?.trips) ? verificationData.trips : [];
+      const mappedRows = completedTrips.map((row) => {
+        const normalizedStatus = row.displayStatus === 'FLAGGED'
+          ? 'FLAGGED'
+          : row.displayStatus === 'COMPLETED'
+            ? 'COMPLETED'
+            : 'PENDING';
 
-      try {
-        const summaryData = await getHrmuDashboardSummary();
-        if (isMounted && summaryData) {
-          setSummary({
-            totalFacultyOutside: Number(summaryData.totalFacultyOutside || 0),
-            pendingSlips: Number(summaryData.pendingSlips || summaryData.unverifiedCases || 0),
-            verificationRate: Number(summaryData.verificationRate || 0),
-          });
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error('Failed to load HRMU verification summary:', error);
-          setSummary({
-            totalFacultyOutside: 0,
-            pendingSlips: 0,
-            verificationRate: 0,
-          });
-        }
-      }
-
-      try {
-        const [liveFacultyData, flaggedTripsData] = await Promise.all([
-          getHrmuLiveFaculty(),
-          getHrmuFlaggedTrips().catch(() => ({ trips: [] })),
-        ]);
-        if (!isMounted) return;
-
-        const liveRows = Array.isArray(liveFacultyData?.faculty) ? liveFacultyData.faculty : [];
-        const flaggedTrips = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
-        const flaggedTripMap = new Map(flaggedTrips.map((item) => [item.tripId, item]));
-        const mappedRows = liveRows.map((row) => ({
-          ...(flaggedTripMap.get(row.tripId) || {}),
-          key: row.tripId || row.locatorSlipId || row.facultyUserId,
+        return {
+          key: row.tripId || row.locatorSlipId || row.verificationId,
+          verificationId: row.verificationId,
+          tripId: row.tripId,
+          locatorSlipId: row.locatorSlipId,
           name: row.facultyName,
-          id: row.employeeId || 'N/A',
+          id: row.facultyUserId || 'N/A',
           department: row.collegeName || 'Unknown college',
-          timeout: formatShortTime(row.departureTime),
-          destination: row.destination || 'Active trip route',
-          status: flaggedTripMap.has(row.tripId) ? 'FLAGGED' : 'VERIFIED',
-          statusTone: flaggedTripMap.has(row.tripId) ? 'red' : 'green',
-          actionLabel: 'Details',
+          timeout: formatShortTime(row.actualReturnTime),
+          destination: row.destination || 'Completed trip destination',
+          status: normalizedStatus,
+          statusTone: normalizedStatus === 'FLAGGED' ? 'red' : normalizedStatus === 'COMPLETED' ? 'green' : 'yellow',
+          actionLabel: 'View',
           actionTone: 'ghost',
           actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
-          requestedBy: formatReviewerRole(row.reviewedByRole, row.collegeName),
           slipNumber: buildSlipReference(row.locatorSlipId),
-          purposeOfTravel: row.purpose || row.purposeOfTravel || 'No purpose provided.',
-          timeoutFull: formatFullDateTime(row.departureTime),
+          purposeOfTravel: row.purpose || 'No purpose provided.',
+          timeoutFull: formatFullDateTime(row.actualReturnTime),
+          departureFull: formatFullDateTime(row.actualReturnTime),
           returnFull: formatFullDateTime(row.expectedReturnTime),
-          deanName: row.reviewedByName || 'Approved by dean',
-          deanRole: formatReviewerRole(row.reviewedByRole, row.collegeName),
-          signatureTime: formatFullDateTime(row.approvedAt),
-          coordinates: formatCoordinateLabel(row.lat, row.lng),
-          distanceFromCampus: 'Live coordinates from active trip tracking',
-          verificationStatus: flaggedTripMap.has(row.tripId) ? 'FLAGGED INCIDENT DETECTED' : 'APPROVED FOR TRAVEL',
-          verificationBody: flaggedTripMap.has(row.tripId)
-            ? `${row.facultyName} has active flagged conditions: ${(flaggedTripMap.get(row.tripId)?.incidentLabels || []).join(', ')}.`
-            : row.locationVerificationImageUrl
-              ? `${row.facultyName} submitted a location verification image for this trip. HRMU can review the proof below to keep the trip valid and not flagged for missing location verification.`
-              : `${row.facultyName} is currently in an active trip and was allowed to start only after an approved locator slip was found in the backend.`,
-          syncStatus: row.lastUpdatedAt ? `LAST SYNC ${formatShortTime(row.lastUpdatedAt)}` : 'AWAITING LIVE UPDATE',
-          position: row.position || 'Instructor',
-          flaggedReasons: flaggedTripMap.get(row.tripId)?.incidentLabels || [],
-          locationVerificationStatus: row.locationVerificationStatus || (row.locationVerificationImageUrl ? 'verified' : 'missing'),
-          locationVerificationImageUrl: row.locationVerificationImageUrl || null,
-          locationVerificationAt: row.locationVerificationAt || null,
-        }));
+          deanName: 'Approved by dean',
+          deanRole: formatReviewerRole(null, row.collegeName),
+          signatureTime: formatFullDateTime(row.actualReturnTime),
+          verificationStatus: normalizedStatus === 'FLAGGED'
+            ? 'FLAGGED FOR REVIEW'
+            : normalizedStatus === 'COMPLETED'
+              ? 'SUCCESSFUL TRIP'
+              : 'PENDING PROOF REVIEW',
+          verificationBody: normalizedStatus === 'FLAGGED'
+            ? `${row.facultyName} has a completed trip with flagged conditions: ${(row.flaggedReasons || []).join(', ')}.`
+            : row.verificationImageUrl
+              ? `${row.facultyName} submitted an arrival verification image for this completed trip. Review the proof and decide whether to keep the trip successful or mark it as unverified location.`
+              : `${row.facultyName} completed the trip, but no uploaded arrival proof was found yet for HRMU review.`,
+          position: 'Faculty',
+          flaggedReasons: row.flaggedReasons || [],
+          locationVerificationStatus: row.arrivalVerificationStatus || (row.verificationImageUrl ? 'submitted' : 'missing'),
+          locationVerificationImageUrl: row.verificationImageUrl || null,
+          locationVerificationAt: row.actualReturnTime || null,
+        };
+      });
 
-        setRegistryRows(mappedRows);
-        setSelectedRegistryRow((current) => {
-          if (!current) return null;
-          return mappedRows.find((row) => row.key === current.key) || null;
-        });
-      } catch (error) {
-        if (isMounted) {
-          console.error('Failed to load HRMU verification registry:', error);
-          setRegistryRows([]);
-          setSelectedRegistryRow(null);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
+      const successfulTrips = mappedRows.filter((row) => row.status === 'COMPLETED').length;
+      const pendingReviews = mappedRows.filter((row) => row.status === 'PENDING').length;
+
+      setRegistryRows(mappedRows);
+      setSummary({
+        completedTrips: mappedRows.length,
+        pendingReviews,
+        verificationRate: mappedRows.length ? (successfulTrips / mappedRows.length) * 100 : 0,
+      });
+      setSelectedRegistryRow((current) => {
+        if (!current) return null;
+        return mappedRows.find((row) => row.key === current.key) || null;
+      });
+    } catch (error) {
+      console.error('Failed to load HRMU verification registry:', error);
+      setRegistryRows([]);
+      setSelectedRegistryRow(null);
+      setSummary({
+        completedTrips: 0,
+        pendingReviews: 0,
+        verificationRate: 0,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    const safeLoad = async ({ silent = false } = {}) => {
+      if (!isMounted) return;
+      await loadVerificationPage({ silent });
     };
 
-    loadVerificationPage();
-    const intervalId = window.setInterval(() => loadVerificationPage({ silent: true }), 15000);
+    safeLoad();
+    const intervalId = window.setInterval(() => safeLoad({ silent: true }), 15000);
 
     return () => {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [loadVerificationPage]);
 
   const verificationStats = [
-    { label: 'ON-MISSION', value: String(summary.totalFacultyOutside).padStart(2, '0'), tone: 'green', decorate: true },
-    { label: 'PENDING SLIPS', value: String(summary.pendingSlips).padStart(2, '0'), tone: 'neutral' },
+    { label: 'COMPLETED TRIPS', value: String(summary.completedTrips).padStart(2, '0'), tone: 'green', decorate: true },
+    { label: 'PENDING REVIEWS', value: String(summary.pendingReviews).padStart(2, '0'), tone: 'neutral' },
   ];
+
+  const handleProofReview = async (nextStatus) => {
+    if (!selectedRegistryRow?.verificationId) {
+      setReviewMessage('No uploaded proof is available to review for this trip.');
+      return;
+    }
+
+    try {
+      setReviewing(true);
+      setReviewMessage('');
+      await reviewHrmuArrivalVerification(selectedRegistryRow.verificationId, {
+        status: nextStatus,
+      });
+      setReviewMessage(nextStatus === 'verified'
+        ? 'Trip marked as successful.'
+        : 'Trip flagged as unverified location.');
+      await loadVerificationPage({ silent: true });
+    } catch (error) {
+      setReviewMessage(error.message || 'Verification review could not be saved.');
+    } finally {
+      setReviewing(false);
+    }
+  };
 
   return (
     <HrmuWorkspaceShell activeKey="verification" setView={setView} profileData={profileData} onLogout={onLogout}>
       <section className="hrmu-verification-hero">
         <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
         <h1>External Faculty Verification</h1>
-        <p>Live monitoring of academic personnel currently dispatched for off-campus engagements.</p>
+        <p>Review completed trips, inspect uploaded arrival proof, and decide whether each trip remains successful or becomes an unverified location incident.</p>
       </section>
 
       <section className="hrmu-verification-stats">
@@ -9335,18 +9501,18 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
             <span>TIME OUT</span>
             <span>DESTINATION</span>
             <span>STATUS</span>
-            <span>ACTIONS</span>
+            <span>PROOF</span>
           </div>
 
           {loading && (
             <div className="hrmu-verify-row hrmu-verify-empty-row">
-              <div className="hrmu-verify-faculty"><strong>Loading active dispatch registry...</strong></div>
+              <div className="hrmu-verify-faculty"><strong>Loading completed trips registry...</strong></div>
             </div>
           )}
 
           {!loading && registryRows.length === 0 && (
             <div className="hrmu-verify-row hrmu-verify-empty-row">
-              <div className="hrmu-verify-faculty"><strong>No faculty are currently in an active trip.</strong></div>
+              <div className="hrmu-verify-faculty"><strong>No completed trips are ready for HRMU proof review.</strong></div>
             </div>
           )}
 
@@ -9381,7 +9547,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         </div>
 
         <button type="button" className="hrmu-verify-footer-link">
-          View All {registryRows.length} Dispatched Faculty
+          View All {registryRows.length} Completed Trips
         </button>
       </section>
 
@@ -9396,11 +9562,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                 <div className="hrmu-verify-modal-person-copy">
                   <div className="hrmu-verify-modal-topline">
                     <h2 id="hrmu-verify-modal-title">{selectedRegistryRow.name}</h2>
-                    <span className="hrmu-verify-modal-pill">ON MISSION</span>
+                    <span className="hrmu-verify-modal-pill">COMPLETED TRIP</span>
                   </div>
                   <p>{selectedRegistryRow.position} - {selectedRegistryRow.department}</p>
                   <div className="hrmu-verify-modal-times">
-                    <span>Out: {selectedRegistryRow.timeoutFull}</span>
+                    <span>Returned: {selectedRegistryRow.timeoutFull}</span>
                     <span>Est. Return: {selectedRegistryRow.returnFull}</span>
                   </div>
                 </div>
@@ -9442,11 +9608,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                   </div>
                 </div>
 
-                <div className="hrmu-verify-modal-label">LIVE VERIFICATION CHECKS</div>
+                <div className="hrmu-verify-modal-label">PROOF VERIFICATION CHECKS</div>
                 <div className="hrmu-verify-check-grid">
                   <div className="hrmu-verify-check-card">
-                    <span>MOBILE SYNC</span>
-                    <strong>{selectedRegistryRow.syncStatus}</strong>
+                    <span>PROOF STATUS</span>
+                    <strong>{String(selectedRegistryRow.locationVerificationStatus || 'missing').toUpperCase()}</strong>
                   </div>
                   <div className="hrmu-verify-check-card">
                     <span>LOCATION PROOF</span>
@@ -9463,19 +9629,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
               </div>
 
               <div className="hrmu-verify-modal-right">
-                <div className="hrmu-verify-map-preview">
-                  <div className="hrmu-verify-map-surface" aria-hidden="true">
-                    <div className="hrmu-verify-map-road road-a" />
-                    <div className="hrmu-verify-map-road road-b" />
-                    <div className="hrmu-verify-map-road road-c" />
-                    <div className="hrmu-verify-map-target" />
-                  </div>
-                  <div className="hrmu-verify-map-chip">
-                    <span>{selectedRegistryRow.coordinates}</span>
-                    <strong>{selectedRegistryRow.distanceFromCampus}</strong>
-                  </div>
-                </div>
-
                 <div className="hrmu-verify-current-status">
                   <div className="hrmu-verify-current-status-row">
                     <span>CURRENT STATUS</span>
@@ -9483,6 +9636,31 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                   </div>
                   <div className="hrmu-verify-status-bar" aria-hidden="true" />
                   <p>{selectedRegistryRow.verificationBody}</p>
+                </div>
+
+                {reviewMessage && (
+                  <div className="hrmu-analytics-feedback">
+                    <span>{reviewMessage}</span>
+                  </div>
+                )}
+
+                <div className="hrmu-verify-review-actions">
+                  <button
+                    type="button"
+                    className="hrmu-verify-request-btn"
+                    onClick={() => handleProofReview('unverified')}
+                    disabled={reviewing || !selectedRegistryRow.verificationId}
+                  >
+                    {reviewing ? 'Saving...' : 'Flag as Unverified Location'}
+                  </button>
+                  <button
+                    type="button"
+                    className="hrmu-verify-clear-btn"
+                    onClick={() => handleProofReview('verified')}
+                    disabled={reviewing || !selectedRegistryRow.verificationId}
+                  >
+                    {reviewing ? 'Saving...' : 'Successful Trip'}
+                  </button>
                 </div>
 
                 <button type="button" className="hrmu-verify-return-btn" onClick={() => setSelectedRegistryRow(null)}>Return to Registry</button>
@@ -10092,25 +10270,43 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
 
         const notificationRows = Array.isArray(notificationData?.notifications) ? notificationData.notifications : [];
         const flaggedRows = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
+        const positiveNotificationTypes = new Set([
+          'hrmu_locator_slip_approved',
+          'hrmu_trip_started',
+          'hrmu_trip_arrived',
+          'hrmu_trip_completed',
+          'hrmu_cssu_validated_exit',
+          'hrmu_location_verification_submitted',
+        ]);
 
-        const verifiedAlerts = notificationRows.map((notification) => {
-          const isViolationStyle = notification.type === 'hrmu_trip_arrived';
+        const verifiedAlerts = notificationRows
+          .filter((notification) => positiveNotificationTypes.has(notification.type))
+          .map((notification) => {
+          const defaultTitle = notification.type === 'hrmu_trip_started'
+            ? 'Trip started'
+            : notification.type === 'hrmu_trip_completed'
+              ? 'Faculty returned on time'
+              : notification.type === 'hrmu_cssu_validated_exit'
+                ? 'Exit clearance validated'
+                : notification.type === 'hrmu_trip_arrived'
+                  ? 'Faculty arrived at destination'
+                  : notification.title || 'Verified activity';
           return {
             id: `verified-${notification.id}`,
-            type: isViolationStyle ? 'violation' : 'verified',
-            title: notification.title || (isViolationStyle ? 'Faculty arrived at destination' : 'Locator Slip Verified'),
+            type: 'verified',
+            title: defaultTitle,
             body: notification.message || `${notification.facultyName} locator slip approved.`,
             time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
             sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
-            actionLabelPrimary: isViolationStyle ? 'Review Verification' : 'Open Dashboard',
-            actionLabelSecondary: isViolationStyle ? 'Open Dashboard' : 'Review Verification',
+            actionLabelPrimary: notification.type === 'hrmu_cssu_validated_exit' ? 'Open Dashboard' : 'Open Dashboard',
+            actionLabelSecondary: notification.type === 'hrmu_trip_started' || notification.type === 'hrmu_trip_completed' ? 'Open Reports' : 'Review Verification',
           };
         });
 
         const violationAlerts = flaggedRows.map((trip) => ({
           id: `violation-${trip.tripId}`,
           type: 'violation',
-          title: trip.incidentLabels?.[0] || 'Trip Incident Detected',
+          title: (trip.incidentLabels?.[0] || 'Trip Incident Detected').replace('detected', '').trim() || 'Trip Incident Detected',
           body: `${trip.facultyName} has active incident conditions${trip.destination ? ` en route to ${trip.destination}` : ''}. Reasons: ${(trip.incidentLabels || []).join(', ') || 'Review required'}.`,
           time: formatRelativeAlertTime(trip.latestDetectedAt),
           sortDate: trip.latestDetectedAt ? new Date(trip.latestDetectedAt).getTime() : 0,
@@ -14519,6 +14715,8 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
   const department = profileData?.department || 'Portal Department';
   const position = getPortalPositionLabel(profileData);
   const badgeLabel = getPortalBadgeLabel(accountRole);
+  const metaLabel = getPortalMetaLabel(profileData);
+  const administrationDescription = getPortalAdministrationDescription(profileData);
 
   const profileContent = (
     <div className="aprof-container">
@@ -14535,7 +14733,6 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
             <AdminProfileIdIcon />
             <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
           </div>
-          <p className="aprof-role" style={{ marginTop: '10px', fontSize: '0.98rem' }}>{department}</p>
         </div>
       </div>
 
@@ -14568,10 +14765,65 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
     </div>
   );
 
+  const desktopProfileContent = (
+    <section className="portal-profile-desktop">
+      <div className="portal-profile-desktop-hero">
+        <div className="portal-profile-desktop-media">
+          <div className="portal-profile-desktop-avatar">
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} />
+          </div>
+          <div className="portal-profile-desktop-badge">{badgeLabel}</div>
+        </div>
+        <div className="portal-profile-desktop-copy">
+          <span className="portal-profile-desktop-kicker">Profile Overview</span>
+          <h1>{fullName}</h1>
+          <p>{position}</p>
+          <div className="portal-profile-desktop-meta">
+            <div className="portal-profile-desktop-meta-pill">
+              <AdminProfileIdIcon />
+              <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+            </div>
+            <div className="portal-profile-desktop-meta-text">{metaLabel}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="portal-profile-desktop-admin">
+        <div className="portal-profile-desktop-admin-header">
+          <span>Account Administration</span>
+          <p>{administrationDescription}</p>
+        </div>
+        <div className="portal-profile-desktop-actions">
+          <button type="button" className="portal-profile-desktop-action" onClick={() => setView('admin-edit-profile')}>
+            <div className="portal-profile-desktop-action-icon">
+              <AdminProfileEditIcon />
+            </div>
+            <div className="portal-profile-desktop-action-copy">
+              <strong>Edit Profile</strong>
+              <span>Update your display name and account email.</span>
+            </div>
+            <AdminProfileChevronIcon />
+          </button>
+
+          <button type="button" className="portal-profile-desktop-action" onClick={() => setView('admin-change-password')}>
+            <div className="portal-profile-desktop-action-icon">
+              <AdminProfilePasswordIcon />
+            </div>
+            <div className="portal-profile-desktop-action-copy">
+              <strong>Change Password</strong>
+              <span>Refresh your account password and keep access secure.</span>
+            </div>
+            <AdminProfileChevronIcon />
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+
   if (accountRole === 'hrmu' && isDesktopViewport) {
     return (
       <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
-        <section className="cssu-desktop-page">{profileContent}</section>
+        <section className="cssu-desktop-page">{desktopProfileContent}</section>
       </HrmuWorkspaceShell>
     );
   }
@@ -14579,7 +14831,7 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
   if (accountRole === 'cssu' && isDesktopViewport) {
     return (
       <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
-        {profileContent}
+        {desktopProfileContent}
       </CSSUDesktopPage>
     );
   }
@@ -14640,6 +14892,87 @@ const AdminSaveCheckIcon = () => (
 const AdminEditProfileView = ({ setView, profileData }) => {
   const accountRole = profileData?.accountRole || '';
   const notificationsView = getPortalNotificationsViewForRole(accountRole);
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const position = getPortalPositionLabel(profileData);
+  const metaLabel = getPortalMetaLabel(profileData);
+  const badgeLabel = getPortalBadgeLabel(accountRole);
+
+  const desktopEditContent = (
+    <section className="portal-settings-desktop">
+      <div className="portal-settings-desktop-header">
+        <div>
+          <button type="button" className="portal-settings-back-btn" onClick={() => setView('admin-profile')}>
+            <BackArrowIcon color="var(--green)" />
+            <span>Back to Profile</span>
+          </button>
+          <span className="portal-settings-desktop-kicker">Officer Identity</span>
+          <h1>Edit Your Profile</h1>
+          <p>Update the account details displayed across your administrative workspace.</p>
+        </div>
+      </div>
+
+      <div className="portal-settings-desktop-grid">
+        <aside className="portal-settings-desktop-profile-card">
+          <div className="portal-settings-desktop-profile-avatar">
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={profileData?.fullName || 'Profile'} />
+          </div>
+          <div className="portal-settings-desktop-profile-badge">{badgeLabel}</div>
+          <h2>{profileData?.fullName || 'Portal User'}</h2>
+          <p>{position}</p>
+          <span>{metaLabel}</span>
+        </aside>
+
+        <div className="portal-settings-desktop-form-card">
+          <div className="portal-settings-desktop-section-title">
+            <strong>Profile Details</strong>
+            <span>Keep your display name and portal email current for all system records.</span>
+          </div>
+
+          <div className="portal-settings-desktop-fields">
+            <div className="portal-settings-desktop-field">
+              <label>Full Name</label>
+              <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                <input type="text" defaultValue={profileData?.fullName || ''} />
+                <AdminUserOutlineIcon />
+              </div>
+            </div>
+
+            <div className="portal-settings-desktop-field">
+              <label>Academic Email</label>
+              <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                <input type="email" defaultValue={profileData?.email || ''} />
+                <AdminEmailOutlineIcon />
+              </div>
+            </div>
+          </div>
+
+          <div className="portal-settings-desktop-actions">
+            <button className="aedit-save-btn portal-settings-save-btn" onClick={() => setView('admin-profile')}>
+              SAVE CHANGES
+              <AdminSaveCheckIcon />
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+
+  if ((accountRole === 'hrmu' || accountRole === 'cssu') && isDesktopViewport) {
+    if (accountRole === 'hrmu') {
+      return (
+        <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')}>
+          <section className="cssu-desktop-page">{desktopEditContent}</section>
+        </HrmuWorkspaceShell>
+      );
+    }
+
+    return (
+      <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')} hideHeader>
+        {desktopEditContent}
+      </CSSUDesktopPage>
+    );
+  }
+
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">

@@ -113,13 +113,9 @@ const getVerificationTrips = async () => {
         LEFT JOIN incident_groups ON incident_groups.trip_id = trip.id
         WHERE fu.account_role = 'faculty'
           AND fu.status = 'active'
-          AND (
-            verification.verification_status IN ('submitted', 'rejected', 'unverified')
-            OR COALESCE(array_length(incident_groups.incident_types, 1), 0) > 0
-            OR trip.status IN ('active', 'arrived', 'returning')
-          )
+          AND trip.status = 'completed'
         ORDER BY
-            COALESCE(incident_groups.latest_detected_at, verification.created_at, trip.started_at, ls.updated_at, ls.created_at) DESC,
+            COALESCE(trip.ended_at, incident_groups.latest_detected_at, verification.created_at, trip.started_at, ls.updated_at, ls.created_at) DESC,
             fu.full_name ASC`,
         [ALLOWED_COLLEGE_NAMES]
     );

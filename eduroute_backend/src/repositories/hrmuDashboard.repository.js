@@ -10,7 +10,10 @@ const ALLOWED_COLLEGE_NAMES = [
 
 const HRMU_NOTIFICATION_TYPE = 'hrmu_locator_slip_approved';
 const HRMU_NOTIFICATION_TYPE_REJECTED = 'hrmu_locator_slip_rejected';
+const HRMU_NOTIFICATION_TYPE_TRIP_STARTED = 'hrmu_trip_started';
 const HRMU_NOTIFICATION_TYPE_ARRIVED = 'hrmu_trip_arrived';
+const HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED = 'hrmu_trip_completed';
+const HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT = 'hrmu_cssu_validated_exit';
 const HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED = 'hrmu_location_verification_submitted';
 const HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION = 'hrmu_unverified_location';
 const HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED = 'hrmu_location_disconnected';
@@ -19,7 +22,10 @@ const HRMU_NOTIFICATION_TYPE_FLAGGED = 'hrmu_trip_flagged';
 const HRMU_NOTIFICATION_TYPES = [
     HRMU_NOTIFICATION_TYPE,
     HRMU_NOTIFICATION_TYPE_REJECTED,
+    HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
     HRMU_NOTIFICATION_TYPE_ARRIVED,
+    HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
+    HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
     HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
     HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
     HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
@@ -249,12 +255,15 @@ const getHrmuNotificationsPage = async (_recipientUserId, { page = 1, limit = 20
             CASE
                 WHEN n.type = $4 THEN 'verified'
                 WHEN n.type = $5 THEN 'rejected'
-                WHEN n.type = $6 THEN 'active'
-                WHEN n.type = $7 THEN 'verification_submitted'
-                WHEN n.type = $8 THEN 'flagged'
-                WHEN n.type = $9 THEN 'flagged'
+                WHEN n.type = $6 THEN 'verified'
+                WHEN n.type = $7 THEN 'verified'
+                WHEN n.type = $8 THEN 'verified'
+                WHEN n.type = $9 THEN 'verification_submitted'
                 WHEN n.type = $10 THEN 'flagged'
                 WHEN n.type = $11 THEN 'flagged'
+                WHEN n.type = $12 THEN 'flagged'
+                WHEN n.type = $13 THEN 'flagged'
+                WHEN n.type = $14 THEN 'flagged'
                 ELSE 'info'
             END AS status,
             n.title,
@@ -291,14 +300,17 @@ const getHrmuNotificationsPage = async (_recipientUserId, { page = 1, limit = 20
         WHERE n.recipient_user_id = $2
           AND n.type = ANY($3::text[])
         ORDER BY n.created_at DESC
-        LIMIT $12 OFFSET $13`,
+        LIMIT $15 OFFSET $16`,
         [
             ALLOWED_COLLEGE_NAMES,
             _recipientUserId,
             HRMU_NOTIFICATION_TYPES,
             HRMU_NOTIFICATION_TYPE,
             HRMU_NOTIFICATION_TYPE_REJECTED,
+            HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
             HRMU_NOTIFICATION_TYPE_ARRIVED,
+            HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
+            HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
             HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
             HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
             HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
@@ -512,7 +524,10 @@ module.exports = {
     HRMU_ALLOWED_ROLES,
     HRMU_NOTIFICATION_TYPE,
     HRMU_NOTIFICATION_TYPE_REJECTED,
+    HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
     HRMU_NOTIFICATION_TYPE_ARRIVED,
+    HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
+    HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
     HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
     HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
     HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,

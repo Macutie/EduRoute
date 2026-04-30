@@ -321,6 +321,15 @@ const startTrip = async (facultyUserId, payload) => {
             },
             occurredAt: trip.started_at || new Date()
         }).catch(() => null);
+        const hrmuTripStartContext = await hrmuDashboardRepository.getApprovedLocatorSlipNotificationPayload(locatorSlipId, client).catch(() => null);
+        if (hrmuTripStartContext) {
+            await hrmuDashboardRepository.createHrmuTripEventNotifications(client, {
+                locatorSlipId,
+                type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
+                title: 'Faculty started trip',
+                message: `${hrmuTripStartContext.faculty_name || 'A faculty member'} started a trip${hrmuTripStartContext.destination ? ` to ${hrmuTripStartContext.destination}` : ''}${hrmuTripStartContext.purpose ? ` for ${hrmuTripStartContext.purpose}` : ''}.`
+            }).catch(() => null);
+        }
 
         await client.query('COMMIT');
 
@@ -628,6 +637,17 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
             },
             occurredAt: endedAt
         }).catch(() => null);
+        if (!lateReturn.isLateReturn) {
+            const hrmuCompletionContext = await hrmuDashboardRepository.getApprovedLocatorSlipNotificationPayload(trip.locator_slip_id, client).catch(() => null);
+            if (hrmuCompletionContext) {
+                await hrmuDashboardRepository.createHrmuTripEventNotifications(client, {
+                    locatorSlipId: trip.locator_slip_id,
+                    type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
+                    title: 'Faculty returned on time',
+                    message: `${hrmuCompletionContext.faculty_name || 'A faculty member'} successfully returned on time${hrmuCompletionContext.destination ? ` from ${hrmuCompletionContext.destination}` : ''}.`
+                }).catch(() => null);
+            }
+        }
 
         await client.query('COMMIT');
 
