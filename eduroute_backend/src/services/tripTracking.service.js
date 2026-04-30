@@ -33,7 +33,7 @@ const searchDestinations = async (query) => mapboxService.searchDestinations(que
     limit: 6,
     language: 'en',
     country: 'PH',
-    types: 'place,address,poi'
+    types: mapboxService.DEFAULT_GEOCODING_TYPES
 });
 
 const previewRoute = async (payload) => {
@@ -184,8 +184,8 @@ const recordLiveLocation = async (socketUserId, payload) => {
 
     const trip = await tripRepository.findTripByIdForUser(update.tripId, socketUserId);
 
-    if (!trip || trip.status !== 'active') {
-        throw new AppError('Active trip not found for this location update.', 404);
+    if (!trip || !['active', 'arrived', 'returning'].includes(trip.status)) {
+        throw new AppError('Open trip not found for this location update.', 404);
     }
 
     await tripRepository.appendLocationUpdate(update);

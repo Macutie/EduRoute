@@ -1,5 +1,7 @@
 const pool = require('../db/pool');
+const env = require('../config/env');
 const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
+const { LOCATION_DISCONNECTED_TYPES } = require('./tripIncident.repository');
 
 const getIncidentTableExists = async () => {
     const { rows } = await pool.query(`SELECT to_regclass('public.trip_incidents') AS table_name`);
@@ -24,6 +26,7 @@ const buildReportScopeCte = ({ includeIncidents }) => `
             slip.id AS locator_slip_id,
             COALESCE(slip.destination, t.destination_name) AS destination,
             COALESCE(slip.custom_purpose, slip.purpose_of_travel, t.destination_name) AS purpose,
+            slip.expected_return_datetime,
             slip.approved_at,
             slip.rejected_at,
             slip.updated_at AS locator_updated_at
@@ -36,6 +39,7 @@ const buildReportScopeCte = ({ includeIncidents }) => `
                 ls.destination,
                 ls.custom_purpose,
                 ls.purpose_of_travel,
+                ls.expected_return_datetime,
                 ls.approved_at,
                 ls.rejected_at,
                 ls.updated_at,
@@ -93,6 +97,42 @@ const buildReportScopeCte = ({ includeIncidents }) => `
             '[]'::jsonb AS flagged_reasons
         WHERE FALSE
         `}
+    ),
+    derived_late_returns AS (
+        SELECT
+            et.trip_id,
+            et.trip_finished_at AS latest_detected_at,
+            JSONB_BUILD_OBJECT(
+                'type', 'LATE_RETURN',
+                'label', 'Late Return',
+                'severity', 'high'
+            ) AS flagged_reason
+        FROM ended_trips et
+        WHERE et.expected_return_datetime IS NOT NULL
+          AND et.trip_finished_at > (et.expected_return_datetime + INTERVAL '${Number(env.lateReturnGraceMinutes || 60)} minutes')
+    ),
+    effective_trip_flags AS (
+        SELECT
+            flagged.trip_id,
+            MAX(flagged.latest_detected_at) AS latest_detected_at,
+            JSONB_AGG(DISTINCT flagged.flagged_reason) AS flagged_reasons
+        FROM (
+            ${includeIncidents ? `
+            SELECT
+                tig.trip_id,
+                tig.latest_detected_at,
+                reason.value AS flagged_reason
+            FROM trip_incident_groups tig
+            CROSS JOIN LATERAL JSONB_ARRAY_ELEMENTS(tig.flagged_reasons) AS reason(value)
+            UNION ALL
+            ` : ''}
+            SELECT
+                dlr.trip_id,
+                dlr.latest_detected_at,
+                dlr.flagged_reason
+            FROM derived_late_returns dlr
+        ) flagged
+        GROUP BY flagged.trip_id
     )
 `;
 
@@ -102,12 +142,18 @@ const getMonthlySummary = async ({ start, endExclusive }) => {
         ? `
             (SELECT COUNT(DISTINCT et.trip_id)::int
              FROM ended_trips et
-             JOIN trip_incident_groups tig ON tig.trip_id = et.trip_id
+             JOIN effective_trip_flags etf ON etf.trip_id = et.trip_id
             ) AS flagged_incidents,
-            (SELECT COUNT(DISTINCT ti.trip_id)::int
-             FROM trip_incidents ti
-             JOIN ended_trips et ON et.trip_id = ti.trip_id
-             WHERE ti.incident_type = 'LATE_RETURN'
+            (SELECT COUNT(DISTINCT trip_id)::int
+             FROM (
+                SELECT ti.trip_id
+                FROM trip_incidents ti
+                JOIN ended_trips et ON et.trip_id = ti.trip_id
+                WHERE ti.incident_type = 'LATE_RETURN'
+                UNION
+                SELECT dlr.trip_id
+                FROM derived_late_returns dlr
+             ) late_trip_ids
             ) AS late_returns,
             (SELECT COUNT(DISTINCT ti.trip_id)::int
              FROM trip_incidents ti
@@ -117,15 +163,24 @@ const getMonthlySummary = async ({ start, endExclusive }) => {
             (SELECT COUNT(DISTINCT ti.trip_id)::int
              FROM trip_incidents ti
              JOIN ended_trips et ON et.trip_id = ti.trip_id
-             WHERE ti.incident_type = 'LIVE_LOCATION_DISCONNECTED'
+             WHERE ti.incident_type = ANY($4::text[])
             ) AS disconnected_locations
         `
         : `
-            0::int AS flagged_incidents,
-            0::int AS late_returns,
+            (SELECT COUNT(DISTINCT et.trip_id)::int
+             FROM ended_trips et
+             JOIN effective_trip_flags etf ON etf.trip_id = et.trip_id
+            ) AS flagged_incidents,
+            (SELECT COUNT(DISTINCT dlr.trip_id)::int
+             FROM derived_late_returns dlr
+            ) AS late_returns,
             0::int AS unverified_locations,
             0::int AS disconnected_locations
         `;
+
+    const summaryParams = includeIncidents
+        ? [ALLOWED_COLLEGE_NAMES, start, endExclusive, LOCATION_DISCONNECTED_TYPES]
+        : [ALLOWED_COLLEGE_NAMES, start, endExclusive];
 
     const { rows } = await pool.query(
         `${buildReportScopeCte({ includeIncidents })}
@@ -134,11 +189,11 @@ const getMonthlySummary = async ({ start, endExclusive }) => {
             (SELECT COUNT(*)::int
              FROM ended_trips et
              WHERE NOT EXISTS (
-                SELECT 1 FROM trip_incident_groups tig WHERE tig.trip_id = et.trip_id
+                SELECT 1 FROM effective_trip_flags etf WHERE etf.trip_id = et.trip_id
              )
             ) AS successful_trips,
             ${incidentSummaryColumns}`,
-        [ALLOWED_COLLEGE_NAMES, start, endExclusive]
+        summaryParams
     );
 
     return rows[0] || {};
@@ -160,20 +215,20 @@ const getMonthlyLogs = async ({ start, endExclusive, page = 1, limit = 20, statu
             SELECT
                 et.locator_slip_id,
                 et.trip_id,
-                COALESCE(tig.latest_detected_at, et.trip_finished_at, et.approved_at, et.locator_updated_at) AS timestamp,
+                COALESCE(etf.latest_detected_at, et.trip_finished_at, et.approved_at, et.locator_updated_at) AS timestamp,
                 et.destination AS location,
                 et.faculty_name AS personnel,
                 CASE
-                    WHEN tig.trip_id IS NOT NULL THEN 'FLAGGED'
+                    WHEN etf.trip_id IS NOT NULL THEN 'FLAGGED'
                     ELSE 'VERIFIED'
                 END AS report_status,
                 CASE
-                    WHEN tig.trip_id IS NOT NULL THEN 'flagged'
+                    WHEN etf.trip_id IS NOT NULL THEN 'flagged'
                     ELSE LOWER(COALESCE(et.trip_status, 'verified'))
                 END AS raw_status,
-                COALESCE(tig.flagged_reasons, '[]'::jsonb) AS flagged_reasons
+                COALESCE(etf.flagged_reasons, '[]'::jsonb) AS flagged_reasons
             FROM ended_trips et
-            LEFT JOIN trip_incident_groups tig ON tig.trip_id = et.trip_id
+            LEFT JOIN effective_trip_flags etf ON etf.trip_id = et.trip_id
             UNION ALL
             SELECT
                 rls.locator_slip_id,

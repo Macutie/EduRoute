@@ -1,5 +1,15 @@
 const { successResponse } = require('../utils/apiResponse');
 const hrmuReportsService = require('../services/hrmuReports.service');
+const hrmuVerificationService = require('../services/hrmuVerification.service');
+
+const getTrips = async (req, res, next) => {
+    try {
+        const payload = await hrmuVerificationService.getVerificationTrips(req.user.sub);
+        return res.json(successResponse('HRMU verification trips fetched successfully.', payload));
+    } catch (error) {
+        return next(error);
+    }
+};
 
 const getFlaggedTrips = async (req, res, next) => {
     try {
@@ -19,7 +29,22 @@ const getVerificationSummary = async (req, res, next) => {
     }
 };
 
+const reviewArrivalVerification = async (req, res, next) => {
+    try {
+        const payload = await hrmuVerificationService.reviewArrivalVerification(
+            req.user.sub,
+            req.params.verificationId,
+            req.body
+        );
+        return res.json(successResponse('Arrival verification reviewed successfully.', payload));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
+    getTrips,
     getFlaggedTrips,
-    getVerificationSummary
+    getVerificationSummary,
+    reviewArrivalVerification
 };

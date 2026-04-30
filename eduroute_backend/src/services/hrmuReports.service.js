@@ -37,6 +37,7 @@ const mapReportLogRow = (row) => ({
 
 const getMonthlyReport = async (userId, { monthIndex = 1, year } = {}) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
 
     const monthRange = getMonthDateRange(monthIndex, year);
@@ -58,6 +59,12 @@ const getMonthlyReport = async (userId, { monthIndex = 1, year } = {}) => {
     const successfulTrips = Number(summaryRows.successful_trips || 0);
     const flaggedIncidents = Number(summaryRows.flagged_incidents || 0);
 
+    const incidentSummary = {
+        lateReturn: Number(summaryRows.late_returns || 0),
+        unverifiedLocation: Number(summaryRows.unverified_locations || 0),
+        locationDisconnected: Number(summaryRows.disconnected_locations || 0)
+    };
+
     return {
         reportMeta: {
             monthIndex: monthRange.monthIndex,
@@ -75,14 +82,18 @@ const getMonthlyReport = async (userId, { monthIndex = 1, year } = {}) => {
             complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
             lateReturns: Number(summaryRows.late_returns || 0),
             unverifiedLocations: Number(summaryRows.unverified_locations || 0),
-            disconnectedLocations: Number(summaryRows.disconnected_locations || 0)
+            disconnectedLocations: Number(summaryRows.disconnected_locations || 0),
+            incidentSummary
         },
-        locatorSlipLogs: logsResult.rows.map(mapReportLogRow)
+        locatorSlipLogs: logsResult.rows.map(mapReportLogRow),
+        keyIncidentLog: logsResult.rows.map(mapReportLogRow)
     };
 };
 
 const getMonthlyReportLogs = async (userId, query = {}) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
+    await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
     const monthRange = getMonthDateRange(query.monthIndex, query.year);
     const result = await hrmuReportsRepository.getMonthlyLogs({
         start: monthRange.start,
@@ -109,6 +120,8 @@ const getMonthlyReportLogs = async (userId, query = {}) => {
 
 const getMonthlyReportSummary = async (userId, query = {}) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
+    await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
     const monthRange = getMonthDateRange(query.monthIndex, query.year);
     const summary = await hrmuReportsRepository.getMonthlySummary({
         start: monthRange.start,
@@ -117,6 +130,12 @@ const getMonthlyReportSummary = async (userId, query = {}) => {
 
     const totalMovements = Number(summary.total_movements || 0);
     const successfulTrips = Number(summary.successful_trips || 0);
+
+    const incidentSummary = {
+        lateReturn: Number(summary.late_returns || 0),
+        unverifiedLocation: Number(summary.unverified_locations || 0),
+        locationDisconnected: Number(summary.disconnected_locations || 0)
+    };
 
     return {
         reportMeta: {
@@ -135,7 +154,8 @@ const getMonthlyReportSummary = async (userId, query = {}) => {
             complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
             lateReturns: Number(summary.late_returns || 0),
             unverifiedLocations: Number(summary.unverified_locations || 0),
-            disconnectedLocations: Number(summary.disconnected_locations || 0)
+            disconnectedLocations: Number(summary.disconnected_locations || 0),
+            incidentSummary
         }
     };
 };
@@ -174,6 +194,7 @@ const getMonthlyReportDetails = async (userId, locatorSlipId) => {
 
 const getVerificationFlaggedTrips = async (userId) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
 
     const rows = await tripIncidentRepository.getFlaggedTrips();
@@ -196,6 +217,7 @@ const getVerificationFlaggedTrips = async (userId) => {
 
 const getVerificationIncidentSummary = async (userId) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
     const summary = await tripIncidentRepository.getVerificationSummary();
 

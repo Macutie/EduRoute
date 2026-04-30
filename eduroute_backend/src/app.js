@@ -7,9 +7,11 @@ const locatorSlipRoutes = require('./routes/locatorSlip.routes');
 const permissionRoutes = require('./routes/permission.routes');
 const mapRoutes = require('./routes/map.routes');
 const tripRoutes = require('./routes/trip.routes');
+const facultyTripFlowRoutes = require('./routes/facultyTripFlow.routes');
 const searchRoutes = require('./routes/search.routes');
 const deanDashboardRoutes = require('./routes/deanDashboard.routes');
 const hrmuDashboardRoutes = require('./routes/hrmuDashboard.routes');
+const cssuDashboardRoutes = require('./routes/cssuDashboard.routes');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const env = require('./config/env');
 
@@ -48,8 +50,10 @@ app.use('/api/permissions', permissionRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/trips', tripRoutes);
+app.use('/api/faculty', facultyTripFlowRoutes);
 app.use('/api/dean', deanDashboardRoutes);
 app.use('/api/hrmu', hrmuDashboardRoutes);
+app.use('/api/cssu', cssuDashboardRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

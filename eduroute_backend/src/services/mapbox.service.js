@@ -8,6 +8,8 @@ const VALID_PROFILES = new Set([
     'mapbox/cycling'
 ]);
 
+const DEFAULT_GEOCODING_TYPES = 'country,region,postcode,district,place,locality,neighborhood,street,block,address,secondary_address';
+
 const searchDestinations = async (query, options = {}) => {
     if (!env.mapboxSecretToken) {
         throw new AppError('Mapbox secret token is not configured.', 500);
@@ -25,7 +27,7 @@ const searchDestinations = async (query, options = {}) => {
     url.searchParams.set('limit', String(options.limit || 5));
     url.searchParams.set('language', options.language || 'en');
     url.searchParams.set('country', options.country || 'PH');
-    url.searchParams.set('types', options.types || 'place,address,poi');
+    url.searchParams.set('types', options.types || DEFAULT_GEOCODING_TYPES);
 
     const response = await fetch(url);
     const data = await response.json();
@@ -123,5 +125,6 @@ const getDirections = async ({ origin, destination, profile, alternatives = fals
 module.exports = {
     assertCoordinate,
     getDirections,
-    searchDestinations
+    searchDestinations,
+    DEFAULT_GEOCODING_TYPES
 };

@@ -1,15 +1,40 @@
 const env = require('../config/env');
 const tripIncidentRepository = require('../repositories/tripIncident.repository');
+const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const INCIDENT_LABELS = {
     LATE_RETURN: 'Late Return',
-    UNVERIFIED_LOCATION: 'Unverified Location Verification',
-    LIVE_LOCATION_DISCONNECTED: 'Live Location Disconnected'
+    UNVERIFIED_LOCATION: 'Unverified Location',
+    LOCATION_DISCONNECTED: 'Location Disconnected'
+};
+
+const formatExpectedReturnClock = (value) => {
+    if (!value) return null;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+};
+
+const formatLateReturnDurationLabel = (minutesLate) => {
+    const safeMinutes = Math.max(Number(minutesLate || 0), 0);
+    if (safeMinutes >= 60) {
+        const hoursLate = Math.floor(safeMinutes / 60);
+        return `more than ${hoursLate} hour${hoursLate === 1 ? '' : 's'}`;
+    }
+
+    return `${safeMinutes} minute${safeMinutes === 1 ? '' : 's'}`;
 };
 
 const getDetectedAt = (context) => (
     context.ended_at
     || context.latest_location_at
+    || context.last_location_log_at
     || context.verification_created_at
     || context.trip_updated_at
     || context.locator_updated_at
@@ -18,19 +43,83 @@ const getDetectedAt = (context) => (
 
 const ensureIncidentTable = async () => {
     const exists = await tripIncidentRepository.getIncidentTableExists();
-    if (!exists) {
-        return false;
+    return Boolean(exists);
+};
+
+const getNotificationConfig = (incidentType, context, metadata = {}) => {
+    switch (incidentType) {
+    case tripIncidentRepository.INCIDENT_TYPES.LATE_RETURN:
+        return {
+            type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LATE_RETURN,
+            title: 'Late return detected',
+            message: `${context.faculty_name || 'A faculty member'} returned ${formatLateReturnDurationLabel(metadata.minutesLate)} after the expected return time of ${formatExpectedReturnClock(metadata.expectedReturnTime || context.expected_return_datetime) || 'the approved return time'}.`
+        };
+    case tripIncidentRepository.INCIDENT_TYPES.UNVERIFIED_LOCATION:
+        return {
+            type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
+            title: 'Arrival verification failed review',
+            message: `${context.faculty_name || 'A faculty member'} has an arrival verification that HRMU marked as unverified for ${context.destination || 'the approved destination'}.`
+        };
+    case tripIncidentRepository.INCIDENT_TYPES.LOCATION_DISCONNECTED:
+        return {
+            type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
+            title: 'Live location disconnected',
+            message: `${context.faculty_name || 'A faculty member'} has stopped sharing live location updates for ${context.destination || 'the active trip'}.`
+        };
+    default:
+        return null;
+    }
+};
+
+const emitIncidentSignals = async (context, incident, metadata = {}) => {
+    if (!incident || !context?.locator_slip_id) return incident;
+
+    const notificationConfig = getNotificationConfig(incident.incident_type, context, metadata);
+
+    if (notificationConfig) {
+        await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
+            locatorSlipId: context.locator_slip_id,
+            type: notificationConfig.type,
+            title: notificationConfig.title,
+            message: notificationConfig.message
+        }).catch(() => null);
+
+        await socketBroadcasterService.broadcastHrmuNotificationNew({
+            type: notificationConfig.type,
+            title: notificationConfig.title,
+            message: notificationConfig.message,
+            locatorSlipId: context.locator_slip_id,
+            tripId: context.trip_id,
+            incidentType: incident.incident_type,
+            createdAt: incident.detected_at ? new Date(incident.detected_at).toISOString() : new Date().toISOString()
+        }).catch(() => null);
     }
 
-    return true;
+    await socketBroadcasterService.broadcastHrmuIncidentNew({
+        incidentId: incident.id,
+        tripId: context.trip_id,
+        locatorSlipId: context.locator_slip_id,
+        facultyName: context.faculty_name,
+        incidentType: incident.incident_type,
+        incidentLabel: incident.incident_label,
+        severity: incident.severity,
+        detectedAt: incident.detected_at ? new Date(incident.detected_at).toISOString() : new Date().toISOString(),
+        message: notificationConfig?.message || `${incident.incident_label} detected.`
+    }).catch(() => null);
+
+    await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
+
+    return incident;
 };
 
 const detectLateReturn = async (context) => {
-    if (!context?.expected_return_datetime || !context?.ended_at) return null;
+    const actualReturnSource = context?.ended_at || context?.trip_updated_at;
+    if (!context?.expected_return_datetime || !actualReturnSource) return null;
 
     const expectedReturn = new Date(context.expected_return_datetime);
-    const actualEnd = new Date(context.ended_at);
-    const threshold = new Date(expectedReturn.getTime() + (60 * 60 * 1000));
+    const actualEnd = new Date(actualReturnSource);
+    const graceMinutes = Number(env.lateReturnGraceMinutes || 60);
+    const threshold = new Date(expectedReturn.getTime() + (graceMinutes * 60 * 1000));
 
     if (Number.isNaN(expectedReturn.getTime()) || Number.isNaN(actualEnd.getTime()) || actualEnd <= threshold) {
         return null;
@@ -38,7 +127,7 @@ const detectLateReturn = async (context) => {
 
     const minutesLate = Math.max(Math.round((actualEnd.getTime() - expectedReturn.getTime()) / 60000), 0);
 
-    return tripIncidentRepository.upsertTripIncident({
+    const incident = await tripIncidentRepository.upsertTripIncident({
         tripId: context.trip_id,
         locatorSlipId: context.locator_slip_id,
         facultyUserId: context.faculty_user_id,
@@ -48,23 +137,29 @@ const detectLateReturn = async (context) => {
         detectedAt: actualEnd,
         metadata: {
             expectedReturnTime: expectedReturn.toISOString(),
-            actualEndTime: actualEnd.toISOString(),
-            minutesLate
+            actualReturnTime: actualEnd.toISOString(),
+            minutesLate,
+            graceMinutes
         }
+    });
+
+    return emitIncidentSignals(context, incident, {
+        minutesLate,
+        expectedReturnTime: expectedReturn.toISOString()
     });
 };
 
 const detectUnverifiedLocation = async (context) => {
-    if (!context?.trip_id || !context?.ended_at) return null;
+    if (!context?.trip_id) return null;
 
     const verificationStatus = String(context.verification_status || '').toLowerCase();
-    const missingOrFailed = !verificationStatus || !['accepted', 'verified'].includes(verificationStatus);
+    const rejectedStatuses = ['rejected', 'unverified', 'failed'];
 
-    if (!missingOrFailed) {
+    if (!rejectedStatuses.includes(verificationStatus)) {
         return null;
     }
 
-    return tripIncidentRepository.upsertTripIncident({
+    const incident = await tripIncidentRepository.upsertTripIncident({
         tripId: context.trip_id,
         locatorSlipId: context.locator_slip_id,
         facultyUserId: context.faculty_user_id,
@@ -73,43 +168,87 @@ const detectUnverifiedLocation = async (context) => {
         severity: verificationStatus === 'rejected' ? 'high' : 'medium',
         detectedAt: getDetectedAt(context),
         metadata: {
-            verificationStatus: verificationStatus || 'missing'
+            verificationStatus
         }
     });
+
+    return emitIncidentSignals(context, incident);
 };
 
-const detectDisconnectedLocation = async (context) => {
-    if (!context?.trip_id || !context?.latest_location_at) return null;
+const detectLocationDisconnected = async (context) => {
+    if (!context?.trip_id) return null;
 
-    const latestLocationAt = new Date(context.latest_location_at);
-    if (Number.isNaN(latestLocationAt.getTime())) return null;
-
-    const staleThresholdMinutes = Number(env.liveLocationStaleMinutes || 5);
-    const staleThresholdMs = staleThresholdMinutes * 60 * 1000;
-    const compareTime = context.trip_status === 'active'
-        ? new Date()
-        : (context.ended_at ? new Date(context.ended_at) : new Date());
-
-    if (compareTime.getTime() - latestLocationAt.getTime() <= staleThresholdMs) {
+    const inProgressStatuses = ['active', 'arrived', 'returning'];
+    if (!inProgressStatuses.includes(String(context.trip_status || '').toLowerCase())) {
         return null;
     }
 
-    return tripIncidentRepository.upsertTripIncident({
+    const thresholdMinutes = Number(env.locationDisconnectedMinutes || env.liveLocationStaleMinutes || 30);
+    const thresholdMs = thresholdMinutes * 60 * 1000;
+    const startedAt = context.started_at ? new Date(context.started_at) : null;
+    const latestLocationAt = context.latest_location_at ? new Date(context.latest_location_at) : null;
+    const compareTime = new Date();
+
+    let shouldFlag = false;
+    const metadata = {
+        staleThresholdMinutes: thresholdMinutes
+    };
+
+    if (startedAt && !Number.isNaN(startedAt.getTime())) {
+        metadata.tripStartedAt = startedAt.toISOString();
+    }
+
+    if (latestLocationAt && !Number.isNaN(latestLocationAt.getTime())) {
+        metadata.lastLocationAt = latestLocationAt.toISOString();
+        if ((compareTime.getTime() - latestLocationAt.getTime()) > thresholdMs) {
+            shouldFlag = true;
+        }
+    } else if (startedAt && !Number.isNaN(startedAt.getTime()) && (compareTime.getTime() - startedAt.getTime()) > thresholdMs) {
+        shouldFlag = true;
+        metadata.lastLocationAt = null;
+    }
+
+    if (!shouldFlag && startedAt && !Number.isNaN(startedAt.getTime())) {
+        const pointCount = Number(context.location_point_count || 0);
+        const minLat = context.min_lat === null ? null : Number(context.min_lat);
+        const maxLat = context.max_lat === null ? null : Number(context.max_lat);
+        const minLng = context.min_lng === null ? null : Number(context.min_lng);
+        const maxLng = context.max_lng === null ? null : Number(context.max_lng);
+        const hasSinglePosition =
+            pointCount > 0
+            && Number.isFinite(minLat)
+            && Number.isFinite(maxLat)
+            && Number.isFinite(minLng)
+            && Number.isFinite(maxLng)
+            && minLat === maxLat
+            && minLng === maxLng;
+
+        if (hasSinglePosition && (compareTime.getTime() - startedAt.getTime()) > thresholdMs) {
+            shouldFlag = true;
+            metadata.noMovementSinceStart = true;
+            metadata.locationPointCount = pointCount;
+        }
+    }
+
+    if (!shouldFlag) {
+        return null;
+    }
+
+    const incident = await tripIncidentRepository.upsertTripIncident({
         tripId: context.trip_id,
         locatorSlipId: context.locator_slip_id,
         facultyUserId: context.faculty_user_id,
-        incidentType: tripIncidentRepository.INCIDENT_TYPES.LIVE_LOCATION_DISCONNECTED,
-        incidentLabel: INCIDENT_LABELS.LIVE_LOCATION_DISCONNECTED,
+        incidentType: tripIncidentRepository.INCIDENT_TYPES.LOCATION_DISCONNECTED,
+        incidentLabel: INCIDENT_LABELS.LOCATION_DISCONNECTED,
         severity: 'medium',
-        detectedAt: context.ended_at || compareTime,
-        metadata: {
-            lastLocationAt: latestLocationAt.toISOString(),
-            staleThresholdMinutes
-        }
+        detectedAt: getDetectedAt(context),
+        metadata
     });
+
+    return emitIncidentSignals(context, incident);
 };
 
-const evaluateTripIncidents = async (tripId) => {
+const detectAllTripIncidents = async (tripId) => {
     const canRun = await ensureIncidentTable();
     if (!canRun) return [];
 
@@ -119,11 +258,13 @@ const evaluateTripIncidents = async (tripId) => {
     const results = await Promise.all([
         detectLateReturn(context),
         detectUnverifiedLocation(context),
-        detectDisconnectedLocation(context)
+        detectLocationDisconnected(context)
     ]);
 
     return results.filter(Boolean);
 };
+
+const evaluateTripIncidents = detectAllTripIncidents;
 
 const detectDisconnectedActiveTrips = async () => {
     const canRun = await ensureIncidentTable();
@@ -133,7 +274,22 @@ const detectDisconnectedActiveTrips = async () => {
     const results = [];
 
     for (const tripId of tripIds) {
-        const incidents = await evaluateTripIncidents(tripId).catch(() => []);
+        const incidents = await detectAllTripIncidents(tripId).catch(() => []);
+        results.push(...incidents);
+    }
+
+    return results;
+};
+
+const detectEndedTripsForIncidentScan = async () => {
+    const canRun = await ensureIncidentTable();
+    if (!canRun) return [];
+
+    const tripIds = await tripIncidentRepository.getEndedTripIdsForIncidentScan().catch(() => []);
+    const results = [];
+
+    for (const tripId of tripIds) {
+        const incidents = await detectAllTripIncidents(tripId).catch(() => []);
         results.push(...incidents);
     }
 
@@ -142,6 +298,11 @@ const detectDisconnectedActiveTrips = async () => {
 
 module.exports = {
     INCIDENT_LABELS,
+    detectLateReturn,
+    detectUnverifiedLocation,
+    detectLocationDisconnected,
+    detectAllTripIncidents,
     evaluateTripIncidents,
-    detectDisconnectedActiveTrips
+    detectDisconnectedActiveTrips,
+    detectEndedTripsForIncidentScan
 };

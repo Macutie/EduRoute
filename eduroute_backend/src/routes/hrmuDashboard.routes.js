@@ -8,9 +8,10 @@ const { protect, requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-router.use(protect, requireRole('hrmu', 'admin'));
+router.use(protect);
+router.use('/live-tracking', requireRole('hrmu', 'admin', 'cssu'), hrmuLiveTrackingRoutes);
+router.use(requireRole('hrmu', 'admin'));
 router.use('/analytics', hrmuAnalyticsRoutes);
-router.use('/live-tracking', hrmuLiveTrackingRoutes);
 router.use('/reports', hrmuReportsRoutes);
 router.use('/verification', hrmuVerificationRoutes);
 

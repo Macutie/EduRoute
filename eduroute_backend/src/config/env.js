@@ -27,5 +27,7 @@ module.exports = {
     cloudinaryApiSecret: process.env.CLOUDINARY_API_SECRET,
     mapboxSecretToken: process.env.MAPBOX_SECRET_TOKEN,
     mapboxDirectionsProfile: process.env.MAPBOX_DIRECTIONS_PROFILE || 'mapbox/driving',
-    liveLocationStaleMinutes: Number(process.env.LIVE_LOCATION_STALE_MINUTES || 5)
+    liveLocationStaleMinutes: Number(process.env.LIVE_LOCATION_STALE_MINUTES || process.env.LOCATION_DISCONNECTED_MINUTES || 30),
+    locationDisconnectedMinutes: Number(process.env.LOCATION_DISCONNECTED_MINUTES || process.env.LIVE_LOCATION_STALE_MINUTES || 30),
+    lateReturnGraceMinutes: Number(process.env.LATE_RETURN_GRACE_MINUTES || 60)
 };

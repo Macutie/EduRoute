@@ -40,7 +40,7 @@ const isFreshLocation = (recordedAt) => {
     const date = recordedAt instanceof Date ? recordedAt : new Date(recordedAt);
     if (Number.isNaN(date.getTime())) return false;
 
-    const staleMs = Number(env.liveLocationStaleMinutes || 5) * 60 * 1000;
+    const staleMs = Number(env.liveLocationStaleMinutes || 30) * 60 * 1000;
     return Date.now() - date.getTime() <= staleMs;
 };
 

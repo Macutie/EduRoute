@@ -1,6 +1,7 @@
 const { getSocketServer } = require('../socket/socketBus');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuLiveTrackingRepository = require('../repositories/hrmuLiveTracking.repository');
+const tripIncidentRepository = require('../repositories/tripIncident.repository');
 const { formatRelativeTime, mapLiveFacultyRow } = require('./hrmuDashboard.service');
 const { mapFacultyMarkerRow, mapActivityItem } = require('./hrmuLiveTracking.service');
 
@@ -23,6 +24,16 @@ const broadcastHrmuDashboardUpdate = async () => {
         pendingSlips: summary.unverified_cases || 0,
         unverifiedCases: summary.unverified_cases || 0
     };
+
+    const incidentSummary = await tripIncidentRepository.getVerificationSummary().catch(() => null);
+    if (incidentSummary) {
+        payload.flaggedIncidents = Number(incidentSummary.flagged_trips || 0);
+        payload.incidentSummary = {
+            lateReturn: Number(incidentSummary.late_returns || 0),
+            unverifiedLocation: Number(incidentSummary.unverified_locations || 0),
+            locationDisconnected: Number(incidentSummary.disconnected_locations || 0)
+        };
+    }
 
     emitToHrmu('hrmu:dashboard:update', payload);
     return payload;
@@ -90,10 +101,17 @@ const broadcastHrmuNotificationNew = async (payload) => {
     return payload;
 };
 
+const broadcastHrmuIncidentNew = async (payload) => {
+    if (!payload) return null;
+    emitToHrmu('hrmu:incident:new', payload);
+    return payload;
+};
+
 module.exports = {
     emitToHrmu,
     broadcastHrmuDashboardUpdate,
     broadcastHrmuLiveLocationUpdate,
     broadcastHrmuLiveActivityUpdate,
-    broadcastHrmuNotificationNew
+    broadcastHrmuNotificationNew,
+    broadcastHrmuIncidentNew
 };

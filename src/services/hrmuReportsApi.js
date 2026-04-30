@@ -47,6 +47,29 @@ export const getHrmuFlaggedTrips = () =>
 export const getHrmuVerificationIncidentSummary = () =>
   request('/api/hrmu/verification/summary');
 
+export const getHrmuVerificationTrips = () =>
+  request('/api/hrmu/verification/trips');
+
+export const reviewHrmuArrivalVerification = async (verificationId, payload) => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/arrival/${verificationId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'HRMU verification review failed');
+  }
+
+  return data.data;
+};
+
 export const downloadHrmuMonthlyReportPdf = async ({ monthIndex, baseYear }) => {
   const searchParams = new URLSearchParams();
   if (monthIndex !== undefined && monthIndex !== null) searchParams.set('monthIndex', monthIndex);

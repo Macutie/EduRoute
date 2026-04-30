@@ -28,10 +28,10 @@ const findActiveTripByUserId = async (userId) => {
         `SELECT *
          FROM trips
          WHERE user_id = $1
-           AND status = 'active'
+           AND status = ANY($2::text[])
          ORDER BY started_at DESC
          LIMIT 1`,
-        [userId]
+        [userId, ['active', 'arrived', 'returning']]
     );
 
     return rows[0] ? mapTripRow(rows[0]) : null;

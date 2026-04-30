@@ -28,10 +28,28 @@ import {
   getHrmuNotifications,
   getHrmuRecentActivity,
 } from './services/hrmuApi';
+import {
+  getCssuDashboardSummary,
+  getCssuLiveExitMonitoring,
+  lookupCssuExitCandidate,
+  updateCssuExitStatus,
+} from './services/cssuApi';
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
 import FacultyActivityLog from './components/hrmu/FacultyActivityLog';
 import { downloadHrmuMonthlyReportPdf, getHrmuFlaggedTrips, getHrmuVerificationIncidentSummary } from './services/hrmuReportsApi';
+import {
+  getApprovedFacultyLocatorSlips,
+  getFacultyLocatorSlipDetails,
+  getFacultyTripSummary,
+  markFacultyTripArrived,
+  markFacultyTripReturned,
+  resolveFacultyLocatorSlipDestination,
+  saveFacultyManualPin,
+  startFacultyTrip,
+  startFacultyTripReturn,
+  verifyFacultyTripArrival,
+} from './services/facultyTripApi';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
 
@@ -46,12 +64,21 @@ const decodeJwtPayload = (token) => {
   }
 };
 
+const getDefaultViewForRole = (role) => {
+  if (role === 'hrmu') return 'hrmu-dashboard';
+  if (role === 'cssu') return 'cssu-dashboard';
+  if (['assistant_dean', 'college_dean'].includes(role)) return 'dean-dashboard';
+  if (role === 'admin') return 'admin-dashboard';
+  return 'dashboard';
+};
+
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
   const [view, setView] = useState(() => {
     const token = localStorage.getItem('token');
     const savedView = localStorage.getItem('edurouteLastView');
-    return token ? (savedView || 'dashboard') : 'login';
+    const tokenRole = decodeJwtPayload(token || '')?.role || '';
+    return token ? (savedView || getDefaultViewForRole(tokenRole)) : 'login';
   });
   const [loading, setLoading] = useState(false);
   const [showLoginPassword, setShowLoginPassword] = useState(false);
@@ -77,6 +104,7 @@ function App() {
   const [resetToken, setResetToken] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
   const [selectedStatusSlip, setSelectedStatusSlip] = useState(null);
+  const [logoutModalPortal, setLogoutModalPortal] = useState(null);
   const [selectedDeanRequest, setSelectedDeanRequest] = useState(null);
   const [selectedAdminRequest, setSelectedAdminRequest] = useState(null);
   const [newPasswordForm, setNewPasswordForm] = useState({
@@ -213,7 +241,7 @@ function App() {
           return;
         }
 
-        if (data.data?.status === 'approved') {
+        if (['approved', 'verified', 'completed'].includes(String(data.data?.status || '').toLowerCase())) {
           setSelectedStatusSlip(data.data);
           setView('scan');
         } else {
@@ -225,6 +253,25 @@ function App() {
     };
 
     restoreVerificationSlip();
+  }, [selectedStatusSlip]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const pendingSlipId = localStorage.getItem('edurouteMapSlipId');
+    const savedView = localStorage.getItem('edurouteLastView');
+
+    if (!token || !pendingSlipId || !['map', 'map-slip-selection'].includes(savedView) || selectedStatusSlip?.id === pendingSlipId) return;
+
+    const restoreMapSlip = async () => {
+      try {
+        const slip = await getFacultyLocatorSlipDetails(pendingSlipId);
+        setSelectedStatusSlip(slip);
+      } catch (error) {
+        localStorage.removeItem('edurouteMapSlipId');
+      }
+    };
+
+    restoreMapSlip();
   }, [selectedStatusSlip]);
 
   useEffect(() => {
@@ -288,6 +335,24 @@ function App() {
           && ['dashboard', 'admin-dashboard', 'profile', 'admin-profile'].includes(view)
         ) {
           setView('dean-dashboard');
+          return;
+        }
+
+        const expectedDefaultView = getDefaultViewForRole(databaseRole);
+        const genericRoleViews = ['dashboard', 'profile', 'status', 'locator-slip', 'map', 'scan', 'updates', 'map-slip-selection'];
+
+        if (databaseRole === 'cssu' && genericRoleViews.includes(view)) {
+          setView(expectedDefaultView);
+          return;
+        }
+
+        if (databaseRole === 'hrmu' && genericRoleViews.includes(view)) {
+          setView(expectedDefaultView);
+          return;
+        }
+
+        if (databaseRole === 'admin' && genericRoleViews.includes(view)) {
+          setView(expectedDefaultView);
         }
       } catch (error) {
         console.error('Failed to sync profile:', error);
@@ -365,16 +430,7 @@ function App() {
       }));
       const accountRole = data.data.user?.account_role;
       alert(formatApiMessage(data.message) || 'Login successful.');
-
-      if (portalRole === 'hrmu') {
-        setView('hrmu-dashboard');
-      } else if (['assistant_dean', 'college_dean'].includes(accountRole)) {
-        setView('dean-dashboard');
-      } else if (accountRole === 'admin') {
-        setView('admin-dashboard');
-      } else {
-        setView('dashboard');
-      }
+      setView(getDefaultViewForRole(accountRole || portalRole));
     } catch (error) {
       alert(error.message);
     } finally {
@@ -387,6 +443,7 @@ function App() {
     localStorage.removeItem('profileImage');
     localStorage.removeItem('edurouteLastView');
     localStorage.removeItem('edurouteVerifySlipId');
+    localStorage.removeItem('edurouteMapSlipId');
     setShowPermissionSetup(false);
     setPermissionSetupStep('intro');
     setPermissionSetupMessage('');
@@ -399,6 +456,17 @@ function App() {
       accountRole: '',
     });
     setView('login');
+  };
+
+  const getLogoutPortalLabel = (portalKey) => {
+    if (portalKey === 'cssu') return 'EduRoute CSSU Portal';
+    if (portalKey === 'hrmu') return 'EduRoute HRMU Portal';
+    if (portalKey === 'dean') return 'EduRoute Dean Portal';
+    return 'EduRoute Portal';
+  };
+
+  const requestPortalLogout = (portalKey) => {
+    setLogoutModalPortal(portalKey);
   };
 
   const finishPermissionSetup = async (notificationsStatus) => {
@@ -589,8 +657,22 @@ function App() {
     }
   };
 
+  const desktopWorkspaceViews = [
+    'hrmu-dashboard',
+    'hrmu-verification',
+    'hrmu-analytics',
+    'hrmu-reports',
+    'hrmu-live',
+    'hrmu-notifications',
+    'cssu-dashboard',
+    'cssu-map',
+    'cssu-incidents',
+    'cssu-scan',
+    'cssu-reports',
+  ];
+
   return (
-    <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${['hrmu-dashboard', 'hrmu-verification', 'hrmu-analytics', 'hrmu-reports', 'hrmu-live', 'hrmu-notifications'].includes(view) ? 'workspace-shell' : ''}`}>
+    <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${desktopWorkspaceViews.includes(view) ? 'workspace-shell' : ''}`}>
       {isAuthView(view) && (
         <div className="status-bar">
           <span className="time">9:41</span>
@@ -678,11 +760,24 @@ function App() {
           selectedSlip={selectedStatusSlip}
         />
       )}
-      {view === 'locator-slip' && <LocatorSlipView setView={setView} profileData={profileData} />}
+      {view === 'locator-slip' && (
+        <LocatorSlipView
+          setView={setView}
+          profileData={profileData}
+          setSelectedStatusSlip={setSelectedStatusSlip}
+        />
+      )}
       {view === 'updates' && <UpdatesView setView={setView} profileData={profileData} />}
       {view === 'route-approved' && <RouteApprovedView setView={setView} profileData={profileData} />}
       {view === 'slip-submitted' && <SlipSubmittedView setView={setView} profileData={profileData} />}
-      {view === 'map' && <MapTrackingView setView={setView} profileData={profileData} />}
+      {view === 'map-slip-selection' && (
+        <ApprovedLocatorSlipSelectionView
+          setView={setView}
+          profileData={profileData}
+          setSelectedSlip={setSelectedStatusSlip}
+        />
+      )}
+      {view === 'map' && <MapTrackingView setView={setView} profileData={profileData} selectedSlip={selectedStatusSlip} setSelectedSlip={setSelectedStatusSlip} />}
       {view === 'profile' && <ProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'change-password' && <ChangePasswordView setView={setView} profileData={profileData} />}
       {view === 'notification-settings' && <NotificationSettingsView setView={setView} profileData={profileData} />}
@@ -710,7 +805,7 @@ function App() {
           request={selectedDeanRequest}
         />
       )}
-      {view === 'dean-profile' && <DeanProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'dean-profile' && <DeanProfileView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('dean')} />}
       {view === 'dean-faculty' && <DeanFacultyView setView={setView} profileData={profileData} />}
       {view === 'dean-registry' && (
         <DeanRegistryView
@@ -729,18 +824,18 @@ function App() {
           useDeanNav
         />
       )}
-      {view === 'hrmu-dashboard' && <HrmuDashboardView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'hrmu-verification' && <HrmuVerificationView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'hrmu-analytics' && <HrmuAnalyticsReportsView setView={setView} profileData={profileData} onLogout={handleLogout} activeKey="analytics" />}
-      {view === 'hrmu-reports' && <HrmuReportsView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'hrmu-live' && <HrmuLiveTrackingView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'hrmu-notifications' && <HrmuNotificationsRealtimeView setView={setView} profileData={profileData} onLogout={handleLogout} />}
+      {view === 'hrmu-dashboard' && <HrmuDashboardView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
+      {view === 'hrmu-verification' && <HrmuVerificationView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
+      {view === 'hrmu-analytics' && <HrmuAnalyticsReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} activeKey="analytics" />}
+      {view === 'hrmu-reports' && <HrmuReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
+      {view === 'hrmu-live' && <HrmuLiveTrackingView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
+      {view === 'hrmu-notifications' && <HrmuNotificationsRealtimeView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
-      {view === 'cssu-dashboard' && <CSSUDashboardView setView={setView} profileData={profileData} />}
-      {view === 'cssu-map' && <div className="mobile-container"><div className="content"><div className="header"><h1>Map</h1></div><CSSUBottomNav active="map" setView={setView} /></div></div>}
-      {view === 'cssu-incidents' && <div className="mobile-container"><div className="content"><div className="header"><h1>Incidents</h1></div><CSSUBottomNav active="incidents" setView={setView} /></div></div>}
-      {view === 'cssu-scan' && <div className="mobile-container"><div className="content"><div className="header"><h1>Scan</h1></div><CSSUBottomNav active="scan" setView={setView} /></div></div>}
-      {view === 'cssu-reports' && <div className="mobile-container"><div className="content"><div className="header"><h1>Reports</h1></div><CSSUBottomNav active="reports" setView={setView} /></div></div>}
+      {view === 'cssu-dashboard' && <CSSUDashboardView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
+      {view === 'cssu-map' && <CSSUMapView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
+      {view === 'cssu-incidents' && <CSSUIncidentsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
+      {view === 'cssu-scan' && <CSSUScanView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
+      {view === 'cssu-reports' && <CSSUReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
         <AdminApprovalRequestsView
@@ -762,6 +857,40 @@ function App() {
       {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" />}
       {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
 
+
+      {logoutModalPortal && (
+        <div className="modal-overlay fade-in">
+          <div className="logout-modal-card">
+            <div className="logout-icon-container">
+              <LogoutIcon color="var(--green)" />
+              <div className="logout-cap-badge">
+                <GraduationCapIcon color="#1A202C" />
+              </div>
+            </div>
+
+            <h2 className="logout-modal-title">Are you sure you want<br />to logout?</h2>
+            <p className="logout-modal-desc">
+              You will be securely logged out of the <span className="text-green">{getLogoutPortalLabel(logoutModalPortal)}</span>. Any unsaved portal progress may be lost.
+            </p>
+
+            <button className="logout-confirm-btn" onClick={() => {
+              setLogoutModalPortal(null);
+              handleLogout();
+            }}>
+              Yes, Logout <ArrowRightIcon color="white" />
+            </button>
+            <button className="logout-cancel-btn" onClick={() => setLogoutModalPortal(null)}>
+              Cancel
+            </button>
+
+            <div className="modal-dots">
+              <div className="dot green-dot-pill"></div>
+              <div className="dot grey-dot"></div>
+              <div className="dot yellow-dot"></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isAuthView(view) && (
         <div
@@ -1483,40 +1612,40 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
             {/* Left Panel */}
             <div className="dlogin-left">
               <div className="dlogin-left-inner">
-              <div className="dlogin-logo-section">
-                <div className="dlogin-logo-box">
-                  <MapIcon />
+                <div className="dlogin-logo-section">
+                  <div className="dlogin-logo-box">
+                    <MapIcon />
+                  </div>
+                  <h1>EduRoute</h1>
+                  <h2>{activeRole.title.toUpperCase()}</h2>
                 </div>
-                <h1>EduRoute</h1>
-                <h2>{activeRole.title.toUpperCase()}</h2>
-              </div>
 
-              <div className="dlogin-role-section">
-                <p className="dlogin-role-header">SELECT DEPARTMENT ROLE</p>
-                <div className={`dlogin-role-grid dlogin-role-grid--${availableRoles.length}`}>
-                  {availableRoles.map((role) => {
-                    const RoleIcon = role.icon;
-                    const isActive = selectedRole === role.key;
-                    return (
-                      <button
-                        type="button"
-                        key={role.key}
-                        className={`dlogin-role-btn ${isActive ? 'active' : ''}`}
-                        onClick={() => setSelectedRole(role.key)}
-                      >
-                        <RoleIcon color={isActive ? 'var(--green)' : '#4B5563'} size="20" />
-                        <span>{role.label}</span>
-                      </button>
-                    );
-                  })}
+                <div className="dlogin-role-section">
+                  <p className="dlogin-role-header">SELECT DEPARTMENT ROLE</p>
+                  <div className={`dlogin-role-grid dlogin-role-grid--${availableRoles.length}`}>
+                    {availableRoles.map((role) => {
+                      const RoleIcon = role.icon;
+                      const isActive = selectedRole === role.key;
+                      return (
+                        <button
+                          type="button"
+                          key={role.key}
+                          className={`dlogin-role-btn ${isActive ? 'active' : ''}`}
+                          onClick={() => setSelectedRole(role.key)}
+                        >
+                          <RoleIcon color={isActive ? 'var(--green)' : '#4B5563'} size="20" />
+                          <span>{role.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
 
-              <div className="dlogin-footer">
-                <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
-                <p>Privacy Policy &nbsp;&nbsp;&nbsp; System Status</p>
-              </div>
-              
+                <div className="dlogin-footer">
+                  <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
+                  <p>Privacy Policy &nbsp;&nbsp;&nbsp; System Status</p>
+                </div>
+
               </div>
               <div className="dlogin-bg-circle"></div>
             </div>
@@ -1524,90 +1653,90 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
             {/* Right Panel */}
             <div className="dlogin-right">
               <div className="dlogin-form-inner">
-              <form className="dlogin-form-container" onSubmit={(e) => onLogin(e, submitPortalRole)}>
-                <div className="dlogin-form-header">
-                  <h2>Campus Gateway</h2>
-                  <p>Verify your credentials to access the secure administrative environment.</p>
-                </div>
+                <form className="dlogin-form-container" onSubmit={(e) => onLogin(e, submitPortalRole)}>
+                  <div className="dlogin-form-header">
+                    <h2>Campus Gateway</h2>
+                    <p>Verify your credentials to access the secure administrative environment.</p>
+                  </div>
 
-                <div className="dlogin-form-body">
-                  <div className="dlogin-input-group">
-                    <label>Staff ID / Email</label>
-                    <div className="dlogin-input-wrapper">
-                      <BadgeIcon color="#9CA3AF" size="18" />
-                      <input
-                        type="text"
-                        placeholder="e.g. admin.01@eduroute.edu"
-                        value={loginForm.email_or_employee_id}
-                        onChange={(e) =>
-                          setLoginForm((prev) => ({
-                            ...prev,
-                            email_or_employee_id: e.target.value
-                          }))
-                        }
-                      />
+                  <div className="dlogin-form-body">
+                    <div className="dlogin-input-group">
+                      <label>Staff ID / Email</label>
+                      <div className="dlogin-input-wrapper">
+                        <BadgeIcon color="#9CA3AF" size="18" />
+                        <input
+                          type="text"
+                          placeholder="e.g. admin.01@eduroute.edu"
+                          value={loginForm.email_or_employee_id}
+                          onChange={(e) =>
+                            setLoginForm((prev) => ({
+                              ...prev,
+                              email_or_employee_id: e.target.value
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="dlogin-input-group">
+                      <div className="dlogin-label-row">
+                        <label>Security Passkey</label>
+                        <a
+                          href="#"
+                          className="dlogin-forgot-link"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setView('forgot-password');
+                          }}
+                        >
+                          Forgot Password
+                        </a>
+                      </div>
+                      <div className="dlogin-input-wrapper">
+                        <LockIcon color="#9CA3AF" size="18" />
+                        <input
+                          type={showLoginPassword ? 'text' : 'password'}
+                          placeholder="••••••••••••"
+                          value={loginForm.password}
+                          onChange={(e) =>
+                            setLoginForm((prev) => ({
+                              ...prev,
+                              password: e.target.value
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="dlogin-eye-btn"
+                          onClick={() => setShowLoginPassword((prev) => !prev)}
+                        >
+                          <EyeIcon color="#9CA3AF" size="18" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="dlogin-input-group">
-                    <div className="dlogin-label-row">
-                      <label>Security Passkey</label>
-                      <a
-                        href="#"
-                        className="dlogin-forgot-link"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setView('forgot-password');
-                        }}
-                      >
-                        Forgot Password
-                      </a>
-                    </div>
-                    <div className="dlogin-input-wrapper">
-                      <LockIcon color="#9CA3AF" size="18" />
-                      <input
-                        type={showLoginPassword ? 'text' : 'password'}
-                        placeholder="••••••••••••"
-                        value={loginForm.password}
-                        onChange={(e) =>
-                          setLoginForm((prev) => ({
-                            ...prev,
-                            password: e.target.value
-                          }))
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="dlogin-eye-btn"
-                        onClick={() => setShowLoginPassword((prev) => !prev)}
-                      >
-                        <EyeIcon color="#9CA3AF" size="18" />
-                      </button>
-                    </div>
+                  <button type="submit" className="dlogin-submit-btn" disabled={loading}>
+                    {loading ? 'Logging in...' : (
+                      <>Login <ArrowRightIcon color="white" size="18" /></>
+                    )}
+                  </button>
+
+                  <div className="dlogin-divider">
+                    <hr />
+                    <span>OR</span>
+                    <hr />
                   </div>
-                </div>
 
-                <button type="submit" className="dlogin-submit-btn" disabled={loading}>
-                  {loading ? 'Logging in...' : (
-                    <>Login <ArrowRightIcon color="white" size="18" /></>
-                  )}
-                </button>
+                  <button type="button" className="dlogin-signup-btn" onClick={() => setView('signup')}>
+                    Sign Up
+                  </button>
 
-                <div className="dlogin-divider">
-                  <hr />
-                  <span>OR</span>
-                  <hr />
-                </div>
-
-                <button type="button" className="dlogin-signup-btn" onClick={() => setView('signup')}>
-                  Sign Up
-                </button>
-
-                <div className="dlogin-security-box">
-                  <InfoIcon color="#92400E" size="20" />
-                  <p>Security Advisory: Unauthorized access attempts are logged and reported to the institutional security board. Please ensure you are using a secure connection.</p>
-                </div>
-              </form>
+                  <div className="dlogin-security-box">
+                    <InfoIcon color="#92400E" size="20" />
+                    <p>Security Advisory: Unauthorized access attempts are logged and reported to the institutional security board. Please ensure you are using a secure connection.</p>
+                  </div>
+                </form>
               </div>
             </div>
           </div>
@@ -2218,116 +2347,116 @@ const SetNewPasswordView = ({
       </DesktopAuthShell>
 
       <div className="auth-mobile-view content fade-in forgot-pw-content set-password-content">
-      <div className="recovery-header">
-        <CapIcon />
-        <span>EduRoute Faculty</span>
-      </div>
-
-      <div className="recovery-title-box set-password-title-box">
-        <div className="yellow-bar"></div>
-        <h1>Set New<br />Password</h1>
-      </div>
-
-      <p className="recovery-desc set-password-desc">
-        Enter your registered faculty email to receive a secure password reset link.
-      </p>
-
-      <div className="password-policy-card set-password-policy-card">
-        <div className="policy-heading">
-          <PolicyBulbIcon />
-          <span>PASSWORD POLICY</span>
+        <div className="recovery-header">
+          <CapIcon />
+          <span>EduRoute Faculty</span>
         </div>
-        <div className="policy-list">
-          <div className={`policy-item ${resetPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={resetPasswordPolicy.minLength} />
-            <span>Minimum 10 characters</span>
-          </div>
-          <div className={`policy-item ${resetPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={resetPasswordPolicy.symbolsNumbers} />
-            <span>Include symbols &amp; numbers</span>
-          </div>
-          <div className={`policy-item ${resetPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
-            <PolicyCheckIcon met={resetPasswordPolicy.noPersonal} />
-            <span>No personal information</span>
-          </div>
+
+        <div className="recovery-title-box set-password-title-box">
+          <div className="yellow-bar"></div>
+          <h1>Set New<br />Password</h1>
         </div>
-      </div>
 
-      <form className="card recovery-card set-password-card" onSubmit={handleSubmit}>
-        <h2 className="set-password-card-title">SET NEW PASSWORD</h2>
+        <p className="recovery-desc set-password-desc">
+          Enter your registered faculty email to receive a secure password reset link.
+        </p>
 
-        <div className="input-group">
-          <label>PASSWORD</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type={showResetPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={newPasswordForm.password}
-              onChange={(e) =>
-                setNewPasswordForm((prev) => ({
-                  ...prev,
-                  password: e.target.value,
-                }))
-              }
-            />
-            <button
-              type="button"
-              className="signup-eye-btn"
-              aria-label={showResetPassword ? 'Hide password' : 'Show password'}
-              onClick={() => setShowResetPassword((prev) => !prev)}
-            >
-              {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
+        <div className="password-policy-card set-password-policy-card">
+          <div className="policy-heading">
+            <PolicyBulbIcon />
+            <span>PASSWORD POLICY</span>
+          </div>
+          <div className="policy-list">
+            <div className={`policy-item ${resetPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.minLength} />
+              <span>Minimum 10 characters</span>
+            </div>
+            <div className={`policy-item ${resetPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.symbolsNumbers} />
+              <span>Include symbols &amp; numbers</span>
+            </div>
+            <div className={`policy-item ${resetPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={resetPasswordPolicy.noPersonal} />
+              <span>No personal information</span>
+            </div>
           </div>
         </div>
 
-        <div className="input-group">
-          <label>CONFIRM PASSWORD</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type={showResetConfirmPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={newPasswordForm.confirm_password}
-              onChange={(e) =>
-                setNewPasswordForm((prev) => ({
-                  ...prev,
-                  confirm_password: e.target.value,
-                }))
-              }
-            />
-            <button
-              type="button"
-              className="signup-eye-btn"
-              aria-label={showResetConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-              onClick={() => setShowResetConfirmPassword((prev) => !prev)}
-            >
-              {showResetConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
+        <form className="card recovery-card set-password-card" onSubmit={handleSubmit}>
+          <h2 className="set-password-card-title">SET NEW PASSWORD</h2>
+
+          <div className="input-group">
+            <label>PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showResetPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={newPasswordForm.password}
+                onChange={(e) =>
+                  setNewPasswordForm((prev) => ({
+                    ...prev,
+                    password: e.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowResetPassword((prev) => !prev)}
+              >
+                {showResetPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>CONFIRM PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showResetConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={newPasswordForm.confirm_password}
+                onChange={(e) =>
+                  setNewPasswordForm((prev) => ({
+                    ...prev,
+                    confirm_password: e.target.value,
+                  }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showResetConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onClick={() => setShowResetConfirmPassword((prev) => !prev)}
+              >
+                {showResetConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          {newPasswordForm.confirm_password.length > 0 && !passwordsMatch && (
+            <span className="set-password-mismatch">Passwords do not match</span>
+          )}
+
+          <button
+            type="submit"
+            className={`primary-btn set-password-save-btn ${canSavePassword ? 'ready' : 'disabled'}`}
+            disabled={!canSavePassword}
+          >
+            {loading ? 'Saving...' : <>Save Password <ArrowRightIcon /></>}
+          </button>
+        </form>
+
+        <div className="support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
           </div>
         </div>
-
-        {newPasswordForm.confirm_password.length > 0 && !passwordsMatch && (
-          <span className="set-password-mismatch">Passwords do not match</span>
-        )}
-
-        <button
-          type="submit"
-          className={`primary-btn set-password-save-btn ${canSavePassword ? 'ready' : 'disabled'}`}
-          disabled={!canSavePassword}
-        >
-          {loading ? 'Saving...' : <>Save Password <ArrowRightIcon /></>}
-        </button>
-      </form>
-
-      <div className="support-badge">
-        <div className="support-icon">
-          <HeadsetIcon />
-        </div>
-        <div className="support-text">
-          Issue persists? Contact<br />
-          <span>IT Support Desk</span>
-        </div>
-      </div>
       </div>
     </>
   );
@@ -2584,207 +2713,207 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
       </DesktopAuthShell>
 
       <div className="auth-mobile-view content fade-in signup-content">
-      <form className="card signup-card" onSubmit={handleSignupSubmit}>
-        <div className="signup-header">
-          <h1>Create {signupRole.label}<br />Account</h1>
-          <p>Please enter your institutional details to begin.</p>
-        </div>
+        <form className="card signup-card" onSubmit={handleSignupSubmit}>
+          <div className="signup-header">
+            <h1>Create {signupRole.label}<br />Account</h1>
+            <p>Please enter your institutional details to begin.</p>
+          </div>
 
           <div className="signup-role-selector" aria-label="Select account role">
-          {AUTH_ACCOUNT_ROLES.map((role) => {
-            const RoleIcon = role.icon;
-            const isActive = selectedSignupRole === role.key;
+            {AUTH_ACCOUNT_ROLES.map((role) => {
+              const RoleIcon = role.icon;
+              const isActive = selectedSignupRole === role.key;
 
-            return (
-              <button
-                type="button"
-                key={role.key}
-                className={`signup-role-tab ${isActive ? 'active' : ''}`}
-                onClick={() =>
-                  setRegisterForm((prev) => ({
-                    ...prev,
-                    account_role: role.key,
-                    department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : '',
-                  }))
-                }
-              >
-                <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
-                <span>{role.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="input-group">
-          <label>FULL NAME</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type="text"
-              placeholder="Dr. Julian Vane"
-              value={registerForm.full_name}
-              onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
-              }
-            />
+              return (
+                <button
+                  type="button"
+                  key={role.key}
+                  className={`signup-role-tab ${isActive ? 'active' : ''}`}
+                  onClick={() =>
+                    setRegisterForm((prev) => ({
+                      ...prev,
+                      account_role: role.key,
+                      department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : '',
+                    }))
+                  }
+                >
+                  <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
+                  <span>{role.label}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
 
-        <div className="input-group">
-          <label>EMPLOYEE ID</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type="text"
-              placeholder="FAC-88920"
-              value={registerForm.employee_id}
-              onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        {signupNeedsDepartment && (
           <div className="input-group">
-            <label>DEPARTMENT</label>
-            <div className="input-wrapper plain-input-wrapper select-wrapper">
-              <select
-                value={registerForm.department_id}
+            <label>FULL NAME</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="text"
+                placeholder="Dr. Julian Vane"
+                value={registerForm.full_name}
                 onChange={(e) =>
-                  setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+                  setRegisterForm((prev) => ({ ...prev, full_name: e.target.value }))
                 }
-              >
-                <option value="" disabled>Select Department</option>
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.id}>
-                    {dept.department_name}
-                  </option>
-                ))}
-              </select>
-              <div className="select-icon">
-                <ChevronDownIcon />
+              />
+            </div>
+          </div>
+
+          <div className="input-group">
+            <label>EMPLOYEE ID</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="text"
+                placeholder="FAC-88920"
+                value={registerForm.employee_id}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, employee_id: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          {signupNeedsDepartment && (
+            <div className="input-group">
+              <label>DEPARTMENT</label>
+              <div className="input-wrapper plain-input-wrapper select-wrapper">
+                <select
+                  value={registerForm.department_id}
+                  onChange={(e) =>
+                    setRegisterForm((prev) => ({ ...prev, department_id: e.target.value }))
+                  }
+                >
+                  <option value="" disabled>Select Department</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.id}>
+                      {dept.department_name}
+                    </option>
+                  ))}
+                </select>
+                <div className="select-icon">
+                  <ChevronDownIcon />
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="input-group">
+            <label>EMAIL ADDRESS</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type="email"
+                placeholder="faculty@university.edu"
+                value={registerForm.email}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
+                }
+              />
+            </div>
+          </div>
+
+          <div className="password-policy-card">
+            <div className="policy-heading">
+              <PolicyBulbIcon />
+              <span>PASSWORD POLICY</span>
+            </div>
+            <div className="policy-list">
+              <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
+                <span>Minimum 10 characters</span>
+              </div>
+              <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
+                <span>Include symbols &amp; numbers</span>
+              </div>
+              <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
+                <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
+                <span>No personal information</span>
               </div>
             </div>
           </div>
-        )}
 
-        <div className="input-group">
-          <label>EMAIL ADDRESS</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type="email"
-              placeholder="faculty@university.edu"
-              value={registerForm.email}
-              onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, email: e.target.value }))
-              }
-            />
-          </div>
-        </div>
-
-        <div className="password-policy-card">
-          <div className="policy-heading">
-            <PolicyBulbIcon />
-            <span>PASSWORD POLICY</span>
-          </div>
-          <div className="policy-list">
-            <div className={`policy-item ${signupPasswordPolicy.minLength ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={signupPasswordPolicy.minLength} />
-              <span>Minimum 10 characters</span>
-            </div>
-            <div className={`policy-item ${signupPasswordPolicy.symbolsNumbers ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={signupPasswordPolicy.symbolsNumbers} />
-              <span>Include symbols &amp; numbers</span>
-            </div>
-            <div className={`policy-item ${signupPasswordPolicy.noPersonal ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={signupPasswordPolicy.noPersonal} />
-              <span>No personal information</span>
+          <div className="input-group">
+            <label>PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showSignupPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={registerForm.password}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
+                onClick={() => setShowSignupPassword((prev) => !prev)}
+              >
+                {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
             </div>
           </div>
-        </div>
 
-        <div className="input-group">
-          <label>PASSWORD</label>
-          <div className="input-wrapper plain-input-wrapper">
+          <div className="input-group">
+            <label>CONFIRM PASSWORD</label>
+            <div className="input-wrapper plain-input-wrapper">
+              <input
+                type={showSignupConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={registerForm.confirm_password}
+                onChange={(e) =>
+                  setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
+                }
+              />
+              <button
+                type="button"
+                className="signup-eye-btn"
+                aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
+              >
+                {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
+            </div>
+          </div>
+
+          <label className="checkbox-container">
             <input
-              type={showSignupPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={registerForm.password}
+              type="checkbox"
+              checked={registerForm.terms_accepted}
               onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, password: e.target.value }))
+                setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
               }
             />
-            <button
-              type="button"
-              className="signup-eye-btn"
-              aria-label={showSignupPassword ? 'Hide password' : 'Show password'}
-              onClick={() => setShowSignupPassword((prev) => !prev)}
-            >
-              {showSignupPassword ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
+            <span className="checkmark"></span>
+            <span className="checkbox-label">
+              I agree to the{' '}
+              <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
+                Terms of Service
+              </button>{' '}
+              and{' '}
+              <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
+                Privacy Policy
+              </button>.
+            </span>
+          </label>
+
+          <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
+            {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
+          </button>
+
+          <div className="signup-footer-link">
+            Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+          </div>
+        </form>
+
+        <div className="signup-brand-footer">
+          <div className="signup-footer-logo">
+            <CapIcon color="white" />
+          </div>
+          <div className="footer-text signup-footer-text">
+            <span className="footer-developed">DEVELOPED BY</span>
+            <span className="footer-brand">ARCHONS</span>
           </div>
         </div>
-
-        <div className="input-group">
-          <label>CONFIRM PASSWORD</label>
-          <div className="input-wrapper plain-input-wrapper">
-            <input
-              type={showSignupConfirmPassword ? 'text' : 'password'}
-              placeholder="••••••••"
-              value={registerForm.confirm_password}
-              onChange={(e) =>
-                setRegisterForm((prev) => ({ ...prev, confirm_password: e.target.value }))
-              }
-            />
-            <button
-              type="button"
-              className="signup-eye-btn"
-              aria-label={showSignupConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-              onClick={() => setShowSignupConfirmPassword((prev) => !prev)}
-            >
-              {showSignupConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-            </button>
-          </div>
-        </div>
-
-        <label className="checkbox-container">
-          <input
-            type="checkbox"
-            checked={registerForm.terms_accepted}
-            onChange={(e) =>
-              setRegisterForm((prev) => ({ ...prev, terms_accepted: e.target.checked }))
-            }
-          />
-          <span className="checkmark"></span>
-          <span className="checkbox-label">
-            I agree to the{' '}
-            <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
-              Terms of Service
-            </button>{' '}
-            and{' '}
-            <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
-              Privacy Policy
-            </button>.
-          </span>
-        </label>
-
-        <button type="submit" className={`primary-btn signup-btn ${canRegister ? 'ready' : 'disabled'}`} disabled={!canRegister}>
-          {loading ? 'Registering...' : <>Register <ArrowRightIcon /></>}
-        </button>
-
-        <div className="signup-footer-link">
-          Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
-        </div>
-      </form>
-
-      <div className="signup-brand-footer">
-        <div className="signup-footer-logo">
-          <CapIcon color="white" />
-        </div>
-        <div className="footer-text signup-footer-text">
-          <span className="footer-developed">DEVELOPED BY</span>
-          <span className="footer-brand">ARCHONS</span>
-        </div>
-      </div>
 
       </div>
 
@@ -2983,21 +3112,24 @@ const DashboardView = ({ setView, profileData }) => {
               </div>
             )}
 
-            {recentLocatorSlips.map((slip) => (
-              <div key={slip.id} className="activity-card" onClick={() => setView('status')} style={{ cursor: 'pointer' }}>
-                <div className={`act-icon-bg ${slip.status === 'approved' ? 'act-green-bg' : 'act-gray-bg'} ${slip.status === 'rejected' ? 'act-red-icon' : ''}`}>
-                  {slip.status === 'rejected'
-                    ? <SlashedPersonIcon color="#FF4D4D" />
-                    : <DocumentIcon color="var(--green)" />}
+            {recentLocatorSlips.map((slip) => {
+              const displayStatus = getSlipDisplayStatus(slip);
+              return (
+                <div key={slip.id} className="activity-card" onClick={() => setView('status')} style={{ cursor: 'pointer' }}>
+                  <div className={`act-icon-bg ${['approved', 'completed'].includes(displayStatus) ? 'act-green-bg' : 'act-gray-bg'} ${displayStatus === 'rejected' ? 'act-red-icon' : ''}`}>
+                    {displayStatus === 'rejected'
+                      ? <SlashedPersonIcon color="#FF4D4D" />
+                      : <DocumentIcon color="var(--green)" />}
+                  </div>
+                  <div className="act-details">
+                    <h4>{getSlipTitle(slip)}</h4>
+                    <p>{slip.destination}</p>
+                    <span className={`status-badge badge-${displayStatus}`}>{displayStatus.toUpperCase()}</span>
+                  </div>
+                  <span className="act-time">{formatActivityFiledTime(slip.created_at)}</span>
                 </div>
-                <div className="act-details">
-                  <h4>{getSlipTitle(slip)}</h4>
-                  <p>{slip.destination}</p>
-                  <span className={`status-badge badge-${slip.status}`}>{slip.status.toUpperCase()}</span>
-                </div>
-                <span className="act-time">{formatActivityFiledTime(slip.created_at)}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="activity-list dashboard-static-activity">
@@ -3060,9 +3192,29 @@ const LOCATOR_PURPOSE_OPTIONS = [
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
+  { key: 'completed', label: 'Completed' },
   { key: 'pending', label: 'Pending' },
   { key: 'rejected', label: 'Rejected' },
 ];
+
+const getSlipDisplayStatus = (slip) => {
+  const locatorSlipStatus = String(slip?.status || 'pending').toLowerCase();
+  if (locatorSlipStatus === 'pending') {
+    return 'pending';
+  }
+  if (locatorSlipStatus === 'rejected' || locatorSlipStatus === 'cancelled') {
+    return 'rejected';
+  }
+  if (locatorSlipStatus === 'completed') {
+    return 'completed';
+  }
+  const tripStatus = String(slip?.trip_status || '').toLowerCase();
+  if (tripStatus === 'completed') return 'completed';
+  if (locatorSlipStatus === 'verified') {
+    return 'approved';
+  }
+  return locatorSlipStatus === 'approved' ? 'approved' : 'pending';
+};
 
 const formatStatusDate = (value) => {
   if (!value) return 'No date set';
@@ -3095,6 +3247,12 @@ const formatStatusDateTime = (value) => {
   });
 };
 
+const formatDistanceLabel = (meters) => {
+  const value = Number(meters);
+  if (!Number.isFinite(value)) return '0 km';
+  return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
+};
+
 const formatActivityFiledTime = (value) => {
   if (!value) return 'No time';
 
@@ -3122,7 +3280,7 @@ const toDateTimeLocalValue = (date) => {
   return offsetDate.toISOString().slice(0, 16);
 };
 
-const LocatorSlipView = ({ setView, profileData }) => {
+const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [locatorSlipLoading, setLocatorSlipLoading] = useState(false);
   const [locatorSlipErrors, setLocatorSlipErrors] = useState({});
@@ -3274,7 +3432,11 @@ const LocatorSlipView = ({ setView, profileData }) => {
         body: JSON.stringify(locatorSlipForm),
       });
       alert(data.message);
-      setView('updates');
+      if (data.data) {
+        setSelectedStatusSlip?.(data.data);
+      }
+      localStorage.setItem('edurouteLastView', 'status');
+      setView('status');
     } catch (error) {
       alert(error.message);
     } finally {
@@ -3571,11 +3733,13 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
             </div>
           )}
 
-          {!statusLoading && locatorSlips.map((slip) => (
+          {!statusLoading && locatorSlips.map((slip) => {
+            const displayStatus = getSlipDisplayStatus(slip);
+            return (
             <button
               key={slip.id}
               type="button"
-              className={`status-slip-card ${slip.status}`}
+              className={`status-slip-card ${displayStatus}`}
               onClick={() => {
                 if (slip.status !== 'approved') {
                   localStorage.removeItem('edurouteVerifySlipId');
@@ -3587,7 +3751,7 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
             >
               <div className="status-slip-header">
                 <h3>{getSlipTitle(slip)}</h3>
-                <span className={`status-badge badge-${slip.status}`}>{slip.status}</span>
+                <span className={`status-badge badge-${displayStatus}`}>{displayStatus}</span>
               </div>
 
               <div className="status-slip-meta">
@@ -3605,7 +3769,8 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
                 </div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
       <BottomNav active="status" setView={setView} />
@@ -3617,6 +3782,9 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [locationVerification, setLocationVerification] = useState(null);
   const [showLocationProof, setShowLocationProof] = useState(false);
+  const [completedTripSummary, setCompletedTripSummary] = useState(null);
+  const [tripSummaryLoading, setTripSummaryLoading] = useState(false);
+  const [showQrCode, setShowQrCode] = useState(false);
   const slip = selectedSlip;
 
   useEffect(() => {
@@ -3626,7 +3794,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   }, [slip, setView]);
 
   useEffect(() => {
-    if (!slip || slip.status !== 'approved') {
+    if (!slip || !['approved', 'verified', 'completed'].includes(String(slip.status || '').toLowerCase())) {
       setLocationVerification(null);
       setShowLocationProof(false);
       return;
@@ -3655,10 +3823,42 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   if (!slip) return null;
 
   const isPending = slip.status === 'pending';
-  const isApproved = slip.status === 'approved';
+  const isCompleted = getSlipDisplayStatus(slip) === 'completed';
+  const isApproved = ['approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && !isCompleted;
   const isRejected = slip.status === 'rejected';
-  const title = isPending ? 'Verification in' : (isApproved || isRejected) ? 'Verification' : `${slip.status.charAt(0).toUpperCase()}${slip.status.slice(1)}`;
+  const canShowQrCode = ['pending', 'approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && Boolean(slip.locator_slip_code);
+  const title = isPending
+    ? 'Verification in'
+    : isCompleted
+      ? 'Trip'
+      : (isApproved || isRejected)
+        ? 'Verification'
+        : `${slip.status.charAt(0).toUpperCase()}${slip.status.slice(1)}`;
   const referralId = `FAC-${String(slip.id).slice(0, 8).toUpperCase()}`;
+
+  const openTripRoute = async () => {
+    if (isCompleted && slip.trip_id) {
+      if (completedTripSummary?.summary) {
+        setCompletedTripSummary(null);
+        return;
+      }
+
+      setTripSummaryLoading(true);
+      try {
+        const summary = await getFacultyTripSummary(slip.trip_id);
+        setCompletedTripSummary(summary);
+      } catch (error) {
+        alert(error.message || 'Failed to load the completed trip summary.');
+      } finally {
+        setTripSummaryLoading(false);
+      }
+      return;
+    }
+
+    localStorage.setItem('edurouteMapSlipId', slip.id);
+    localStorage.setItem('edurouteLastView', 'map');
+    setView('map');
+  };
 
   const cancelRequest = async () => {
     if (!isPending || cancelLoading) return;
@@ -3719,28 +3919,31 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
         <div className="submitted-status-text">
           <div className={`status-pill-yellow status-pill-${slip.status}`}>
-            STATUS: {isPending ? 'PENDING APPROVAL' : isApproved ? 'VERIFIED' : slip.status.toUpperCase()}
+            STATUS: {isPending ? 'PENDING APPROVAL' : isCompleted ? 'COMPLETED' : isApproved ? 'VERIFIED' : slip.status.toUpperCase()}
           </div>
           <h2>
             {title}{' '}
             {isPending && <span className="text-green">Progress</span>}
             {isApproved && <span className="text-green">Approved</span>}
+            {isCompleted && <span className="text-green">Completed</span>}
             {isRejected && <span className="text-red">Rejected</span>}
           </h2>
           <p>
             {isPending
               ? 'Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.'
+              : isCompleted
+                ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.'
               : isApproved
                 ? 'Your request has been reviewed and approved. You may now view your route or verify your location.'
                 : isRejected
                   ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
-              : `This locator slip request is currently marked as ${slip.status}.`}
+                  : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
         </div>
 
-        {(isPending || isApproved || isRejected) && (
+        {(isPending || isApproved || isCompleted || isRejected) && (
           <div className="progress-bar-container">
-            <div className={`progress-track ${isApproved ? 'approved' : ''} ${isRejected ? 'rejected' : ''}`}>
+            <div className={`progress-track ${(isApproved || isCompleted) ? 'approved' : ''} ${isRejected ? 'rejected' : ''}`}>
               <div className="progress-fill"></div>
             </div>
             <div className="progress-points">
@@ -3754,12 +3957,18 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 </div>
                 <span className="point-label green-label">REVIEW</span>
               </div>
-              <div className={`progress-point ${(isApproved || isRejected) ? 'active' : 'pending'}`}>
-                <div className={`point-dot ${(isApproved || isRejected) ? 'green-dot-solid' : 'grey-dot-solid'}`}></div>
-                <span className={`point-label ${isApproved ? 'green-label' : ''} ${isRejected ? 'red-label' : ''}`}>
+              <div className={`progress-point ${(isApproved || isCompleted || isRejected) ? 'active' : 'pending'}`}>
+                <div className={`point-dot ${(isApproved || isCompleted || isRejected) ? 'green-dot-solid' : 'grey-dot-solid'}`}></div>
+                <span className={`point-label ${(isApproved || isCompleted) ? 'green-label' : ''} ${isRejected ? 'red-label' : ''}`}>
                   {isRejected ? 'INACTIVE' : 'ACTIVE'}
                 </span>
               </div>
+              {isCompleted && (
+                <div className="progress-point active">
+                  <div className="point-dot green-dot-solid"></div>
+                  <span className="point-label green-label">COMPLETED</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -3792,10 +4001,20 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
           </button>
         )}
 
-        {isApproved && (
+        {(isApproved || isCompleted) && (
           <div className="approved-detail-actions">
-            <button type="button" className="approved-view-route-btn" onClick={() => setView('map')}>
-              VIEW ROUTE
+            <button
+              type="button"
+              className="approved-view-route-btn"
+              onClick={openTripRoute}
+            >
+              {tripSummaryLoading
+                ? 'LOADING SUMMARY...'
+                : isCompleted
+                  ? completedTripSummary?.summary
+                    ? 'HIDE TRIP SUMMARY'
+                    : 'VIEW TRIP SUMMARY'
+                  : 'VIEW ROUTE'}
             </button>
             {locationVerification?.image_url && (
               <button
@@ -3806,21 +4025,32 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 {showLocationProof ? 'HIDE UPLOADED LOCATION' : 'VIEW UPLOADED LOCATION'}
               </button>
             )}
-            <button
-              type="button"
-              className="approved-verify-location-btn"
-              onClick={() => {
-                localStorage.setItem('edurouteVerifySlipId', slip.id);
-                localStorage.setItem('edurouteLastView', 'scan');
-                setView('scan');
-              }}
-            >
-              VERIFY LOCATION
-            </button>
+            {canShowQrCode && (
+              <button
+                type="button"
+                className="approved-view-proof-btn"
+                onClick={() => setShowQrCode(true)}
+              >
+                SHOW QR CODE
+              </button>
+            )}
+            {!isCompleted && (
+              <button
+                type="button"
+                className="approved-verify-location-btn"
+                onClick={() => {
+                  localStorage.setItem('edurouteVerifySlipId', slip.id);
+                  localStorage.setItem('edurouteLastView', 'scan');
+                  setView('scan');
+                }}
+              >
+                VERIFY LOCATION
+              </button>
+            )}
           </div>
         )}
 
-        {isApproved && showLocationProof && locationVerification?.image_url && (
+        {(isApproved || isCompleted) && showLocationProof && locationVerification?.image_url && (
           <div className="location-proof-card">
             <span className="location-proof-kicker">PROOF OF ARRIVAL</span>
             <h3>{locationVerification.target_location || slip.destination}</h3>
@@ -3828,6 +4058,26 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
               Uploaded {formatStatusDate(locationVerification.created_at)} for this approved locator slip.
             </p>
             <img src={locationVerification.image_url} alt="Uploaded proof of arrival" />
+          </div>
+        )}
+
+        {isCompleted && completedTripSummary?.summary && (
+          <div className="location-proof-card trip-summary-status-card">
+            <span className="location-proof-kicker">TRIP SUMMARY</span>
+            <h3>{completedTripSummary.locatorSlip?.destination || slip.destination}</h3>
+            <div className="trip-summary-status-grid">
+              <div><span>Locator Slip Departure</span><strong>{formatStatusDateTime(completedTripSummary.summary.departureTime)}</strong></div>
+              <div><span>Actual Trip Start</span><strong>{formatStatusDateTime(completedTripSummary.summary.actualStartTripTime)}</strong></div>
+              <div><span>Estimated Return</span><strong>{formatStatusDateTime(completedTripSummary.summary.estimatedReturnTime)}</strong></div>
+              <div><span>Actual Return</span><strong>{formatStatusDateTime(completedTripSummary.summary.actualReturnTime)}</strong></div>
+              <div><span>Total Distance</span><strong>{formatDistanceLabel(completedTripSummary.summary.totalDistanceMeters)}</strong></div>
+              <div><span>Total Hours</span><strong>{Number(completedTripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</strong></div>
+            </div>
+            <p>
+              {completedTripSummary.summary.isLateReturn
+                ? `Late return detected: ${completedTripSummary.summary.minutesLate} minutes late.`
+                : 'Returned within the approved timeframe.'}
+            </p>
           </div>
         )}
 
@@ -3845,6 +4095,25 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
         <div className="referral-id">
           REFERRAL ID: {referralId}
         </div>
+
+        {showQrCode && canShowQrCode && (
+          <div className="qr-modal-overlay" onClick={() => setShowQrCode(false)}>
+            <div className="qr-modal-card" onClick={(event) => event.stopPropagation()}>
+              <span className="location-proof-kicker">LOCATOR SLIP QR</span>
+              <h3>{slip.locator_slip_code}</h3>
+              <p>Present this QR code or locator slip code to CSSU while the locator slip is still pending or approved.</p>
+              <img
+                className="qr-modal-image"
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(slip.locator_slip_code)}`}
+                alt={`QR code for ${slip.locator_slip_code}`}
+              />
+              <div className="qr-modal-code">{slip.locator_slip_code}</div>
+              <button type="button" className="approved-view-route-btn" onClick={() => setShowQrCode(false)}>
+                CLOSE
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       <BottomNav active="status" setView={setView} />
     </div>
@@ -3957,7 +4226,97 @@ const RouteApprovedView = ({ setView, profileData }) => (
   </div>
 );
 
-const MapTrackingView = ({ setView, profileData }) => {
+const ApprovedLocatorSlipSelectionView = ({ setView, profileData, setSelectedSlip }) => {
+  const [slips, setSlips] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadApprovedSlips = async () => {
+      setLoading(true);
+      setError('');
+
+      try {
+        const data = await getApprovedFacultyLocatorSlips();
+        if (mounted) {
+          setSlips(Array.isArray(data.locatorSlips) ? data.locatorSlips : []);
+        }
+      } catch (nextError) {
+        if (mounted) {
+          setError(nextError.message);
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadApprovedSlips();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const handleSelectSlip = async (slipId) => {
+    try {
+      const slip = await getFacultyLocatorSlipDetails(slipId);
+      setSelectedSlip(slip);
+      localStorage.setItem('edurouteMapSlipId', slipId);
+      localStorage.setItem('edurouteLastView', 'map');
+      setView('map');
+    } catch (nextError) {
+      setError(nextError.message);
+    }
+  };
+
+  return (
+    <div className="dashboard-wrapper submitted-wrapper">
+      <div className="content fade-in dash-content">
+        <div className="slip-top-nav">
+          <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text">EduRoute</span>
+          </div>
+          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+        </div>
+
+        <div className="submitted-status-text map-slip-selection-copy">
+          <div className="status-pill-yellow status-pill-approved">TRIP ACCESS</div>
+          <h2>Select an <span className="text-green">Approved Locator Slip</span></h2>
+          <p>Choose the approved locator slip you want to use before opening the faculty trip map.</p>
+        </div>
+
+        {error && <div className="trip-map-error map-slip-selection-error">{error}</div>}
+
+        <div className="map-slip-selection-list">
+          {loading && <div className="map-slip-selection-empty">Loading approved locator slips...</div>}
+          {!loading && slips.length === 0 && (
+            <div className="map-slip-selection-empty">No approved locator slips are ready for trip access yet.</div>
+          )}
+          {!loading && slips.map((slip) => (
+            <button key={slip.id} type="button" className="map-slip-selection-card" onClick={() => handleSelectSlip(slip.id)}>
+              <div className="map-slip-selection-head">
+                <span className="map-slip-selection-purpose">{slip.purpose || 'Approved trip request'}</span>
+                <span className="map-slip-selection-status">{String(slip.status || 'approved').toUpperCase()}</span>
+              </div>
+              <strong>{slip.destination}</strong>
+              <span>Departure: {formatStatusDate(slip.departureTime)}</span>
+              <span>Expected return: {formatStatusDate(slip.expectedReturnTime)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }) => {
   const LIVE_TRACKING_MAX_ACCEPTED_ACCURACY_METERS = 30;
   const LIVE_TRACKING_MIN_MOVEMENT_METERS = 18;
   const LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS = 28;
@@ -3974,6 +4333,7 @@ const MapTrackingView = ({ setView, profileData }) => {
   const lastRouteOriginRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
   const [origin, setOrigin] = useState(null);
+  const [tripStartOrigin, setTripStartOrigin] = useState(null);
   const [destination, setDestination] = useState(null);
   const [activeTrip, setActiveTrip] = useState(null);
   const [routeSummary, setRouteSummary] = useState(null);
@@ -3990,6 +4350,11 @@ const MapTrackingView = ({ setView, profileData }) => {
   const [showRouteTools, setShowRouteTools] = useState(true);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
+  const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
+  const [tripSummary, setTripSummary] = useState(null);
+  const [arrivalPhotoFile, setArrivalPhotoFile] = useState(null);
+  const [arrivalPhotoPreview, setArrivalPhotoPreview] = useState('');
+  const [arrivalVerification, setArrivalVerification] = useState(null);
   const [overlayOffsets, setOverlayOffsets] = useState({
     search: { x: 0, y: 0 },
     action: { x: 0, y: 0 },
@@ -3998,6 +4363,7 @@ const MapTrackingView = ({ setView, profileData }) => {
     panel: { x: 0, y: 0 },
   });
   const dragStateRef = useRef(null);
+  const arrivalFileInputRef = useRef(null);
 
   const routeModes = [
     { key: 'mapbox/driving-traffic', label: 'Best Route', tone: 'green' },
@@ -4023,9 +4389,20 @@ const MapTrackingView = ({ setView, profileData }) => {
     return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes} min`;
   };
 
+  const getTripPhase = (trip) => {
+    if (!trip) return !destination ? 'DESTINATION_RESOLVING' : (isPinMode ? 'MANUAL_PIN_REQUIRED' : 'READY_TO_START');
+    if (trip.returned_at || trip.ended_at || trip.status === 'completed') return 'COMPLETED';
+    if (trip.status === 'returning') return 'RETURNING';
+    if (trip.arrived_at && (trip.arrival_verified_at || arrivalVerification?.image_url)) return 'ARRIVAL_VERIFIED';
+    if (trip.arrived_at || trip.status === 'arrived') return 'ARRIVED';
+    if (trip.status === 'active') return 'ACTIVE';
+    return !destination ? 'DESTINATION_RESOLVING' : (isPinMode ? 'MANUAL_PIN_REQUIRED' : 'READY_TO_START');
+  };
+
   const activeAlternatives = routeSummary?.alternatives || [];
   const displayedRoute = selectedAlternativeIndex >= 0 ? activeAlternatives[selectedAlternativeIndex] : routeSummary;
   const activeSteps = displayedRoute?.steps || [];
+  const tripLifecycleState = getTripPhase(activeTrip);
   const selectedModeMeta = routeModes.find((mode) => mode.key === routeMode) || routeModes[0];
   const activeModeEta = useMemo(
     () => modeEstimates.find((estimate) => estimate.profile === routeMode) || null,
@@ -4066,9 +4443,9 @@ const MapTrackingView = ({ setView, profileData }) => {
     const haversine =
       Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) +
       Math.cos(startLatitude) *
-        Math.cos(endLatitude) *
-        Math.sin(deltaLongitude / 2) *
-        Math.sin(deltaLongitude / 2);
+      Math.cos(endLatitude) *
+      Math.sin(deltaLongitude / 2) *
+      Math.sin(deltaLongitude / 2);
 
     return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
   };
@@ -4174,7 +4551,7 @@ const MapTrackingView = ({ setView, profileData }) => {
     map.flyTo({ center: lngLat, zoom: 15, essential: true });
   };
 
-  const handleDestinationRetrieve = (result) => {
+  const handleDestinationRetrieve = async (result) => {
     const feature = result?.features?.[0] || result?.feature || result;
     const coordinates = feature?.geometry?.coordinates;
 
@@ -4189,16 +4566,28 @@ const MapTrackingView = ({ setView, profileData }) => {
       name: feature.properties?.full_address || feature.properties?.name || feature.properties?.place_formatted || 'Selected destination',
     };
 
-    setDestination(nextDestination);
-    setSearchValue(nextDestination.name);
-    setSelectedAlternativeIndex(-1);
-    setHighlightedStepIndex(-1);
-    setIsPinMode(false);
-    setDestinationMarker(nextDestination);
-    setMapError('');
+    try {
+      if (locatorSlip?.id) {
+        await saveFacultyManualPin(locatorSlip.id, {
+          lat: nextDestination.latitude,
+          lng: nextDestination.longitude,
+          label: nextDestination.name,
+        });
+      }
+
+      setDestination(nextDestination);
+      setSearchValue(nextDestination.name);
+      setSelectedAlternativeIndex(-1);
+      setHighlightedStepIndex(-1);
+      setIsPinMode(false);
+      setDestinationMarker(nextDestination);
+      setMapError('');
+    } catch (error) {
+      setMapError(error.message);
+    }
   };
 
-  const handlePinnedDestination = (lngLat) => {
+  const handlePinnedDestination = async (lngLat) => {
     const nextDestination = {
       longitude: lngLat.lng,
       latitude: lngLat.lat,
@@ -4206,12 +4595,25 @@ const MapTrackingView = ({ setView, profileData }) => {
       isPinned: true,
     };
 
-    setDestination(nextDestination);
-    setSearchValue(nextDestination.name);
-    setSelectedAlternativeIndex(-1);
-    setHighlightedStepIndex(-1);
-    setDestinationMarker(nextDestination);
-    setMapError('');
+    try {
+      if (locatorSlip?.id) {
+        const result = await saveFacultyManualPin(locatorSlip.id, {
+          lat: nextDestination.latitude,
+          lng: nextDestination.longitude,
+          label: nextDestination.name,
+        });
+        setLocatorSlip(result.locatorSlip || locatorSlip);
+      }
+
+      setDestination(nextDestination);
+      setSearchValue(nextDestination.name);
+      setSelectedAlternativeIndex(-1);
+      setHighlightedStepIndex(-1);
+      setDestinationMarker(nextDestination);
+      setMapError('');
+    } catch (error) {
+      setMapError(error.message);
+    }
   };
 
   const clearPinnedDestination = () => {
@@ -4404,6 +4806,21 @@ const MapTrackingView = ({ setView, profileData }) => {
           lastAcceptedOriginRef.current = nextOrigin;
           setOrigin(nextOrigin);
           setOriginMarker(nextOrigin, { recenter: false });
+
+          if (activeTrip?.id) {
+            fetch(`${API_BASE_URL}/api/trips/${activeTrip.id}/location`, {
+              method: 'POST',
+              headers: authHeaders(),
+              body: JSON.stringify({
+                facultyUserId: localStorage.getItem('userId') || undefined,
+                lat: nextOrigin.latitude,
+                lng: nextOrigin.longitude,
+                speed: nextOrigin.speed,
+                heading: nextOrigin.heading,
+                recordedAt: new Date(nextOrigin.timestamp || Date.now()).toISOString(),
+              }),
+            }).catch(() => null);
+          }
         } else {
           return;
         }
@@ -4438,7 +4855,7 @@ const MapTrackingView = ({ setView, profileData }) => {
 
   const startTrip = async () => {
     if (!destination) {
-      setMapError('Search and select a destination first.');
+      setMapError('Resolve or pin the locator slip destination first.');
       return;
     }
 
@@ -4452,29 +4869,28 @@ const MapTrackingView = ({ setView, profileData }) => {
     setMapError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/maps/trips/start`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({
-          origin,
-          destination,
-          profile: routeMode,
-          alternatives: routeMode === 'mapbox/driving-traffic',
-        }),
+      const data = await startFacultyTrip({
+        locatorSlipId: locatorSlip?.id,
+        originLat: origin.latitude,
+        originLng: origin.longitude,
+        destinationLat: destination.latitude,
+        destinationLng: destination.longitude,
+        outboundDistanceMeters: routeSummary?.distance_meters || null,
+        profile: routeMode,
       });
-      const data = await response.json();
 
-      if (!response.ok) throw new Error(data.message || 'Failed to start trip.');
-
-      setActiveTrip(data.data.trip);
-      setRouteSummary(data.data.route);
+      setLocatorSlip(data.locatorSlip || locatorSlip);
+      setActiveTrip(data.trip);
+      setTripStartOrigin(origin);
+      setRouteSummary(data.route);
+      setTripSummary(null);
       lastAcceptedOriginRef.current = origin;
       lastRouteOriginRef.current = origin;
       setShowTripMetrics(false);
       setShowRouteTools(true);
       setSelectedAlternativeIndex(-1);
       setHighlightedStepIndex(-1);
-      drawRoute(data.data.route.geometry);
+      drawRoute(data.route.geometry);
       lastRerouteAtRef.current = Date.now();
       setActiveRoutePanel('summary');
     } catch (error) {
@@ -4484,39 +4900,280 @@ const MapTrackingView = ({ setView, profileData }) => {
     }
   };
 
-  const endTrip = async (status = 'completed') => {
+  const markTripArrived = async () => {
     if (!activeTrip) return;
 
     setMapLoading(true);
     setMapError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/maps/trips/${activeTrip.id}/end`, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ status }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) throw new Error(data.message || 'Failed to end trip.');
-
-      setActiveTrip(null);
-      setRouteSummary(null);
-      setActiveRoutePanel(null);
-      setShowTripMetrics(false);
-      setShowRouteTools(true);
-      setSelectedAlternativeIndex(-1);
-      setHighlightedStepIndex(-1);
-      lastAcceptedOriginRef.current = null;
-      lastRouteOriginRef.current = null;
-      stopLiveLocationWatch();
-      clearRoute();
+      const trip = await markFacultyTripArrived(activeTrip.id);
+      setActiveTrip(trip);
+      setMapError('');
     } catch (error) {
       setMapError(error.message);
     } finally {
       setMapLoading(false);
     }
   };
+
+  const handleArrivalFile = (event) => {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setMapError('Please choose a valid image file for arrival verification.');
+      return;
+    }
+
+    if (arrivalPhotoPreview?.startsWith('blob:')) {
+      URL.revokeObjectURL(arrivalPhotoPreview);
+    }
+
+    setArrivalPhotoFile(file);
+    setArrivalPhotoPreview(URL.createObjectURL(file));
+    setMapError('');
+    event.target.value = '';
+  };
+
+  const submitArrivalVerification = async () => {
+    if (!activeTrip || !arrivalPhotoFile) {
+      setMapError('Capture or upload an arrival verification image first.');
+      return;
+    }
+
+    setMapLoading(true);
+    setMapError('');
+
+    try {
+      const data = await verifyFacultyTripArrival(activeTrip.id, arrivalPhotoFile, locatorSlip?.id);
+      setActiveTrip(data.trip);
+      setArrivalVerification(data.verification || null);
+      setMapError('');
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  const beginReturnTrip = async () => {
+    if (!activeTrip) return;
+
+    setMapLoading(true);
+    setMapError('');
+
+    try {
+      const trip = await startFacultyTripReturn(activeTrip.id);
+      setActiveTrip(trip);
+      if (tripStartOrigin && origin) {
+        const returnDestination = {
+          latitude: tripStartOrigin.latitude,
+          longitude: tripStartOrigin.longitude,
+          name: 'Starting location',
+        };
+
+        setDestination(returnDestination);
+        setDestinationMarker(returnDestination);
+
+        const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            origin,
+            destination: returnDestination,
+            profile: routeMode,
+            alternatives: false,
+          }),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || 'Failed to prepare the return route.');
+        }
+
+        setRouteSummary(data.data);
+        drawRoute(data.data.geometry);
+      }
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  const completeReturnedTrip = async () => {
+    if (!activeTrip) return;
+
+    setMapLoading(true);
+    setMapError('');
+
+    try {
+      const data = await markFacultyTripReturned(activeTrip.id, {
+        returnDistanceMeters: routeSummary?.distance_meters || null,
+        profile: routeMode,
+      });
+      const summaryPayload = await getFacultyTripSummary(activeTrip.id).catch(() => data);
+
+      setTripSummary(summaryPayload);
+      setActiveTrip(data.trip || null);
+      setTripStartOrigin(null);
+      setShowTripMetrics(false);
+      setShowRouteTools(false);
+      setActiveRoutePanel(null);
+      stopLiveLocationWatch();
+      clearRoute();
+      localStorage.removeItem('edurouteMapSlipId');
+      if (data.trip) {
+        setLocatorSlip((current) => current ? { ...current, trip_status: 'completed' } : current);
+        setSelectedSlip?.((current) => current ? { ...current, trip_status: 'completed' } : current);
+      }
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedSlip) {
+      setLocatorSlip(selectedSlip);
+    }
+  }, [selectedSlip]);
+
+  useEffect(() => {
+    return () => {
+      if (arrivalPhotoPreview?.startsWith('blob:')) {
+        URL.revokeObjectURL(arrivalPhotoPreview);
+      }
+    };
+  }, [arrivalPhotoPreview]);
+
+  useEffect(() => {
+    const storedSlipId = localStorage.getItem('edurouteMapSlipId');
+
+    if (!selectedSlip?.id && !storedSlipId) {
+      setView('map-slip-selection');
+    }
+  }, [selectedSlip?.id, setView]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadLocatorSlip = async () => {
+      const slipId = selectedSlip?.id || localStorage.getItem('edurouteMapSlipId');
+      if (!slipId) return;
+
+      try {
+        setMapLoading(true);
+        const slip = await getFacultyLocatorSlipDetails(slipId);
+
+        if (!mounted) return;
+
+        setLocatorSlip(slip);
+        setSelectedSlip?.(slip);
+        setSearchValue(slip.destination || '');
+        setTripSummary(null);
+
+        if (slip.currentTrip) {
+          setActiveTrip(slip.currentTrip);
+          setArrivalVerification(slip.latestArrivalVerification || null);
+          if (slip.currentTrip.origin) {
+            setOrigin(slip.currentTrip.origin);
+            setTripStartOrigin(slip.currentTrip.origin);
+            lastAcceptedOriginRef.current = slip.currentTrip.origin;
+            lastRouteOriginRef.current = slip.currentTrip.origin;
+            setOriginMarker(slip.currentTrip.origin);
+          }
+
+          if (slip.currentTrip.destination) {
+            const nextDestination = getTripPhase(slip.currentTrip) === 'RETURNING' && slip.currentTrip.origin
+              ? {
+                latitude: slip.currentTrip.origin.latitude,
+                longitude: slip.currentTrip.origin.longitude,
+                name: 'Starting location',
+              }
+              : slip.currentTrip.destination;
+            setDestination(nextDestination);
+            setDestinationMarker(nextDestination);
+          }
+
+          if (slip.currentTrip.route_geometry) {
+            const nextRouteSummary = {
+              distance_meters: slip.currentTrip.total_distance_meters || slip.currentTrip.route_distance_meters,
+              duration_seconds: slip.currentTrip.route_duration_seconds,
+              geometry: slip.currentTrip.route_geometry,
+              steps: [],
+              alternatives: [],
+            };
+            setRouteSummary(nextRouteSummary);
+            drawRoute(nextRouteSummary.geometry);
+          }
+        } else {
+          setActiveTrip(null);
+          setArrivalVerification(null);
+          setTripStartOrigin(null);
+        }
+
+        if (slip.destination_lat && slip.destination_lng) {
+          const nextDestination = {
+            latitude: Number(slip.destination_lat),
+            longitude: Number(slip.destination_lng),
+            name: slip.destination,
+          };
+          setDestination(nextDestination);
+          setDestinationMarker(nextDestination);
+          setIsPinMode(false);
+        } else if (slip.destination) {
+          const result = await resolveFacultyLocatorSlipDestination(slip.id, slip.destination);
+
+          if (!mounted) return;
+
+          if (result.resolved) {
+            const nextDestination = {
+              latitude: Number(result.destination.lat),
+              longitude: Number(result.destination.lng),
+              name: result.destination.label,
+            };
+            setLocatorSlip(result.locatorSlip || slip);
+            setDestination(nextDestination);
+            setDestinationMarker(nextDestination);
+            setIsPinMode(false);
+          } else {
+            setDestination(null);
+            setIsPinMode(true);
+            setMapError(result.message || 'Destination could not be resolved automatically.');
+          }
+        }
+      } catch (error) {
+        if (!mounted) return;
+        setMapError(error.message);
+        const normalizedMessage = String(error.message || '').toLowerCase();
+        const shouldRedirectToSelection =
+          normalizedMessage.includes('approved locator slip not found')
+          || normalizedMessage.includes('only approved or verified locator slips')
+          || normalizedMessage.includes('locator slip not found');
+
+        if (shouldRedirectToSelection) {
+          localStorage.removeItem('edurouteMapSlipId');
+          setView('map-slip-selection');
+        } else {
+          setShowSearchPanel(true);
+          setIsPinMode(true);
+        }
+      } finally {
+        if (mounted) {
+          setMapLoading(false);
+        }
+      }
+    };
+
+    loadLocatorSlip();
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedSlip?.id, setSelectedSlip, setView, mapReady]);
 
   useEffect(() => {
     if (!MAPBOX_PUBLIC_TOKEN || mapRef.current) return;
@@ -4557,44 +5214,6 @@ const MapTrackingView = ({ setView, profileData }) => {
       map.off('click', handleMapClickForPin);
     };
   }, [isPinMode]);
-
-  useEffect(() => {
-    const loadActiveTrip = async () => {
-      if (!mapReady) return;
-
-      try {
-        const response = await fetch(`${API_BASE_URL}/api/maps/trips/active`, { headers: authHeaders() });
-        const data = await response.json();
-
-        if (!response.ok || !data.data) return;
-
-        const trip = data.data;
-        setActiveTrip(trip);
-        setOrigin(trip.origin);
-        lastAcceptedOriginRef.current = trip.origin;
-        lastRouteOriginRef.current = trip.origin;
-        setDestination(trip.destination);
-        setRouteSummary({
-          distance_meters: trip.distance_meters,
-          duration_seconds: trip.duration_seconds,
-          geometry: trip.route_geometry,
-          steps: [],
-          alternatives: [],
-        });
-        setShowTripMetrics(false);
-        setShowRouteTools(true);
-        setSelectedAlternativeIndex(-1);
-        setActiveRoutePanel(null);
-        setOriginMarker(trip.origin);
-        setDestinationMarker(trip.destination);
-        drawRoute(trip.route_geometry);
-      } catch (error) {
-        console.error('Failed to load active trip:', error);
-      }
-    };
-
-    loadActiveTrip();
-  }, [mapReady]);
 
   useEffect(() => {
     if (!origin || !destination || activeTrip) return undefined;
@@ -4649,7 +5268,7 @@ const MapTrackingView = ({ setView, profileData }) => {
   }, [origin?.latitude, origin?.longitude, destination?.latitude, destination?.longitude, activeTrip?.id]);
 
   useEffect(() => {
-    if (activeTrip && destination) {
+    if (activeTrip && destination && ['ACTIVE', 'RETURNING'].includes(getTripPhase(activeTrip))) {
       startLiveLocationWatch();
       return () => stopLiveLocationWatch();
     }
@@ -4720,11 +5339,9 @@ const MapTrackingView = ({ setView, profileData }) => {
           <div className="overlay-card-head overlay-card-head-search">
             <label>Destination</label>
             <div className="overlay-card-controls">
-              {activeTrip && (
-                <button type="button" className="overlay-toggle-btn" onClick={() => setShowSearchPanel(false)}>
-                  Hide
-                </button>
-              )}
+              <button type="button" className="overlay-toggle-btn" onClick={() => setShowSearchPanel(false)}>
+                Hide
+              </button>
               <button
                 type="button"
                 className="overlay-drag-handle"
@@ -4761,6 +5378,13 @@ const MapTrackingView = ({ setView, profileData }) => {
           ) : (
             <input disabled placeholder="Mapbox token required" />
           )}
+          {locatorSlip && (
+            <p className="trip-search-state">
+              {tripLifecycleState === 'RETURNING'
+                ? <>Return trip active: <strong>destination is now the original starting location</strong></>
+                : <>Selected locator slip: <strong>{locatorSlip.destination}</strong></>}
+            </p>
+          )}
           <div className="trip-search-actions">
             <button
               type="button"
@@ -4780,7 +5404,9 @@ const MapTrackingView = ({ setView, profileData }) => {
           </div>
           {destination && (
             <p className="trip-selected-destination">
-              {destination.name}
+              {tripLifecycleState === 'RETURNING'
+                ? `Returning to ${destination.name} from the verified destination`
+                : destination.name}
               {destination.isPinned ? ' • custom pin' : ''}
             </p>
           )}
@@ -4799,10 +5425,10 @@ const MapTrackingView = ({ setView, profileData }) => {
           <div className="tb-header">
             <div className="tb-header-left">
               <div className="tb-dot"></div>
-              <span>{activeTrip ? 'ACTIVE TRIP' : 'READY TO ROUTE'}</span>
+              <span>{activeTrip ? 'FACULTY TRIP FLOW' : 'READY TO ROUTE'}</span>
             </div>
             <div className="tb-header-actions">
-              <div className="tb-status">{activeTrip ? 'ON ROUTE' : 'IDLE'}</div>
+              <div className="tb-status">{tripLifecycleState.replace(/_/g, ' ')}</div>
               <button type="button" className="overlay-toggle-btn on-green" onClick={() => setShowActionBoard(false)}>
                 Hide
               </button>
@@ -4823,26 +5449,99 @@ const MapTrackingView = ({ setView, profileData }) => {
             <button type="button" className="trip-location-btn" onClick={requestCurrentLocation} disabled={mapLoading}>
               Use My Current Location
             </button>
-            {!activeTrip ? (
+            {tripSummary?.summary || locatorSlip?.trip_status === 'completed' ? (
+              <button
+                type="button"
+                className="trip-location-btn"
+                onClick={() => {
+                  setSelectedSlip?.(null);
+                  setLocatorSlip(null);
+                  localStorage.removeItem('edurouteMapSlipId');
+                  setView('map-slip-selection');
+                }}
+              >
+                Choose Another Slip
+              </button>
+            ) : !activeTrip || tripLifecycleState === 'COMPLETED' ? (
               <button type="button" className="trip-start-btn" onClick={startTrip} disabled={mapLoading || !destination}>
                 {mapLoading ? 'Preparing...' : 'Start Trip'}
               </button>
-            ) : (
-              <div className="trip-end-actions">
-                <button type="button" className="trip-start-btn" onClick={() => endTrip('completed')} disabled={mapLoading}>
-                  End Trip
+            ) : tripLifecycleState === 'ACTIVE' ? (
+              <button type="button" className="trip-start-btn" onClick={markTripArrived} disabled={mapLoading}>
+                {mapLoading ? 'Updating...' : 'Arrived'}
+              </button>
+            ) : tripLifecycleState === 'ARRIVED' ? (
+              <div className="trip-map-verification-stack">
+                <button type="button" className="trip-start-btn" onClick={() => arrivalFileInputRef.current?.click()} disabled={mapLoading}>
+                  Verify Location
                 </button>
-                <button type="button" className="trip-cancel-btn" onClick={() => endTrip('cancelled')} disabled={mapLoading}>
-                  Cancel
-                </button>
+                <input
+                  ref={arrivalFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="map-arrival-file-input"
+                  onChange={handleArrivalFile}
+                />
+                {arrivalPhotoPreview && <img src={arrivalPhotoPreview} alt="Arrival verification preview" className="map-arrival-preview" />}
+                {arrivalPhotoFile && (
+                  <button type="button" className="trip-location-btn" onClick={submitArrivalVerification} disabled={mapLoading}>
+                    {mapLoading ? 'Uploading...' : 'Submit Verification'}
+                  </button>
+                )}
               </div>
+            ) : tripLifecycleState === 'ARRIVAL_VERIFIED' ? (
+              <button type="button" className="trip-start-btn" onClick={beginReturnTrip} disabled={mapLoading}>
+                {mapLoading ? 'Preparing...' : 'Start Return Trip'}
+              </button>
+            ) : tripLifecycleState === 'RETURNING' ? (
+              <button type="button" className="trip-start-btn" onClick={completeReturnedTrip} disabled={mapLoading}>
+                {mapLoading ? 'Saving...' : 'Returned'}
+              </button>
+            ) : (
+              <button type="button" className="trip-location-btn" disabled>
+                Trip Completed
+              </button>
             )}
           </div>
+          {arrivalVerification?.image_url && tripLifecycleState !== 'RETURNING' && (
+            <p className="trip-search-state">Arrival verification uploaded successfully. You can now start the return route back to the original starting location.</p>
+          )}
+          {tripLifecycleState === 'RETURNING' && (
+            <p className="trip-search-state">Destination updated. You are now returning back to the original starting location.</p>
+          )}
+          {tripSummary?.summary && (
+            <div className="trip-summary-card">
+              <strong>Trip Summary Ready</strong>
+              <span>Total distance: {formatDistance(tripSummary.summary.totalDistanceMeters)}</span>
+              <span>Total hours: {Number(tripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</span>
+              <span>{tripSummary.summary.isLateReturn ? `Late return: ${tripSummary.summary.minutesLate} mins late` : 'Returned within the expected window'}</span>
+            </div>
+          )}
         </div>
       ) : (
         <button type="button" className="trip-action-restore-btn fade-in" onClick={() => setShowActionBoard(true)}>
           Show Route
         </button>
+      )}
+
+      {tripSummary?.summary && (
+        <div className="trip-summary-panel fade-in">
+          <h3>Trip Summary</h3>
+          <div className="trip-summary-grid">
+            <div><span>Locator slip departure</span><strong>{formatStatusDateTime(tripSummary.summary.departureTime)}</strong></div>
+            <div><span>Actual trip start</span><strong>{formatStatusDateTime(tripSummary.summary.actualStartTripTime)}</strong></div>
+            <div><span>Estimated return</span><strong>{formatStatusDateTime(tripSummary.summary.estimatedReturnTime)}</strong></div>
+            <div><span>Actual return</span><strong>{formatStatusDateTime(tripSummary.summary.actualReturnTime)}</strong></div>
+            <div><span>Total distance</span><strong>{formatDistance(tripSummary.summary.totalDistanceMeters)}</strong></div>
+            <div><span>Total hours</span><strong>{Number(tripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</strong></div>
+          </div>
+          <p className={`trip-summary-late ${tripSummary.summary.isLateReturn ? 'late' : ''}`}>
+            {tripSummary.summary.isLateReturn
+              ? `Late return detected: ${tripSummary.summary.minutesLate} minutes late.`
+              : 'Returned within the approved timeframe.'}
+          </p>
+        </div>
       )}
 
       {activeTrip && (
@@ -7587,14 +8286,14 @@ const HrmuLiveMapPanel = ({
     }
 
     mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
-      const map = new mapboxgl.Map({
-        container: mapContainerRef.current,
-        style: 'mapbox://styles/mapbox/light-v11',
-        center,
-        zoom: compact ? 13 : 13.5,
-        attributionControl: false,
-        interactive: true,
-      });
+    const map = new mapboxgl.Map({
+      container: mapContainerRef.current,
+      style: 'mapbox://styles/mapbox/light-v11',
+      center,
+      zoom: compact ? 13 : 13.5,
+      attributionControl: false,
+      interactive: true,
+    });
 
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false, showCompass: false }), 'top-right');
@@ -7621,13 +8320,13 @@ const HrmuLiveMapPanel = ({
 
     const validFaculty = faculty.filter((item) => Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
 
-      validFaculty.forEach((item) => {
-        const markerElement = document.createElement('button');
-        markerElement.type = 'button';
-        markerElement.className = `hrmu-map-live-marker ${item?.marker?.status === 'stale' ? 'stale' : 'active'}${selectedFacultyUserId === item.facultyUserId ? ' selected' : ''}`;
-        markerElement.title = item.facultyName || 'Faculty in trip';
-        markerElement.setAttribute('aria-label', item.facultyName || 'Faculty in trip');
-        markerElement.innerHTML = `
+    validFaculty.forEach((item) => {
+      const markerElement = document.createElement('button');
+      markerElement.type = 'button';
+      markerElement.className = `hrmu-map-live-marker ${item?.marker?.status === 'stale' ? 'stale' : 'active'}${selectedFacultyUserId === item.facultyUserId ? ' selected' : ''}`;
+      markerElement.title = item.facultyName || 'Faculty in trip';
+      markerElement.setAttribute('aria-label', item.facultyName || 'Faculty in trip');
+      markerElement.innerHTML = `
           <span class="hrmu-map-live-marker-pulse"></span>
           <span class="hrmu-map-live-marker-core"></span>
       `;
@@ -7642,22 +8341,22 @@ const HrmuLiveMapPanel = ({
       markersRef.current.push(marker);
     });
 
-      if (!validFaculty.length) {
-        map.easeTo({
-          center,
-          zoom: compact ? 13 : 13.5,
-          duration: 600,
-        });
-        return;
-      }
+    if (!validFaculty.length) {
+      map.easeTo({
+        center,
+        zoom: compact ? 13 : 13.5,
+        duration: 600,
+      });
+      return;
+    }
 
     if (validFaculty.length === 1) {
-        if (focusOnOlongapo) {
-          const bounds = new mapboxgl.LngLatBounds(center, center);
-          bounds.extend([validFaculty[0].lng, validFaculty[0].lat]);
-          map.fitBounds(bounds, {
-            padding: compact ? 72 : 104,
-            duration: 600,
+      if (focusOnOlongapo) {
+        const bounds = new mapboxgl.LngLatBounds(center, center);
+        bounds.extend([validFaculty[0].lng, validFaculty[0].lat]);
+        map.fitBounds(bounds, {
+          padding: compact ? 72 : 104,
+          duration: 600,
           maxZoom: compact ? 12.5 : 13.1,
         });
         return;
@@ -7671,13 +8370,13 @@ const HrmuLiveMapPanel = ({
       return;
     }
 
-      const bounds = validFaculty.reduce((acc, item) => {
-        acc.extend([item.lng, item.lat]);
-        return acc;
-      }, new mapboxgl.LngLatBounds(
-        focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
-        focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
-      ));
+    const bounds = validFaculty.reduce((acc, item) => {
+      acc.extend([item.lng, item.lat]);
+      return acc;
+    }, new mapboxgl.LngLatBounds(
+      focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
+      focusOnOlongapo ? center : [validFaculty[0].lng, validFaculty[0].lat],
+    ));
 
     map.fitBounds(bounds, {
       padding: compact ? 64 : 96,
@@ -7909,15 +8608,56 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
   };
 
   const mapTripStatus = (row) => {
-    if (row.tripStatus === 'active' || row.tripStatus === 'arrived') {
-      return { label: 'OFF-SITE', tone: 'green' };
+    const normalizedDisplayStatus = String(row.displayStatus || '').toUpperCase();
+
+    if (normalizedDisplayStatus === 'FLAGGED' || row.isFlagged || row.currentStatusLabel === 'flagged') {
+      return { label: 'FLAGGED', tone: 'red' };
     }
 
-    if (row.tripStatus === 'completed') {
-      return { label: 'RETURNED', tone: 'yellow' };
+    if (
+      normalizedDisplayStatus === 'PENDING'
+      || normalizedDisplayStatus === 'UNVERIFIED'
+      ||
+      row.currentStatusLabel === 'pending'
+      || String(row.verificationStatus || '').toLowerCase() === 'pending'
+    ) {
+      return { label: 'PENDING', tone: 'yellow' };
     }
 
-    return { label: 'ON-SITE', tone: 'green' };
+    if (
+      normalizedDisplayStatus === 'VERIFIED'
+      ||
+      row.currentStatusLabel === 'verified'
+      || String(row.verificationStatus || '').toLowerCase() === 'verified'
+    ) {
+      return { label: 'VERIFIED', tone: 'green' };
+    }
+
+    if (
+      normalizedDisplayStatus === 'REJECTED'
+      ||
+      row.currentStatusLabel === 'rejected'
+      || String(row.verificationStatus || '').toLowerCase() === 'rejected'
+    ) {
+      return { label: 'REJECTED', tone: 'red' };
+    }
+
+    if (
+      normalizedDisplayStatus === 'ACTIVE'
+      ||
+      row.tripStatus === 'active'
+      || row.tripStatus === 'arrived'
+      || row.tripStatus === 'returning'
+      || row.currentStatusLabel === 'active'
+    ) {
+      return { label: 'ACTIVE', tone: 'green' };
+    }
+
+    if (normalizedDisplayStatus === 'RETURNED' || row.tripStatus === 'completed') {
+      return { label: 'RETURNED', tone: 'green' };
+    }
+
+    return { label: 'UNKNOWN', tone: 'yellow' };
   };
 
   useEffect(() => {
@@ -7989,11 +8729,13 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
         const rows = Array.isArray(data.notifications) ? data.notifications : [];
         setNotificationRows(rows.map((notification) => ({
           id: notification.id,
-          title: 'Locator Slip Verified',
-          body: `${notification.facultyName} request for ${notification.purpose} approved.`,
-          meta: formatNotificationMeta(notification.approvedAt),
-          tone: 'green',
-          icon: <HrmuMiniCheckIcon color="var(--green)" />,
+          title: notification.title || 'HRMU Update',
+          body: notification.message || `${notification.facultyName} submitted a trip update.`,
+          meta: formatNotificationMeta(notification.createdAt || notification.approvedAt),
+          tone: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved' ? 'green' : 'red',
+          icon: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved'
+            ? <HrmuMiniCheckIcon color="var(--green)" />
+            : <HrmuWarningMiniIcon color="#C81E1E" />,
         })));
       } catch (error) {
         if (isMounted) {
@@ -8008,9 +8750,11 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     };
 
     loadNotifications();
+    const intervalId = window.setInterval(loadNotifications, 15000);
 
     return () => {
       isMounted = false;
+      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -8044,6 +8788,8 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             purpose: row.purpose || 'No purpose provided',
             verification: verificationIsVerified ? 'VERIFIED' : 'UNVERIFIED',
             verificationTone: verificationIsVerified ? 'green' : 'red',
+            isFlagged: Boolean(row.isFlagged),
+            incidentLabels: Array.isArray(row.incidentLabels) ? row.incidentLabels : [],
             status: mappedTripStatus.label,
             statusTone: mappedTripStatus.tone,
           };
@@ -8098,147 +8844,147 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
   return (
     <HrmuWorkspaceShell activeKey="dashboard" setView={setView} profileData={profileData} onLogout={onLogout}>
-          <section className="hrmu-stats-grid">
-            {stats.map((stat) => (
-              <article key={stat.label} className={`hrmu-stat-card ${stat.accent}`}>
-                <span className="hrmu-stat-label">{stat.label}</span>
-                <strong className="hrmu-stat-value">{stat.value}</strong>
-                {stat.meta && (
-                  <div className="hrmu-stat-meta-row">
-                    <span className={`hrmu-stat-chip ${stat.accent}`}>{stat.meta}</span>
-                    {stat.submeta && <small>{stat.submeta}</small>}
-                  </div>
-                )}
+      <section className="hrmu-stats-grid">
+        {stats.map((stat) => (
+          <article key={stat.label} className={`hrmu-stat-card ${stat.accent}`}>
+            <span className="hrmu-stat-label">{stat.label}</span>
+            <strong className="hrmu-stat-value">{stat.value}</strong>
+            {stat.meta && (
+              <div className="hrmu-stat-meta-row">
+                <span className={`hrmu-stat-chip ${stat.accent}`}>{stat.meta}</span>
+                {stat.submeta && <small>{stat.submeta}</small>}
+              </div>
+            )}
+          </article>
+        ))}
+      </section>
+
+      <section className="hrmu-overview-grid">
+        <article className="hrmu-route-panel">
+          <div className="hrmu-panel-heading">
+            <h2>Live Faculty Route</h2>
+            <button type="button">↗ View Full Map</button>
+          </div>
+          <div className="hrmu-map-card">
+            <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
+            <div className="hrmu-map-summary">
+              <div>
+                <span>OLONGAPO ZONE</span>
+                <strong>{String(liveFacultyRows.length).padStart(2, '0')}</strong>
+                <small>ACTIVE SLIPS</small>
+              </div>
+              <div>
+                <strong>{liveFacultyLoading ? '...' : `${liveFacultyRows.length ? 100 : 0}%`}</strong>
+                <small>LIVE COVERAGE</small>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <aside className="hrmu-notifications-panel">
+          <div className="hrmu-panel-heading notifications">
+            <h2>Notifications</h2>
+            <span className="hrmu-alert-pill">{String(notificationRows.length).padStart(2, '0')} ALERTS</span>
+          </div>
+          <div className="hrmu-notification-list">
+            {notificationLoading && (
+              <div className="hrmu-notification-empty">Loading verification updates...</div>
+            )}
+            {!notificationLoading && notificationRows.length === 0 && (
+              <div className="hrmu-notification-empty">No verified locator slip notifications yet.</div>
+            )}
+            {!notificationLoading && notificationRows.map((note) => (
+              <article key={note.id} className={`hrmu-notification-card ${note.tone}`}>
+                <div className="hrmu-notification-icon">{note.icon}</div>
+                <div className="hrmu-notification-copy">
+                  <h3>{note.title}</h3>
+                  <p>{note.body}</p>
+                  <span>{note.meta}</span>
+                </div>
               </article>
             ))}
-          </section>
+          </div>
+          <button type="button" className="hrmu-history-link" onClick={() => setView('hrmu-notifications')}>VIEW ALL HISTORY</button>
+        </aside>
+      </section>
 
-          <section className="hrmu-overview-grid">
-            <article className="hrmu-route-panel">
-              <div className="hrmu-panel-heading">
-                <h2>Live Faculty Route</h2>
-                <button type="button">↗ View Full Map</button>
-              </div>
-              <div className="hrmu-map-card">
-                <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
-                <div className="hrmu-map-summary">
-                  <div>
-                    <span>OLONGAPO ZONE</span>
-                    <strong>{String(liveFacultyRows.length).padStart(2, '0')}</strong>
-                    <small>ACTIVE SLIPS</small>
-                  </div>
-                  <div>
-                    <strong>{liveFacultyLoading ? '...' : `${liveFacultyRows.length ? 100 : 0}%`}</strong>
-                    <small>LIVE COVERAGE</small>
-                  </div>
-                </div>
-              </div>
-            </article>
-
-            <aside className="hrmu-notifications-panel">
-              <div className="hrmu-panel-heading notifications">
-                <h2>Notifications</h2>
-                <span className="hrmu-alert-pill">{String(notificationRows.length).padStart(2, '0')} ALERTS</span>
-              </div>
-              <div className="hrmu-notification-list">
-                {notificationLoading && (
-                  <div className="hrmu-notification-empty">Loading verification updates...</div>
-                )}
-                {!notificationLoading && notificationRows.length === 0 && (
-                  <div className="hrmu-notification-empty">No verified locator slip notifications yet.</div>
-                )}
-                {!notificationLoading && notificationRows.map((note) => (
-                  <article key={note.id} className={`hrmu-notification-card ${note.tone}`}>
-                    <div className="hrmu-notification-icon">{note.icon}</div>
-                    <div className="hrmu-notification-copy">
-                      <h3>{note.title}</h3>
-                      <p>{note.body}</p>
-                      <span>{note.meta}</span>
-                    </div>
-                  </article>
+      <section className="hrmu-log-section">
+        <div className="hrmu-log-header">
+          <div>
+            <h2>Recent Activity Log</h2>
+            <p>Detailed record of campus entries and exits</p>
+          </div>
+          <div className="hrmu-log-actions">
+            <label className="hrmu-filter-control">
+              <HrmuFilterIcon />
+              <select
+                value={selectedCollegeFilter}
+                onChange={(event) => setSelectedCollegeFilter(event.target.value)}
+                aria-label="Filter recent activity by college"
+              >
+                {hrmuCollegeOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
-              </div>
-              <button type="button" className="hrmu-history-link" onClick={() => setView('hrmu-notifications')}>VIEW ALL HISTORY</button>
-            </aside>
-          </section>
+              </select>
+            </label>
+            <button
+              type="button"
+              className="hrmu-export-btn"
+              onClick={async () => {
+                try {
+                  const result = await exportHrmuRecentActivityCsvPlaceholder();
+                  window.alert(result?.message || 'CSV export is not implemented yet.');
+                } catch (error) {
+                  window.alert(error.message || 'CSV export is not available right now.');
+                }
+              }}
+            >
+              <HrmuExportIcon />
+              <span>Export CSV</span>
+            </button>
+          </div>
+        </div>
 
-          <section className="hrmu-log-section">
-            <div className="hrmu-log-header">
-              <div>
-                <h2>Recent Activity Log</h2>
-                <p>Detailed record of campus entries and exits</p>
-              </div>
-              <div className="hrmu-log-actions">
-                <label className="hrmu-filter-control">
-                  <HrmuFilterIcon />
-                  <select
-                    value={selectedCollegeFilter}
-                    onChange={(event) => setSelectedCollegeFilter(event.target.value)}
-                    aria-label="Filter recent activity by college"
-                  >
-                    {hrmuCollegeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <button
-                  type="button"
-                  className="hrmu-export-btn"
-                  onClick={async () => {
-                    try {
-                      const result = await exportHrmuRecentActivityCsvPlaceholder();
-                      window.alert(result?.message || 'CSV export is not implemented yet.');
-                    } catch (error) {
-                      window.alert(error.message || 'CSV export is not available right now.');
-                    }
-                  }}
-                >
-                  <HrmuExportIcon />
-                  <span>Export CSV</span>
-                </button>
-              </div>
+        <div className="hrmu-log-card">
+          <div className="hrmu-log-table">
+            <div className="hrmu-log-head">
+              <span>FACULTY MEMBER</span>
+              <span>DEPARTURE</span>
+              <span>EXPECTED RETURN</span>
+              <span>PURPOSE</span>
+              <span>VERIFICATION</span>
+              <span>STATUS</span>
             </div>
 
-            <div className="hrmu-log-card">
-              <div className="hrmu-log-table">
-                <div className="hrmu-log-head">
-                  <span>FACULTY MEMBER</span>
-                  <span>DEPARTURE</span>
-                  <span>EXPECTED RETURN</span>
-                  <span>PURPOSE</span>
-                  <span>VERIFICATION</span>
-                  <span>STATUS</span>
-                </div>
+            {activityLoading && (
+              <div className="hrmu-log-empty-state">Loading recent activity...</div>
+            )}
 
-                {activityLoading && (
-                  <div className="hrmu-log-empty-state">Loading recent activity...</div>
-                )}
+            {!activityLoading && recentActivityRows.length === 0 && (
+              <div className="hrmu-log-empty-state">No recent activity found for the selected college.</div>
+            )}
 
-                {!activityLoading && recentActivityRows.length === 0 && (
-                  <div className="hrmu-log-empty-state">No recent activity found for the selected college.</div>
-                )}
-
-                {!activityLoading && recentActivityRows.map((row) => (
-                  <div key={row.key} className="hrmu-log-row">
-                    <div className="hrmu-faculty-cell">
-                      <div className="hrmu-initials-badge">{row.initials}</div>
-                      <div>
-                        <strong>{row.name}</strong>
-                        <span>{row.dept}</span>
-                      </div>
-                    </div>
-                    <span>{row.departure}</span>
-                    <span>{row.returnTime}</span>
-                    <span>{row.purpose}</span>
-                    <span className={`hrmu-verification ${row.verificationTone}`}>{row.verification}</span>
-                    <span className={`hrmu-status-pill ${row.statusTone}`}>{row.status}</span>
+            {!activityLoading && recentActivityRows.map((row) => (
+              <div key={row.key} className="hrmu-log-row">
+                <div className="hrmu-faculty-cell">
+                  <div className="hrmu-initials-badge">{row.initials}</div>
+                  <div>
+                    <strong>{row.name}</strong>
+                    <span>{row.dept}</span>
                   </div>
-                ))}
+                </div>
+                <span>{row.departure}</span>
+                <span>{row.returnTime}</span>
+                <span>{row.purpose}</span>
+                <span className={`hrmu-verification ${row.verificationTone}`}>{row.verification}</span>
+                <span className={`hrmu-status-pill ${row.statusTone}`}>{row.status}</span>
               </div>
-            </div>
-          </section>
+            ))}
+          </div>
+        </div>
+      </section>
     </HrmuWorkspaceShell>
   );
 };
@@ -8299,10 +9045,10 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   useEffect(() => {
     let isMounted = true;
 
-      const loadVerificationPage = async ({ silent = false } = {}) => {
-        if (!silent && isMounted) {
-          setLoading(true);
-        }
+    const loadVerificationPage = async ({ silent = false } = {}) => {
+      if (!silent && isMounted) {
+        setLoading(true);
+      }
 
       try {
         const summaryData = await getHrmuDashboardSummary();
@@ -8324,47 +9070,52 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         }
       }
 
-        try {
-          const [liveFacultyData, flaggedTripsData] = await Promise.all([
-            getHrmuLiveFaculty(),
-            getHrmuFlaggedTrips().catch(() => ({ trips: [] })),
-          ]);
-          if (!isMounted) return;
+      try {
+        const [liveFacultyData, flaggedTripsData] = await Promise.all([
+          getHrmuLiveFaculty(),
+          getHrmuFlaggedTrips().catch(() => ({ trips: [] })),
+        ]);
+        if (!isMounted) return;
 
-          const liveRows = Array.isArray(liveFacultyData?.faculty) ? liveFacultyData.faculty : [];
-          const flaggedTrips = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
-          const flaggedTripMap = new Map(flaggedTrips.map((item) => [item.tripId, item]));
-          const mappedRows = liveRows.map((row) => ({
-            ...(flaggedTripMap.get(row.tripId) || {}),
-            key: row.tripId || row.locatorSlipId || row.facultyUserId,
-            name: row.facultyName,
-            id: row.employeeId || 'N/A',
-            department: row.collegeName || 'Unknown college',
-            timeout: formatShortTime(row.departureTime),
-            destination: row.destination || 'Active trip route',
-            status: flaggedTripMap.has(row.tripId) ? 'FLAGGED' : 'VERIFIED',
-            statusTone: flaggedTripMap.has(row.tripId) ? 'red' : 'green',
-            actionLabel: 'Details',
-            actionTone: 'ghost',
-            actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
-            requestedBy: formatReviewerRole(row.reviewedByRole, row.collegeName),
-            slipNumber: buildSlipReference(row.locatorSlipId),
+        const liveRows = Array.isArray(liveFacultyData?.faculty) ? liveFacultyData.faculty : [];
+        const flaggedTrips = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
+        const flaggedTripMap = new Map(flaggedTrips.map((item) => [item.tripId, item]));
+        const mappedRows = liveRows.map((row) => ({
+          ...(flaggedTripMap.get(row.tripId) || {}),
+          key: row.tripId || row.locatorSlipId || row.facultyUserId,
+          name: row.facultyName,
+          id: row.employeeId || 'N/A',
+          department: row.collegeName || 'Unknown college',
+          timeout: formatShortTime(row.departureTime),
+          destination: row.destination || 'Active trip route',
+          status: flaggedTripMap.has(row.tripId) ? 'FLAGGED' : 'VERIFIED',
+          statusTone: flaggedTripMap.has(row.tripId) ? 'red' : 'green',
+          actionLabel: 'Details',
+          actionTone: 'ghost',
+          actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
+          requestedBy: formatReviewerRole(row.reviewedByRole, row.collegeName),
+          slipNumber: buildSlipReference(row.locatorSlipId),
           purposeOfTravel: row.purpose || row.purposeOfTravel || 'No purpose provided.',
           timeoutFull: formatFullDateTime(row.departureTime),
           returnFull: formatFullDateTime(row.expectedReturnTime),
           deanName: row.reviewedByName || 'Approved by dean',
           deanRole: formatReviewerRole(row.reviewedByRole, row.collegeName),
-            signatureTime: formatFullDateTime(row.approvedAt),
-            coordinates: formatCoordinateLabel(row.lat, row.lng),
-            distanceFromCampus: 'Live coordinates from active trip tracking',
-            verificationStatus: flaggedTripMap.has(row.tripId) ? 'FLAGGED INCIDENT DETECTED' : 'APPROVED FOR TRAVEL',
-            verificationBody: flaggedTripMap.has(row.tripId)
-              ? `${row.facultyName} has active flagged conditions: ${(flaggedTripMap.get(row.tripId)?.incidentLabels || []).join(', ')}.`
+          signatureTime: formatFullDateTime(row.approvedAt),
+          coordinates: formatCoordinateLabel(row.lat, row.lng),
+          distanceFromCampus: 'Live coordinates from active trip tracking',
+          verificationStatus: flaggedTripMap.has(row.tripId) ? 'FLAGGED INCIDENT DETECTED' : 'APPROVED FOR TRAVEL',
+          verificationBody: flaggedTripMap.has(row.tripId)
+            ? `${row.facultyName} has active flagged conditions: ${(flaggedTripMap.get(row.tripId)?.incidentLabels || []).join(', ')}.`
+            : row.locationVerificationImageUrl
+              ? `${row.facultyName} submitted a location verification image for this trip. HRMU can review the proof below to keep the trip valid and not flagged for missing location verification.`
               : `${row.facultyName} is currently in an active trip and was allowed to start only after an approved locator slip was found in the backend.`,
-            syncStatus: row.lastUpdatedAt ? `LAST SYNC ${formatShortTime(row.lastUpdatedAt)}` : 'AWAITING LIVE UPDATE',
-            position: row.position || 'Instructor',
-            flaggedReasons: flaggedTripMap.get(row.tripId)?.incidentLabels || [],
-          }));
+          syncStatus: row.lastUpdatedAt ? `LAST SYNC ${formatShortTime(row.lastUpdatedAt)}` : 'AWAITING LIVE UPDATE',
+          position: row.position || 'Instructor',
+          flaggedReasons: flaggedTripMap.get(row.tripId)?.incidentLabels || [],
+          locationVerificationStatus: row.locationVerificationStatus || (row.locationVerificationImageUrl ? 'verified' : 'missing'),
+          locationVerificationImageUrl: row.locationVerificationImageUrl || null,
+          locationVerificationAt: row.locationVerificationAt || null,
+        }));
 
         setRegistryRows(mappedRows);
         setSelectedRegistryRow((current) => {
@@ -8556,7 +9307,18 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
                     <span>MOBILE SYNC</span>
                     <strong>{selectedRegistryRow.syncStatus}</strong>
                   </div>
+                  <div className="hrmu-verify-check-card">
+                    <span>LOCATION PROOF</span>
+                    <strong>{selectedRegistryRow.locationVerificationImageUrl ? 'SUBMITTED' : 'NOT YET SUBMITTED'}</strong>
+                    <small>{selectedRegistryRow.locationVerificationAt ? formatFullDateTime(selectedRegistryRow.locationVerificationAt) : 'Awaiting arrival proof upload'}</small>
+                  </div>
                 </div>
+                {selectedRegistryRow.locationVerificationImageUrl && (
+                  <div className="hrmu-verify-proof-card">
+                    <span>ARRIVAL VERIFICATION IMAGE</span>
+                    <img src={selectedRegistryRow.locationVerificationImageUrl} alt={`${selectedRegistryRow.name} arrival verification`} />
+                  </div>
+                )}
               </div>
 
               <div className="hrmu-verify-modal-right">
@@ -8688,7 +9450,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
     <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
       <section className="hrmu-analytics-hero">
         <div className="hrmu-analytics-copy">
-          <span className="hrmu-analytics-tag">RECEIVED FROM CCSU</span>
+          <span className="hrmu-analytics-tag">RECEIVED FROM CSSU</span>
           <h1>Analytics &amp; Reporting</h1>
           <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
         </div>
@@ -8704,30 +9466,30 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
         </div>
       </section>
 
-        <section className="hrmu-analytics-filter-card">
-          <div className="hrmu-analytics-filter-group">
-            <span>DATE RANGE</span>
-            <select
-              className="hrmu-analytics-select hrmu-analytics-select-input"
-              value={filters.month}
-              onChange={(event) => updateFilter('month', event.target.value)}
-            >
-              {monthOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="hrmu-analytics-filter-group">
-            <span>DEPARTMENT</span>
-            <select
-              className="hrmu-analytics-select hrmu-analytics-select-input"
-              value={filters.collegeName}
-              onChange={(event) => updateFilter('collegeName', event.target.value)}
-            >
-              {departmentOptions.map((option) => (
-                <option key={option.value || 'all'} value={option.value}>
+      <section className="hrmu-analytics-filter-card">
+        <div className="hrmu-analytics-filter-group">
+          <span>DATE RANGE</span>
+          <select
+            className="hrmu-analytics-select hrmu-analytics-select-input"
+            value={filters.month}
+            onChange={(event) => updateFilter('month', event.target.value)}
+          >
+            {monthOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="hrmu-analytics-filter-group">
+          <span>DEPARTMENT</span>
+          <select
+            className="hrmu-analytics-select hrmu-analytics-select-input"
+            value={filters.collegeName}
+            onChange={(event) => updateFilter('collegeName', event.target.value)}
+          >
+            {departmentOptions.map((option) => (
+              <option key={option.value || 'all'} value={option.value}>
                 {option.label}
               </option>
             ))}
@@ -8979,14 +9741,14 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
 
             <div className="hrmu-reports-divider" />
 
-              <div className="hrmu-reports-section">
-                <h1>Monthly Movement &amp; Violation Summary</h1>
-                <div className="hrmu-reports-subdivider" />
-                <p>
-                  This report provides a comprehensive overview of logistical activities, security transitions,
-                  and flagged trip incidents within the HRMU jurisdiction for month of {reportMeta.monthName || sequenceMonthName}.
-                </p>
-              </div>
+            <div className="hrmu-reports-section">
+              <h1>Monthly Movement &amp; Violation Summary</h1>
+              <div className="hrmu-reports-subdivider" />
+              <p>
+                This report provides a comprehensive overview of logistical activities, security transitions,
+                and flagged trip incidents within the HRMU jurisdiction for month of {reportMeta.monthName || sequenceMonthName}.
+              </p>
+            </div>
 
             <div className="hrmu-reports-summary-grid">
               {summaryCards.map((card) => (
@@ -9190,16 +9952,19 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
         const notificationRows = Array.isArray(notificationData?.notifications) ? notificationData.notifications : [];
         const flaggedRows = Array.isArray(flaggedTripsData?.trips) ? flaggedTripsData.trips : [];
 
-        const verifiedAlerts = notificationRows.map((notification) => ({
-          id: `verified-${notification.id}`,
-          type: 'verified',
-          title: 'Locator Slip Verified',
-          body: notification.message || `${notification.facultyName} locator slip approved.`,
-          time: formatRelativeAlertTime(notification.approvedAt),
-          sortDate: notification.approvedAt ? new Date(notification.approvedAt).getTime() : 0,
-          actionLabelPrimary: 'Open Dashboard',
-          actionLabelSecondary: 'Review Verification',
-        }));
+        const verifiedAlerts = notificationRows.map((notification) => {
+          const isViolationStyle = notification.type === 'hrmu_trip_arrived';
+          return {
+            id: `verified-${notification.id}`,
+            type: isViolationStyle ? 'violation' : 'verified',
+            title: notification.title || (isViolationStyle ? 'Faculty arrived at destination' : 'Locator Slip Verified'),
+            body: notification.message || `${notification.facultyName} locator slip approved.`,
+            time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
+            sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
+            actionLabelPrimary: isViolationStyle ? 'Review Verification' : 'Open Dashboard',
+            actionLabelSecondary: isViolationStyle ? 'Open Dashboard' : 'Review Verification',
+          };
+        });
 
         const violationAlerts = flaggedRows.map((trip) => ({
           id: `violation-${trip.tripId}`,
@@ -9388,15 +10153,15 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
   return (
     <HrmuWorkspaceShell activeKey="live" setView={setView} profileData={profileData} onLogout={onLogout}>
       <section className="hrmu-live-page">
-          <div className="hrmu-live-map-stage">
-            <HrmuLiveMapPanel
-              faculty={facultyLocations}
-              center={mapCenter}
-              selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
-              onMarkerSelect={selectFaculty}
-              focusOnOlongapo
-              className="hrmu-live-stage-map"
-            />
+        <div className="hrmu-live-map-stage">
+          <HrmuLiveMapPanel
+            faculty={facultyLocations}
+            center={mapCenter}
+            selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+            onMarkerSelect={selectFaculty}
+            focusOnOlongapo
+            className="hrmu-live-stage-map"
+          />
 
           <div className="hrmu-live-controls">
             <button type="button" className="hrmu-live-control-btn" aria-label="Refresh active faculty" onClick={reload}>R</button>
@@ -10143,7 +10908,7 @@ const RegistryDetailsModal = ({ item, onClose }) => {
           <button className="rmodal-close-btn" onClick={onClose}>
             <RegistryModalCloseIcon />
           </button>
-          
+
           <div className="rmodal-header-content">
             <div className={`rmodal-status-pill ${status}`}>
               {status === 'verified' && <RegistryModalVerifiedIcon />}
@@ -10356,9 +11121,9 @@ const AdminRegistryView = ({ setView, profileData }) => {
       <AdminBottomNav active="registry" setView={setView} />
 
       {selectedItem && (
-        <RegistryDetailsModal 
-          item={selectedItem} 
-          onClose={() => setSelectedItem(null)} 
+        <RegistryDetailsModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
         />
       )}
     </div>
@@ -10447,15 +11212,15 @@ const FacultyProfileModal = ({ profile, onClose }) => {
     <div className="afac-modal-overlay" onClick={onClose}>
       <div className="afac-modal-container" onClick={e => e.stopPropagation()}>
         <div className="afac-modal-hero" />
-        
+
         <div className="afac-modal-content">
           <div className="afac-modal-avatar">
             <img src={profile.image || DEFAULT_PROFILE_IMAGE} alt={profile.name} />
           </div>
-          
+
           <h2 className="afac-modal-name">{profile.name}</h2>
           <p className="afac-modal-role">{profile.role}</p>
-          
+
           <div className="afac-modal-badges">
             <div className="afac-badge-box">
               <span className="afac-badge-label">STATUS</span>
@@ -10469,7 +11234,7 @@ const FacultyProfileModal = ({ profile, onClose }) => {
               <div className="afac-badge-value highlight">{profile.tenure}</div>
             </div>
           </div>
-          
+
           <div className="afac-modal-id-box">
             <div className="afac-id-left">
               <FacultyIdBadgeIcon />
@@ -10482,7 +11247,7 @@ const FacultyProfileModal = ({ profile, onClose }) => {
               <FacultyCopyIcon />
             </button>
           </div>
-          
+
           <button className="afac-modal-close" onClick={onClose}>
             CLOSE
           </button>
@@ -10531,7 +11296,7 @@ const AdminFacultyView = ({ setView, profileData }) => {
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">
-        
+
         {/* Header */}
         <div className="admin-header">
           <div className="anotif-header-left">
@@ -10595,7 +11360,7 @@ const AdminFacultyView = ({ setView, profileData }) => {
                   {member.tenure}
                 </div>
               </div>
-              
+
               <div className="afac-card-stats">
                 <div className="afac-stat">
                   <span className="afac-stat-title">TOTAL REQUESTS</span>
@@ -10612,7 +11377,7 @@ const AdminFacultyView = ({ setView, profileData }) => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="afac-card-footer">
                 <div className="afac-recent-indicators">
                   {member.recentStatus.map((status, idx) => {
@@ -10633,7 +11398,7 @@ const AdminFacultyView = ({ setView, profileData }) => {
 
       </div>
       <AdminBottomNav active="faculty" setView={setView} />
-      
+
       {/* Modal */}
       <FacultyProfileModal profile={selectedProfile} onClose={() => setSelectedProfile(null)} />
     </div>
@@ -11017,6 +11782,13 @@ const CssuReportsNavIcon = ({ color = "currentColor" }) => (
   </svg>
 );
 
+const PlayTriangleIcon = ({ color = "#111827" }) => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="9" />
+    <path d="m10 8 6 4-6 4z" />
+  </svg>
+);
+
 const CSSUBottomNav = ({ active = 'dashboard', setView }) => (
   <div className="admin-bottom-nav cssu-bottom-nav">
     <div className={`admin-nav-item ${active === 'dashboard' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-dashboard')}>
@@ -11042,11 +11814,486 @@ const CSSUBottomNav = ({ active = 'dashboard', setView }) => (
   </div>
 );
 
-const CSSUDashboardView = ({ setView, profileData }) => {
+const getDesktopWorkspaceViewport = () => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
+
+const useDesktopWorkspaceViewport = () => {
+  const [isDesktopViewport, setIsDesktopViewport] = useState(getDesktopWorkspaceViewport);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktopViewport(window.innerWidth >= 768);
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return isDesktopViewport;
+};
+
+const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, children }) => {
+  const sidebarItems = [
+    { key: 'dashboard', label: 'Dashboard', icon: DashboardNavIcon, target: 'cssu-dashboard' },
+    { key: 'scan', label: 'Exit Clearance', icon: CssuScanNavIcon, target: 'cssu-scan' },
+    { key: 'map', label: 'Live Tracking', icon: CssuMapNavIcon, target: 'cssu-map' },
+    { key: 'incidents', label: 'Incidents', icon: CssuIncidentsNavIcon, target: 'cssu-incidents' },
+    { key: 'reports', label: 'Reports', icon: CssuReportsNavIcon, target: 'cssu-reports' },
+  ];
+
+  return (
+    <div className="cssu-workspace">
+      <aside className="cssu-sidebar">
+        <div className="cssu-sidebar-top">
+          <div className="cssu-brand-lockup">
+            <div className="cssu-brand-badge">
+              <TogaLogoIcon size={24} />
+            </div>
+            <div className="cssu-brand-text">
+              <strong>EduRoute</strong>
+              <span>ADMIN CONSOLE</span>
+            </div>
+          </div>
+
+          <nav className="cssu-sidebar-nav">
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = item.key === activeKey;
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  className={`cssu-nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => item.target && setView(item.target)}
+                >
+                  <Icon color={isActive ? 'var(--green)' : '#4B5563'} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
+
+        <div className="cssu-sidebar-bottom">
+          <button type="button" className="cssu-logout-btn" onClick={onLogout}>Log Out</button>
+          <button type="button" className="cssu-support-link">
+            <HeadsetIcon />
+            <span>Support</span>
+          </button>
+        </div>
+      </aside>
+
+      <main className="cssu-main">
+        <header className="cssu-topbar">
+          <span className="cssu-topbar-logo">EduRoute</span>
+          <div className="cssu-topbar-right">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('admin-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <button type="button" className="cssu-topbar-icon">
+              <QuestionCircleIcon color="var(--green)" />
+            </button>
+            <div className="cssu-manager-copy">
+              <strong>{profileData?.fullName || 'Admin User'}</strong>
+              <span>System Registrar</span>
+            </div>
+            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="CSSU Admin" />
+            </div>
+          </div>
+        </header>
+
+        <div className="cssu-main-scroll">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+const CSSUDesktopPage = ({ activeKey, title, subtitle, setView, profileData, onLogout, children }) => (
+  <CssuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
+    <section className="cssu-desktop-page">
+      <div className="cssu-desktop-page-header">
+        <div>
+          <span className="cssu-desktop-kicker">Campus Operations</span>
+          <h1>{title}</h1>
+          <p>{subtitle}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  </CssuWorkspaceShell>
+);
+
+const CSSUDesktopPlaceholderView = ({ activeKey, title, subtitle, setView, profileData, onLogout }) => (
+  <CSSUDesktopPage
+    activeKey={activeKey}
+    title={title}
+    subtitle={subtitle}
+    setView={setView}
+    profileData={profileData}
+    onLogout={onLogout}
+  >
+    <div className="cssu-desktop-placeholder">
+      <div className="cssu-desktop-placeholder-icon">
+        {activeKey === 'scan' && <CssuScanNavIcon color="var(--green)" />}
+        {activeKey === 'map' && <CssuMapNavIcon color="var(--green)" />}
+        {activeKey === 'incidents' && <CssuIncidentsNavIcon color="var(--green)" />}
+        {activeKey === 'reports' && <CssuReportsNavIcon color="var(--green)" />}
+      </div>
+      <h2>{title}</h2>
+      <p>{subtitle}</p>
+    </div>
+  </CSSUDesktopPage>
+);
+
+const CSSUDashboardDesktopViewLegacy = ({ setView, profileData, onLogout }) => (
+  <CSSUDesktopPage
+    activeKey="dashboard"
+    title="CSSU Security Command"
+    subtitle="Real-time Faculty Exit & Locator Monitoring"
+    setView={setView}
+    profileData={profileData}
+    onLogout={onLogout}
+  >
+    <div className="cssu-desktop-actions">
+      <div className="cssu-live-pill">
+        <span className="cssu-live-dot" />
+        <span>LIVE FEED ACTIVE</span>
+      </div>
+      <button type="button" className="cssu-summary-btn">Generate Summary</button>
+    </div>
+
+    <div className="cssu-desktop-stats">
+      <article className="cssu-desktop-hero-card">
+        <span className="cssu-desktop-card-label">Total Faculty Exiting</span>
+        <div className="cssu-desktop-hero-value">142</div>
+        <div className="cssu-desktop-trend-chip">
+          <CssuTrendingUpIcon color="white" />
+          <span>12% from yesterday</span>
+        </div>
+        <div className="cssu-desktop-hero-mark">
+          <CssuExitDoorIcon color="rgba(255,255,255,0.12)" size="96" />
+        </div>
+      </article>
+
+      <article className="cssu-desktop-mini-card">
+        <div className="cssu-desktop-mini-icon ok">
+          <CssuRosetteCheckIcon color="var(--green)" />
+        </div>
+        <span className="cssu-desktop-mini-label">Approved Locator Slips</span>
+        <strong>128</strong>
+        <small>90.1% success rate</small>
+      </article>
+
+      <article className="cssu-desktop-mini-card flagged">
+        <div className="cssu-desktop-mini-icon warn">
+          <CssuWarningTriangleIcon />
+        </div>
+        <span className="cssu-desktop-mini-label">Denied / No Slip Cases</span>
+        <strong>14</strong>
+        <small>Requires intervention</small>
+        <button type="button" className="cssu-desktop-inline-btn">Review</button>
+      </article>
+    </div>
+
+    <div className="cssu-desktop-content-grid">
+      <section className="cssu-desktop-log-card">
+        <div className="cssu-desktop-log-headline">
+          <h2>Live Exit Monitoring</h2>
+          <div className="cssu-desktop-toggle-group">
+            <button type="button" className="active">Main Gate</button>
+            <button type="button">BackGate</button>
+          </div>
+        </div>
+
+        <div className="cssu-desktop-log-table">
+          <div className="cssu-desktop-log-row head">
+            <span>Faculty Member</span>
+            <span>ID Number</span>
+            <span>Status</span>
+            <span>Time</span>
+            <span>Action</span>
+          </div>
+
+          <div className="cssu-desktop-log-row">
+            <div className="cssu-desktop-person">
+              <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" />
+              <div>
+                <strong>Dr. Elena Rodriguez</strong>
+                <span>College of Engineering</span>
+              </div>
+            </div>
+            <span>202390890</span>
+            <span className="cssu-desktop-status valid">Validated</span>
+            <span>10:42 AM</span>
+            <button type="button" className="cssu-desktop-action ghost">
+              <EyeIcon color="var(--green)" size="18" />
+            </button>
+          </div>
+
+          <div className="cssu-desktop-log-row">
+            <div className="cssu-desktop-person">
+              <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" />
+              <div>
+                <strong>Prof. Julian Marcus</strong>
+                <span>Arts & Humanities</span>
+              </div>
+            </div>
+            <span>202089909</span>
+            <span className="cssu-desktop-status flagged">No Slip</span>
+            <span>10:40 AM</span>
+            <button type="button" className="cssu-desktop-action">Intercept</button>
+          </div>
+        </div>
+
+        <button type="button" className="cssu-desktop-load-link">Load Full Entry Logs</button>
+      </section>
+
+      <aside className="cssu-desktop-side-stack">
+        <article className="cssu-desktop-status-card">
+          <h3>Security Status: Low</h3>
+          <p>Current campus status is stable. 3 upcoming group clearances detected.</p>
+
+          <div className="cssu-desktop-status-note">
+            <strong>Maintenance Window</strong>
+            <span>Back-gate offline in 15 mins</span>
+          </div>
+
+          <div className="cssu-desktop-status-note">
+            <strong>Group Exit (12 pax)</strong>
+            <span>Seminar Field Trip @ Gate 1</span>
+          </div>
+        </article>
+
+        <article className="cssu-desktop-manager-card">
+          <div className="cssu-desktop-manager-icon">
+            <HeadsetIcon />
+          </div>
+          <div>
+            <strong>Duty Manager</strong>
+            <span>SGT. MILLER • ACTIVE</span>
+          </div>
+        </article>
+      </aside>
+    </div>
+  </CSSUDesktopPage>
+);
+
+const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
+  const [summary, setSummary] = useState({
+    totalFacultyExiting: 0,
+    approvedLocatorSlips: 0,
+    rejectedLocatorSlips: 0,
+    approvalRate: 0,
+  });
+  const [selectedGate, setSelectedGate] = useState('main_gate');
+  const [liveRows, setLiveRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadDashboard = async () => {
+      setLoading(true);
+      setLoadError('');
+
+      try {
+        const [summaryData, liveData] = await Promise.all([
+          getCssuDashboardSummary(),
+          getCssuLiveExitMonitoring({ gate: selectedGate, limit: 20 }),
+        ]);
+
+        if (!isMounted) return;
+
+        setSummary(summaryData || {
+          totalFacultyExiting: 0,
+          approvedLocatorSlips: 0,
+          rejectedLocatorSlips: 0,
+          approvalRate: 0,
+        });
+        setLiveRows(Array.isArray(liveData?.rows) ? liveData.rows : []);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(error.message || 'Unable to load the CSSU dashboard right now.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedGate]);
+
+  const approvedRateLabel = summary.totalFacultyExiting
+    ? `${summary.approvalRate}% approved today`
+    : 'No tracked exits yet';
+
+  return (
+    <CSSUDesktopPage
+      activeKey="dashboard"
+      title="CSSU Security Command"
+      subtitle="Real-time Faculty Exit & Locator Monitoring"
+      setView={setView}
+      profileData={profileData}
+      onLogout={onLogout}
+    >
+      <div className="cssu-desktop-actions">
+        <div className="cssu-live-pill">
+          <span className="cssu-live-dot" />
+          <span>LIVE FEED ACTIVE</span>
+        </div>
+        <button type="button" className="cssu-summary-btn">Generate Summary</button>
+      </div>
+
+      <div className="cssu-desktop-stats">
+        <article className="cssu-desktop-hero-card">
+          <span className="cssu-desktop-card-label">Total Faculty Exiting</span>
+          <div className="cssu-desktop-hero-value">{summary.totalFacultyExiting}</div>
+          <div className="cssu-desktop-trend-chip">
+            <CssuTrendingUpIcon color="white" />
+            <span>{approvedRateLabel}</span>
+          </div>
+          <div className="cssu-desktop-hero-mark">
+            <CssuExitDoorIcon color="rgba(255,255,255,0.12)" size="96" />
+          </div>
+        </article>
+
+        <article className="cssu-desktop-mini-card">
+          <div className="cssu-desktop-mini-icon ok">
+            <CssuRosetteCheckIcon color="var(--green)" />
+          </div>
+          <span className="cssu-desktop-mini-label">Approved Locator Slips</span>
+          <strong>{summary.approvedLocatorSlips}</strong>
+          <small>{approvedRateLabel}</small>
+        </article>
+
+        <article className="cssu-desktop-mini-card flagged">
+          <div className="cssu-desktop-mini-icon warn">
+            <CssuWarningTriangleIcon />
+          </div>
+          <span className="cssu-desktop-mini-label">Rejected Locator Slips</span>
+          <strong>{summary.rejectedLocatorSlips}</strong>
+          <small>{summary.rejectedLocatorSlips > 0 ? 'Requires intervention' : 'No rejected slips today'}</small>
+          <button type="button" className="cssu-desktop-inline-btn" onClick={() => setView('cssu-incidents')}>Review</button>
+        </article>
+      </div>
+
+      <div className="cssu-desktop-content-grid">
+        <section className="cssu-desktop-log-card">
+          <div className="cssu-desktop-log-headline">
+            <h2>Live Exit Monitoring</h2>
+            <div className="cssu-desktop-toggle-group">
+              <button type="button" className={selectedGate === 'main_gate' ? 'active' : ''} onClick={() => setSelectedGate('main_gate')}>Main Gate</button>
+              <button type="button" className={selectedGate === 'back_gate' ? 'active' : ''} onClick={() => setSelectedGate('back_gate')}>Back Gate</button>
+            </div>
+          </div>
+
+          <div className="cssu-desktop-log-table">
+            <div className="cssu-desktop-log-row head">
+              <span>Faculty Member</span>
+              <span>ID Number</span>
+              <span>Status</span>
+              <span>Time</span>
+              <span>Action</span>
+            </div>
+
+            {loading && (
+              <div className="cssu-desktop-log-empty">Loading live exit monitoring...</div>
+            )}
+
+            {!loading && loadError && (
+              <div className="cssu-desktop-log-empty error">{loadError}</div>
+            )}
+
+            {!loading && !loadError && liveRows.length === 0 && (
+              <div className="cssu-desktop-log-empty">No approved locator slips are queued for this gate yet.</div>
+            )}
+
+            {!loading && !loadError && liveRows.map((row) => {
+              const statusClass = row.status === 'validated'
+                ? 'valid'
+                : row.status === 'denied'
+                  ? 'flagged'
+                  : 'approved';
+
+              return (
+                <div key={`${row.locatorSlipId}-${row.gate}`} className="cssu-desktop-log-row">
+                  <div className="cssu-desktop-person">
+                    <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} />
+                    <div>
+                      <strong>{row.facultyName}</strong>
+                      <span>{row.departmentName}</span>
+                    </div>
+                  </div>
+                  <span>{row.facultyId || 'Unavailable'}</span>
+                  <span className={`cssu-desktop-status ${statusClass}`}>{row.statusLabel}</span>
+                  <span>{row.validatedTimeLabel || '--'}</span>
+                  {row.status === 'denied' ? (
+                    <button type="button" className="cssu-desktop-action">Intercept</button>
+                  ) : (
+                    <button type="button" className="cssu-desktop-action ghost">
+                      <EyeIcon color="var(--green)" size="18" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <button type="button" className="cssu-desktop-load-link">Load Full Entry Logs</button>
+        </section>
+
+        <aside className="cssu-desktop-side-stack">
+          <article className="cssu-desktop-status-card">
+            <h3>Security Status: Low</h3>
+            <p>Current campus status is stable. CSSU is monitoring approved slips and rejected slip interventions in real time.</p>
+
+            <div className="cssu-desktop-status-note">
+              <strong>{selectedGate === 'main_gate' ? 'Main Gate Queue' : 'Back Gate Queue'}</strong>
+              <span>{liveRows.length} active faculty records visible for this gate.</span>
+            </div>
+
+            <div className="cssu-desktop-status-note">
+              <strong>Rejected Locator Slips</strong>
+              <span>{summary.rejectedLocatorSlips} slips currently need intervention or review.</span>
+            </div>
+          </article>
+
+          <article className="cssu-desktop-manager-card">
+            <div className="cssu-desktop-manager-icon">
+              <HeadsetIcon />
+            </div>
+            <div>
+              <strong>Duty Manager</strong>
+              <span>SGT. MILLER • ACTIVE</span>
+            </div>
+          </article>
+        </aside>
+      </div>
+    </CSSUDesktopPage>
+  );
+};
+
+const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+
+  if (isDesktopViewport) {
+    return <CSSUDashboardDesktopView setView={setView} profileData={profileData} onLogout={onLogout} />;
+  }
+
   return (
     <div className="admin-dash-wrapper cssu-wrapper">
       <div className="admin-dash-scroll cssu-scroll">
-        
+
         {/* Header */}
         <div className="cssu-header">
           <h1>Security Command</h1>
@@ -11056,7 +12303,7 @@ const CSSUDashboardView = ({ setView, profileData }) => {
         </div>
 
         <div className="cssu-content">
-          
+
           {/* Hero Card */}
           <div className="cssu-hero-card">
             <div className="cssu-hero-left">
@@ -11121,7 +12368,7 @@ const CSSUDashboardView = ({ setView, profileData }) => {
               <span className="cssu-live-view-all">View All</span>
             </div>
             <div className="cssu-live-list">
-              
+
               <div className="cssu-live-item">
                 <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
                 <div className="cssu-li-info">
@@ -11163,8 +12410,7 @@ const CSSUDashboardView = ({ setView, profileData }) => {
 
         </div>
       </div>
-      
-      {/* FAB */}
+
       <button className="cssu-scan-fab" onClick={() => setView('cssu-scan')}>
         <CssuScanNavIcon color="#554400" />
       </button>
@@ -11174,11 +12420,964 @@ const CSSUDashboardView = ({ setView, profileData }) => {
   );
 };
 
+const CSSUMapView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const {
+    center,
+    facultyLocations,
+    selectedFaculty,
+    selectedFacultyDetail,
+    activityItems,
+    loading,
+    detailLoading,
+    activityLoading,
+    error,
+    selectFaculty,
+    reload,
+    loadMoreActivity,
+  } = useHrmuLiveTracking();
+
+  const mapCenter = useMemo(() => [
+    Number(center?.lng || OLONGAPO_CENTER[0]),
+    Number(center?.lat || OLONGAPO_CENTER[1]),
+  ], [center?.lat, center?.lng]);
+
+  if (isDesktopViewport) {
+    return (
+      <CSSUDesktopPage
+        activeKey="map"
+        title="Live Tracking"
+        subtitle="Central Campus Security Unit"
+        setView={setView}
+        profileData={profileData}
+        onLogout={onLogout}
+      >
+        <section className="cssu-live-page">
+          <div className="hrmu-live-map-stage cssu-live-map-stage">
+            <HrmuLiveMapPanel
+              faculty={facultyLocations}
+              center={mapCenter}
+              selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+              onMarkerSelect={selectFaculty}
+              focusOnOlongapo
+              className="hrmu-live-stage-map"
+            />
+
+            <div className="hrmu-live-controls">
+              <button type="button" className="hrmu-live-control-btn" aria-label="Refresh active faculty" onClick={reload}>R</button>
+              <button type="button" className="hrmu-live-control-btn" aria-label="Olongapo City focus">{center?.label?.slice(0, 1) || 'O'}</button>
+            </div>
+
+            <FacultyActivityLog
+              activity={activityItems}
+              loading={loading || activityLoading}
+              onViewAll={() => loadMoreActivity(20)}
+            />
+
+            <FacultyDetailCard
+              faculty={selectedFaculty}
+              detail={selectedFacultyDetail}
+              loading={loading || detailLoading}
+            />
+
+            {error && (
+              <div className="hrmu-live-inline-alert">
+                <strong>Live tracking error</strong>
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
+        </section>
+      </CSSUDesktopPage>
+    );
+  }
+
+  return <div className="mobile-container"><div className="content"><div className="header"><h1>Map</h1></div><CSSUBottomNav active="map" setView={setView} /></div></div>;
+};
+
+const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+
+  if (isDesktopViewport) {
+    const incidentRows = [
+      {
+        id: 'inv-9902-ccsu',
+        title: 'Unauthorized Exit Attempt',
+        description: 'Detection at Gate 4 - Main Academic Quad',
+        meta: ['Dr. Helena Vance', '14:32 PM', 'West Perimeter'],
+        severity: 'critical',
+        tone: 'red',
+      },
+      {
+        id: 'inv-9901-ccsu',
+        title: 'Missing Locator Slip',
+        description: 'Faculty logged off-campus without valid digital authorization.',
+        meta: ['Prof. Marcus Thorne', '09:15 AM', 'Dept: Engineering'],
+        severity: 'moderate',
+        tone: 'yellow',
+      },
+      {
+        id: 'inv-9899-ccsu',
+        title: 'Restricted Area Proximity',
+        description: 'RFID trigger at Server Room B (After Hours)',
+        meta: ['Janet Sterling (Staff)', '22:45 PM', 'System Audit'],
+        severity: 'low',
+        tone: 'green',
+      },
+    ];
+
+    const featuredIncident = incidentRows[0];
+
+    return (
+      <CSSUDesktopPage
+        activeKey="incidents"
+        title="Incident Log"
+        subtitle="Centralized oversight for campus compliance, track flagged violations, review authorization slips, and manage intervention triggers."
+        setView={setView}
+        profileData={profileData}
+        onLogout={onLogout}
+      >
+        <div className="cssu-incident-overview">
+          <div className="cssu-incident-summary-card active">
+            <span>ACTIVE CASES</span>
+            <strong>12</strong>
+          </div>
+          <div className="cssu-incident-summary-card resolved">
+            <span>RESOLVED TODAY</span>
+            <strong>48</strong>
+          </div>
+        </div>
+
+        <div className="cssu-incident-grid">
+          <section className="cssu-incident-list-panel">
+            <div className="cssu-incident-list-head">
+              <h2>
+                <ExclamationCircleIcon color="var(--green)" size="22" />
+                <span>Recent Flagged Activities</span>
+              </h2>
+              <div className="cssu-incident-filters">
+                <button type="button">ALL RECORDS</button>
+                <button type="button" className="active">HIGH SEVERITY</button>
+              </div>
+            </div>
+
+            <div className="cssu-incident-list">
+              {incidentRows.map((incident) => (
+                <article key={incident.id} className={`cssu-incident-row ${incident.tone}`}>
+                  <div className={`cssu-incident-icon ${incident.tone}`}>
+                    {incident.tone === 'red' && <ExclamationCircleIcon color="#C81E1E" size="22" />}
+                    {incident.tone === 'yellow' && <ClipboardClockIcon color="#A27A00" />}
+                    {incident.tone === 'green' && <ShieldCheckSmallIcon color="var(--green)" />}
+                  </div>
+                  <div className="cssu-incident-copy">
+                    <div className="cssu-incident-title-row">
+                      <h3>{incident.title}</h3>
+                      <span className={`cssu-incident-severity ${incident.severity}`}>{incident.severity}</span>
+                    </div>
+                    <p>{incident.description}</p>
+                    <div className="cssu-incident-meta">
+                      <span>{incident.meta[0]}</span>
+                      <span>{incident.meta[1]}</span>
+                      <span>{incident.meta[2]}</span>
+                    </div>
+                  </div>
+                  <button type="button" className="cssu-incident-row-arrow" aria-label={`Open ${incident.title}`}>
+                    <ChevronRightIcon color="#7A807A" />
+                  </button>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <aside className="cssu-incident-detail-card">
+            <div className="cssu-incident-detail-hero">
+              <div>
+                <span>INCIDENT REPORT</span>
+                <h3>{featuredIncident.title}</h3>
+                <p>CASE REF: #INV-9902-CCSU</p>
+              </div>
+              <button type="button" className="cssu-incident-detail-close" aria-label="Close incident detail">
+                ×
+              </button>
+            </div>
+
+            <div className="cssu-incident-detail-body">
+              <div className="cssu-incident-detail-profile">
+                <div className="cssu-incident-detail-profile-copy">
+                  <strong>Dr. Helena Vance</strong>
+                  <span>Bio-Sciences Faculty</span>
+                </div>
+                <CheckCircleSolidIcon color="var(--green)" size="28" />
+              </div>
+
+              <div className="cssu-incident-detail-meta">
+                <div>
+                  <span>TIMESTAMP</span>
+                  <strong>Oct 24, 2023 | 14:32</strong>
+                </div>
+                <div>
+                  <span>LOCATION</span>
+                  <strong>North Gate - Sector A</strong>
+                </div>
+                <div>
+                  <span>SYSTEM FLAG REASON</span>
+                  <blockquote>
+                    "Subject attempted to bypass electronic turnstiles without an active locator slip or registered personal leave request. Entry denied by Gate-Sec System."
+                  </blockquote>
+                </div>
+              </div>
+
+              <div className="cssu-incident-detail-actions">
+                <button type="button" className="cssu-incident-detail-btn success">Resolve Case</button>
+                <button type="button" className="cssu-incident-detail-btn neutral">Flag For HR</button>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </CSSUDesktopPage>
+    );
+  }
+
+  return <div className="mobile-container"><div className="content"><div className="header"><h1>Incidents</h1></div><CSSUBottomNav active="incidents" setView={setView} /></div></div>;
+};
+
+const CSSUScanViewLegacy = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+
+  if (isDesktopViewport) {
+    const [serverTime, setServerTime] = useState(() =>
+      new Date().toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
+    );
+
+    useEffect(() => {
+      const timer = window.setInterval(() => {
+        setServerTime(
+          new Date().toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+          })
+        );
+      }, 1000);
+
+      return () => window.clearInterval(timer);
+    }, []);
+
+    return (
+      <CSSUDesktopPage
+        activeKey="scan"
+        title="Exit Verification"
+        subtitle="Central Campus Security Unit"
+        setView={setView}
+        profileData={profileData}
+        onLogout={onLogout}
+      >
+        <div className="cssu-checkpoint-header">
+          <div className="cssu-checkpoint-time">
+            <span>LIVE SERVER TIME</span>
+            <strong>{serverTime}</strong>
+          </div>
+        </div>
+
+        <div className="cssu-checkpoint-grid">
+          <div className="cssu-checkpoint-left">
+            <article className="cssu-checkpoint-scanner-card">
+              <span className="cssu-checkpoint-card-kicker">SCANNER INTERFACE</span>
+              <div className="cssu-checkpoint-scan-stage">
+                <div className="cssu-checkpoint-scan-frame">
+                  <div className="cssu-checkpoint-qr-box">
+                    <ScanQRIcon color="#79C683" />
+                  </div>
+                  <span>WAITING FOR SCAN</span>
+                </div>
+              </div>
+            </article>
+
+            <article className="cssu-checkpoint-manual-card">
+              <span className="cssu-checkpoint-card-kicker">MANUAL ENTRY</span>
+              <div className="cssu-checkpoint-manual-row">
+                <input
+                  type="text"
+                  className="cssu-checkpoint-manual-input"
+                  placeholder="Enter Faculty ID (e.g. FAC-2024-001)"
+                />
+                <button type="button" className="cssu-checkpoint-search-btn" aria-label="Search faculty ID">
+                  <FacultySearchIcon />
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <div className="cssu-checkpoint-right">
+            <article className="cssu-checkpoint-profile-card">
+              <div className="cssu-checkpoint-profile-top">
+                <div className="cssu-checkpoint-profile-avatar">
+                  <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" />
+                </div>
+                <div className="cssu-checkpoint-profile-copy">
+                  <span className="cssu-checkpoint-card-kicker">FACULTY PROFILE</span>
+                  <h2>Dr. Helena Vance</h2>
+                  <p>Department of Advanced Bio-Ethics</p>
+                </div>
+              </div>
+
+              <div className="cssu-checkpoint-profile-meta">
+                <div>
+                  <span>STAFF ID</span>
+                  <strong>CSSU-4491-02</strong>
+                </div>
+                <div>
+                  <span>TYPE</span>
+                  <strong>Full-Time Faculty</strong>
+                </div>
+              </div>
+
+              <div className="cssu-checkpoint-slip-status">
+                <div className="cssu-checkpoint-slip-icon">
+                  <CssuRosetteCheckIcon color="var(--green)" />
+                </div>
+                <div className="cssu-checkpoint-slip-copy">
+                  <span>LOCATOR SLIP STATUS</span>
+                  <strong>APPROVED</strong>
+                </div>
+                <div className="cssu-checkpoint-slip-done">
+                  <CheckCircleSolidIcon color="var(--green)" size="40" />
+                </div>
+              </div>
+            </article>
+
+            <article className="cssu-checkpoint-log-card">
+              <span className="cssu-checkpoint-card-kicker">SECURITY VALIDATION LOG</span>
+              <div className="cssu-checkpoint-log-list">
+                <div className="cssu-checkpoint-log-row success">
+                  <div className="cssu-checkpoint-log-message">
+                    <span className="dot" />
+                    <strong>QR Code Validated</strong>
+                  </div>
+                  <span className="time">14:41:55</span>
+                </div>
+                <div className="cssu-checkpoint-log-row success">
+                  <div className="cssu-checkpoint-log-message">
+                    <span className="dot" />
+                    <strong>System Check: No active flags</strong>
+                  </div>
+                  <span className="time">14:41:58</span>
+                </div>
+                <div className="cssu-checkpoint-log-row warning">
+                  <div className="cssu-checkpoint-log-message">
+                    <span className="dot" />
+                    <strong>Locator Slip: Verified (Official)</strong>
+                  </div>
+                  <span className="time">14:42:01</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <div className="cssu-checkpoint-actions">
+          <button type="button" className="cssu-checkpoint-btn ghost-danger">
+            <ExclamationCircleIcon color="#D72D2D" size="18" />
+            <span>Flag Incident</span>
+          </button>
+          <button type="button" className="cssu-checkpoint-btn soft-danger">
+            <RejectXIcon />
+            <span>Deny Exit</span>
+          </button>
+          <button type="button" className="cssu-checkpoint-btn success">
+            <CheckCircleIcon />
+            <span>Allow Exit</span>
+          </button>
+        </div>
+      </CSSUDesktopPage>
+    );
+  }
+
+  return <div className="mobile-container"><div className="content"><div className="header"><h1>Scan</h1></div><CSSUBottomNav active="scan" setView={setView} /></div></div>;
+};
+
+const CSSUScanView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [serverTime, setServerTime] = useState(() =>
+    new Date().toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    })
+  );
+  const [manualFacultyId, setManualFacultyId] = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [lookupError, setLookupError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [activeCandidate, setActiveCandidate] = useState(null);
+  const [lastLookupMethod, setLastLookupMethod] = useState('manual');
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setServerTime(
+        new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      );
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const runLookup = async ({ value, method }) => {
+    const trimmedValue = String(value || '').trim();
+    if (!trimmedValue) {
+      setLookupError('Enter a faculty ID or QR value first.');
+      return;
+    }
+
+    setLookupLoading(true);
+    setLookupError('');
+    setActionMessage('');
+
+    try {
+      const result = await lookupCssuExitCandidate({
+        locatorSlipCode: trimmedValue,
+        gate: 'main_gate',
+        method,
+      });
+      setActiveCandidate(result);
+      setLastLookupMethod(method);
+      setManualFacultyId(result?.locatorSlip?.locatorSlipCode || trimmedValue);
+    } catch (error) {
+      setActiveCandidate(null);
+      setLookupError(error.message || 'Unable to validate this faculty ID right now.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handleManualLookup = () => runLookup({ value: manualFacultyId, method: 'manual' });
+
+  const handleQrLookup = async () => {
+    const fallbackValue = window.prompt('Scan or enter the QR code / locator slip code value.');
+    if (!fallbackValue) return;
+    await runLookup({ value: fallbackValue, method: 'qr' });
+  };
+
+  const handleExitDecision = async (nextStatus) => {
+    if (!activeCandidate?.locatorSlip?.locatorSlipId) {
+      setLookupError('No approved locator slip is available for CSSU validation.');
+      return;
+    }
+
+    setActionLoading(true);
+    setLookupError('');
+    setActionMessage('');
+
+    try {
+      const result = await updateCssuExitStatus(activeCandidate.locatorSlip.locatorSlipId, {
+        gate: 'main_gate',
+        status: nextStatus,
+        method: lastLookupMethod,
+      });
+
+      const validationTitle = result.status === 'denied'
+        ? 'Locator Slip: Exit Denied'
+        : 'Locator Slip: Validated (Official)';
+
+      setActiveCandidate((prev) => ({
+        ...prev,
+        locatorSlip: {
+          ...prev.locatorSlip,
+          status: result.status,
+          statusLabel: result.statusLabel,
+          validatedAt: result.validatedAt,
+          validatedTimeLabel: result.validatedTimeLabel,
+          canAllowExit: false,
+          canDenyExit: false,
+          isOfficial: result.isOfficial,
+        },
+        validationLog: [
+          ...((prev?.validationLog || []).filter((item) => item.title !== 'Locator Slip: Validated (Official)' && item.title !== 'Locator Slip: Exit Denied')),
+          {
+            type: result.status === 'denied' ? 'danger' : 'success',
+            title: validationTitle,
+            timeLabel: result.validatedTimeLabel || '--',
+          },
+        ],
+      }));
+
+      setActionMessage(result.status === 'validated'
+        ? 'Locator slip is now officially validated for exit.'
+        : 'Exit has been denied and logged for CSSU review.');
+    } catch (error) {
+      setLookupError(error.message || 'Unable to update the CSSU exit decision right now.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const faculty = activeCandidate?.faculty;
+  const locatorSlip = activeCandidate?.locatorSlip;
+  const validationLog = Array.isArray(activeCandidate?.validationLog) ? activeCandidate.validationLog : [];
+  const normalizedLocatorSlipStatus = String(locatorSlip?.status || '').toLowerCase();
+  const slipVisualState = normalizedLocatorSlipStatus === 'validated'
+    ? 'validated'
+    : normalizedLocatorSlipStatus === 'denied' || normalizedLocatorSlipStatus === 'rejected'
+      ? 'denied'
+      : normalizedLocatorSlipStatus === 'pending'
+        ? 'pending'
+        : 'approved';
+
+  const renderCheckpointContent = (mobile = false) => (
+    <>
+      {mobile ? null : (
+        <div className="cssu-checkpoint-header">
+          <div className="cssu-checkpoint-time">
+            <span>LIVE SERVER TIME</span>
+            <strong>{serverTime}</strong>
+          </div>
+        </div>
+      )}
+
+      <div className="cssu-checkpoint-grid">
+        <div className="cssu-checkpoint-left">
+          {!mobile && (
+            <article className="cssu-checkpoint-scanner-card">
+              <span className="cssu-checkpoint-card-kicker">SCANNER INTERFACE</span>
+              <div className="cssu-checkpoint-scan-stage">
+                <div className="cssu-checkpoint-scan-frame">
+                  <div className="cssu-checkpoint-qr-box">
+                    <ScanQRIcon color="#79C683" />
+                  </div>
+                  <span>{lookupLoading && lastLookupMethod === 'qr' ? 'SCANNING QR...' : 'WAITING FOR SCAN'}</span>
+                </div>
+              </div>
+            </article>
+          )}
+
+          <article className="cssu-checkpoint-manual-card">
+              <span className="cssu-checkpoint-card-kicker">{mobile ? 'LOOKUP ENTRY' : 'MANUAL ENTRY'}</span>
+              <div className="cssu-checkpoint-manual-row">
+                <input
+                  type="text"
+                  className="cssu-checkpoint-manual-input"
+                  placeholder="Enter Locator Slip Code (e.g. LS-8F3K2A)"
+                  value={manualFacultyId}
+                  onChange={(event) => setManualFacultyId(event.target.value)}
+                />
+                <button type="button" className="cssu-checkpoint-search-btn" aria-label="Search locator slip code" onClick={handleManualLookup} disabled={lookupLoading}>
+                  <FacultySearchIcon />
+                </button>
+              </div>
+            {mobile && (
+              <button type="button" className="cssu-checkpoint-qr-trigger" onClick={handleQrLookup} disabled={lookupLoading}>
+                <ScanQRIcon color="var(--green)" />
+                <span>Scan QR</span>
+              </button>
+            )}
+          </article>
+        </div>
+
+        <div className="cssu-checkpoint-right">
+          <article className="cssu-checkpoint-profile-card">
+            <div className="cssu-checkpoint-profile-top">
+              <div className="cssu-checkpoint-profile-avatar">
+                <img src={DEFAULT_PROFILE_IMAGE} alt={faculty?.facultyName || 'Faculty'} />
+              </div>
+              <div className="cssu-checkpoint-profile-copy">
+                <span className="cssu-checkpoint-card-kicker">FACULTY PROFILE</span>
+                <h2>{faculty?.facultyName || 'Awaiting Faculty Lookup'}</h2>
+                <p>{faculty?.departmentName || 'Search or scan a faculty ID to fetch the assigned locator slip.'}</p>
+              </div>
+            </div>
+
+              <div className="cssu-checkpoint-profile-meta">
+                <div>
+                  <span>FACULTY ID</span>
+                  <strong>{faculty?.facultyId || '--'}</strong>
+                </div>
+                <div>
+                  <span>LOCATOR SLIP CODE</span>
+                  <strong>{locatorSlip?.locatorSlipCode || '--'}</strong>
+                </div>
+                <div>
+                  <span>TYPE</span>
+                  <strong>{faculty?.employmentTypeLabel || '--'}</strong>
+                </div>
+                <div>
+                  <span>PURPOSE</span>
+                  <strong>{locatorSlip?.purpose || '--'}</strong>
+                </div>
+                <div>
+                  <span>DESTINATION</span>
+                  <strong>{locatorSlip?.destination || '--'}</strong>
+                </div>
+                <div>
+                  <span>DEPARTURE</span>
+                  <strong>{locatorSlip?.departureTime ? formatStatusDateTime(locatorSlip.departureTime) : '--'}</strong>
+                </div>
+                <div>
+                  <span>EXPECTED RETURN</span>
+                  <strong>{locatorSlip?.expectedReturnTime ? formatStatusDateTime(locatorSlip.expectedReturnTime) : '--'}</strong>
+                </div>
+              </div>
+
+            <div className={`cssu-checkpoint-slip-status ${slipVisualState}`}>
+              <div className={`cssu-checkpoint-slip-icon ${slipVisualState}`}>
+                <CssuRosetteCheckIcon color={slipVisualState === 'denied' ? '#D72D2D' : slipVisualState === 'pending' ? '#C28C02' : 'var(--green)'} />
+              </div>
+              <div className="cssu-checkpoint-slip-copy">
+                <span>LOCATOR SLIP STATUS</span>
+                <strong>{locatorSlip?.statusLabel || 'WAITING FOR LOOKUP'}</strong>
+              </div>
+              <div className={`cssu-checkpoint-slip-done ${slipVisualState}`}>
+                <CheckCircleSolidIcon color={slipVisualState === 'pending' ? '#E7B825' : slipVisualState === 'denied' ? '#D72D2D' : 'var(--green)'} size="40" />
+              </div>
+            </div>
+          </article>
+
+          <article className="cssu-checkpoint-log-card">
+            <span className="cssu-checkpoint-card-kicker">SECURITY VALIDATION LOG</span>
+            <div className="cssu-checkpoint-log-list">
+              {validationLog.length === 0 && (
+                <div className="cssu-checkpoint-log-empty">Lookup a faculty ID or QR value to begin CSSU exit verification.</div>
+              )}
+
+              {validationLog.map((item, index) => (
+                <div key={`${item.title}-${index}`} className={`cssu-checkpoint-log-row ${item.type === 'danger' ? 'danger' : item.type === 'warning' ? 'warning' : 'success'}`}>
+                  <div className="cssu-checkpoint-log-message">
+                    <span className="dot" />
+                    <strong>{item.title}</strong>
+                  </div>
+                  <span className="time">{item.timeLabel}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        </div>
+      </div>
+
+      {(lookupError || actionMessage) && (
+        <div className={`cssu-checkpoint-inline-alert ${lookupError ? 'error' : 'success'}`}>
+          {lookupError || actionMessage}
+        </div>
+      )}
+
+      <div className="cssu-checkpoint-actions">
+        <button type="button" className="cssu-checkpoint-btn ghost-danger">
+          <ExclamationCircleIcon color="#D72D2D" size="18" />
+          <span>Flag Incident</span>
+        </button>
+        <button
+          type="button"
+          className="cssu-checkpoint-btn soft-danger"
+          onClick={() => handleExitDecision('denied')}
+          disabled={!locatorSlip?.canDenyExit || actionLoading}
+        >
+          <RejectXIcon />
+          <span>{actionLoading ? 'Updating...' : 'Deny Exit'}</span>
+        </button>
+        <button
+          type="button"
+          className="cssu-checkpoint-btn success"
+          onClick={() => handleExitDecision('validated')}
+          disabled={!locatorSlip?.canAllowExit || actionLoading}
+        >
+          <CheckCircleIcon />
+          <span>{actionLoading ? 'Updating...' : 'Allow Exit'}</span>
+        </button>
+      </div>
+    </>
+  );
+
+  if (isDesktopViewport) {
+    return (
+      <CSSUDesktopPage
+        activeKey="scan"
+        title="Exit Verification"
+        subtitle="Central Campus Security Unit"
+        setView={setView}
+        profileData={profileData}
+        onLogout={onLogout}
+      >
+        {renderCheckpointContent(false)}
+      </CSSUDesktopPage>
+    );
+  }
+
+  return (
+    <div className="mobile-container">
+      <div className="content cssu-checkpoint-mobile-content">
+        <div className="header">
+          <h1>Exit Verification</h1>
+          <p className="map-subtitle">Enter a locator slip code manually or use QR lookup on mobile.</p>
+        </div>
+        <div className="cssu-checkpoint-mobile-shell">
+          {renderCheckpointContent(true)}
+        </div>
+        <CSSUBottomNav active="scan" setView={setView} />
+      </div>
+    </div>
+  );
+};
+
+const CSSUReportsView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const startDateInputRef = useRef(null);
+  const endDateInputRef = useRef(null);
+
+  const cssuDepartmentOptions = [
+    { value: 'all', label: 'All Departments' },
+    { value: 'College of Education, Arts and Sciences', label: 'College of Education, Arts and Sciences' },
+    { value: 'College of Hospitality and Tourism Management', label: 'College of Hospitality and Tourism Management' },
+    { value: 'College of Business and Accountancy', label: 'College of Business and Accountancy' },
+    { value: 'College of Allied Health Studies', label: 'College of Allied Health Studies' },
+    { value: 'College of Computer Studies', label: 'College of Computer Studies' },
+  ];
+
+  const formatCssuDate = (value) => {
+    if (!value) return 'mm/dd/yyyy';
+
+    const date = new Date(`${value}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return 'mm/dd/yyyy';
+
+    return date.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    });
+  };
+
+  const openDatePicker = (inputRef) => {
+    const input = inputRef?.current;
+    if (!input) return;
+    if (typeof input.showPicker === 'function') {
+      input.showPicker();
+    } else {
+      input.focus();
+      input.click();
+    }
+  };
+
+  if (isDesktopViewport) {
+    return (
+      <CSSUDesktopPage
+        activeKey="reports"
+        title="Report Generation"
+        subtitle="Movement data synchronization for Human Resource Management Unit (HRMU)."
+        setView={setView}
+        profileData={profileData}
+        onLogout={onLogout}
+      >
+        <div className="cssu-reports-toolbar">
+          <button type="button" className="cssu-reports-tool-btn">
+            <RegistryDownloadIcon />
+            <span>Export PDF</span>
+          </button>
+          <button type="button" className="cssu-reports-tool-btn">
+            <RegistryDownloadIcon />
+            <span>Export CSV</span>
+          </button>
+          <button type="button" className="cssu-reports-send-btn">
+            <SendIcon />
+            <span>Send to HRMU</span>
+          </button>
+        </div>
+
+        <div className="cssu-reports-filter-row">
+          <div className="cssu-reports-filter-field">
+            <label>START DATE</label>
+            <button type="button" className="cssu-reports-date-toggle" onClick={() => openDatePicker(startDateInputRef)}>
+              <ClockIcon color="var(--green)" />
+              <span>{formatCssuDate(startDate)}</span>
+            </button>
+            <input
+              ref={startDateInputRef}
+              type="date"
+              className="cssu-reports-date-native"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              aria-label="Start date"
+            />
+          </div>
+
+          <div className="cssu-reports-filter-field">
+            <label>END DATE</label>
+            <button type="button" className="cssu-reports-date-toggle" onClick={() => openDatePicker(endDateInputRef)}>
+              <ClockIcon color="var(--green)" />
+              <span>{formatCssuDate(endDate)}</span>
+            </button>
+            <input
+              ref={endDateInputRef}
+              type="date"
+              className="cssu-reports-date-native"
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              aria-label="End date"
+            />
+          </div>
+
+          <div className="cssu-reports-filter-field department">
+            <label>DEPARTMENT</label>
+            <div className="cssu-reports-select-shell">
+              <GlobeSmIcon color="var(--green)" />
+              <select
+                value={selectedDepartment}
+                onChange={(event) => setSelectedDepartment(event.target.value)}
+                aria-label="Department"
+              >
+                {cssuDepartmentOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <ChevronDownIcon />
+            </div>
+          </div>
+
+          <button type="button" className="cssu-reports-generate-btn">
+            <PlayTriangleIcon />
+            <span>Generate</span>
+          </button>
+        </div>
+
+        <div className="cssu-reports-grid">
+          <section className="cssu-reports-preview-card">
+            <div className="cssu-reports-preview-head">
+              <div>
+                <h2>
+                  <FileTextIcon color="var(--green)" />
+                  <span>Movement Logs Preview</span>
+                </h2>
+                <p>Displaying data for Oct 01 - Oct 15, 2023</p>
+              </div>
+              <span className="cssu-reports-draft-pill">DRAFT REPORT</span>
+            </div>
+
+            <div className="cssu-reports-preview-list">
+              <article className="cssu-reports-preview-row">
+                <div className="cssu-reports-preview-avatar">
+                  <PersonOutlineIcon color="var(--green)" />
+                </div>
+                <div className="cssu-reports-preview-copy">
+                  <strong>Dr. Elena Rodriguez</strong>
+                  <p>Engineering • Exit Logs • 08:45 AM</p>
+                </div>
+                <span className="cssu-reports-preview-status verified">VERIFIED</span>
+                <span className="cssu-reports-preview-place">Gate 4 Entrance</span>
+              </article>
+
+              <article className="cssu-reports-preview-row">
+                <div className="cssu-reports-preview-avatar">
+                  <PersonOutlineIcon color="var(--green)" />
+                </div>
+                <div className="cssu-reports-preview-copy">
+                  <strong>Prof. Marcus Thorne</strong>
+                  <p>Science • Faculty Movement • 11:20 AM</p>
+                </div>
+                <span className="cssu-reports-preview-status verified">VERIFIED</span>
+                <span className="cssu-reports-preview-place">Lab B-12 Internal</span>
+              </article>
+
+              <article className="cssu-reports-preview-row flagged">
+                <div className="cssu-reports-preview-avatar flagged">
+                  <ExclamationCircleIcon color="#C81E1E" size="24" />
+                </div>
+                <div className="cssu-reports-preview-copy">
+                  <strong>Unauthorized Access Attempt</strong>
+                  <p>Admin Wing • External ID • 01:15 PM</p>
+                </div>
+                <span className="cssu-reports-preview-status flagged">FLAGGED</span>
+                <span className="cssu-reports-preview-place flagged">Investigation Req.</span>
+              </article>
+
+              <article className="cssu-reports-preview-row">
+                <div className="cssu-reports-preview-avatar">
+                  <PersonOutlineIcon color="var(--green)" />
+                </div>
+                <div className="cssu-reports-preview-copy">
+                  <strong>Sarah Jenkins (Staff)</strong>
+                  <p>Registrar • Exit Clearance • 04:30 PM</p>
+                </div>
+                <span className="cssu-reports-preview-status verified">VERIFIED</span>
+                <span className="cssu-reports-preview-place">Main Lobby Exit</span>
+              </article>
+            </div>
+
+            <button type="button" className="cssu-reports-load-link">LOAD MORE RECORDS</button>
+          </section>
+
+          <aside className="cssu-reports-side-stack">
+            <article className="cssu-reports-summary-card">
+              <span>TOTAL MOVEMENTS</span>
+              <strong>1,284</strong>
+              <p>Significant +12% increase from previous period</p>
+
+              <div className="cssu-reports-summary-metrics">
+                <div><label>Faculty Entries</label><b>842</b></div>
+                <div><label>Exit Clearances</label><b>312</b></div>
+                <div className="flagged"><label>Flagged Events</label><b>14</b></div>
+              </div>
+            </article>
+
+            <article className="cssu-reports-activity-card">
+              <span>ACTIVITY BY DEPT.</span>
+              <div className="cssu-reports-activity-list">
+                <div className="cssu-reports-activity-row">
+                  <div className="cssu-reports-activity-labels"><strong>Engineering</strong><b>45%</b></div>
+                  <div className="cssu-reports-activity-track"><div style={{ width: '45%' }} /></div>
+                </div>
+                <div className="cssu-reports-activity-row">
+                  <div className="cssu-reports-activity-labels"><strong>Management</strong><b>30%</b></div>
+                  <div className="cssu-reports-activity-track"><div style={{ width: '30%' }} /></div>
+                </div>
+                <div className="cssu-reports-activity-row">
+                  <div className="cssu-reports-activity-labels"><strong>Research</strong><b>25%</b></div>
+                  <div className="cssu-reports-activity-track"><div style={{ width: '25%' }} /></div>
+                </div>
+              </div>
+            </article>
+
+            <article className="cssu-reports-banner-card">
+              <div className="cssu-reports-banner-overlay" />
+              <span>SYSTEM INTEGRITY</span>
+              <h3>CCSU Security &amp; Movement Hub</h3>
+            </article>
+          </aside>
+        </div>
+
+        <footer className="cssu-reports-footer">
+          <div className="cssu-reports-footer-note">
+            <CheckCircleSolidIcon color="var(--green)" size="20" />
+            <span>ALL DATA IS ENCRYPTED AND COMPLIES WITH GORDON COLLEGE PRIVACY POLICIES.</span>
+          </div>
+          <div className="cssu-reports-footer-meta">
+            <strong>Report ID: EDU-2023-OCT-094</strong>
+            <span>Last Generated: Oct 15, 2023 at 05:42 PM</span>
+          </div>
+        </footer>
+      </CSSUDesktopPage>
+    );
+  }
+
+  return <div className="mobile-container"><div className="content"><div className="header"><h1>Reports</h1></div><CSSUBottomNav active="reports" setView={setView} /></div></div>;
+};
+
 const AdminProfileView = ({ setView, profileData }) => {
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">
-        
+
         {/* Header */}
         <div className="admin-header">
           <div className="anotif-header-left">
@@ -11217,7 +13416,7 @@ const AdminProfileView = ({ setView, profileData }) => {
 
           <div className="aprof-section">
             <h3 className="aprof-section-title">ACCOUNT ADMINISTRATION</h3>
-            
+
             <div className="aprof-menu">
               <div className="aprof-menu-item" onClick={() => setView('admin-edit-profile')}>
                 <div className="aprof-menu-icon-box">
@@ -11226,7 +13425,7 @@ const AdminProfileView = ({ setView, profileData }) => {
                 <span className="aprof-menu-text">Edit Profile</span>
                 <AdminProfileChevronIcon />
               </div>
-              
+
               <div className="aprof-menu-item" onClick={() => setView('admin-change-password')}>
                 <div className="aprof-menu-icon-box">
                   <AdminProfilePasswordIcon />
@@ -11282,7 +13481,7 @@ const AdminEditProfileView = ({ setView, profileData }) => {
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">
-        
+
         {/* Header */}
         <div className="admin-header">
           <div className="anotif-header-left">

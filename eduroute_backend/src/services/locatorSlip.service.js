@@ -7,6 +7,134 @@ const notificationService = require('./notification.service');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
+const QR_VISIBLE_SLIP_STATUSES = new Set(['pending', 'approved', 'verified']);
+let locatorSlipTripStatusColumnExistsCache = null;
+let tripsLocatorSlipIdColumnExistsCache = null;
+const tripsColumnExistsCache = {};
+let locatorSlipCodeColumnExistsCache = null;
+let qrGeneratedAtColumnExistsCache = null;
+let cssuValidationColumnsExistsCache = null;
+
+const LOCATOR_SLIP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+const getLocatorSlipTripStatusColumnExists = async () => {
+    if (locatorSlipTripStatusColumnExistsCache !== null) {
+        return locatorSlipTripStatusColumnExistsCache;
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'locator_slips'
+              AND column_name = 'trip_status'
+        ) AS exists`
+    );
+
+    locatorSlipTripStatusColumnExistsCache = Boolean(rows[0]?.exists);
+    return locatorSlipTripStatusColumnExistsCache;
+};
+
+const getTripsLocatorSlipIdColumnExists = async () => {
+    if (tripsLocatorSlipIdColumnExistsCache !== null) {
+        return tripsLocatorSlipIdColumnExistsCache;
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'trips'
+              AND column_name = 'locator_slip_id'
+        ) AS exists`
+    );
+
+    tripsLocatorSlipIdColumnExistsCache = Boolean(rows[0]?.exists);
+    return tripsLocatorSlipIdColumnExistsCache;
+};
+
+const getTripsColumnExists = async (columnName) => {
+    if (Object.prototype.hasOwnProperty.call(tripsColumnExistsCache, columnName)) {
+        return tripsColumnExistsCache[columnName];
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'trips'
+              AND column_name = $1
+        ) AS exists`,
+        [columnName]
+    );
+
+    tripsColumnExistsCache[columnName] = Boolean(rows[0]?.exists);
+    return tripsColumnExistsCache[columnName];
+};
+
+const getLocatorSlipColumnExists = async (columnName) => {
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'locator_slips'
+              AND column_name = $1
+        ) AS exists`,
+        [columnName]
+    );
+
+    return Boolean(rows[0]?.exists);
+};
+
+const getLocatorSlipCodeColumnExists = async () => {
+    if (locatorSlipCodeColumnExistsCache !== null) {
+        return locatorSlipCodeColumnExistsCache;
+    }
+
+    locatorSlipCodeColumnExistsCache = await getLocatorSlipColumnExists('locator_slip_code');
+    return locatorSlipCodeColumnExistsCache;
+};
+
+const getQrGeneratedAtColumnExists = async () => {
+    if (qrGeneratedAtColumnExistsCache !== null) {
+        return qrGeneratedAtColumnExistsCache;
+    }
+
+    qrGeneratedAtColumnExistsCache = await getLocatorSlipColumnExists('qr_generated_at');
+    return qrGeneratedAtColumnExistsCache;
+};
+
+const getCssuValidationColumnsExists = async () => {
+    if (cssuValidationColumnsExistsCache !== null) {
+        return cssuValidationColumnsExistsCache;
+    }
+
+    const [validatedAt, validationStatus, validationNotes] = await Promise.all([
+        getLocatorSlipColumnExists('cssu_validated_at'),
+        getLocatorSlipColumnExists('cssu_validation_status'),
+        getLocatorSlipColumnExists('cssu_validation_notes')
+    ]);
+
+    cssuValidationColumnsExistsCache = validatedAt && validationStatus && validationNotes;
+    return cssuValidationColumnsExistsCache;
+};
+
+const generateShortLocatorSlipCode = () => {
+    let suffix = '';
+
+    for (let index = 0; index < 6; index += 1) {
+        const randomIndex = Math.floor(Math.random() * LOCATOR_SLIP_CODE_ALPHABET.length);
+        suffix += LOCATOR_SLIP_CODE_ALPHABET[randomIndex];
+    }
+
+    return `LS-${suffix}`;
+};
+
+const LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS = 4 * 60 * 60;
 
 const locatorSlipColumns = `
     ls.id,
@@ -23,6 +151,8 @@ const locatorSlipColumns = `
     ls.additional_remarks,
     ls.is_urgent,
     ls.status,
+    resolved_trip.trip_status,
+    resolved_trip.trip_id,
     ls.created_at,
     ls.updated_at
 `;
@@ -46,9 +176,78 @@ const formatLocatorSlip = (row) => ({
     additional_remarks: row.additional_remarks,
     is_urgent: row.is_urgent === true,
     status: row.status,
+    locator_slip_code: row.locator_slip_code || null,
+    qr_generated_at: row.qr_generated_at || null,
+    cssu_validated_at: row.cssu_validated_at || null,
+    cssu_validation_status: row.cssu_validation_status || null,
+    cssu_validation_notes: row.cssu_validation_notes || null,
+    qr_visible: QR_VISIBLE_SLIP_STATUSES.has(String(row.status || '').toLowerCase()),
+    trip_status: row.trip_status || 'not_started',
+    trip_id: row.trip_id || null,
     created_at: row.created_at,
     updated_at: row.updated_at
 });
+
+const buildLocatorSlipTripJoin = ({ hasTripsLocatorSlipIdColumn, hasReturnedAtColumn, hasEndedAtColumn }) => {
+    const tripCompletionCheck = [
+        hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
+        hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null,
+        `trip.status = 'completed'`
+    ].filter(Boolean).join(' OR ');
+
+    const tripCompletedSortCheck = [
+        hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
+        hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null,
+        `trip.status = 'completed'`
+    ].filter(Boolean).join(' OR ');
+
+    const tripRecencyExpression = [
+        hasEndedAtColumn ? 'trip.ended_at' : null,
+        hasReturnedAtColumn ? 'trip.returned_at' : null,
+        'trip.started_at',
+        'trip.created_at'
+    ].filter(Boolean).join(', ');
+
+    return `
+    LEFT JOIN LATERAL (
+        SELECT
+            trip.id AS trip_id,
+            CASE
+                WHEN ${tripCompletionCheck} THEN 'completed'
+                ELSE trip.status
+            END AS trip_status
+        FROM trips trip
+        WHERE trip.user_id = ls.faculty_user_id
+          AND ls.status IN ('approved', 'verified', 'completed')
+          ${hasTripsLocatorSlipIdColumn
+            ? `AND (
+                trip.locator_slip_id = ls.id
+                OR (
+                    trip.locator_slip_id IS NULL
+                    AND ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}
+                )
+            )`
+            : `AND ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}`}
+        ORDER BY
+            CASE
+                WHEN ${tripCompletedSortCheck} THEN 0
+                ELSE 1
+            END,
+            ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) ASC,
+            COALESCE(${tripRecencyExpression}) DESC
+        LIMIT 1
+    ) resolved_trip ON TRUE
+`;
+};
+
+const getResolvedTripStatusSelect = (hasLocatorSlipTripStatusColumn) => (
+    hasLocatorSlipTripStatusColumn
+        ? `CASE
+            WHEN COALESCE(resolved_trip.trip_status, '') = 'completed' OR COALESCE(ls.trip_status, '') = 'completed' THEN 'completed'
+            ELSE COALESCE(ls.trip_status, resolved_trip.trip_status, 'not_started')
+        END AS trip_status`
+        : `COALESCE(resolved_trip.trip_status, 'not_started') AS trip_status`
+);
 
 const getFacultyProfile = async (facultyUserId) => {
     const query = `
@@ -100,37 +299,73 @@ const createLocatorSlip = async (facultyUserId, payload) => {
 
         const faculty = facultyResult.rows[0];
 
-        const query = `
-            INSERT INTO locator_slips (
-                faculty_user_id,
-                college_id,
+        const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
+        const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
+
+        let insertedSlip = null;
+        let lastInsertError = null;
+
+        for (let attempt = 0; attempt < 5; attempt += 1) {
+            const generatedCode = hasLocatorSlipCodeColumn ? generateShortLocatorSlipCode() : null;
+            const insertColumns = [
+                'faculty_user_id',
+                'college_id',
+                'destination',
+                'purpose_of_travel',
+                'custom_purpose',
+                'departure_datetime',
+                'expected_return_datetime',
+                'additional_remarks',
+                'is_urgent',
+                'status',
+            ];
+            const insertValues = [
+                facultyUserId,
+                faculty.department_id,
                 destination,
-                purpose_of_travel,
-                custom_purpose,
-                departure_datetime,
-                expected_return_datetime,
-                additional_remarks,
-                is_urgent,
-                status
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending')
-            RETURNING *
-        `;
+                purposeOfTravel,
+                customPurpose,
+                payload.departure_datetime,
+                payload.expected_return_datetime,
+                additionalRemarks,
+                isUrgent,
+                'pending'
+            ];
 
-        const values = [
-            facultyUserId,
-            faculty.department_id,
-            destination,
-            purposeOfTravel,
-            customPurpose,
-            payload.departure_datetime,
-            payload.expected_return_datetime,
-            additionalRemarks,
-            isUrgent
-        ];
+            if (hasLocatorSlipCodeColumn) {
+                insertColumns.push('locator_slip_code');
+                insertValues.push(generatedCode);
+            }
 
-        const { rows } = await client.query(query, values);
-        const insertedSlip = rows[0];
+            if (hasQrGeneratedAtColumn) {
+                insertColumns.push('qr_generated_at');
+                insertValues.push(new Date().toISOString());
+            }
+
+            const placeholders = insertValues.map((_, index) => `$${index + 1}`).join(', ');
+
+            try {
+                const { rows } = await client.query(
+                    `INSERT INTO locator_slips (${insertColumns.join(', ')})
+                     VALUES (${placeholders})
+                     RETURNING *`,
+                    insertValues
+                );
+                insertedSlip = rows[0];
+                break;
+            } catch (error) {
+                if (hasLocatorSlipCodeColumn && error.code === '23505' && String(error.constraint || '').includes('locator_slip_code')) {
+                    lastInsertError = error;
+                    continue;
+                }
+
+                throw error;
+            }
+        }
+
+        if (!insertedSlip) {
+            throw lastInsertError || new AppError('Unable to generate a unique locator slip code.', 500);
+        }
 
         const notificationPayload = {
             ...insertedSlip,
@@ -164,29 +399,77 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
         throw new AppError('Locator slip status filter is invalid.', 400);
     }
 
+    const hasLocatorSlipTripStatusColumn = await getLocatorSlipTripStatusColumnExists();
+    const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
+    const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
+    const hasEndedAtColumn = await getTripsColumnExists('ended_at');
+    const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
+    const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
+    const hasCssuValidationColumns = await getCssuValidationColumnsExists();
+    const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
+    const locatorSlipTripJoin = buildLocatorSlipTripJoin({
+        hasTripsLocatorSlipIdColumn,
+        hasReturnedAtColumn,
+        hasEndedAtColumn
+    });
+    const completedFilter = status === 'completed'
+        ? `AND (${hasLocatorSlipTripStatusColumn ? `COALESCE(ls.trip_status, resolved_trip.trip_status, 'not_started') = 'completed'` : `COALESCE(resolved_trip.trip_status, 'not_started') = 'completed'`})`
+        : '';
+    const statusFilter = status && status !== 'completed'
+        ? `AND ls.status = $2`
+        : '';
+
     const query = `
-        SELECT ${locatorSlipColumns}
+        SELECT
+            ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
+            ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
+            ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
+            ${hasCssuValidationColumns ? ', ls.cssu_validated_at, ls.cssu_validation_status, ls.cssu_validation_notes' : ", NULL::timestamp AS cssu_validated_at, NULL::text AS cssu_validation_status, NULL::text AS cssu_validation_notes"}
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = fu.department_id
+        ${locatorSlipTripJoin}
         WHERE ls.faculty_user_id = $1
-          AND (
-            ($2::varchar IS NULL AND ls.status <> 'cancelled')
-            OR ls.status = $2
-          )
+          AND ls.status <> 'cancelled'
+          ${statusFilter}
+          ${completedFilter}
         ORDER BY ls.created_at DESC
     `;
 
-    const { rows } = await pool.query(query, [facultyUserId, status]);
+    const queryParams = [facultyUserId];
+    if (status && status !== 'completed') {
+        queryParams.push(status);
+    }
+
+    const { rows } = await pool.query(query, queryParams);
     return rows.map(formatLocatorSlip);
 };
 
 const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
+    const hasLocatorSlipTripStatusColumn = await getLocatorSlipTripStatusColumnExists();
+    const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
+    const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
+    const hasEndedAtColumn = await getTripsColumnExists('ended_at');
+    const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
+    const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
+    const hasCssuValidationColumns = await getCssuValidationColumnsExists();
+    const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
+    const locatorSlipTripJoin = buildLocatorSlipTripJoin({
+        hasTripsLocatorSlipIdColumn,
+        hasReturnedAtColumn,
+        hasEndedAtColumn
+    });
+
     const query = `
-        SELECT ${locatorSlipColumns}
+        SELECT
+            ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
+            ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
+            ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
+            ${hasCssuValidationColumns ? ', ls.cssu_validated_at, ls.cssu_validation_status, ls.cssu_validation_notes' : ", NULL::timestamp AS cssu_validated_at, NULL::text AS cssu_validation_status, NULL::text AS cssu_validation_notes"}
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = fu.department_id
+        ${locatorSlipTripJoin}
         WHERE ls.id = $1
           AND ls.faculty_user_id = $2
         LIMIT 1

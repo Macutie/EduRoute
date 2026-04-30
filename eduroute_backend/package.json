@@ -17,7 +17,10 @@
         "migrate:hrmu-dashboard": "node scripts/run-sql-file.js sql/hrmu_dashboard.sql",
         "migrate:hrmu-analytics": "node scripts/run-sql-file.js sql/hrmu_analytics.sql",
         "migrate:hrmu-live-tracking": "node scripts/run-sql-file.js sql/hrmu_live_tracking.sql",
-        "migrate:hrmu-reports-incidents": "node scripts/run-sql-file.js sql/hrmu_reports_incidents.sql"
+        "migrate:hrmu-reports-incidents": "node scripts/run-sql-file.js sql/hrmu_reports_incidents.sql",
+        "migrate:faculty-trip-flow": "node scripts/run-sql-file.js sql/faculty_trip_flow.sql",
+        "migrate:cssu-dashboard": "node scripts/run-sql-file.js sql/cssu_dashboard.sql",
+        "migrate:locator-slip-qr": "node scripts/run-sql-file.js sql/locator_slip_qr.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",
