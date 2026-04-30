@@ -19,6 +19,33 @@ const getLiveExitMonitoring = async (req, res, next) => {
     }
 };
 
+const getIncidentOverview = async (req, res, next) => {
+    try {
+        const incidents = await cssuDashboardService.getIncidentOverview();
+        return res.json(successResponse('CSSU incidents overview fetched successfully.', incidents));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getNotificationsOverview = async (req, res, next) => {
+    try {
+        const notifications = await cssuDashboardService.getNotificationsOverview(req.query);
+        return res.json(successResponse('CSSU notifications fetched successfully.', notifications));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getReportsOverview = async (req, res, next) => {
+    try {
+        const reports = await cssuDashboardService.getReportsOverview(req.query);
+        return res.json(successResponse('CSSU reports overview fetched successfully.', reports));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const lookupExitCandidate = async (req, res, next) => {
     try {
         const result = await cssuDashboardService.lookupExitCandidate(req.query);
@@ -39,7 +66,10 @@ const updateExitLogStatus = async (req, res, next) => {
 
 module.exports = {
     getSummary,
+    getIncidentOverview,
     getLiveExitMonitoring,
+    getNotificationsOverview,
+    getReportsOverview,
     lookupExitCandidate,
     updateExitLogStatus,
 };

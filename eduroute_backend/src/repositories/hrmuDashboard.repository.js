@@ -48,7 +48,7 @@ const buildCollegeFilter = (filters = {}, startingIndex = 2) => {
     };
 };
 
-const getHrmuUserContext = async (userId) => {
+const getHrmuUserContext = async (userId, allowedRoles = HRMU_ALLOWED_ROLES) => {
     const { rows } = await pool.query(
         `SELECT
             id,
@@ -60,7 +60,7 @@ const getHrmuUserContext = async (userId) => {
            AND account_role = ANY($2::text[])
            AND status = 'active'
          LIMIT 1`,
-        [userId, HRMU_ALLOWED_ROLES]
+        [userId, allowedRoles]
     );
 
     return rows[0] || null;

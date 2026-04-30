@@ -50,10 +50,10 @@ const normalizeSpeedKmh = (speed) => {
 };
 
 const assertHrmuUser = async (userId) => {
-    const user = await hrmuDashboardRepository.getHrmuUserContext(userId);
+    const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['hrmu', 'admin', 'cssu']);
 
     if (!user) {
-        throw new AppError('Only HRMU and admin users can access HRMU live tracking.', 403);
+        throw new AppError('Only HRMU, CSSU, and admin users can access live tracking.', 403);
     }
 
     return user;

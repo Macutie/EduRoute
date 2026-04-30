@@ -30,7 +30,10 @@ import {
 } from './services/hrmuApi';
 import {
   getCssuDashboardSummary,
+  getCssuIncidentsOverview,
   getCssuLiveExitMonitoring,
+  getCssuNotificationsOverview,
+  getCssuReportsOverview,
   lookupCssuExitCandidate,
   updateCssuExitStatus,
 } from './services/cssuApi';
@@ -72,6 +75,35 @@ const getDefaultViewForRole = (role) => {
   return 'dashboard';
 };
 
+const getPortalHomeViewForRole = (role) => {
+  if (role === 'hrmu') return 'hrmu-dashboard';
+  if (role === 'cssu') return 'cssu-dashboard';
+  if (role === 'admin') return 'admin-dashboard';
+  return 'dashboard';
+};
+
+const getPortalNotificationsViewForRole = (role) => {
+  if (role === 'hrmu') return 'hrmu-notifications';
+  if (role === 'cssu') return 'cssu-notifications';
+  if (role === 'admin') return 'admin-notifications';
+  return 'admin-notifications';
+};
+
+const getPortalBadgeLabel = (role) => {
+  if (role === 'hrmu') return 'HRMU ADMIN';
+  if (role === 'cssu') return 'CSSU ADMIN';
+  if (role === 'admin') return 'ADMIN';
+  return 'PORTAL';
+};
+
+const getPortalPositionLabel = (profileData = {}) => {
+  if (profileData?.position) return profileData.position;
+  if (profileData?.accountRole === 'hrmu') return 'HRMU Manager';
+  if (profileData?.accountRole === 'cssu') return 'System Registrar';
+  if (profileData?.accountRole === 'admin') return 'Administrator';
+  return 'Portal User';
+};
+
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
   const [view, setView] = useState(() => {
@@ -87,6 +119,7 @@ function App() {
     fullName: 'Faculty User',
     employeeId: '',
     department: 'Faculty Department',
+    position: '',
     email: '',
     image: DEFAULT_PROFILE_IMAGE,
     accountRole: '',
@@ -325,6 +358,7 @@ function App() {
           fullName: data.data.full_name || 'Faculty User',
           employeeId: data.data.employee_id || '',
           department: data.data.department_name || 'Faculty Department',
+          position: data.data.position || data.data.department_position || data.data.job_title || '',
           email: data.data.email || '',
           image: data.data.profile_image_url || DEFAULT_PROFILE_IMAGE,
           accountRole: databaseRole,
@@ -424,6 +458,7 @@ function App() {
         fullName: data.data.user?.full_name || 'Faculty User',
         employeeId: data.data.user?.employee_id || '',
         department: data.data.user?.department_name || 'Faculty Department',
+        position: data.data.user?.position || data.data.user?.department_position || data.data.user?.job_title || '',
         email: data.data.user?.email || '',
         image: data.data.user?.profile_image_url || DEFAULT_PROFILE_IMAGE,
         accountRole: data.data.user?.account_role || '',
@@ -451,6 +486,7 @@ function App() {
       fullName: 'Faculty User',
       employeeId: '',
       department: 'Faculty Department',
+      position: '',
       email: '',
       image: DEFAULT_PROFILE_IMAGE,
       accountRole: '',
@@ -664,11 +700,15 @@ function App() {
     'hrmu-reports',
     'hrmu-live',
     'hrmu-notifications',
+    'admin-profile',
+    'admin-edit-profile',
+    'admin-change-password',
     'cssu-dashboard',
     'cssu-map',
     'cssu-incidents',
     'cssu-scan',
     'cssu-reports',
+    'cssu-notifications',
   ];
 
   return (
@@ -836,6 +876,7 @@ function App() {
       {view === 'cssu-incidents' && <CSSUIncidentsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-scan' && <CSSUScanView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-reports' && <CSSUReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
+      {view === 'cssu-notifications' && <CSSUNotificationsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'admin-notifications' && <AdminNotificationsView setView={setView} profileData={profileData} />}
       {view === 'admin-approval-requests' && (
         <AdminApprovalRequestsView
@@ -853,7 +894,20 @@ function App() {
       )}
       {view === 'admin-registry' && <AdminRegistryView setView={setView} profileData={profileData} />}
       {view === 'admin-faculty' && <AdminFacultyView setView={setView} profileData={profileData} />}
-      {view === 'admin-profile' && <AdminProfileView setView={setView} profileData={profileData} />}
+      {view === 'admin-profile' && <AdminProfileView setView={setView} profileData={profileData} onLogout={() => {
+        const role = profileData?.accountRole;
+        if (role === 'hrmu') {
+          requestPortalLogout('hrmu');
+          return;
+        }
+        if (role === 'cssu') {
+          requestPortalLogout('cssu');
+          return;
+        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('edurouteLastView');
+        setView('login');
+      }} />}
       {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" />}
       {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
 
@@ -4034,19 +4088,6 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 SHOW QR CODE
               </button>
             )}
-            {!isCompleted && (
-              <button
-                type="button"
-                className="approved-verify-location-btn"
-                onClick={() => {
-                  localStorage.setItem('edurouteVerifySlipId', slip.id);
-                  localStorage.setItem('edurouteLastView', 'scan');
-                  setView('scan');
-                }}
-              >
-                VERIFY LOCATION
-              </button>
-            )}
           </div>
         )}
 
@@ -7094,7 +7135,8 @@ const LockPrivIcon = ({ color = "currentColor" }) => (
 );
 
 const PrivacySecurityView = ({ setView, profileData }) => {
-  const [locationTracking, setLocationTracking] = useState(true);
+  const [locationTracking, setLocationTracking] = useState(false);
+  const [locationPermissionLoading, setLocationPermissionLoading] = useState(false);
   const [permissionPrefs, setPermissionPrefs] = useState(null);
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
 
@@ -7123,6 +7165,7 @@ const PrivacySecurityView = ({ setView, profileData }) => {
 
         if (!response.ok) return;
         setPermissionPrefs(data.data);
+        setLocationTracking(data.data?.location_status === 'granted');
       } catch (error) {
         console.error('Failed to load permission preferences:', error);
       }
@@ -7130,6 +7173,104 @@ const PrivacySecurityView = ({ setView, profileData }) => {
 
     loadPermissionPrefs();
   }, []);
+
+  const persistLocationPreference = async (locationStatus) => {
+    const response = await fetch(`${API_BASE_URL}/api/permissions/me`, {
+      method: 'PATCH',
+      headers: privacyAuthHeaders(),
+      body: JSON.stringify({
+        location_status: locationStatus,
+        first_login_setup_completed: true,
+      }),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(formatPrivacyApiMessage(data.errors) || formatPrivacyApiMessage(data.message) || 'Failed to update location permission settings.');
+    }
+
+    setPermissionPrefs(data.data);
+    setLocationTracking(data.data?.location_status === 'granted');
+    return data.data;
+  };
+
+  const requestBrowserLocationPermission = async () => {
+    if (!navigator.geolocation) {
+      return 'unsupported';
+    }
+
+    const queryPermissionsApi = async () => {
+      if (!navigator.permissions?.query) return null;
+
+      try {
+        const status = await navigator.permissions.query({ name: 'geolocation' });
+        return status?.state || null;
+      } catch (error) {
+        return null;
+      }
+    };
+
+    const existingState = await queryPermissionsApi();
+    if (existingState === 'granted') {
+      return 'granted';
+    }
+    if (existingState === 'denied') {
+      return 'denied';
+    }
+
+    return new Promise((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        () => resolve('granted'),
+        (error) => {
+          if (error?.code === 1) {
+            resolve('denied');
+            return;
+          }
+          if (error?.code === 2 || error?.code === 3) {
+            resolve('dismissed');
+            return;
+          }
+          resolve('dismissed');
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        }
+      );
+    });
+  };
+
+  const handleLocationTrackingToggle = async () => {
+    if (locationPermissionLoading) return;
+
+    setLocationPermissionLoading(true);
+
+    try {
+      if (locationTracking) {
+        await persistLocationPreference('dismissed');
+        alert('Location tracking is turned off for EduRoute. You can enable it again anytime from Privacy & Security.');
+        return;
+      }
+
+      const locationStatus = await requestBrowserLocationPermission();
+      await persistLocationPreference(locationStatus);
+
+      if (locationStatus === 'granted') {
+        alert('Location services are enabled. EduRoute maps can now use your device location.');
+      } else if (locationStatus === 'denied') {
+        alert('Location access is blocked on this device or browser. Allow Location for EduRoute in your phone or browser site settings, then try again.');
+      } else if (locationStatus === 'unsupported') {
+        alert('This device or browser does not support location services.');
+      } else {
+        alert('Location permission was not fully granted. Maps will stay restricted until location services are enabled.');
+      }
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLocationPermissionLoading(false);
+    }
+  };
 
   const updateNotificationPermissionFromSettings = async () => {
     try {
@@ -7208,7 +7349,7 @@ const PrivacySecurityView = ({ setView, profileData }) => {
               <p>Allow EduRoute to optimize your route based on real-time transit data.</p>
             </div>
           </div>
-          <ToggleSwitch isOn={locationTracking} onToggle={() => setLocationTracking(!locationTracking)} />
+          <ToggleSwitch isOn={locationTracking} onToggle={handleLocationTrackingToggle} />
         </div>
 
         {/* Permissions Card */}
@@ -7216,10 +7357,10 @@ const PrivacySecurityView = ({ setView, profileData }) => {
           <PermissionsIcon color="var(--green)" />
           <h3>Permissions</h3>
           <p>
-            Notifications: {permissionPrefs?.notifications_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.
+            Notifications: {permissionPrefs?.notifications_status || 'unknown'}. Location: {permissionPrefs?.location_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.
           </p>
-          <button type="button" className="priv-manage-btn" onClick={updateNotificationPermissionFromSettings}>
-            MANAGE
+          <button type="button" className="priv-manage-btn" onClick={updateNotificationPermissionFromSettings} disabled={locationPermissionLoading}>
+            {locationPermissionLoading ? 'UPDATING...' : 'MANAGE'}
           </button>
         </div>
 
@@ -11887,7 +12028,7 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
         <header className="cssu-topbar">
           <span className="cssu-topbar-logo">EduRoute</span>
           <div className="cssu-topbar-right">
-            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('admin-notifications')}>
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
               <AdminBellIcon color="var(--green)" />
               <div className="admin-bell-dot" />
             </div>
@@ -11912,16 +12053,18 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
   );
 };
 
-const CSSUDesktopPage = ({ activeKey, title, subtitle, setView, profileData, onLogout, children }) => (
+const CSSUDesktopPage = ({ activeKey, title, subtitle, setView, profileData, onLogout, children, hideHeader = false }) => (
   <CssuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
     <section className="cssu-desktop-page">
-      <div className="cssu-desktop-page-header">
-        <div>
-          <span className="cssu-desktop-kicker">Campus Operations</span>
-          <h1>{title}</h1>
-          <p>{subtitle}</p>
+      {!hideHeader && (
+        <div className="cssu-desktop-page-header">
+          <div>
+            <span className="cssu-desktop-kicker">Campus Operations</span>
+            <h1>{title}</h1>
+            <p>{subtitle}</p>
+          </div>
         </div>
-      </div>
+      )}
       {children}
     </section>
   </CssuWorkspaceShell>
@@ -12145,13 +12288,21 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
       setView={setView}
       profileData={profileData}
       onLogout={onLogout}
+      hideHeader
     >
-      <div className="cssu-desktop-actions">
-        <div className="cssu-live-pill">
-          <span className="cssu-live-dot" />
-          <span>LIVE FEED ACTIVE</span>
+      <div className="cssu-dashboard-hero-row">
+        <div className="cssu-dashboard-hero-copy">
+          <span className="cssu-desktop-kicker">Campus Operations</span>
+          <h1>CSSU Security Command</h1>
+          <p>Real-time Faculty Exit & Locator Monitoring</p>
         </div>
-        <button type="button" className="cssu-summary-btn">Generate Summary</button>
+        <div className="cssu-desktop-actions">
+          <div className="cssu-live-pill">
+            <span className="cssu-live-dot" />
+            <span>LIVE FEED ACTIVE</span>
+          </div>
+          <button type="button" className="cssu-summary-btn">Generate Summary</button>
+        </div>
       </div>
 
       <div className="cssu-desktop-stats">
@@ -12285,10 +12436,80 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
 
 const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [summary, setSummary] = useState({
+    totalFacultyExiting: 0,
+    approvedLocatorSlips: 0,
+    rejectedLocatorSlips: 0,
+    approvalRate: 0,
+  });
+  const [mobileLiveRows, setMobileLiveRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    if (isDesktopViewport) {
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const loadMobileDashboard = async () => {
+      setLoading(true);
+      setLoadError('');
+
+      try {
+        const [summaryData, mainGateData, backGateData] = await Promise.all([
+          getCssuDashboardSummary(),
+          getCssuLiveExitMonitoring({ gate: 'main_gate', limit: 10 }),
+          getCssuLiveExitMonitoring({ gate: 'back_gate', limit: 10 }),
+        ]);
+
+        if (!isMounted) return;
+
+        const combinedRows = [
+          ...(Array.isArray(mainGateData?.rows) ? mainGateData.rows : []),
+          ...(Array.isArray(backGateData?.rows) ? backGateData.rows : []),
+        ]
+          .sort((left, right) => {
+            const leftTime = left?.validatedAt ? new Date(left.validatedAt).getTime() : 0;
+            const rightTime = right?.validatedAt ? new Date(right.validatedAt).getTime() : 0;
+            return rightTime - leftTime;
+          })
+          .slice(0, 6);
+
+        setSummary(summaryData || {
+          totalFacultyExiting: 0,
+          approvedLocatorSlips: 0,
+          rejectedLocatorSlips: 0,
+          approvalRate: 0,
+        });
+        setMobileLiveRows(combinedRows);
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(error.message || 'Unable to load the CSSU dashboard right now.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadMobileDashboard();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isDesktopViewport]);
 
   if (isDesktopViewport) {
     return <CSSUDashboardDesktopView setView={setView} profileData={profileData} onLogout={onLogout} />;
   }
+
+  const approvedRateLabel = summary.totalFacultyExiting
+    ? `${summary.approvalRate}% approved today`
+    : 'No tracked exits yet';
+  const commandStatusPercent = Math.max(0, Math.min(100, Number(summary.approvalRate || 0)));
+  const gateSummaryLabel = 'Main Gate & Back Gate';
 
   return (
     <div className="admin-dash-wrapper cssu-wrapper">
@@ -12308,10 +12529,10 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
           <div className="cssu-hero-card">
             <div className="cssu-hero-left">
               <span className="cssu-hero-label">TOTAL FACULTY EXITING</span>
-              <h2 className="cssu-hero-number">142</h2>
+              <h2 className="cssu-hero-number">{summary.totalFacultyExiting}</h2>
               <div className="cssu-hero-trend">
                 <CssuTrendingUpIcon color="#fff" />
-                <span>+12% from yesterday</span>
+                <span>{approvedRateLabel}</span>
               </div>
             </div>
             <div className="cssu-hero-icon">
@@ -12327,7 +12548,7 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
                 <span className="cssu-stat-badge active">ACTIVE</span>
               </div>
               <div className="cssu-stat-card-body">
-                <h3>128</h3>
+                <h3>{summary.approvedLocatorSlips}</h3>
                 <p>Approved Locator Slips</p>
               </div>
             </div>
@@ -12337,8 +12558,8 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
                 <span className="cssu-stat-badge flagged">FLAGGED</span>
               </div>
               <div className="cssu-stat-card-body">
-                <h3>14</h3>
-                <p>Denied/No Slip Cases</p>
+                <h3>{summary.rejectedLocatorSlips}</h3>
+                <p>Rejected Locator Slips</p>
               </div>
             </div>
           </div>
@@ -12351,13 +12572,13 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
             </div>
             <div className="cssu-summary-zone">
               <span className="cssu-sz-label">Active Monitoring Zone</span>
-              <span className="cssu-sz-value">GATE A & B</span>
+              <span className="cssu-sz-value">{gateSummaryLabel}</span>
             </div>
             <div className="cssu-summary-progress-bg">
-              <div className="cssu-summary-progress-fill" style={{ width: '94.2%' }}></div>
+              <div className="cssu-summary-progress-fill" style={{ width: `${commandStatusPercent}%` }}></div>
             </div>
             <p className="cssu-summary-desc">
-              Current efficiency rating: 94.2% based on log verification speed.
+              Current efficiency rating: {commandStatusPercent}% based on CSSU locator slip validation today.
             </p>
           </div>
 
@@ -12365,46 +12586,63 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
           <div className="cssu-live-section">
             <div className="cssu-live-header">
               <h3>Live Exit Monitoring</h3>
-              <span className="cssu-live-view-all">View All</span>
+              <span className="cssu-live-view-all" onClick={() => setView('cssu-exit-clearance')}>View All</span>
             </div>
             <div className="cssu-live-list">
-
-              <div className="cssu-live-item">
-                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
-                <div className="cssu-li-info">
-                  <div className="cssu-li-top">
-                    <h4>Dr. Lin Casla</h4>
-                    <span className="cssu-li-badge verified">VERIFIED</span>
+              {loading && (
+                <div className="cssu-live-item cssu-live-item-empty">
+                  <div className="cssu-li-info">
+                    <div className="cssu-li-top">
+                      <h4>Loading live exits...</h4>
+                    </div>
                   </div>
-                  <p>Exited: 14:32 &bull; Back Gate</p>
                 </div>
-                <ChevronRightIcon />
-              </div>
+              )}
 
-              <div className="cssu-live-item flagged-item">
-                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
-                <div className="cssu-li-info">
-                  <div className="cssu-li-top">
-                    <h4>Mr. Rey Gun</h4>
-                    <span className="cssu-li-badge flagged">FLAGGED</span>
+              {!loading && loadError && (
+                <div className="cssu-live-item flagged-item cssu-live-item-empty">
+                  <div className="cssu-li-info">
+                    <div className="cssu-li-top">
+                      <h4>Live feed unavailable</h4>
+                    </div>
+                    <p>{loadError}</p>
                   </div>
-                  <p>Exited: 14:45 &bull; Main Gate</p>
                 </div>
-                <CssuWarningCircleIcon />
-              </div>
+              )}
 
-              <div className="cssu-live-item">
-                <img src={DEFAULT_PROFILE_IMAGE} alt="Faculty" className="cssu-li-avatar" />
-                <div className="cssu-li-info">
-                  <div className="cssu-li-top">
-                    <h4>Ms. Sarah Flow</h4>
-                    <span className="cssu-li-badge verified">VERIFIED</span>
+              {!loading && !loadError && mobileLiveRows.length === 0 && (
+                <div className="cssu-live-item cssu-live-item-empty">
+                  <div className="cssu-li-info">
+                    <div className="cssu-li-top">
+                      <h4>No live exits yet</h4>
+                    </div>
+                    <p>Approved and validated faculty exits will appear here.</p>
                   </div>
-                  <p>Exited: 15:02 &bull; Main Gate</p>
                 </div>
-                <ChevronRightIcon />
-              </div>
+              )}
 
+              {!loading && !loadError && mobileLiveRows.map((row) => {
+                const isFlagged = row.status === 'denied';
+                const badgeClass = isFlagged ? 'flagged' : 'verified';
+                const badgeLabel = isFlagged ? 'FLAGGED' : row.statusLabel?.toUpperCase?.() || 'VERIFIED';
+
+                return (
+                  <div
+                    key={`${row.locatorSlipId}-${row.gate}-${row.status}`}
+                    className={`cssu-live-item${isFlagged ? ' flagged-item' : ''}`}
+                  >
+                    <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-li-avatar" />
+                    <div className="cssu-li-info">
+                      <div className="cssu-li-top">
+                        <h4>{row.facultyName}</h4>
+                        <span className={`cssu-li-badge ${badgeClass}`}>{badgeLabel}</span>
+                      </div>
+                      <p>Exited: {row.validatedTimeLabel || '--'} &bull; {row.gateLabel || row.gateLabel || row.gate || 'Unknown Gate'}</p>
+                    </div>
+                    {isFlagged ? <CssuWarningCircleIcon /> : <ChevronRightIcon />}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
@@ -12422,6 +12660,13 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
 
 const CSSUMapView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [showMobileProfile, setShowMobileProfile] = useState(true);
+  const [showMobileActivity, setShowMobileActivity] = useState(true);
+  const [mobileOverlayOffsets, setMobileOverlayOffsets] = useState({
+    profile: { x: 0, y: 0 },
+    activity: { x: 0, y: 0 },
+  });
+  const mobileDragStateRef = useRef(null);
   const {
     center,
     facultyLocations,
@@ -12441,6 +12686,66 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
     Number(center?.lng || OLONGAPO_CENTER[0]),
     Number(center?.lat || OLONGAPO_CENTER[1]),
   ], [center?.lat, center?.lng]);
+
+  const mobileSelectedFaculty = selectedFacultyDetail?.faculty || selectedFaculty || null;
+  const mobileDisplayName = mobileSelectedFaculty?.facultyName || 'No active faculty';
+  const mobileDisplayRole = mobileSelectedFaculty?.position || selectedFaculty?.position || selectedFaculty?.facultyRoleOrPosition || 'Faculty';
+  const mobileLastSync = selectedFacultyDetail?.latestLocation?.lastUpdatedLabel || selectedFaculty?.lastUpdatedLabel || 'Awaiting update';
+  const mobileSpeed = selectedFacultyDetail?.latestLocation?.speedKmh ?? selectedFaculty?.speedKmh ?? null;
+  const mobileSignal = selectedFaculty?.markerStatus === 'stale' ? 'Weak' : 'Strong';
+  const mobileStatusLabel = selectedFaculty?.markerStatus === 'stale' ? 'STALE' : 'VERIFIED';
+  const mobileActivityItems = Array.isArray(activityItems) ? activityItems.slice(0, 2) : [];
+  const getMobilePointerPosition = (event) => {
+    const point = event.touches?.[0] || event.changedTouches?.[0] || event;
+    return { x: point.clientX, y: point.clientY };
+  };
+  const startMobileOverlayDrag = (overlayKey) => (event) => {
+    const { x, y } = getMobilePointerPosition(event);
+    const baseOffset = mobileOverlayOffsets[overlayKey] || { x: 0, y: 0 };
+    mobileDragStateRef.current = {
+      key: overlayKey,
+      startX: x,
+      startY: y,
+      baseX: baseOffset.x,
+      baseY: baseOffset.y,
+    };
+  };
+  const getMobileOverlayStyle = (overlayKey) => ({
+    transform: `translate(${mobileOverlayOffsets[overlayKey]?.x || 0}px, ${mobileOverlayOffsets[overlayKey]?.y || 0}px)`,
+  });
+
+  useEffect(() => {
+    if (isDesktopViewport) return undefined;
+
+    const handleMove = (event) => {
+      if (!mobileDragStateRef.current) return;
+      const { x, y } = getMobilePointerPosition(event);
+      const { key, startX, startY, baseX, baseY } = mobileDragStateRef.current;
+      setMobileOverlayOffsets((current) => ({
+        ...current,
+        [key]: {
+          x: baseX + (x - startX),
+          y: baseY + (y - startY),
+        },
+      }));
+    };
+
+    const handleEnd = () => {
+      mobileDragStateRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    window.addEventListener('touchmove', handleMove, { passive: true });
+    window.addEventListener('touchend', handleEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      window.removeEventListener('touchmove', handleMove);
+      window.removeEventListener('touchend', handleEnd);
+    };
+  }, [isDesktopViewport, mobileOverlayOffsets]);
 
   if (isDesktopViewport) {
     return (
@@ -12492,41 +12797,204 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
     );
   }
 
-  return <div className="mobile-container"><div className="content"><div className="header"><h1>Map</h1></div><CSSUBottomNav active="map" setView={setView} /></div></div>;
+  return (
+    <div className="admin-dash-wrapper cssu-wrapper">
+      <div className="admin-dash-scroll cssu-scroll">
+        <div className="cssu-header cssu-map-mobile-header">
+          <h1>Security Command</h1>
+          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          </div>
+        </div>
+
+        <div className="cssu-mobile-live-shell">
+          <div className="cssu-mobile-live-map">
+            <HrmuLiveMapPanel
+              faculty={facultyLocations}
+              center={mapCenter}
+              selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+              onMarkerSelect={selectFaculty}
+              focusOnOlongapo
+              className="cssu-mobile-live-map-canvas"
+            />
+
+            <div className="cssu-mobile-live-controls">
+              <button type="button" className="cssu-mobile-live-control" aria-label="Map layers">
+                <HrmuMapRouteIcon color="#5B6659" />
+              </button>
+              <button type="button" className="cssu-mobile-live-control" aria-label="Refresh active faculty" onClick={reload}>
+                <HrmuSyncIcon color="#5B6659" />
+              </button>
+            </div>
+
+            {selectedFaculty && (
+              <div className="cssu-mobile-live-selected-pill">
+                <span>{String(selectedFaculty.facultyName || 'Faculty').replace(/^Mr\.?\s+|^Ms\.?\s+|^Mrs\.?\s+|^Dr\.?\s+/i, '').toUpperCase()}</span>
+              </div>
+            )}
+
+            {showMobileProfile ? (
+              <section className="cssu-mobile-live-profile-card" style={getMobileOverlayStyle('profile')}>
+                <div className="cssu-mobile-live-overlay-head">
+                  <span>Active Faculty</span>
+                  <div className="overlay-card-controls">
+                    <button type="button" className="overlay-toggle-btn" onClick={() => setShowMobileProfile(false)}>
+                      Hide
+                    </button>
+                    <button
+                      type="button"
+                      className="overlay-drag-handle"
+                      onMouseDown={startMobileOverlayDrag('profile')}
+                      onTouchStart={startMobileOverlayDrag('profile')}
+                    >
+                      Drag
+                    </button>
+                  </div>
+                </div>
+                <div className="cssu-mobile-live-profile-head">
+                  <img src={DEFAULT_PROFILE_IMAGE} alt={mobileDisplayName} className="cssu-mobile-live-avatar" />
+                  <div className="cssu-mobile-live-profile-copy">
+                    <div className="cssu-mobile-live-profile-top">
+                      <h2>{mobileDisplayName}</h2>
+                      <span className={`cssu-mobile-live-pill-tag ${selectedFaculty?.markerStatus === 'stale' ? 'stale' : 'verified'}`}>{mobileStatusLabel}</span>
+                    </div>
+                    <div className="cssu-mobile-live-profile-meta">
+                      <span><i /> {selectedFaculty?.markerStatus === 'stale' ? 'STALE' : 'ACTIVE'} • {String(mobileDisplayRole || 'Faculty').toUpperCase()}</span>
+                      <span>Last sync: {mobileLastSync}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="cssu-mobile-live-stat-grid">
+                  <div className="cssu-mobile-live-stat-card">
+                    <span>SPEED</span>
+                    <strong>{mobileSpeed !== null ? `${Number(mobileSpeed).toFixed(1)} km/h` : '--'}</strong>
+                  </div>
+                  <div className="cssu-mobile-live-stat-card">
+                    <span>SIGNAL</span>
+                    <strong>{mobileSignal}</strong>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <button type="button" className="cssu-mobile-live-restore profile" onClick={() => setShowMobileProfile(true)}>
+                Show Active Faculty
+              </button>
+            )}
+
+            {showMobileActivity ? (
+              <section className="cssu-mobile-live-activity-sheet" style={getMobileOverlayStyle('activity')}>
+                <div className="cssu-mobile-live-sheet-handle" />
+                <div className="cssu-mobile-live-sheet-head">
+                  <h3>Live Activity</h3>
+                  <div className="cssu-mobile-live-sheet-actions">
+                    <button type="button" onClick={() => loadMoreActivity(20)}>View All</button>
+                    <button type="button" className="overlay-toggle-btn" onClick={() => setShowMobileActivity(false)}>
+                      Hide
+                    </button>
+                    <button
+                      type="button"
+                      className="overlay-drag-handle"
+                      onMouseDown={startMobileOverlayDrag('activity')}
+                      onTouchStart={startMobileOverlayDrag('activity')}
+                    >
+                      Drag
+                    </button>
+                  </div>
+                </div>
+
+                <div className="cssu-mobile-live-activity-list">
+                  {(loading || activityLoading) && (
+                    <div className="cssu-mobile-live-activity-empty">Loading live activity...</div>
+                  )}
+
+                  {!loading && !activityLoading && mobileActivityItems.length === 0 && (
+                    <div className="cssu-mobile-live-activity-empty">No activity has been recorded for the selected faculty yet.</div>
+                  )}
+
+                  {!loading && !activityLoading && mobileActivityItems.map((item) => {
+                    const tone = item.type === 'trip_completed' || item.type === 'trip_cancelled' ? 'warning' : 'success';
+                    return (
+                      <div key={item.id || `${item.type}-${item.occurredAt}`} className="cssu-mobile-live-activity-item">
+                        <div className={`cssu-mobile-live-activity-icon ${tone}`}>
+                          {tone === 'success' ? <HrmuMiniCheckIcon color="var(--green)" /> : <HrmuWarningIcon color="#8B6B00" />}
+                        </div>
+                        <div className="cssu-mobile-live-activity-copy">
+                          <strong>{item.title}</strong>
+                          <p>{item.subtitle}</p>
+                        </div>
+                        <time>{item.relativeTime || '--'}</time>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            ) : (
+              <button type="button" className="cssu-mobile-live-restore activity" onClick={() => setShowMobileActivity(true)}>
+                Show Live Activity
+              </button>
+            )}
+
+            {error && (
+              <div className="cssu-mobile-live-error">
+                <strong>Live tracking error</strong>
+                <span>{error}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <CSSUBottomNav active="map" setView={setView} />
+    </div>
+  );
 };
 
 const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [incidentData, setIncidentData] = useState({
+    activeCases: 0,
+    resolvedToday: 0,
+    incidents: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadIncidents = async () => {
+      setLoading(true);
+      setLoadError('');
+
+      try {
+        const data = await getCssuIncidentsOverview();
+        if (!isMounted) return;
+        setIncidentData({
+          activeCases: Number(data?.activeCases || 0),
+          resolvedToday: Number(data?.resolvedToday || 0),
+          incidents: Array.isArray(data?.incidents) ? data.incidents : [],
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        setLoadError(error.message || 'Unable to load the CSSU incidents right now.');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadIncidents();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (isDesktopViewport) {
-    const incidentRows = [
-      {
-        id: 'inv-9902-ccsu',
-        title: 'Unauthorized Exit Attempt',
-        description: 'Detection at Gate 4 - Main Academic Quad',
-        meta: ['Dr. Helena Vance', '14:32 PM', 'West Perimeter'],
-        severity: 'critical',
-        tone: 'red',
-      },
-      {
-        id: 'inv-9901-ccsu',
-        title: 'Missing Locator Slip',
-        description: 'Faculty logged off-campus without valid digital authorization.',
-        meta: ['Prof. Marcus Thorne', '09:15 AM', 'Dept: Engineering'],
-        severity: 'moderate',
-        tone: 'yellow',
-      },
-      {
-        id: 'inv-9899-ccsu',
-        title: 'Restricted Area Proximity',
-        description: 'RFID trigger at Server Room B (After Hours)',
-        meta: ['Janet Sterling (Staff)', '22:45 PM', 'System Audit'],
-        severity: 'low',
-        tone: 'green',
-      },
-    ];
-
-    const featuredIncident = incidentRows[0];
+    const incidentRows = incidentData.incidents;
+    const featuredIncident = incidentRows[0] || null;
 
     return (
       <CSSUDesktopPage
@@ -12536,15 +13004,23 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
         setView={setView}
         profileData={profileData}
         onLogout={onLogout}
+        hideHeader
       >
-        <div className="cssu-incident-overview">
-          <div className="cssu-incident-summary-card active">
-            <span>ACTIVE CASES</span>
-            <strong>12</strong>
+        <div className="cssu-incident-header-row">
+          <div className="cssu-incident-header-copy">
+            <span className="cssu-desktop-kicker">Campus Operations</span>
+            <h1>Incident Log</h1>
+            <p>Centralized oversight for campus compliance, track flagged violations, review authorization slips, and manage intervention triggers.</p>
           </div>
-          <div className="cssu-incident-summary-card resolved">
-            <span>RESOLVED TODAY</span>
-            <strong>48</strong>
+          <div className="cssu-incident-overview">
+            <div className="cssu-incident-summary-card active">
+              <span>ACTIVE CASES</span>
+              <strong>{incidentData.activeCases}</strong>
+            </div>
+            <div className="cssu-incident-summary-card resolved">
+              <span>RESOLVED TODAY</span>
+              <strong>{incidentData.resolvedToday}</strong>
+            </div>
           </div>
         </div>
 
@@ -12562,6 +13038,11 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
             </div>
 
             <div className="cssu-incident-list">
+              {loading && <div className="cssu-incident-empty">Loading incident cases...</div>}
+              {!loading && loadError && <div className="cssu-incident-empty">{loadError}</div>}
+              {!loading && !loadError && incidentRows.length === 0 && (
+                <div className="cssu-incident-empty">No CSSU incident cases were recorded today.</div>
+              )}
               {incidentRows.map((incident) => (
                 <article key={incident.id} className={`cssu-incident-row ${incident.tone}`}>
                   <div className={`cssu-incident-icon ${incident.tone}`}>
@@ -12576,9 +13057,9 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
                     </div>
                     <p>{incident.description}</p>
                     <div className="cssu-incident-meta">
-                      <span>{incident.meta[0]}</span>
-                      <span>{incident.meta[1]}</span>
-                      <span>{incident.meta[2]}</span>
+                      <span>{incident.facultyName}</span>
+                      <span>{incident.occurredTimeLabel}</span>
+                      <span>{incident.destination}</span>
                     </div>
                   </div>
                   <button type="button" className="cssu-incident-row-arrow" aria-label={`Open ${incident.title}`}>
@@ -12593,8 +13074,8 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
             <div className="cssu-incident-detail-hero">
               <div>
                 <span>INCIDENT REPORT</span>
-                <h3>{featuredIncident.title}</h3>
-                <p>CASE REF: #INV-9902-CCSU</p>
+                <h3>{featuredIncident?.title || 'No Active Incident'}</h3>
+                <p>CASE REF: {featuredIncident?.id ? `#${String(featuredIncident.id).toUpperCase()}` : 'N/A'}</p>
               </div>
               <button type="button" className="cssu-incident-detail-close" aria-label="Close incident detail">
                 ×
@@ -12604,25 +13085,25 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
             <div className="cssu-incident-detail-body">
               <div className="cssu-incident-detail-profile">
                 <div className="cssu-incident-detail-profile-copy">
-                  <strong>Dr. Helena Vance</strong>
-                  <span>Bio-Sciences Faculty</span>
+                  <strong>{featuredIncident?.facultyName || 'No faculty selected'}</strong>
+                  <span>{featuredIncident?.departmentName || 'No department available'}</span>
                 </div>
-                <CheckCircleSolidIcon color="var(--green)" size="28" />
+                <CheckCircleSolidIcon color={featuredIncident?.tone === 'red' ? '#C81E1E' : featuredIncident?.tone === 'yellow' ? '#C28C02' : 'var(--green)'} size="28" />
               </div>
 
               <div className="cssu-incident-detail-meta">
                 <div>
                   <span>TIMESTAMP</span>
-                  <strong>Oct 24, 2023 | 14:32</strong>
+                  <strong>{featuredIncident?.occurredAt ? formatStatusDateTime(featuredIncident.occurredAt) : '--'}</strong>
                 </div>
                 <div>
                   <span>LOCATION</span>
-                  <strong>North Gate - Sector A</strong>
+                  <strong>{featuredIncident?.destination || '--'}</strong>
                 </div>
                 <div>
                   <span>SYSTEM FLAG REASON</span>
                   <blockquote>
-                    "Subject attempted to bypass electronic turnstiles without an active locator slip or registered personal leave request. Entry denied by Gate-Sec System."
+                    {featuredIncident?.notes || featuredIncident?.description || 'No incident notes available.'}
                   </blockquote>
                 </div>
               </div>
@@ -12638,7 +13119,66 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
     );
   }
 
-  return <div className="mobile-container"><div className="content"><div className="header"><h1>Incidents</h1></div><CSSUBottomNav active="incidents" setView={setView} /></div></div>;
+  return (
+    <div className="admin-dash-wrapper cssu-wrapper">
+      <div className="admin-dash-scroll cssu-scroll">
+        <div className="cssu-header cssu-map-mobile-header">
+          <h1>Security Command</h1>
+          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          </div>
+        </div>
+
+        <div className="cssu-mobile-incidents-shell">
+          <div className="cssu-mobile-incidents-head">
+            <h2>Recent Flagged Activities</h2>
+            <button type="button" className="cssu-mobile-incidents-filter" aria-label="Filter incidents">
+              <HrmuFilterIcon color="#5B6659" />
+            </button>
+          </div>
+
+          <div className="cssu-mobile-incidents-list">
+            {loading && (
+              <div className="cssu-mobile-incident-empty">Loading incident cases...</div>
+            )}
+
+            {!loading && loadError && (
+              <div className="cssu-mobile-incident-empty error">{loadError}</div>
+            )}
+
+            {!loading && !loadError && incidentData.incidents.length === 0 && (
+              <div className="cssu-mobile-incident-empty">No CSSU incident cases were recorded today.</div>
+            )}
+
+            {!loading && !loadError && incidentData.incidents.map((incident) => {
+              const toneClass = incident.tone === 'red' ? 'critical' : incident.tone === 'yellow' ? 'moderate' : 'low';
+              const metaIcon = incident.destination ? <LocationIcon color="#3D4B3E" /> : <ProfileIcon color="#3D4B3E" />;
+              const metaText = incident.destination || incident.facultyName || incident.departmentName || 'CSSU logged activity';
+
+              return (
+                <article key={incident.id} className={`cssu-mobile-incident-card ${toneClass}`}>
+                  <div className="cssu-mobile-incident-top">
+                    <span className={`cssu-mobile-incident-badge ${toneClass}`}>{String(incident.severity || toneClass).toUpperCase()}</span>
+                    <time>{incident.occurredTimeLabel || '--'}</time>
+                  </div>
+
+                  <h3>{incident.title}</h3>
+                  <p>{incident.description}</p>
+
+                  <div className="cssu-mobile-incident-meta">
+                    {metaIcon}
+                    <span>{metaText}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <CSSUBottomNav active="incidents" setView={setView} />
+    </div>
+  );
 };
 
 const CSSUScanViewLegacy = ({ setView, profileData, onLogout }) => {
@@ -12804,6 +13344,10 @@ const CSSUScanViewLegacy = ({ setView, profileData, onLogout }) => {
 
 const CSSUScanView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
+  const qrVideoRef = useRef(null);
+  const qrScanFrameRef = useRef(null);
+  const qrStreamRef = useRef(null);
+  const qrDetectorRef = useRef(null);
   const [serverTime, setServerTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -12819,6 +13363,10 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
   const [actionMessage, setActionMessage] = useState('');
   const [activeCandidate, setActiveCandidate] = useState(null);
   const [lastLookupMethod, setLastLookupMethod] = useState('manual');
+  const [showGatePicker, setShowGatePicker] = useState(false);
+  const [qrScannerOpen, setQrScannerOpen] = useState(false);
+  const [qrScannerError, setQrScannerError] = useState('');
+  const [qrScannerStatus, setQrScannerStatus] = useState('');
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -12833,6 +13381,66 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
     }, 1000);
 
     return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!qrScannerOpen || !qrStreamRef.current || !qrVideoRef.current) return undefined;
+
+    let cancelled = false;
+
+    const attachStream = async () => {
+      try {
+        const video = qrVideoRef.current;
+        if (!video || cancelled) return;
+
+        video.setAttribute('autoplay', 'true');
+        video.setAttribute('muted', 'true');
+        video.setAttribute('playsinline', 'true');
+        video.muted = true;
+        video.playsInline = true;
+        video.autoplay = true;
+        video.srcObject = qrStreamRef.current;
+        await video.play();
+
+        if (!cancelled) {
+          setQrScannerStatus('Align the locator slip QR code inside the frame.');
+          beginQrDetectionLoop();
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setQrScannerError('Camera opened, but the live preview could not start. Please try again.');
+        stopQrScanner();
+        setQrScannerOpen(false);
+        setQrScannerStatus('');
+      }
+    };
+
+    attachStream();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [qrScannerOpen]);
+
+  const stopQrScanner = () => {
+    if (qrScanFrameRef.current) {
+      window.cancelAnimationFrame(qrScanFrameRef.current);
+      qrScanFrameRef.current = null;
+    }
+
+    if (qrStreamRef.current) {
+      qrStreamRef.current.getTracks().forEach((track) => track.stop());
+      qrStreamRef.current = null;
+    }
+
+    if (qrVideoRef.current) {
+      qrVideoRef.current.pause?.();
+      qrVideoRef.current.srcObject = null;
+    }
+  };
+
+  useEffect(() => () => {
+    stopQrScanner();
   }, []);
 
   const runLookup = async ({ value, method }) => {
@@ -12865,13 +13473,97 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
 
   const handleManualLookup = () => runLookup({ value: manualFacultyId, method: 'manual' });
 
-  const handleQrLookup = async () => {
-    const fallbackValue = window.prompt('Scan or enter the QR code / locator slip code value.');
-    if (!fallbackValue) return;
-    await runLookup({ value: fallbackValue, method: 'qr' });
+  const beginQrDetectionLoop = () => {
+    const BarcodeDetectorCtor = window.BarcodeDetector;
+    if (!BarcodeDetectorCtor || !qrVideoRef.current) return;
+
+    if (!qrDetectorRef.current) {
+      qrDetectorRef.current = new BarcodeDetectorCtor({ formats: ['qr_code'] });
+    }
+
+    const detector = qrDetectorRef.current;
+
+    const scan = async () => {
+      if (!qrVideoRef.current || !qrStreamRef.current) return;
+
+      try {
+        const barcodes = await detector.detect(qrVideoRef.current);
+        if (Array.isArray(barcodes) && barcodes.length > 0) {
+          const rawValue = barcodes[0]?.rawValue?.trim();
+          if (rawValue) {
+            stopQrScanner();
+            setQrScannerOpen(false);
+            setQrScannerStatus('QR code captured. Fetching locator slip...');
+            await runLookup({ value: rawValue, method: 'qr' });
+            setQrScannerStatus('');
+            return;
+          }
+        }
+      } catch (error) {
+        setQrScannerError(error?.message || 'Unable to scan the QR code right now.');
+        stopQrScanner();
+        setQrScannerOpen(false);
+        return;
+      }
+
+      qrScanFrameRef.current = window.requestAnimationFrame(scan);
+    };
+
+    qrScanFrameRef.current = window.requestAnimationFrame(scan);
   };
 
-  const handleExitDecision = async (nextStatus) => {
+  const handleQrLookup = async () => {
+    setLookupError('');
+    setActionMessage('');
+    setQrScannerError('');
+    setQrScannerStatus('Requesting camera access...');
+
+    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+      const fallbackValue = window.prompt('Camera scanning requires HTTPS. Enter the QR code / locator slip code value.');
+      if (!fallbackValue) {
+        setQrScannerStatus('');
+        return;
+      }
+      setQrScannerStatus('');
+      await runLookup({ value: fallbackValue, method: 'qr' });
+      return;
+    }
+
+    if (!window.BarcodeDetector) {
+      const fallbackValue = window.prompt('QR camera scanning is not available on this browser. Enter the QR code / locator slip code value.');
+      if (!fallbackValue) {
+        setQrScannerStatus('');
+        return;
+      }
+      setQrScannerStatus('');
+      await runLookup({ value: fallbackValue, method: 'qr' });
+      return;
+    }
+
+    try {
+      stopQrScanner();
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+        },
+        audio: false,
+      });
+
+      qrStreamRef.current = stream;
+      setQrScannerOpen(true);
+      setQrScannerStatus('Opening camera...');
+    } catch (error) {
+      setQrScannerOpen(false);
+      setQrScannerStatus('');
+      setQrScannerError(
+        error?.name === 'NotAllowedError'
+          ? 'Camera permission was denied. Enable camera access in your browser settings, then try again.'
+          : 'Unable to open the camera scanner right now.'
+      );
+    }
+  };
+
+  const handleExitDecision = async (nextStatus, gateOverride = 'main_gate') => {
     if (!activeCandidate?.locatorSlip?.locatorSlipId) {
       setLookupError('No approved locator slip is available for CSSU validation.');
       return;
@@ -12883,14 +13575,16 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
 
     try {
       const result = await updateCssuExitStatus(activeCandidate.locatorSlip.locatorSlipId, {
-        gate: 'main_gate',
+        gate: gateOverride,
         status: nextStatus,
         method: lastLookupMethod,
       });
 
-      const validationTitle = result.status === 'denied'
-        ? 'Locator Slip: Exit Denied'
-        : 'Locator Slip: Validated (Official)';
+      const validationTitle = result.status === 'flagged'
+        ? 'Locator Slip: Flagged Incident'
+        : result.status === 'denied'
+          ? 'Locator Slip: Exit Denied'
+          : 'Locator Slip: Validated (Official)';
 
       setActiveCandidate((prev) => ({
         ...prev,
@@ -12898,30 +13592,47 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
           ...prev.locatorSlip,
           status: result.status,
           statusLabel: result.statusLabel,
+          gate: result.gate,
+          gateLabel: result.gateLabel,
           validatedAt: result.validatedAt,
           validatedTimeLabel: result.validatedTimeLabel,
           canAllowExit: false,
           canDenyExit: false,
+          canFlagIncident: false,
           isOfficial: result.isOfficial,
         },
         validationLog: [
-          ...((prev?.validationLog || []).filter((item) => item.title !== 'Locator Slip: Validated (Official)' && item.title !== 'Locator Slip: Exit Denied')),
+          ...((prev?.validationLog || []).filter((item) => item.title !== 'Locator Slip: Validated (Official)' && item.title !== 'Locator Slip: Exit Denied' && item.title !== 'Locator Slip: Flagged Incident')),
           {
-            type: result.status === 'denied' ? 'danger' : 'success',
+            type: result.status === 'validated' ? 'success' : 'danger',
             title: validationTitle,
             timeLabel: result.validatedTimeLabel || '--',
           },
         ],
       }));
 
-      setActionMessage(result.status === 'validated'
-        ? 'Locator slip is now officially validated for exit.'
-        : 'Exit has been denied and logged for CSSU review.');
+      setActionMessage(
+        result.status === 'validated'
+          ? `Locator slip is now officially validated for exit at ${result.gateLabel || 'Main Gate'}.`
+          : result.status === 'flagged'
+            ? 'Exit attempt has been flagged and logged for CSSU incident review.'
+            : 'Exit has been denied and logged for CSSU review.'
+      );
     } catch (error) {
       setLookupError(error.message || 'Unable to update the CSSU exit decision right now.');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleAllowExitClick = () => {
+    if (!locatorSlip?.canAllowExit || actionLoading) return;
+    setShowGatePicker(true);
+  };
+
+  const confirmAllowExit = async (gate) => {
+    setShowGatePicker(false);
+    await handleExitDecision('validated', gate);
   };
 
   const faculty = activeCandidate?.faculty;
@@ -12930,7 +13641,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
   const normalizedLocatorSlipStatus = String(locatorSlip?.status || '').toLowerCase();
   const slipVisualState = normalizedLocatorSlipStatus === 'validated'
     ? 'validated'
-    : normalizedLocatorSlipStatus === 'denied' || normalizedLocatorSlipStatus === 'rejected'
+    : normalizedLocatorSlipStatus === 'flagged' || normalizedLocatorSlipStatus === 'denied' || normalizedLocatorSlipStatus === 'rejected'
       ? 'denied'
       : normalizedLocatorSlipStatus === 'pending'
         ? 'pending'
@@ -13072,9 +13783,14 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
       )}
 
       <div className="cssu-checkpoint-actions">
-        <button type="button" className="cssu-checkpoint-btn ghost-danger">
+        <button
+          type="button"
+          className="cssu-checkpoint-btn ghost-danger"
+          onClick={() => handleExitDecision('flagged')}
+          disabled={!locatorSlip?.canFlagIncident || actionLoading}
+        >
           <ExclamationCircleIcon color="#D72D2D" size="18" />
-          <span>Flag Incident</span>
+          <span>{actionLoading ? 'Updating...' : 'Flag Incident'}</span>
         </button>
         <button
           type="button"
@@ -13088,13 +13804,64 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
         <button
           type="button"
           className="cssu-checkpoint-btn success"
-          onClick={() => handleExitDecision('validated')}
+          onClick={handleAllowExitClick}
           disabled={!locatorSlip?.canAllowExit || actionLoading}
         >
           <CheckCircleIcon />
           <span>{actionLoading ? 'Updating...' : 'Allow Exit'}</span>
         </button>
       </div>
+
+      {showGatePicker && (
+        <div className="cssu-gate-picker-backdrop" onClick={() => setShowGatePicker(false)}>
+          <div className="cssu-gate-picker-modal" onClick={(event) => event.stopPropagation()}>
+            <span className="cssu-gate-picker-kicker">EXIT GATE</span>
+            <h3>Select faculty exit gate</h3>
+            <p>Choose the gate this faculty member will use so CSSU dashboard monitoring records the correct exit point.</p>
+            <div className="cssu-gate-picker-actions">
+              <button type="button" className="cssu-gate-picker-btn" onClick={() => confirmAllowExit('main_gate')}>
+                Main Gate
+              </button>
+              <button type="button" className="cssu-gate-picker-btn" onClick={() => confirmAllowExit('back_gate')}>
+                Back Gate
+              </button>
+            </div>
+            <button type="button" className="cssu-gate-picker-cancel" onClick={() => setShowGatePicker(false)}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {qrScannerOpen && (
+        <div className="cssu-qr-scanner-backdrop" onClick={() => { stopQrScanner(); setQrScannerOpen(false); setQrScannerStatus(''); }}>
+          <div className="cssu-qr-scanner-modal" onClick={(event) => event.stopPropagation()}>
+            <span className="cssu-gate-picker-kicker">QR SCANNER</span>
+            <h3>Scan locator slip QR code</h3>
+            <p>{qrScannerStatus || 'Align the locator slip QR code in the camera frame. Lookup will begin automatically after detection.'}</p>
+            <div className="cssu-qr-scanner-stage">
+              <video ref={qrVideoRef} className="cssu-qr-scanner-video" playsInline muted />
+              <div className="cssu-qr-scanner-frame" aria-hidden="true">
+                <span className="scanner-corner tl" />
+                <span className="scanner-corner tr" />
+                <span className="scanner-corner bl" />
+                <span className="scanner-corner br" />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="cssu-gate-picker-cancel"
+              onClick={() => {
+                stopQrScanner();
+                setQrScannerOpen(false);
+                setQrScannerStatus('');
+              }}
+            >
+              Cancel Scan
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -13122,6 +13889,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
         </div>
         <div className="cssu-checkpoint-mobile-shell">
           {renderCheckpointContent(true)}
+          {qrScannerError && <div className="cssu-checkpoint-inline-alert error">{qrScannerError}</div>}
         </div>
         <CSSUBottomNav active="scan" setView={setView} />
       </div>
@@ -13131,9 +13899,28 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
 
 const CSSUReportsView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const getTodayIso = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const getMonthStartIso = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  };
+
+  const [startDate, setStartDate] = useState(getMonthStartIso);
+  const [endDate, setEndDate] = useState(getTodayIso);
   const [selectedDepartment, setSelectedDepartment] = useState('all');
+  const [reportData, setReportData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [visibleRecordCount, setVisibleRecordCount] = useState(6);
   const startDateInputRef = useRef(null);
   const endDateInputRef = useRef(null);
 
@@ -13170,29 +13957,88 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     }
   };
 
+  const fetchReportsOverview = async (filters) => {
+    setLoading(true);
+    setLoadError('');
+
+    try {
+      const result = await getCssuReportsOverview(filters);
+      setReportData(result);
+    } catch (error) {
+      setLoadError(error.message || 'Unable to load CSSU reports right now.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportsOverview({
+      startDate,
+      endDate,
+      department: selectedDepartment,
+    });
+  }, []);
+
+  const handleGenerateReport = () => {
+    setVisibleRecordCount(6);
+    fetchReportsOverview({
+      startDate,
+      endDate,
+      department: selectedDepartment,
+    });
+  };
+
+  const previewRows = useMemo(
+    () => Array.isArray(reportData?.movementLogs) ? reportData.movementLogs.slice(0, visibleRecordCount) : [],
+    [reportData, visibleRecordCount]
+  );
+
+  const hasMoreRecords = Array.isArray(reportData?.movementLogs) && visibleRecordCount < reportData.movementLogs.length;
+
+  const formatReportFooterDate = (value) => {
+    if (!value) return '--';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '--';
+
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
   if (isDesktopViewport) {
     return (
       <CSSUDesktopPage
         activeKey="reports"
-        title="Report Generation"
-        subtitle="Movement data synchronization for Human Resource Management Unit (HRMU)."
         setView={setView}
         profileData={profileData}
         onLogout={onLogout}
+        hideHeader
       >
-        <div className="cssu-reports-toolbar">
-          <button type="button" className="cssu-reports-tool-btn">
-            <RegistryDownloadIcon />
-            <span>Export PDF</span>
-          </button>
-          <button type="button" className="cssu-reports-tool-btn">
-            <RegistryDownloadIcon />
-            <span>Export CSV</span>
-          </button>
-          <button type="button" className="cssu-reports-send-btn">
-            <SendIcon />
-            <span>Send to HRMU</span>
-          </button>
+        <div className="cssu-reports-hero-row">
+          <div className="cssu-reports-hero-copy">
+            <span className="cssu-desktop-kicker">Internal Logistics</span>
+            <h1>Report Generation</h1>
+            <p>Movement data synchronization for Human Resource Management Unit (HRMU).</p>
+          </div>
+
+          <div className="cssu-reports-toolbar">
+            <button type="button" className="cssu-reports-tool-btn">
+              <RegistryDownloadIcon />
+              <span>Export PDF</span>
+            </button>
+            <button type="button" className="cssu-reports-tool-btn">
+              <RegistryDownloadIcon />
+              <span>Export CSV</span>
+            </button>
+            <button type="button" className="cssu-reports-send-btn">
+              <SendIcon />
+              <span>Send to HRMU</span>
+            </button>
+          </div>
         </div>
 
         <div className="cssu-reports-filter-row">
@@ -13245,11 +14091,13 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
             </div>
           </div>
 
-          <button type="button" className="cssu-reports-generate-btn">
+          <button type="button" className="cssu-reports-generate-btn" onClick={handleGenerateReport} disabled={loading}>
             <PlayTriangleIcon />
-            <span>Generate</span>
+            <span>{loading ? 'Loading...' : 'Generate'}</span>
           </button>
         </div>
+
+        {loadError ? <div className="cssu-reports-error-banner">{loadError}</div> : null}
 
         <div className="cssu-reports-grid">
           <section className="cssu-reports-preview-card">
@@ -13259,92 +14107,76 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                   <FileTextIcon color="var(--green)" />
                   <span>Movement Logs Preview</span>
                 </h2>
-                <p>Displaying data for Oct 01 - Oct 15, 2023</p>
+                <p>Displaying data for {reportData?.filters?.dateRangeLabel || `${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</p>
               </div>
               <span className="cssu-reports-draft-pill">DRAFT REPORT</span>
             </div>
 
             <div className="cssu-reports-preview-list">
-              <article className="cssu-reports-preview-row">
-                <div className="cssu-reports-preview-avatar">
-                  <PersonOutlineIcon color="var(--green)" />
-                </div>
-                <div className="cssu-reports-preview-copy">
-                  <strong>Dr. Elena Rodriguez</strong>
-                  <p>Engineering • Exit Logs • 08:45 AM</p>
-                </div>
-                <span className="cssu-reports-preview-status verified">VERIFIED</span>
-                <span className="cssu-reports-preview-place">Gate 4 Entrance</span>
-              </article>
+              {loading && previewRows.length === 0 ? (
+                <div className="cssu-reports-empty-state">Loading movement logs...</div>
+              ) : null}
 
-              <article className="cssu-reports-preview-row">
-                <div className="cssu-reports-preview-avatar">
-                  <PersonOutlineIcon color="var(--green)" />
-                </div>
-                <div className="cssu-reports-preview-copy">
-                  <strong>Prof. Marcus Thorne</strong>
-                  <p>Science • Faculty Movement • 11:20 AM</p>
-                </div>
-                <span className="cssu-reports-preview-status verified">VERIFIED</span>
-                <span className="cssu-reports-preview-place">Lab B-12 Internal</span>
-              </article>
+              {!loading && !loadError && previewRows.length === 0 ? (
+                <div className="cssu-reports-empty-state">No verified or flagged movements were found in the selected date range.</div>
+              ) : null}
 
-              <article className="cssu-reports-preview-row flagged">
-                <div className="cssu-reports-preview-avatar flagged">
-                  <ExclamationCircleIcon color="#C81E1E" size="24" />
-                </div>
-                <div className="cssu-reports-preview-copy">
-                  <strong>Unauthorized Access Attempt</strong>
-                  <p>Admin Wing • External ID • 01:15 PM</p>
-                </div>
-                <span className="cssu-reports-preview-status flagged">FLAGGED</span>
-                <span className="cssu-reports-preview-place flagged">Investigation Req.</span>
-              </article>
-
-              <article className="cssu-reports-preview-row">
-                <div className="cssu-reports-preview-avatar">
-                  <PersonOutlineIcon color="var(--green)" />
-                </div>
-                <div className="cssu-reports-preview-copy">
-                  <strong>Sarah Jenkins (Staff)</strong>
-                  <p>Registrar • Exit Clearance • 04:30 PM</p>
-                </div>
-                <span className="cssu-reports-preview-status verified">VERIFIED</span>
-                <span className="cssu-reports-preview-place">Main Lobby Exit</span>
-              </article>
+              {previewRows.map((row) => (
+                <article key={row.id} className={`cssu-reports-preview-row ${row.movementStatus === 'flagged' ? 'flagged' : ''}`}>
+                  <div className={`cssu-reports-preview-avatar ${row.movementStatus === 'flagged' ? 'flagged' : ''}`}>
+                    {row.movementStatus === 'flagged'
+                      ? <ExclamationCircleIcon color="#C81E1E" size="24" />
+                      : <PersonOutlineIcon color="var(--green)" />}
+                  </div>
+                  <div className="cssu-reports-preview-copy">
+                    <strong>{row.facultyName}</strong>
+                    <p>{row.departmentName} • {row.eventLabel} • {row.occurredTimeLabel}</p>
+                  </div>
+                  <span className={`cssu-reports-preview-status ${row.movementStatus === 'flagged' ? 'flagged' : 'verified'}`}>
+                    {row.movementStatusLabel}
+                  </span>
+                  <span className={`cssu-reports-preview-place ${row.movementStatus === 'flagged' ? 'flagged' : ''}`}>
+                    {row.movementStatus === 'flagged' ? row.investigationLabel || row.locationLabel : row.locationLabel}
+                  </span>
+                </article>
+              ))}
             </div>
 
-            <button type="button" className="cssu-reports-load-link">LOAD MORE RECORDS</button>
+            {hasMoreRecords ? (
+              <button type="button" className="cssu-reports-load-link" onClick={() => setVisibleRecordCount((current) => current + 6)}>
+                LOAD MORE RECORDS
+              </button>
+            ) : null}
           </section>
 
           <aside className="cssu-reports-side-stack">
             <article className="cssu-reports-summary-card">
               <span>TOTAL MOVEMENTS</span>
-              <strong>1,284</strong>
-              <p>Significant +12% increase from previous period</p>
+              <strong>{reportData?.summary?.totalMovements ?? 0}</strong>
+              <p>Verified and flagged CSSU movement records within the selected report range.</p>
 
               <div className="cssu-reports-summary-metrics">
-                <div><label>Faculty Entries</label><b>842</b></div>
-                <div><label>Exit Clearances</label><b>312</b></div>
-                <div className="flagged"><label>Flagged Events</label><b>14</b></div>
+                <div><label>Exit Clearances</label><b>{reportData?.summary?.exitClearances ?? 0}</b></div>
+                <div className="flagged"><label>Flagged Events</label><b>{reportData?.summary?.flaggedEvents ?? 0}</b></div>
               </div>
             </article>
 
             <article className="cssu-reports-activity-card">
               <span>ACTIVITY BY DEPT.</span>
               <div className="cssu-reports-activity-list">
-                <div className="cssu-reports-activity-row">
-                  <div className="cssu-reports-activity-labels"><strong>Engineering</strong><b>45%</b></div>
-                  <div className="cssu-reports-activity-track"><div style={{ width: '45%' }} /></div>
-                </div>
-                <div className="cssu-reports-activity-row">
-                  <div className="cssu-reports-activity-labels"><strong>Management</strong><b>30%</b></div>
-                  <div className="cssu-reports-activity-track"><div style={{ width: '30%' }} /></div>
-                </div>
-                <div className="cssu-reports-activity-row">
-                  <div className="cssu-reports-activity-labels"><strong>Research</strong><b>25%</b></div>
-                  <div className="cssu-reports-activity-track"><div style={{ width: '25%' }} /></div>
-                </div>
+                {Array.isArray(reportData?.activityByDepartment) && reportData.activityByDepartment.length > 0 ? reportData.activityByDepartment.map((row) => (
+                  <div key={row.departmentName} className="cssu-reports-activity-row">
+                    <div className="cssu-reports-activity-labels">
+                      <strong>{row.departmentName}</strong>
+                      <b>{row.percentage}%</b>
+                    </div>
+                    <div className="cssu-reports-activity-track">
+                      <div style={{ width: `${Math.min(row.percentage, 100)}%` }} />
+                    </div>
+                  </div>
+                )) : (
+                  <div className="cssu-reports-empty-state compact">No department locator slip activity was found in the selected range.</div>
+                )}
               </div>
             </article>
 
@@ -13362,92 +14194,420 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
             <span>ALL DATA IS ENCRYPTED AND COMPLIES WITH GORDON COLLEGE PRIVACY POLICIES.</span>
           </div>
           <div className="cssu-reports-footer-meta">
-            <strong>Report ID: EDU-2023-OCT-094</strong>
-            <span>Last Generated: Oct 15, 2023 at 05:42 PM</span>
+            <strong>Report ID: {reportData?.reportMeta?.reportId || 'CSSU-REPORT-DRAFT'}</strong>
+            <span>Last Generated: {reportData?.reportMeta?.lastGeneratedLabel || formatReportFooterDate(new Date().toISOString())}</span>
           </div>
         </footer>
       </CSSUDesktopPage>
     );
   }
 
-  return <div className="mobile-container"><div className="content"><div className="header"><h1>Reports</h1></div><CSSUBottomNav active="reports" setView={setView} /></div></div>;
+  return (
+    <div className="admin-dash-wrapper cssu-wrapper">
+      <div className="admin-dash-scroll cssu-scroll">
+        <div className="cssu-header cssu-map-mobile-header">
+          <h1>Security Command</h1>
+          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          </div>
+        </div>
+
+        <div className="cssu-mobile-reports-shell">
+          <div className="cssu-mobile-reports-hero">
+            <h2>Report Generation</h2>
+            <p>Configure and export logistics data logs</p>
+          </div>
+
+          <section className="cssu-mobile-reports-filter-card">
+            <div className="cssu-mobile-reports-date-grid">
+              <div className="cssu-mobile-reports-field">
+                <label>Start Date</label>
+                <button type="button" className="cssu-mobile-reports-date-btn" onClick={() => openDatePicker(startDateInputRef)}>
+                  <ClockIcon color="#73806E" />
+                  <span>{formatCssuDate(startDate)}</span>
+                </button>
+                <input
+                  ref={startDateInputRef}
+                  type="date"
+                  className="cssu-reports-date-native"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  aria-label="Start date"
+                />
+              </div>
+
+              <div className="cssu-mobile-reports-field">
+                <label>End Date</label>
+                <button type="button" className="cssu-mobile-reports-date-btn" onClick={() => openDatePicker(endDateInputRef)}>
+                  <ClockIcon color="#73806E" />
+                  <span>{formatCssuDate(endDate)}</span>
+                </button>
+                <input
+                  ref={endDateInputRef}
+                  type="date"
+                  className="cssu-reports-date-native"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  aria-label="End date"
+                />
+              </div>
+            </div>
+
+            <div className="cssu-mobile-reports-field">
+              <label>Department</label>
+              <div className="cssu-mobile-reports-select">
+                <GlobeSmIcon color="#73806E" />
+                <select
+                  value={selectedDepartment}
+                  onChange={(event) => setSelectedDepartment(event.target.value)}
+                  aria-label="Department"
+                >
+                  {cssuDepartmentOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <ChevronDownIcon />
+              </div>
+            </div>
+
+            <button type="button" className="cssu-mobile-reports-generate" onClick={handleGenerateReport} disabled={loading}>
+              <HrmuChartIcon color="#6B5A00" />
+              <span>{loading ? 'Loading...' : 'Generate Report'}</span>
+            </button>
+
+            <div className="cssu-mobile-reports-actions">
+              <button type="button" className="cssu-mobile-reports-action-btn">PDF</button>
+              <button type="button" className="cssu-mobile-reports-action-btn">CSV</button>
+            </div>
+          </section>
+
+          {loadError ? <div className="cssu-reports-error-banner">{loadError}</div> : null}
+
+          <section className="cssu-mobile-reports-preview">
+            <div className="cssu-mobile-reports-preview-head">
+              <div>
+                <h3>Movement Logs Preview</h3>
+                <p>{reportData?.filters?.dateRangeLabel || `${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</p>
+              </div>
+              <strong>{reportData?.summary?.totalMovements ?? 0} Records</strong>
+            </div>
+
+            <div className="cssu-mobile-reports-list">
+              {loading && previewRows.length === 0 ? (
+                <div className="cssu-mobile-reports-empty">Loading movement logs...</div>
+              ) : null}
+
+              {!loading && !loadError && previewRows.length === 0 ? (
+                <div className="cssu-mobile-reports-empty">No verified or flagged movements were found in the selected date range.</div>
+              ) : null}
+
+              {previewRows.map((row) => (
+                <article key={row.id} className={`cssu-mobile-reports-row ${row.movementStatus === 'flagged' ? 'flagged' : ''}`}>
+                  <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-mobile-reports-avatar" />
+                  <div className="cssu-mobile-reports-copy">
+                    <strong>{row.facultyName}</strong>
+                    <p>{row.occurredTimeLabel} • {row.locationLabel}</p>
+                  </div>
+                  <span className={`cssu-mobile-reports-status ${row.movementStatus === 'flagged' ? 'flagged' : 'verified'}`}>
+                    {row.movementStatusLabel}
+                  </span>
+                </article>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <CSSUBottomNav active="reports" setView={setView} />
+      </div>
+    </div>
+  );
 };
 
-const AdminProfileView = ({ setView, profileData }) => {
+const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
+  const [alerts, setAlerts] = useState([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
+  const [alertsError, setAlertsError] = useState('');
+  const [alertFilter, setAlertFilter] = useState('all');
+  const [summary, setSummary] = useState({
+    validatedClearances: 0,
+    flaggedExits: 0,
+    unauthorizedExit: 0,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const formatRelativeAlertTime = (value) => {
+      if (!value) return 'Time unavailable';
+
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return 'Time unavailable';
+
+      const diffMs = Date.now() - date.getTime();
+      const diffMinutes = Math.max(Math.round(diffMs / 60000), 0);
+
+      if (diffMinutes < 1) return 'Just now';
+      if (diffMinutes < 60) return `${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`;
+
+      const diffHours = Math.round(diffMinutes / 60);
+      if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
+
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    };
+
+    const loadAlerts = async () => {
+      setAlertsLoading(true);
+      setAlertsError('');
+
+      try {
+        const result = await getCssuNotificationsOverview({ limit: 8 });
+        if (!isMounted) return;
+
+        const notificationRows = Array.isArray(result?.notifications) ? result.notifications : [];
+        setAlerts(notificationRows.map((notification) => ({
+          id: notification.id,
+          type: notification.type === 'flagged' ? 'flagged' : 'validated',
+          title: notification.title || (notification.type === 'flagged' ? 'Flagged Exit Attempt' : 'Exit Clearance Validated'),
+          body: notification.type === 'flagged'
+            ? `${notification.facultyName} attempted exit clearance at ${notification.gateLabel} while the locator slip was still ${notification.locatorSlipStatus}.`
+            : `${notification.facultyName} was cleared by CSSU for ${notification.purpose}${notification.destination ? ` bound for ${notification.destination}` : ''}.`,
+          time: formatRelativeAlertTime(notification.occurredAt),
+          sortDate: notification.occurredAt ? new Date(notification.occurredAt).getTime() : 0,
+          actionLabelPrimary: notification.type === 'flagged' ? 'Open Incidents' : 'Open Exit Clearance',
+          actionLabelSecondary: notification.type === 'flagged' ? 'Open Reports' : 'Open Dashboard',
+        })));
+
+        setSummary({
+          validatedClearances: Number(result?.summary?.validatedClearances || 0),
+          flaggedExits: Number(result?.summary?.flaggedExits || 0),
+          unauthorizedExit: Number(result?.summary?.unauthorizedExit || 0),
+        });
+      } catch (error) {
+        if (!isMounted) return;
+        setAlerts([]);
+        setSummary({
+          validatedClearances: 0,
+          flaggedExits: 0,
+          unauthorizedExit: 0,
+        });
+        setAlertsError(error.message || 'Failed to load CSSU notifications.');
+      } finally {
+        if (isMounted) {
+          setAlertsLoading(false);
+        }
+      }
+    };
+
+    loadAlerts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const filteredAlerts = alerts.filter((alert) => {
+    if (alertFilter === 'validated') return alert.type === 'validated';
+    if (alertFilter === 'flagged') return alert.type === 'flagged';
+    return true;
+  });
+
+  const featuredAlert = filteredAlerts[0] || null;
+  const featuredTone = featuredAlert?.type === 'flagged' ? 'incident' : 'verified';
+  const featuredPillLabel = alertsLoading
+    ? 'LOADING'
+    : featuredAlert?.type === 'flagged'
+      ? 'FLAGGED'
+      : featuredAlert
+        ? 'VALIDATED'
+        : 'NO ALERTS';
+
+  return (
+    <CSSUDesktopPage
+      activeKey=""
+      setView={setView}
+      profileData={profileData}
+      onLogout={onLogout}
+      hideHeader
+    >
+      <section className="hrmu-alerts-page cssu-alerts-page">
+        <div className="hrmu-alerts-hero">
+          <div className="hrmu-alerts-copy">
+            <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
+            <h1>System Alerts</h1>
+            <p>Real-time monitoring and clearance notifications for CSSU faculty exit verification.</p>
+          </div>
+          <div className="hrmu-alerts-actions">
+            <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
+            <label className="hrmu-alerts-filter">
+              <StatusGraphIcon color="currentColor" />
+              <select value={alertFilter} onChange={(event) => setAlertFilter(event.target.value)} aria-label="Filter CSSU alerts">
+                <option value="all">All</option>
+                <option value="validated">Validated</option>
+                <option value="flagged">Flagged</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <section className="hrmu-alerts-grid">
+          <article className={`hrmu-alert-main-card ${featuredTone}`}>
+            <div className="hrmu-alert-main-accent" aria-hidden="true" />
+            <div className="hrmu-alert-main-body">
+              <div className="hrmu-alert-main-icon">
+                {featuredAlert?.type === 'flagged' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+              </div>
+              <div className="hrmu-alert-main-copy">
+                <div className="hrmu-alert-main-head">
+                  <div className="hrmu-alert-main-badges">
+                    <span className={`hrmu-alert-critical-pill ${featuredTone}`}>{featuredPillLabel}</span>
+                  </div>
+                  <span className="hrmu-alert-main-time">{featuredAlert?.time || 'Awaiting updates'}</span>
+                </div>
+                <h2>{featuredAlert?.title || 'No CSSU notifications yet'}</h2>
+                <p>
+                  {featuredAlert
+                    ? featuredAlert.body
+                    : `No ${alertFilter === 'all' ? 'CSSU' : alertFilter} alerts available right now.`}
+                </p>
+                <div className="hrmu-alert-main-actions">
+                  <button
+                    type="button"
+                    className={`hrmu-alert-primary-btn ${featuredTone}`}
+                    onClick={() => setView(featuredAlert?.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
+                  >
+                    {featuredAlert?.actionLabelPrimary || 'Open Exit Clearance'}
+                  </button>
+                  <button
+                    type="button"
+                    className="hrmu-alert-text-btn"
+                    onClick={() => setView(featuredAlert?.type === 'flagged' ? 'cssu-reports' : 'cssu-dashboard')}
+                  >
+                    {featuredAlert?.actionLabelSecondary || 'Open Dashboard'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <aside className="hrmu-alerts-side-column">
+            <article className="hrmu-alert-summary-card">
+              <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
+              <div className="hrmu-alert-summary-row">
+                <span>Unauthorized Exit</span>
+                <strong className="yellow">{String(summary.unauthorizedExit).padStart(2, '0')}</strong>
+              </div>
+              <div className="hrmu-alert-summary-mark" aria-hidden="true" />
+            </article>
+          </aside>
+        </section>
+
+        {alertsError ? <div className="cssu-reports-error-banner">{alertsError}</div> : null}
+      </section>
+    </CSSUDesktopPage>
+  );
+};
+
+const AdminProfileView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
+  const accountRole = profileData?.accountRole || '';
+  const homeView = getPortalHomeViewForRole(accountRole);
+  const notificationsView = getPortalNotificationsViewForRole(accountRole);
+  const fullName = profileData?.fullName || 'Portal User';
+  const department = profileData?.department || 'Portal Department';
+  const position = getPortalPositionLabel(profileData);
+  const badgeLabel = getPortalBadgeLabel(accountRole);
+
+  const profileContent = (
+    <div className="aprof-container">
+      <div className="aprof-hero-card">
+        <div className="aprof-hero-bg-accent" />
+        <div className="aprof-hero-content">
+          <div className="aprof-avatar-wrapper">
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} />
+            <div className="aprof-avatar-badge">{badgeLabel}</div>
+          </div>
+          <h2 className="aprof-name">{fullName}</h2>
+          <p className="aprof-role">{position}</p>
+          <div className="aprof-id-pill">
+            <AdminProfileIdIcon />
+            <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+          </div>
+          <p className="aprof-role" style={{ marginTop: '10px', fontSize: '0.98rem' }}>{department}</p>
+        </div>
+      </div>
+
+      <div className="aprof-section">
+        <h3 className="aprof-section-title">ACCOUNT ADMINISTRATION</h3>
+
+        <div className="aprof-menu">
+          <button type="button" className="aprof-menu-item" onClick={() => setView('admin-edit-profile')}>
+            <div className="aprof-menu-icon-box">
+              <AdminProfileEditIcon />
+            </div>
+            <span className="aprof-menu-text">Edit Profile</span>
+            <AdminProfileChevronIcon />
+          </button>
+
+          <button type="button" className="aprof-menu-item" onClick={() => setView('admin-change-password')}>
+            <div className="aprof-menu-icon-box">
+              <AdminProfilePasswordIcon />
+            </div>
+            <span className="aprof-menu-text">Change Password</span>
+            <AdminProfileChevronIcon />
+          </button>
+        </div>
+
+        <button className="aprof-logout-btn" onClick={onLogout}>
+          <AdminProfileLogoutIcon />
+          LOGOUT SESSION
+        </button>
+      </div>
+    </div>
+  );
+
+  if (accountRole === 'hrmu' && isDesktopViewport) {
+    return (
+      <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
+        <section className="cssu-desktop-page">{profileContent}</section>
+      </HrmuWorkspaceShell>
+    );
+  }
+
+  if (accountRole === 'cssu' && isDesktopViewport) {
+    return (
+      <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
+        {profileContent}
+      </CSSUDesktopPage>
+    );
+  }
+
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">
-
-        {/* Header */}
         <div className="admin-header">
           <div className="anotif-header-left">
-            <div className="anotif-back" onClick={() => setView('admin-dashboard')}>
+            <div className="anotif-back" onClick={() => setView(homeView)}>
               <BackArrowIcon color="var(--green)" />
             </div>
             <span className="admin-logo-text">EduRoute</span>
           </div>
           <div className="admin-header-right">
-            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+            <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
               <AdminBellIcon color="var(--text-dark)" />
               <div className="admin-bell-dot" />
             </div>
             <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} />
             </div>
           </div>
         </div>
 
-        <div className="aprof-container">
-          <div className="aprof-hero-card">
-            <div className="aprof-hero-bg-accent" />
-            <div className="aprof-hero-content">
-              <div className="aprof-avatar-wrapper">
-                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dr. Ron Uy" />
-                <div className="aprof-avatar-badge">CCS DEAN</div>
-              </div>
-              <h2 className="aprof-name">Dr. Ron Uy</h2>
-              <p className="aprof-role">Dean of College of Computer Studies</p>
-              <div className="aprof-id-pill">
-                <AdminProfileIdIcon />
-                <span>ID: 202123112</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="aprof-section">
-            <h3 className="aprof-section-title">ACCOUNT ADMINISTRATION</h3>
-
-            <div className="aprof-menu">
-              <div className="aprof-menu-item" onClick={() => setView('admin-edit-profile')}>
-                <div className="aprof-menu-icon-box">
-                  <AdminProfileEditIcon />
-                </div>
-                <span className="aprof-menu-text">Edit Profile</span>
-                <AdminProfileChevronIcon />
-              </div>
-
-              <div className="aprof-menu-item" onClick={() => setView('admin-change-password')}>
-                <div className="aprof-menu-icon-box">
-                  <AdminProfilePasswordIcon />
-                </div>
-                <span className="aprof-menu-text">Change Password</span>
-                <AdminProfileChevronIcon />
-              </div>
-            </div>
-
-            <button className="aprof-logout-btn" onClick={() => {
-              localStorage.removeItem('token');
-              localStorage.removeItem('edurouteLastView');
-              setView('login');
-            }}>
-              <AdminProfileLogoutIcon />
-              LOGOUT SESSION
-            </button>
-          </div>
-        </div>
-
+        {profileContent}
       </div>
-      <AdminBottomNav active="" setView={setView} />
+      {accountRole === 'cssu' ? <CSSUBottomNav active="" setView={setView} /> : <AdminBottomNav active="" setView={setView} />}
     </div>
   );
 };
@@ -13478,6 +14638,8 @@ const AdminSaveCheckIcon = () => (
 );
 
 const AdminEditProfileView = ({ setView, profileData }) => {
+  const accountRole = profileData?.accountRole || '';
+  const notificationsView = getPortalNotificationsViewForRole(accountRole);
   return (
     <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
       <div className="admin-dash-scroll">
@@ -13491,7 +14653,7 @@ const AdminEditProfileView = ({ setView, profileData }) => {
             <span className="admin-logo-text">EduRoute</span>
           </div>
           <div className="admin-header-right">
-            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
+            <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
               <AdminBellIcon color="var(--text-dark)" />
               <div className="admin-bell-dot" />
             </div>
@@ -13518,7 +14680,7 @@ const AdminEditProfileView = ({ setView, profileData }) => {
             <div className="aedit-input-group">
               <label>FULL NAME</label>
               <div className="aedit-input-wrapper">
-                <input type="text" defaultValue="Dr. Ron Uy" />
+                <input type="text" defaultValue={profileData?.fullName || ''} />
                 <AdminUserOutlineIcon />
               </div>
             </div>
@@ -13526,7 +14688,7 @@ const AdminEditProfileView = ({ setView, profileData }) => {
             <div className="aedit-input-group">
               <label>ACADEMIC EMAIL</label>
               <div className="aedit-input-wrapper">
-                <input type="email" defaultValue="202123112@gordoncollege.edu.ph" />
+                <input type="email" defaultValue={profileData?.email || ''} />
                 <AdminEmailOutlineIcon />
               </div>
             </div>

@@ -1,5 +1,14 @@
 const pool = require('../db/pool');
 
+const ALLOWED_COLLEGE_NAMES = [
+    'College of Education, Arts and Sciences',
+    'College of Hospitality and Tourism Management',
+    'College of Business and Accountancy',
+    'College of Allied Health Studies',
+    'College of Computer Studies'
+];
+const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
+
 let cssuExitLogsTableExistsCache = null;
 
 const getCssuExitLogsTableExists = async () => {
@@ -26,6 +35,448 @@ const getDashboardSummary = async () => {
         total_faculty_exiting: 0,
         approved_locator_slips: 0,
         rejected_locator_slips: 0,
+    };
+};
+
+const buildReportsFilter = ({ startDate, endDate, departmentName } = {}) => {
+    const values = [ALLOWED_COLLEGE_NAMES, startDate, endDate];
+    let departmentClause = '';
+
+    if (departmentName && departmentName !== 'all') {
+        values.push(departmentName);
+        departmentClause = `AND ad.department_name = $${values.length}`;
+    }
+
+    return {
+        values,
+        departmentClause,
+    };
+};
+
+const getReportsSummary = async ({ startDate, endDate, departmentName } = {}) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
+
+    const validatedExitJoin = hasCssuExitLogsTable
+        ? `LEFT JOIN cssu_exit_logs log
+             ON log.locator_slip_id = fls.locator_slip_id
+            AND log.status = 'validated'
+            AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date`
+        : `LEFT JOIN LATERAL (
+                SELECT NULL::uuid AS locator_slip_id
+            ) log ON TRUE`;
+
+    const flaggedExitJoin = hasCssuExitLogsTable
+        ? `LEFT JOIN cssu_exit_logs flagged_log
+             ON flagged_log.locator_slip_id = fls.locator_slip_id
+            AND flagged_log.status = 'denied'
+            AND COALESCE(flagged_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+            AND COALESCE(flagged_log.validated_at::date, flagged_log.created_at::date) BETWEEN $2::date AND $3::date`
+        : `LEFT JOIN LATERAL (
+                SELECT NULL::uuid AS locator_slip_id
+            ) flagged_log ON TRUE`;
+
+    const { rows } = await pool.query(
+        `WITH allowed_departments AS (
+            SELECT id, department_name
+            FROM departments
+            WHERE department_name = ANY($1::text[])
+        ),
+        filtered_locator_slips AS (
+            SELECT
+                ls.id AS locator_slip_id,
+                COALESCE(ls.college_id, fu.department_id) AS department_id,
+                ad.department_name,
+                ls.status,
+                COALESCE(ls.departure_datetime::date, ls.created_at::date) AS report_date
+            FROM locator_slips ls
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            JOIN allowed_departments ad ON ad.id = COALESCE(ls.college_id, fu.department_id)
+            WHERE COALESCE(ls.departure_datetime::date, ls.created_at::date) BETWEEN $2::date AND $3::date
+              ${departmentClause}
+        )
+        SELECT
+            COUNT(DISTINCT log.locator_slip_id)::int AS exit_clearances,
+            COUNT(DISTINCT flagged_log.locator_slip_id)::int AS flagged_events
+        FROM filtered_locator_slips fls
+        ${validatedExitJoin}
+        ${flaggedExitJoin}`,
+        values
+    );
+
+    return rows[0] || {
+        exit_clearances: 0,
+        flagged_events: 0,
+    };
+};
+
+const getReportsActivityByDepartment = async ({ startDate, endDate, departmentName } = {}) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
+
+    if (!hasCssuExitLogsTable) {
+        return [];
+    }
+
+    const { rows } = await pool.query(
+        `WITH allowed_departments AS (
+            SELECT id, department_name
+            FROM departments
+            WHERE department_name = ANY($1::text[])
+        ),
+        validated_locator_slips AS (
+            SELECT
+                ad.department_name,
+                ls.id AS locator_slip_id
+            FROM cssu_exit_logs log
+            JOIN locator_slips ls ON ls.id = log.locator_slip_id
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            JOIN allowed_departments ad ON ad.id = COALESCE(ls.college_id, fu.department_id)
+            WHERE log.status = 'validated'
+              AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
+              ${departmentClause}
+        ),
+        total_locator_slips AS (
+            SELECT COUNT(*)::numeric AS total_count
+            FROM validated_locator_slips
+        )
+        SELECT
+            vls.department_name,
+            COUNT(*)::int AS locator_slip_count,
+            CASE
+                WHEN tls.total_count = 0 THEN 0
+                ELSE ROUND((COUNT(*)::numeric / tls.total_count) * 100, 1)
+            END AS percentage
+        FROM validated_locator_slips vls
+        CROSS JOIN total_locator_slips tls
+        GROUP BY vls.department_name, tls.total_count
+        ORDER BY COUNT(*) DESC, vls.department_name ASC`,
+        values
+    );
+
+    return rows;
+};
+
+const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {}) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
+
+    const validatedLogsCte = hasCssuExitLogsTable
+        ? `validated_logs AS (
+                SELECT
+                    CONCAT('validated-', log.id)::text AS movement_id,
+                    slip.locator_slip_id,
+                    slip.faculty_name,
+                    slip.employee_id,
+                    slip.department_name,
+                    slip.purpose,
+                    slip.destination,
+                    COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                    'verified'::text AS movement_status,
+                    CASE
+                        WHEN log.gate = 'back_gate' THEN 'Back Gate'
+                        ELSE 'Main Gate'
+                    END AS location_label,
+                    'Exit Clearance'::text AS event_label,
+                    NULL::text AS investigation_label
+                FROM cssu_exit_logs log
+                JOIN filtered_locator_slips slip ON slip.locator_slip_id = log.locator_slip_id
+                WHERE log.status = 'validated'
+                  AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
+            ),`
+        : `validated_logs AS (
+                SELECT
+                    NULL::text AS movement_id,
+                    NULL::uuid AS locator_slip_id,
+                    NULL::text AS faculty_name,
+                    NULL::text AS employee_id,
+                    NULL::text AS department_name,
+                    NULL::text AS purpose,
+                    NULL::text AS destination,
+                    NULL::timestamp AS occurred_at,
+                    NULL::text AS movement_status,
+                    NULL::text AS location_label,
+                    NULL::text AS event_label,
+                    NULL::text AS investigation_label
+                WHERE FALSE
+            ),`;
+
+    const { rows } = await pool.query(
+        `WITH allowed_departments AS (
+            SELECT id, department_name
+            FROM departments
+            WHERE department_name = ANY($1::text[])
+        ),
+        filtered_locator_slips AS (
+            SELECT
+                ls.id AS locator_slip_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                ad.department_name,
+                COALESCE(ls.custom_purpose, ls.purpose_of_travel, 'Locator Slip Clearance') AS purpose,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                ls.status,
+                ls.created_at,
+                ls.updated_at
+            FROM locator_slips ls
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            JOIN allowed_departments ad ON ad.id = COALESCE(ls.college_id, fu.department_id)
+            WHERE COALESCE(ls.departure_datetime::date, ls.created_at::date) BETWEEN $2::date AND $3::date
+              ${departmentClause}
+        ),
+        ${validatedLogsCte}
+        flagged_logs AS (
+            SELECT
+                CONCAT('flagged-', log.id)::text AS movement_id,
+                slip.locator_slip_id,
+                slip.faculty_name,
+                slip.employee_id,
+                slip.department_name,
+                slip.purpose,
+                slip.destination,
+                COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                'flagged'::text AS movement_status,
+                CASE
+                    WHEN slip.status = 'pending' THEN 'Pending Approval'
+                    ELSE 'Rejected Locator Slip'
+                END AS location_label,
+                CASE
+                    WHEN slip.status = 'pending' THEN 'Pending Locator Slip'
+                    ELSE 'Rejected Locator Slip'
+                END AS event_label,
+                'Investigation Req.'::text AS investigation_label
+            FROM filtered_locator_slips slip
+            JOIN cssu_exit_logs log ON log.locator_slip_id = slip.locator_slip_id
+            WHERE log.status = 'denied'
+              AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+              AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
+        ),
+        movement_rows AS (
+            SELECT * FROM validated_logs
+            UNION ALL
+            SELECT * FROM flagged_logs
+        )
+        SELECT
+            movement_id,
+            locator_slip_id,
+            faculty_name,
+            employee_id,
+            department_name,
+            purpose,
+            destination,
+            occurred_at,
+            movement_status,
+            location_label,
+            event_label,
+            investigation_label
+        FROM movement_rows
+        ORDER BY occurred_at DESC, movement_id ASC`,
+        values
+    );
+
+    return rows;
+};
+
+const getIncidentOverview = async () => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+
+    const flaggedLogsCte = hasCssuExitLogsTable
+        ? `flagged_logs AS (
+                SELECT
+                    CONCAT('flagged-', log.id)::text AS incident_id,
+                    ls.id AS locator_slip_id,
+                    fu.id AS faculty_user_id,
+                    fu.full_name AS faculty_name,
+                    fu.employee_id,
+                    d.department_name,
+                    COALESCE(ls.destination, 'Unknown destination') AS destination,
+                    COALESCE(ls.custom_purpose, ls.purpose_of_travel, 'Locator Slip Clearance') AS purpose,
+                    'Flagged Exit Attempt'::text AS title,
+                    CASE
+                        WHEN ls.status = 'pending' THEN 'CSSU flagged an exit attempt because the locator slip is still pending dean approval.'
+                        WHEN ls.status = 'rejected' THEN 'CSSU flagged an exit attempt because the locator slip was rejected.'
+                        ELSE 'CSSU flagged an exit attempt for review.'
+                    END AS description,
+                    CASE
+                        WHEN ls.status = 'pending' THEN 'moderate'
+                        ELSE 'critical'
+                    END AS severity,
+                    CASE
+                        WHEN ls.status = 'pending' THEN 'yellow'
+                        ELSE 'red'
+                    END AS tone,
+                    COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                    COALESCE(log.notes, '') AS notes
+                FROM cssu_exit_logs log
+                JOIN locator_slips ls ON ls.id = log.locator_slip_id
+                JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+                LEFT JOIN departments d ON d.id = fu.department_id
+                WHERE log.status = 'denied'
+                  AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+                  AND COALESCE(log.validated_at::date, log.created_at::date) = CURRENT_DATE
+            ),`
+        : `flagged_logs AS (
+                SELECT
+                    NULL::text AS incident_id,
+                    NULL::int AS locator_slip_id,
+                    NULL::int AS faculty_user_id,
+                    NULL::text AS faculty_name,
+                    NULL::text AS employee_id,
+                    NULL::text AS department_name,
+                    NULL::text AS destination,
+                    NULL::text AS purpose,
+                    NULL::text AS title,
+                    NULL::text AS description,
+                    NULL::text AS severity,
+                    NULL::text AS tone,
+                    NULL::timestamp AS occurred_at,
+                    NULL::text AS notes
+                WHERE FALSE
+            ),`;
+
+    const validatedTodaySql = hasCssuExitLogsTable
+        ? `(SELECT COUNT(*)::int FROM cssu_exit_logs WHERE status = 'validated' AND COALESCE(validated_at::date, created_at::date) = CURRENT_DATE)`
+        : `0`;
+
+    const { rows } = await pool.query(
+        `WITH
+            ${flaggedLogsCte}
+            incident_rows AS (
+                SELECT * FROM flagged_logs
+            )
+         SELECT
+            incident_id,
+            locator_slip_id,
+            faculty_user_id,
+            faculty_name,
+            employee_id,
+            department_name,
+            destination,
+            purpose,
+            title,
+            description,
+            severity,
+            tone,
+            occurred_at,
+            notes,
+            (SELECT COUNT(*)::int FROM incident_rows) AS active_cases,
+            ${validatedTodaySql} AS resolved_today
+         FROM incident_rows
+         ORDER BY occurred_at DESC, incident_id ASC`
+    );
+
+    return rows;
+};
+
+const getNotificationsOverview = async (limit = 8) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+
+    if (!hasCssuExitLogsTable) {
+        return {
+            notifications: [],
+            validated_clearances: 0,
+            flagged_exits: 0,
+            unauthorized_exit: 0,
+        };
+    }
+
+    const { rows } = await pool.query(
+        `WITH notification_rows AS (
+            SELECT
+                CONCAT('validated-', log.id)::text AS notification_id,
+                ls.id AS locator_slip_id,
+                fu.id AS faculty_user_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                d.department_name,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                COALESCE(ls.custom_purpose, ls.purpose_of_travel, 'Locator Slip Clearance') AS purpose,
+                log.gate,
+                'validated'::text AS notification_type,
+                'Exit Clearance Validated'::text AS title,
+                COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                COALESCE(log.notes, '') AS notes,
+                ls.status AS locator_slip_status
+            FROM cssu_exit_logs log
+            JOIN locator_slips ls ON ls.id = log.locator_slip_id
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            LEFT JOIN departments d ON d.id = fu.department_id
+            WHERE log.status = 'validated'
+
+            UNION ALL
+
+            SELECT
+                CONCAT('flagged-', log.id)::text AS notification_id,
+                ls.id AS locator_slip_id,
+                fu.id AS faculty_user_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                d.department_name,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                COALESCE(ls.custom_purpose, ls.purpose_of_travel, 'Locator Slip Clearance') AS purpose,
+                log.gate,
+                'flagged'::text AS notification_type,
+                CASE
+                    WHEN ls.status = 'pending' THEN 'Unauthorized Exit Attempt'
+                    ELSE 'Flagged Exit Attempt'
+                END AS title,
+                COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                COALESCE(log.notes, '') AS notes,
+                ls.status AS locator_slip_status
+            FROM cssu_exit_logs log
+            JOIN locator_slips ls ON ls.id = log.locator_slip_id
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            LEFT JOIN departments d ON d.id = fu.department_id
+            WHERE log.status = 'denied'
+              AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+        ),
+        summary AS (
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE notification_type = 'validated'
+                      AND occurred_at::date = CURRENT_DATE
+                )::int AS validated_clearances,
+                COUNT(*) FILTER (
+                    WHERE notification_type = 'flagged'
+                      AND occurred_at::date = CURRENT_DATE
+                )::int AS flagged_exits,
+                COUNT(*) FILTER (
+                    WHERE notification_type = 'flagged'
+                      AND locator_slip_status = 'pending'
+                      AND occurred_at::date = CURRENT_DATE
+                )::int AS unauthorized_exit
+            FROM notification_rows
+        )
+        SELECT
+            nr.notification_id,
+            nr.locator_slip_id,
+            nr.faculty_user_id,
+            nr.faculty_name,
+            nr.employee_id,
+            nr.department_name,
+            nr.destination,
+            nr.purpose,
+            nr.gate,
+            nr.notification_type,
+            nr.title,
+            nr.occurred_at,
+            nr.notes,
+            nr.locator_slip_status,
+            s.validated_clearances,
+            s.flagged_exits,
+            s.unauthorized_exit
+        FROM notification_rows nr
+        CROSS JOIN summary s
+        ORDER BY nr.occurred_at DESC, nr.notification_id ASC
+        LIMIT $1`,
+        [limit]
+    );
+
+    return {
+        notifications: rows,
+        validated_clearances: rows[0]?.validated_clearances || 0,
+        flagged_exits: rows[0]?.flagged_exits || 0,
+        unauthorized_exit: rows[0]?.unauthorized_exit || 0,
     };
 };
 
@@ -142,7 +593,8 @@ const findLocatorSlipByCode = async (locatorSlipCode) => {
             log.gate,
             log.status AS exit_status,
             log.validation_method,
-            log.validated_at
+            log.validated_at,
+            log.notes AS exit_notes
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          LEFT JOIN departments d ON d.id = fu.department_id
@@ -176,8 +628,6 @@ const upsertExitLogStatus = async ({
     validatedBy,
     notes,
 }) => {
-    const validatedAt = status === 'approved' ? null : new Date().toISOString();
-
     const { rows } = await pool.query(
         `INSERT INTO cssu_exit_logs (
             locator_slip_id,
@@ -189,7 +639,19 @@ const upsertExitLogStatus = async ({
             validated_by,
             notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES (
+            $1,
+            $2,
+            $3,
+            $4,
+            $5,
+            CASE
+                WHEN $4 = 'approved' THEN NULL
+                ELSE (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
+            END,
+            $6,
+            $7
+        )
         ON CONFLICT (locator_slip_id)
         DO UPDATE SET
             gate = EXCLUDED.gate,
@@ -200,15 +662,21 @@ const upsertExitLogStatus = async ({
             notes = EXCLUDED.notes,
             updated_at = CURRENT_TIMESTAMP
         RETURNING *`,
-        [locatorSlipId, facultyUserId, gate, status, validationMethod, validatedAt, validatedBy, notes]
+        [locatorSlipId, facultyUserId, gate, status, validationMethod, validatedBy, notes]
     );
 
     return rows[0];
 };
 
 module.exports = {
+    CSSU_FLAG_INCIDENT_NOTE_PREFIX,
     getDashboardSummary,
+    getIncidentOverview,
     getLiveExitMonitoring,
+    getNotificationsOverview,
+    getReportsSummary,
+    getReportsActivityByDepartment,
+    getReportsMovementLogs,
     findLocatorSlipByCode,
     findLocatorSlipForExitStatus,
     upsertExitLogStatus,

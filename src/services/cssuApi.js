@@ -24,6 +24,11 @@ export const getCssuDashboardSummary = () => request('/api/cssu/dashboard/summar
 
 export const getCssuLiveExitMonitoring = (params = {}) => request('/api/cssu/dashboard/live-exits', params);
 
+export const getCssuIncidentsOverview = () => request('/api/cssu/incidents/overview');
+export const getCssuNotificationsOverview = (params = {}) => request('/api/cssu/notifications/overview', params);
+
+export const getCssuReportsOverview = (params = {}) => request('/api/cssu/reports/overview', params);
+
 export const lookupCssuExitCandidate = (params = {}) => request('/api/cssu/exit-clearance/lookup', params);
 
 export const updateCssuExitStatus = async (locatorSlipId, payload = {}) => {
