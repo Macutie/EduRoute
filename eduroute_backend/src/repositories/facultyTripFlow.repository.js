@@ -3,19 +3,22 @@ const pool = require('../db/pool');
 const OPEN_TRIP_STATUSES = ['active', 'arrived', 'returning'];
 const APPROVED_SLIP_STATUSES = ['approved', 'verified'];
 const LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS = 4 * 60 * 60;
+const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
 let locatorSlipTripStatusColumnExistsCache = null;
 let locatorSlipDestinationLatColumnExistsCache = null;
 let locatorSlipDestinationLngColumnExistsCache = null;
 let locatorSlipDestinationResolutionMethodColumnExistsCache = null;
+const locatorSlipColumnExistsCache = {};
 let tripsLocatorSlipIdColumnExistsCache = null;
 let arrivalVerificationsTableExistsCache = null;
 let locatorSlipLocationVerificationsTableExistsCache = null;
+let cssuExitLogsTableExistsCache = null;
 const tripsColumnExistsCache = {};
 let tripsStatusConstraintDefinitionCache = null;
 
-const getLocatorSlipTripStatusColumnExists = async (client = pool) => {
-    if (locatorSlipTripStatusColumnExistsCache !== null) {
-        return locatorSlipTripStatusColumnExistsCache;
+const getLocatorSlipColumnExists = async (columnName, client = pool) => {
+    if (Object.prototype.hasOwnProperty.call(locatorSlipColumnExistsCache, columnName)) {
+        return locatorSlipColumnExistsCache[columnName];
     }
 
     const { rows } = await client.query(
@@ -24,69 +27,51 @@ const getLocatorSlipTripStatusColumnExists = async (client = pool) => {
             FROM information_schema.columns
             WHERE table_schema = 'public'
               AND table_name = 'locator_slips'
-              AND column_name = 'trip_status'
-        ) AS exists`
+              AND column_name = $1
+        ) AS exists`,
+        [columnName]
     );
 
-    locatorSlipTripStatusColumnExistsCache = Boolean(rows[0]?.exists);
+    locatorSlipColumnExistsCache[columnName] = Boolean(rows[0]?.exists);
+    return locatorSlipColumnExistsCache[columnName];
+};
+
+const getLocatorSlipTripStatusColumnExists = async (client = pool) => {
+    if (locatorSlipTripStatusColumnExistsCache === null) {
+        locatorSlipTripStatusColumnExistsCache = await getLocatorSlipColumnExists('trip_status', client);
+    }
     return locatorSlipTripStatusColumnExistsCache;
 };
 
 const getLocatorSlipDestinationLatColumnExists = async (client = pool) => {
-    if (locatorSlipDestinationLatColumnExistsCache !== null) {
-        return locatorSlipDestinationLatColumnExistsCache;
+    if (locatorSlipDestinationLatColumnExistsCache === null) {
+        locatorSlipDestinationLatColumnExistsCache = await getLocatorSlipColumnExists('destination_lat', client);
     }
-
-    const { rows } = await client.query(
-        `SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'locator_slips'
-              AND column_name = 'destination_lat'
-        ) AS exists`
-    );
-
-    locatorSlipDestinationLatColumnExistsCache = Boolean(rows[0]?.exists);
     return locatorSlipDestinationLatColumnExistsCache;
 };
 
 const getLocatorSlipDestinationLngColumnExists = async (client = pool) => {
-    if (locatorSlipDestinationLngColumnExistsCache !== null) {
-        return locatorSlipDestinationLngColumnExistsCache;
+    if (locatorSlipDestinationLngColumnExistsCache === null) {
+        locatorSlipDestinationLngColumnExistsCache = await getLocatorSlipColumnExists('destination_lng', client);
     }
-
-    const { rows } = await client.query(
-        `SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'locator_slips'
-              AND column_name = 'destination_lng'
-        ) AS exists`
-    );
-
-    locatorSlipDestinationLngColumnExistsCache = Boolean(rows[0]?.exists);
     return locatorSlipDestinationLngColumnExistsCache;
 };
 
 const getLocatorSlipDestinationResolutionMethodColumnExists = async (client = pool) => {
-    if (locatorSlipDestinationResolutionMethodColumnExistsCache !== null) {
-        return locatorSlipDestinationResolutionMethodColumnExistsCache;
+    if (locatorSlipDestinationResolutionMethodColumnExistsCache === null) {
+        locatorSlipDestinationResolutionMethodColumnExistsCache = await getLocatorSlipColumnExists('destination_resolution_method', client);
+    }
+    return locatorSlipDestinationResolutionMethodColumnExistsCache;
+};
+
+const getCssuExitLogsTableExists = async (client = pool) => {
+    if (cssuExitLogsTableExistsCache !== null) {
+        return cssuExitLogsTableExistsCache;
     }
 
-    const { rows } = await client.query(
-        `SELECT EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'locator_slips'
-              AND column_name = 'destination_resolution_method'
-        ) AS exists`
-    );
-
-    locatorSlipDestinationResolutionMethodColumnExistsCache = Boolean(rows[0]?.exists);
-    return locatorSlipDestinationResolutionMethodColumnExistsCache;
+    const { rows } = await client.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
+    cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return cssuExitLogsTableExistsCache;
 };
 
 const getTripsLocatorSlipIdColumnExists = async (client = pool) => {
@@ -218,6 +203,7 @@ const mapTripRow = (row) => {
         arrival_verified_at: row.arrival_verified_at,
         returned_at: row.returned_at,
         ended_at: row.ended_at,
+        summary_generated_at: row.summary_generated_at,
         created_at: row.created_at,
         updated_at: row.updated_at
     };
@@ -237,6 +223,11 @@ const mapLocatorSlipRow = (row) => ({
     expected_return_time: row.expected_return_datetime,
     status: row.status,
     trip_status: row.trip_status || 'not_started',
+    completed_at: row.completed_at || null,
+    cssu_validation_status: row.cssu_validation_status || 'pending',
+    cssu_validated_at: row.cssu_validated_at || null,
+    cssu_validated_by: row.cssu_validated_by || null,
+    cssu_validation_notes: row.cssu_validation_notes || null,
     approved_at: row.approved_at || null,
     updated_at: row.updated_at || null
 });
@@ -246,6 +237,12 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
     const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
     const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
     const hasEndedAtColumn = await getTripsColumnExists('ended_at');
+    const hasCompletedAtColumn = await getLocatorSlipColumnExists('completed_at');
+    const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
+    const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasCssuValidatedByColumn = await getLocatorSlipColumnExists('cssu_validated_by');
+    const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const tripCompletionCheck = [
         hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
         hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null,
@@ -263,6 +260,42 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             ELSE COALESCE(ls.trip_status, resolved_trip.trip_status, 'not_started')
         END AS trip_status`
         : `COALESCE(resolved_trip.trip_status, 'not_started') AS trip_status`;
+    const effectiveTripStatusWhere = hasTripStatusColumn
+        ? `CASE
+            WHEN COALESCE(resolved_trip.trip_status, '') = 'completed' OR COALESCE(ls.trip_status, '') = 'completed' THEN 'completed'
+            ELSE COALESCE(ls.trip_status, resolved_trip.trip_status, 'not_started')
+        END`
+        : `COALESCE(resolved_trip.trip_status, 'not_started')`;
+    const cssuValidationStatusSelect = hasCssuValidationStatusColumn
+        ? `CASE
+            WHEN COALESCE(ls.cssu_validation_status, '') <> '' THEN ls.cssu_validation_status
+            ${hasCssuExitLogsTable ? `
+            WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+            WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+            WHEN latest_cssu_log.status = 'denied' THEN 'denied'` : ''}
+            ELSE 'pending'
+        END AS cssu_validation_status`
+        : hasCssuExitLogsTable
+            ? `CASE
+                WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+                WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+                WHEN latest_cssu_log.status = 'denied' THEN 'denied'
+                ELSE 'pending'
+            END AS cssu_validation_status`
+            : `'pending' AS cssu_validation_status`;
+    const cssuValidatedAtSelect = hasCssuValidatedAtColumn
+        ? `COALESCE(ls.cssu_validated_at, ${hasCssuExitLogsTable ? 'latest_cssu_log.validated_at' : 'NULL'}) AS cssu_validated_at`
+        : hasCssuExitLogsTable
+            ? `latest_cssu_log.validated_at AS cssu_validated_at`
+            : `NULL::timestamp AS cssu_validated_at`;
+    const cssuValidatedBySelect = hasCssuValidatedByColumn
+        ? `ls.cssu_validated_by`
+        : `NULL::text AS cssu_validated_by`;
+    const cssuValidationNotesSelect = hasCssuValidationNotesColumn
+        ? `COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
+        : hasCssuExitLogsTable
+            ? `latest_cssu_log.notes AS cssu_validation_notes`
+            : `NULL::text AS cssu_validation_notes`;
 
     const { rows } = await pool.query(
         `SELECT
@@ -275,6 +308,11 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             ls.expected_return_datetime,
             ls.status,
             ${tripStatusSelect},
+            ${hasCompletedAtColumn ? 'ls.completed_at' : 'NULL::timestamp AS completed_at'},
+            ${cssuValidationStatusSelect},
+            ${cssuValidatedAtSelect},
+            ${cssuValidatedBySelect},
+            ${cssuValidationNotesSelect},
             ls.approved_at,
             ls.updated_at
          FROM locator_slips ls
@@ -304,8 +342,18 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
                 COALESCE(${tripRecencyExpression}) DESC
             LIMIT 1
          ) resolved_trip ON TRUE
+         ${hasCssuExitLogsTable ? `
+         LEFT JOIN LATERAL (
+            SELECT log.status, log.notes, log.validated_at
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = ls.id
+            ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
+            LIMIT 1
+         ) latest_cssu_log ON TRUE` : ''}
          WHERE ls.faculty_user_id = $1
            AND ls.status = ANY($2::text[])
+           AND ls.status <> 'completed'
+           AND ${effectiveTripStatusWhere} <> 'completed'
          ORDER BY COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC`,
         [facultyUserId, APPROVED_SLIP_STATUSES]
     );
@@ -332,6 +380,12 @@ const getLocatorSlipForTripAccess = async (facultyUserId, locatorSlipId, client 
     const hasDestinationLatColumn = await getLocatorSlipDestinationLatColumnExists(client);
     const hasDestinationLngColumn = await getLocatorSlipDestinationLngColumnExists(client);
     const hasResolutionMethodColumn = await getLocatorSlipDestinationResolutionMethodColumnExists(client);
+    const hasCompletedAtColumn = await getLocatorSlipColumnExists('completed_at', client);
+    const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status', client);
+    const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at', client);
+    const hasCssuValidatedByColumn = await getLocatorSlipColumnExists('cssu_validated_by', client);
+    const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes', client);
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists(client);
     const tripStatusSelect = hasTripStatusColumn
         ? `COALESCE(ls.trip_status, 'not_started') AS trip_status`
         : `'not_started' AS trip_status`;
@@ -340,6 +394,36 @@ const getLocatorSlipForTripAccess = async (facultyUserId, locatorSlipId, client 
     const resolutionMethodSelect = hasResolutionMethodColumn
         ? 'ls.destination_resolution_method'
         : 'NULL::varchar AS destination_resolution_method';
+    const cssuValidationStatusSelect = hasCssuValidationStatusColumn
+        ? `CASE
+            WHEN COALESCE(ls.cssu_validation_status, '') <> '' THEN ls.cssu_validation_status
+            ${hasCssuExitLogsTable ? `
+            WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+            WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+            WHEN latest_cssu_log.status = 'denied' THEN 'denied'` : ''}
+            ELSE 'pending'
+        END AS cssu_validation_status`
+        : hasCssuExitLogsTable
+            ? `CASE
+                WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+                WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+                WHEN latest_cssu_log.status = 'denied' THEN 'denied'
+                ELSE 'pending'
+            END AS cssu_validation_status`
+            : `'pending' AS cssu_validation_status`;
+    const cssuValidatedAtSelect = hasCssuValidatedAtColumn
+        ? `COALESCE(ls.cssu_validated_at, ${hasCssuExitLogsTable ? 'latest_cssu_log.validated_at' : 'NULL'}) AS cssu_validated_at`
+        : hasCssuExitLogsTable
+            ? `latest_cssu_log.validated_at AS cssu_validated_at`
+            : `NULL::timestamp AS cssu_validated_at`;
+    const cssuValidatedBySelect = hasCssuValidatedByColumn
+        ? `ls.cssu_validated_by`
+        : `NULL::text AS cssu_validated_by`;
+    const cssuValidationNotesSelect = hasCssuValidationNotesColumn
+        ? `COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
+        : hasCssuExitLogsTable
+            ? `latest_cssu_log.notes AS cssu_validation_notes`
+            : `NULL::text AS cssu_validation_notes`;
 
     const { rows } = await client.query(
         `SELECT
@@ -355,9 +439,22 @@ const getLocatorSlipForTripAccess = async (facultyUserId, locatorSlipId, client 
             ls.expected_return_datetime,
             ls.status,
             ${tripStatusSelect},
+            ${hasCompletedAtColumn ? 'ls.completed_at' : 'NULL::timestamp AS completed_at'},
+            ${cssuValidationStatusSelect},
+            ${cssuValidatedAtSelect},
+            ${cssuValidatedBySelect},
+            ${cssuValidationNotesSelect},
             ls.approved_at,
             ls.updated_at
          FROM locator_slips ls
+         ${hasCssuExitLogsTable ? `
+         LEFT JOIN LATERAL (
+            SELECT log.status, log.notes, log.validated_at
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = ls.id
+            ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
+            LIMIT 1
+         ) latest_cssu_log ON TRUE` : ''}
          WHERE ls.id = $1
            AND ls.faculty_user_id = $2
          LIMIT 1`,
@@ -517,6 +614,102 @@ const updateLocatorSlipTripStatus = async (locatorSlipId, status, client = pool)
          WHERE id = $1`,
         [locatorSlipId, status]
     );
+};
+
+const updateLocatorSlipLifecycle = async (locatorSlipId, values = {}, client = pool) => {
+    const assignments = [];
+    const params = [locatorSlipId];
+    let index = 2;
+
+    for (const [column, value] of Object.entries(values)) {
+        if (column !== 'status') {
+            const columnExists = await getLocatorSlipColumnExists(column, client);
+            if (!columnExists) {
+                continue;
+            }
+        }
+
+        assignments.push(`${column} = $${index}`);
+        params.push(value);
+        index += 1;
+    }
+
+    if (assignments.length === 0) {
+        return null;
+    }
+
+    assignments.push('updated_at = CURRENT_TIMESTAMP');
+
+    const { rows } = await client.query(
+        `UPDATE locator_slips
+         SET ${assignments.join(', ')}
+         WHERE id = $1
+         RETURNING *`,
+        params
+    );
+
+    return rows[0] || null;
+};
+
+const getBlockingTripForLocatorSlip = async (locatorSlipId, facultyUserId, client = pool) => {
+    const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists(client);
+    const hasReturnedAtColumn = await getTripsColumnExists('returned_at', client);
+    const hasEndedAtColumn = await getTripsColumnExists('ended_at', client);
+    const tripCompletionCheck = [
+        hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
+        hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null,
+        `trip.status = 'completed'`
+    ].filter(Boolean).join(' OR ');
+    const blockingStatusClause = [
+        `trip.status = ANY($3::text[])`,
+        hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
+        hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null
+    ].filter(Boolean).join(' OR ');
+    const tripRecencyExpression = [
+        hasEndedAtColumn ? 'trip.ended_at' : null,
+        hasReturnedAtColumn ? 'trip.returned_at' : null,
+        'trip.started_at',
+        'trip.created_at'
+    ].filter(Boolean).join(', ');
+
+    const { rows } = await client.query(
+        `SELECT
+            trip.*,
+            CASE
+                WHEN ${tripCompletionCheck} THEN 'completed'
+                ELSE trip.status
+            END AS resolved_status
+         FROM trips trip
+         JOIN locator_slips ls ON ls.id = $1
+         WHERE trip.user_id = $2
+           AND (${blockingStatusClause})
+           AND (
+                ${hasTripsLocatorSlipIdColumn
+                    ? `trip.locator_slip_id = ls.id
+                       OR (
+                            trip.locator_slip_id IS NULL
+                            AND ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}
+                        )`
+                    : `ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}`})
+         ORDER BY
+            CASE
+                WHEN ${tripCompletionCheck} THEN 0
+                ELSE 1
+            END,
+            COALESCE(${tripRecencyExpression}) DESC
+         LIMIT 1`,
+        [locatorSlipId, facultyUserId, [...OPEN_TRIP_STATUSES, 'completed']]
+    );
+
+    if (!rows[0]) return null;
+
+    const trip = mapTripRow(rows[0]);
+    if (!trip) return null;
+
+    return {
+        ...trip,
+        status: rows[0].resolved_status || trip.status
+    };
 };
 
 const insertTrip = async (payload, client = pool) => {
@@ -760,10 +953,12 @@ module.exports = {
     getOpenTripForUser,
     getLocatorSlipForTripAccess,
     getCurrentTripForLocatorSlip,
+    getBlockingTripForLocatorSlip,
     getLatestArrivalVerification,
     getLatestLocatorSlipLocationVerification,
     updateLocatorSlipDestination,
     updateLocatorSlipTripStatus,
+    updateLocatorSlipLifecycle,
     insertTrip,
     updateTripLifecycle,
     insertArrivalVerification,

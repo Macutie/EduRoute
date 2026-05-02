@@ -8,8 +8,17 @@ const tripRepository = require('../repositories/tripTracking.repository');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 const tripIncidentService = require('./tripIncident.service');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const {
+    APPROVABLE_STATUSES,
+    ACTIVE_TRIP_STATUSES,
+    canLocatorSlipStartTrip,
+    getFacultyLocatorSlipActions,
+    isLocatorSlipCompleted,
+    normalizeCssuValidationStatus,
+    normalizeTripStatus,
+} = require('../utils/locatorSlipActions');
 
-const VERIFIABLE_SLIP_STATUSES = new Set(['approved', 'verified']);
+const VERIFIABLE_SLIP_STATUSES = APPROVABLE_STATUSES;
 
 const uploadArrivalVerificationToCloudinary = (optimizedImage, locatorSlipId) =>
     new Promise((resolve, reject) => {
@@ -60,9 +69,42 @@ const ensureApprovedLocatorSlip = (locatorSlip) => {
         throw new AppError('Only approved or verified locator slips can be used for trip access.', 409);
     }
 
-    if (String(locatorSlip.trip_status || '').toLowerCase() === 'completed') {
-        throw new AppError('This locator slip trip has already been completed.', 409);
+    if (isLocatorSlipCompleted(locatorSlip)) {
+        throw new AppError('This locator slip has already been completed and cannot be used for another trip.', 409);
     }
+};
+
+const createTripStartBlockedError = (locatorSlip, existingTrip = null) => {
+    const cssuValidationStatus = normalizeCssuValidationStatus(locatorSlip?.cssu_validation_status);
+
+    if (isLocatorSlipCompleted(locatorSlip, existingTrip)) {
+        return new AppError('This locator slip has already been completed and cannot be used for another trip.', 409);
+    }
+
+    if (cssuValidationStatus === 'pending') {
+        return new AppError('This locator slip must be validated and allowed by CSSU before starting the trip.', 409);
+    }
+
+    if (cssuValidationStatus === 'denied') {
+        return new AppError('This locator slip was denied by CSSU and cannot start a trip.', 409);
+    }
+
+    if (cssuValidationStatus === 'flagged') {
+        return new AppError('This locator slip was flagged by CSSU and cannot start a trip until resolved.', 409);
+    }
+
+    if (existingTrip) {
+        const existingTripStatus = normalizeTripStatus(existingTrip.status);
+        if (existingTripStatus === 'completed') {
+            return new AppError('This locator slip has already been completed and cannot be used for another trip.', 409);
+        }
+
+        if (ACTIVE_TRIP_STATUSES.has(existingTripStatus)) {
+            return new AppError('A trip already exists for this locator slip and must be finished before starting another one.', 409);
+        }
+    }
+
+    return new AppError('This locator slip cannot start a trip right now.', 409);
 };
 
 const calculateLateReturn = (expectedReturnTime, actualReturnTime) => {
@@ -156,6 +198,11 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             expectedReturnTime: locatorSlip.expected_return_time,
             status: locatorSlip.status,
             tripStatus: locatorSlip.trip_status,
+            cssuValidationStatus: normalizeCssuValidationStatus(locatorSlip.cssu_validation_status),
+            cssuValidatedAt: locatorSlip.cssu_validated_at,
+            cssuValidationNotes: locatorSlip.cssu_validation_notes || null,
+            canStartTrip: canLocatorSlipStartTrip(locatorSlip, null),
+            actions: getFacultyLocatorSlipActions(locatorSlip, null),
             displayStatus: String(locatorSlip.trip_status || '').toLowerCase() === 'completed' ? 'completed' : 'approved'
         }))
     };
@@ -178,10 +225,16 @@ const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
         : null;
     const latestLocatorSlipVerification = await facultyTripRepository.getLatestLocatorSlipLocationVerification(locatorSlip.id, facultyUserId);
     const effectiveVerification = latestLocatorSlipVerification || latestArrivalVerification;
+    const effectiveTrip = hydrateTripWithVerification(currentTrip, effectiveVerification);
+    const actions = getFacultyLocatorSlipActions(locatorSlip, effectiveTrip);
 
     return mapLocatorSlipResponse(
-        locatorSlip,
-        hydrateTripWithVerification(currentTrip, effectiveVerification),
+        {
+            ...locatorSlip,
+            canStartTrip: canLocatorSlipStartTrip(locatorSlip, currentTrip),
+            actions
+        },
+        effectiveTrip,
         effectiveVerification
     );
 };
@@ -259,6 +312,11 @@ const startTrip = async (facultyUserId, payload) => {
 
     const locatorSlip = await facultyTripRepository.getLocatorSlipForTripAccess(facultyUserId, locatorSlipId);
     ensureApprovedLocatorSlip(locatorSlip);
+    const existingTripForSlip = await facultyTripRepository.getBlockingTripForLocatorSlip(locatorSlipId, facultyUserId);
+
+    if (!canLocatorSlipStartTrip(locatorSlip, existingTripForSlip)) {
+        throw createTripStartBlockedError(locatorSlip, existingTripForSlip);
+    }
 
     const origin = mapboxService.assertCoordinate({ lat: payload.originLat, lng: payload.originLng }, 'Origin');
     const hasSlipDestinationCoordinates = locatorSlip.destination_lat !== null && locatorSlip.destination_lng !== null;
@@ -338,7 +396,15 @@ const startTrip = async (facultyUserId, payload) => {
         await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
 
         return {
-            locatorSlip,
+            locatorSlip: {
+                ...locatorSlip,
+                trip_status: 'active',
+                canStartTrip: false,
+                actions: getFacultyLocatorSlipActions({
+                    ...locatorSlip,
+                    trip_status: 'active'
+                }, { status: 'active' })
+            },
             trip,
             route
         };
@@ -617,6 +683,7 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
             status: 'completed',
             returned_at: endedAt,
             ended_at: endedAt,
+            summary_generated_at: endedAt,
             return_distance_meters: safeReturnDistanceMeters,
             total_distance_meters: totalDistanceMeters,
             total_distance_km: totalDistanceKm,
@@ -624,7 +691,11 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
             total_trip_hours: totalTripHours
         }, client);
 
-        await facultyTripRepository.updateLocatorSlipTripStatus(trip.locator_slip_id, 'completed', client);
+        await facultyTripRepository.updateLocatorSlipLifecycle(trip.locator_slip_id, {
+            status: 'completed',
+            trip_status: 'completed',
+            completed_at: endedAt
+        }, client);
         await tripRepository.insertTripEvent(client, {
             tripId,
             userId: facultyUserId,
@@ -658,6 +729,12 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
 
         return {
+            locatorSlip: {
+                id: trip.locator_slip_id,
+                status: 'completed',
+                tripStatus: 'completed',
+                completedAt: endedAt.toISOString()
+            },
             trip: updatedTrip,
             summary: {
                 departureTime: trip.departure_datetime,

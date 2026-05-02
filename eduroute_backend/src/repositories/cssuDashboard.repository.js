@@ -10,6 +10,7 @@ const ALLOWED_COLLEGE_NAMES = [
 const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
 
 let cssuExitLogsTableExistsCache = null;
+const locatorSlipColumnExistsCache = {};
 
 const getCssuExitLogsTableExists = async () => {
     if (cssuExitLogsTableExistsCache !== null) {
@@ -19,6 +20,26 @@ const getCssuExitLogsTableExists = async () => {
     const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
     cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
     return cssuExitLogsTableExistsCache;
+};
+
+const getLocatorSlipColumnExists = async (columnName) => {
+    if (Object.prototype.hasOwnProperty.call(locatorSlipColumnExistsCache, columnName)) {
+        return locatorSlipColumnExistsCache[columnName];
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'locator_slips'
+              AND column_name = $1
+        ) AS exists`,
+        [columnName]
+    );
+
+    locatorSlipColumnExistsCache[columnName] = Boolean(rows[0]?.exists);
+    return locatorSlipColumnExistsCache[columnName];
 };
 
 const getDashboardSummary = async () => {
@@ -643,10 +664,10 @@ const upsertExitLogStatus = async ({
             $1,
             $2,
             $3,
-            $4,
+            $4::text,
             $5,
             CASE
-                WHEN $4 = 'approved' THEN NULL
+                WHEN $4::text = 'approved' THEN NULL
                 ELSE (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
             END,
             $6,
@@ -668,6 +689,62 @@ const upsertExitLogStatus = async ({
     return rows[0];
 };
 
+const updateLocatorSlipCssuValidation = async ({
+    locatorSlipId,
+    cssuValidationStatus,
+    cssuValidatedAt,
+    cssuValidatedBy,
+    cssuValidationNotes,
+}) => {
+    const hasValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
+    const hasValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasValidatedByColumn = await getLocatorSlipColumnExists('cssu_validated_by');
+    const hasValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
+    const assignments = [];
+    const params = [locatorSlipId];
+    let index = 2;
+
+    if (hasValidationStatusColumn) {
+        assignments.push(`cssu_validation_status = $${index}`);
+        params.push(cssuValidationStatus);
+        index += 1;
+    }
+
+    if (hasValidatedAtColumn) {
+        assignments.push(`cssu_validated_at = $${index}`);
+        params.push(cssuValidatedAt);
+        index += 1;
+    }
+
+    if (hasValidatedByColumn) {
+        assignments.push(`cssu_validated_by = $${index}`);
+        params.push(cssuValidatedBy);
+        index += 1;
+    }
+
+    if (hasValidationNotesColumn) {
+        assignments.push(`cssu_validation_notes = $${index}`);
+        params.push(cssuValidationNotes);
+        index += 1;
+    }
+
+    if (assignments.length === 0) {
+        return null;
+    }
+
+    assignments.push('updated_at = CURRENT_TIMESTAMP');
+
+    const { rows } = await pool.query(
+        `UPDATE locator_slips
+         SET ${assignments.join(', ')}
+         WHERE id = $1
+         RETURNING *`,
+        params
+    );
+
+    return rows[0] || null;
+};
+
 module.exports = {
     CSSU_FLAG_INCIDENT_NOTE_PREFIX,
     getDashboardSummary,
@@ -680,4 +757,5 @@ module.exports = {
     findLocatorSlipByCode,
     findLocatorSlipForExitStatus,
     upsertExitLogStatus,
+    updateLocatorSlipCssuValidation,
 };

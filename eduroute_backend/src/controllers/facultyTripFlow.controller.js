@@ -76,7 +76,7 @@ const startReturn = async (req, res, next) => {
 const markReturned = async (req, res, next) => {
     try {
         const payload = await facultyTripFlowService.markReturned(req.user.sub, req.params.tripId, req.body);
-        return res.json(successResponse('Trip returned successfully.', payload));
+        return res.json(successResponse('Trip completed successfully.', payload));
     } catch (error) {
         return next(error);
     }

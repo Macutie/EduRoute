@@ -785,17 +785,6 @@ function App() {
 
   return (
     <div className={`mobile-container ${isAuthView(view) ? 'login-shell' : ''} ${desktopWorkspaceViews.includes(view) ? 'workspace-shell' : ''}`}>
-      {isAuthView(view) && (
-        <div className="status-bar">
-          <span className="time">9:41</span>
-          <div className="status-icons">
-            <SignalIcon />
-            <WifiIcon />
-            <BatteryIcon />
-          </div>
-        </div>
-      )}
-
       {view === 'login' && (
         <LoginView
           setView={setView}
@@ -901,6 +890,7 @@ function App() {
         />
       )}
       {view === 'privacy-security' && <PrivacySecurityView setView={setView} profileData={profileData} />}
+      {view === 'dean-privacy-security' && <PrivacySecurityView setView={setView} profileData={profileData} mode="dean" />}
       {view === 'dean-dashboard' && <DeanDashboardView setView={setView} profileData={profileData} />}
       {view === 'dean-notifications' && <DeanNotificationsView setView={setView} profileData={profileData} />}
       {view === 'dean-requests' && (
@@ -1768,7 +1758,7 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
                 </div>
 
                 <div className="dlogin-footer">
-                  <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
+                  <p>© 2026 EduRoute Institutional Security. All rights reserved.</p>
                   <p>Privacy Policy &nbsp;&nbsp;&nbsp; System Status</p>
                 </div>
 
@@ -1907,7 +1897,7 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
                   <BadgeIcon />
                   <input
                     type="text"
-                    placeholder="j.smith@gordon.edu"
+                    placeholder="j.smith@gordoncollege.edu.ph "
                     value={loginForm.email_or_employee_id}
                     onChange={(e) =>
                       setLoginForm((prev) => ({
@@ -2023,7 +2013,7 @@ const DesktopAuthShell = ({
             </div>
 
             <div className="dlogin-footer dauth-footer">
-              <p>© 2024 EduRoute Institutional Security. All rights reserved.</p>
+              <p>© 2026 EduRoute Institutional Security. All rights reserved.</p>
               <div className="dauth-footer-links">
                 <span>Privacy Policy</span>
                 <span>System Status</span>
@@ -3179,7 +3169,6 @@ const DashboardView = ({ setView, profileData }) => {
 
         <div className="dash-top-nav">
           <div className="dash-menu-left">
-            <GridIcon />
             <span className="dash-logo-text">EduRoute</span>
           </div>
           <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
@@ -3334,12 +3323,107 @@ const getSlipDisplayStatus = (slip) => {
   if (locatorSlipStatus === 'completed') {
     return 'completed';
   }
-  const tripStatus = String(slip?.trip_status || '').toLowerCase();
-  if (tripStatus === 'completed') return 'completed';
   if (locatorSlipStatus === 'verified') {
     return 'approved';
   }
   return locatorSlipStatus === 'approved' ? 'approved' : 'pending';
+};
+
+const getCssuValidationStatus = (slip) => {
+  const value = String(slip?.cssu_validation_status || slip?.cssuValidationStatus || '').toLowerCase();
+  if (value === 'validated') return 'allowed';
+  if (['allowed', 'denied', 'flagged'].includes(value)) return value;
+  return 'pending';
+};
+
+const getLocatorSlipActionState = (slip, currentTrip = null) => {
+  const displayStatus = getSlipDisplayStatus(slip);
+  const cssuValidationStatus = getCssuValidationStatus(slip);
+  const tripStatus = String(currentTrip?.status || slip?.trip_status || slip?.tripStatus || '').toLowerCase();
+  const isCompleted = displayStatus === 'completed';
+  const hasTripInProgress = ['active', 'arrived', 'returning'].includes(tripStatus);
+
+  if (isCompleted) {
+    return {
+      showQr: false,
+      viewRoute: false,
+      startTrip: false,
+      viewUploadedPhoto: false,
+      showTripSummaryButton: false,
+      helperText: 'This locator slip has been completed.',
+      cssuValidationStatus,
+    };
+  }
+
+  if (hasTripInProgress) {
+    return {
+      showQr: false,
+      viewRoute: false,
+      startTrip: false,
+      viewUploadedPhoto: true,
+      showTripSummaryButton: false,
+      helperText: '',
+      cssuValidationStatus,
+    };
+  }
+
+  if (displayStatus === 'approved') {
+    if (cssuValidationStatus === 'allowed') {
+      return {
+        showQr: true,
+        viewRoute: true,
+        startTrip: true,
+        viewUploadedPhoto: true,
+        showTripSummaryButton: false,
+        helperText: 'CSSU validated. You can now access maps.',
+        cssuValidationStatus,
+      };
+    }
+
+    if (cssuValidationStatus === 'denied') {
+      return {
+        showQr: true,
+        viewRoute: false,
+        startTrip: false,
+        viewUploadedPhoto: true,
+        showTripSummaryButton: false,
+        helperText: 'Exit denied by CSSU.',
+        cssuValidationStatus,
+      };
+    }
+
+    if (cssuValidationStatus === 'flagged') {
+      return {
+        showQr: true,
+        viewRoute: false,
+        startTrip: false,
+        viewUploadedPhoto: true,
+        showTripSummaryButton: false,
+        helperText: 'Exit flagged by CSSU. Please contact CSSU or HRMU.',
+        cssuValidationStatus,
+      };
+    }
+
+    return {
+      showQr: true,
+      viewRoute: false,
+      startTrip: false,
+      viewUploadedPhoto: true,
+      showTripSummaryButton: false,
+      helperText: 'Waiting for CSSU exit validation.',
+      cssuValidationStatus,
+    };
+  }
+
+  return {
+    showQr: false,
+    viewRoute: false,
+    startTrip: false,
+    viewUploadedPhoto: false,
+    showTripSummaryButton: false,
+    helperText: '',
+    cssuValidationStatus,
+  };
 };
 
 const formatStatusDate = (value) => {
@@ -3862,39 +3946,39 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
           {!statusLoading && locatorSlips.map((slip) => {
             const displayStatus = getSlipDisplayStatus(slip);
             return (
-            <button
-              key={slip.id}
-              type="button"
-              className={`status-slip-card ${displayStatus}`}
-              onClick={() => {
-                if (slip.status !== 'approved') {
-                  localStorage.removeItem('edurouteVerifySlipId');
-                }
-                localStorage.setItem('edurouteLastView', 'locator-slip-detail');
-                setSelectedStatusSlip(slip);
-                setView('locator-slip-detail');
-              }}
-            >
-              <div className="status-slip-header">
-                <h3>{getSlipTitle(slip)}</h3>
-                <span className={`status-badge badge-${displayStatus}`}>{displayStatus}</span>
-              </div>
+              <button
+                key={slip.id}
+                type="button"
+                className={`status-slip-card ${displayStatus}`}
+                onClick={() => {
+                  if (slip.status !== 'approved') {
+                    localStorage.removeItem('edurouteVerifySlipId');
+                  }
+                  localStorage.setItem('edurouteLastView', 'locator-slip-detail');
+                  setSelectedStatusSlip(slip);
+                  setView('locator-slip-detail');
+                }}
+              >
+                <div className="status-slip-header">
+                  <h3>{getSlipTitle(slip)}</h3>
+                  <span className={`status-badge badge-${displayStatus}`}>{displayStatus}</span>
+                </div>
 
-              <div className="status-slip-meta">
-                <div className="status-slip-row">
-                  <GlobeSmIcon color="var(--text-gray)" />
-                  <span>{slip.destination}</span>
+                <div className="status-slip-meta">
+                  <div className="status-slip-row">
+                    <GlobeSmIcon color="var(--text-gray)" />
+                    <span>{slip.destination}</span>
+                  </div>
+                  <div className="status-slip-row">
+                    <ClockIcon color="var(--text-gray)" />
+                    <span>Departure: {formatStatusDateTime(slip.departure_datetime)}</span>
+                  </div>
+                  <div className="status-slip-row">
+                    <RefreshClockIcon color="var(--text-gray)" />
+                    <span>Expected Return: {formatStatusDateTime(slip.expected_return_datetime)}</span>
+                  </div>
                 </div>
-                <div className="status-slip-row">
-                  <ClockIcon color="var(--text-gray)" />
-                  <span>Departure: {formatStatusDateTime(slip.departure_datetime)}</span>
-                </div>
-                <div className="status-slip-row">
-                  <RefreshClockIcon color="var(--text-gray)" />
-                  <span>Expected Return: {formatStatusDateTime(slip.expected_return_datetime)}</span>
-                </div>
-              </div>
-            </button>
+              </button>
             );
           })}
         </div>
@@ -3909,6 +3993,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [locationVerification, setLocationVerification] = useState(null);
   const [showLocationProof, setShowLocationProof] = useState(false);
   const [completedTripSummary, setCompletedTripSummary] = useState(null);
+  const [showTripSummary, setShowTripSummary] = useState(false);
   const [tripSummaryLoading, setTripSummaryLoading] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
   const slip = selectedSlip;
@@ -3920,9 +4005,16 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   }, [slip, setView]);
 
   useEffect(() => {
+    setShowLocationProof(false);
+    setShowTripSummary(false);
+  }, [slip?.id]);
+
+  useEffect(() => {
     if (!slip || !['approved', 'verified', 'completed'].includes(String(slip.status || '').toLowerCase())) {
       setLocationVerification(null);
       setShowLocationProof(false);
+      setCompletedTripSummary(null);
+      setShowTripSummary(false);
       return;
     }
 
@@ -3946,13 +4038,47 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
     fetchLocationVerification();
   }, [slip]);
 
+  useEffect(() => {
+    if (!slip || getSlipDisplayStatus(slip) !== 'completed' || !slip.trip_id) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadCompletedSummary = async () => {
+      setTripSummaryLoading(true);
+      try {
+        const summary = await getFacultyTripSummary(slip.trip_id);
+        if (!cancelled) {
+          setCompletedTripSummary(summary);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to load completed trip summary:', error);
+        }
+      } finally {
+        if (!cancelled) {
+          setTripSummaryLoading(false);
+        }
+      }
+    };
+
+    loadCompletedSummary();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slip]);
+
   if (!slip) return null;
 
   const isPending = slip.status === 'pending';
   const isCompleted = getSlipDisplayStatus(slip) === 'completed';
   const isApproved = ['approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && !isCompleted;
   const isRejected = slip.status === 'rejected';
-  const canShowQrCode = ['pending', 'approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && Boolean(slip.locator_slip_code);
+  const actionState = getLocatorSlipActionState(slip, slip.currentTrip || null);
+  const cssuValidationStatus = getCssuValidationStatus(slip);
+  const canShowQrCode = actionState.showQr && Boolean(slip.locator_slip_code);
   const title = isPending
     ? 'Verification in'
     : isCompleted
@@ -3963,24 +4089,6 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const referralId = `FAC-${String(slip.id).slice(0, 8).toUpperCase()}`;
 
   const openTripRoute = async () => {
-    if (isCompleted && slip.trip_id) {
-      if (completedTripSummary?.summary) {
-        setCompletedTripSummary(null);
-        return;
-      }
-
-      setTripSummaryLoading(true);
-      try {
-        const summary = await getFacultyTripSummary(slip.trip_id);
-        setCompletedTripSummary(summary);
-      } catch (error) {
-        alert(error.message || 'Failed to load the completed trip summary.');
-      } finally {
-        setTripSummaryLoading(false);
-      }
-      return;
-    }
-
     localStorage.setItem('edurouteMapSlipId', slip.id);
     localStorage.setItem('edurouteLastView', 'map');
     setView('map');
@@ -4045,7 +4153,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
         <div className="submitted-status-text">
           <div className={`status-pill-yellow status-pill-${slip.status}`}>
-            STATUS: {isPending ? 'PENDING APPROVAL' : isCompleted ? 'COMPLETED' : isApproved ? 'VERIFIED' : slip.status.toUpperCase()}
+            STATUS: {isPending ? 'PENDING APPROVAL' : isCompleted ? 'COMPLETED' : isApproved ? 'APPROVED' : slip.status.toUpperCase()}
           </div>
           <h2>
             {title}{' '}
@@ -4059,12 +4167,20 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
               ? 'Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.'
               : isCompleted
                 ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.'
-              : isApproved
-                ? 'Your request has been reviewed and approved. You may now view your route or verify your location.'
-                : isRejected
-                  ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
-                  : `This locator slip request is currently marked as ${slip.status}.`}
+                : isApproved
+                  ? cssuValidationStatus === 'allowed'
+                    ? 'Your request has been reviewed, approved, and cleared by CSSU. You may now view your route and start the trip.'
+                    : 'Your request has been reviewed and approved by the dean. CSSU exit validation is still required before you can start the trip.'
+                  : isRejected
+                    ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
+                    : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
+          {isApproved && actionState.helperText && (
+            <p className="trip-search-state" style={{ marginTop: '0.75rem' }}>
+              {actionState.helperText}
+              {cssuValidationStatus === 'pending' ? ' CSSU must allow exit before you can start this trip.' : ''}
+            </p>
+          )}
         </div>
 
         {(isPending || isApproved || isCompleted || isRejected) && (
@@ -4129,20 +4245,16 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
         {(isApproved || isCompleted) && (
           <div className="approved-detail-actions">
-            <button
-              type="button"
-              className="approved-view-route-btn"
-              onClick={openTripRoute}
-            >
-              {tripSummaryLoading
-                ? 'LOADING SUMMARY...'
-                : isCompleted
-                  ? completedTripSummary?.summary
-                    ? 'HIDE TRIP SUMMARY'
-                    : 'VIEW TRIP SUMMARY'
-                  : 'VIEW ROUTE'}
-            </button>
-            {locationVerification?.image_url && (
+            {actionState.viewRoute && (
+              <button
+                type="button"
+                className="approved-view-route-btn"
+                onClick={openTripRoute}
+              >
+                {tripSummaryLoading ? 'LOADING ROUTE...' : 'VIEW ROUTE'}
+              </button>
+            )}
+            {!isCompleted && actionState.viewUploadedPhoto && locationVerification?.image_url && (
               <button
                 type="button"
                 className="approved-view-proof-btn"
@@ -4160,10 +4272,33 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 SHOW QR CODE
               </button>
             )}
+            {isCompleted && locationVerification?.image_url && (
+              <button
+                type="button"
+                className="approved-view-proof-btn"
+                onClick={() => setShowLocationProof((current) => !current)}
+              >
+                {showLocationProof ? 'HIDE PROOF OF ARRIVAL' : 'VIEW PROOF OF ARRIVAL'}
+              </button>
+            )}
+            {isCompleted && (completedTripSummary?.summary || tripSummaryLoading) && (
+              <button
+                type="button"
+                className="approved-view-proof-btn"
+                onClick={() => setShowTripSummary((current) => !current)}
+                disabled={tripSummaryLoading && !completedTripSummary?.summary}
+              >
+                {tripSummaryLoading && !completedTripSummary?.summary
+                  ? 'LOADING TRIP SUMMARY...'
+                  : showTripSummary
+                    ? 'HIDE TRIP SUMMARY'
+                    : 'VIEW TRIP SUMMARY'}
+              </button>
+            )}
           </div>
         )}
 
-        {(isApproved || isCompleted) && showLocationProof && locationVerification?.image_url && (
+        {((isApproved && actionState.viewUploadedPhoto) || isCompleted) && showLocationProof && locationVerification?.image_url && (
           <div className="location-proof-card">
             <span className="location-proof-kicker">PROOF OF ARRIVAL</span>
             <h3>{locationVerification.target_location || slip.destination}</h3>
@@ -4174,7 +4309,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
           </div>
         )}
 
-        {isCompleted && completedTripSummary?.summary && (
+        {isCompleted && showTripSummary && completedTripSummary?.summary && (
           <div className="location-proof-card trip-summary-status-card">
             <span className="location-proof-kicker">TRIP SUMMARY</span>
             <h3>{completedTripSummary.locatorSlip?.destination || slip.destination}</h3>
@@ -4388,9 +4523,15 @@ const ApprovedLocatorSlipSelectionView = ({ setView, profileData, setSelectedSli
 
   const getTripAccessStatus = (slip) => {
     const normalizedTripStatus = String(slip.tripStatus || '').toLowerCase();
-    return normalizedTripStatus === 'completed' || String(slip.displayStatus || '').toLowerCase() === 'completed'
-      ? 'completed'
-      : 'approved';
+    if (normalizedTripStatus === 'completed' || String(slip.displayStatus || '').toLowerCase() === 'completed') {
+      return 'completed';
+    }
+
+    if (slip.canStartTrip) {
+      return 'approved';
+    }
+
+    return 'blocked';
   };
 
   return (
@@ -4422,26 +4563,31 @@ const ApprovedLocatorSlipSelectionView = ({ setView, profileData, setSelectedSli
           {!loading && slips.map((slip) => {
             const tripAccessStatus = getTripAccessStatus(slip);
             const isCompletedTrip = tripAccessStatus === 'completed';
+            const isBlockedTrip = tripAccessStatus === 'blocked';
+            const tripAccessHelper = slip.actions?.helperText || '';
+            const cssuStatusLabel = getCssuValidationStatus(slip).toUpperCase();
 
             return (
-            <button
-              key={slip.id}
-              type="button"
-              className={`map-slip-selection-card ${isCompletedTrip ? 'is-completed' : 'is-approved'}`}
-              onClick={() => !isCompletedTrip && handleSelectSlip(slip.id)}
-              disabled={isCompletedTrip}
-            >
-              <div className="map-slip-selection-head">
-                <span className="map-slip-selection-purpose">{slip.purpose || 'Approved trip request'}</span>
-                <span className={`map-slip-selection-status ${isCompletedTrip ? 'completed' : 'approved'}`}>
-                  {isCompletedTrip ? 'COMPLETED' : 'APPROVED'}
-                </span>
-              </div>
-              <strong>{slip.destination}</strong>
-              <span>Departure: {formatStatusDate(slip.departureTime)}</span>
-              <span>Expected return: {formatStatusDate(slip.expectedReturnTime)}</span>
-            </button>
-          )})}
+              <button
+                key={slip.id}
+                type="button"
+                className={`map-slip-selection-card ${isCompletedTrip ? 'is-completed' : isBlockedTrip ? 'is-blocked' : 'is-approved'}`}
+                onClick={() => !isCompletedTrip && !isBlockedTrip && handleSelectSlip(slip.id)}
+                disabled={isCompletedTrip || isBlockedTrip}
+              >
+                <div className="map-slip-selection-head">
+                  <span className="map-slip-selection-purpose">{slip.purpose || 'Approved trip request'}</span>
+                  <span className={`map-slip-selection-status ${isCompletedTrip ? 'completed' : isBlockedTrip ? 'blocked' : 'approved'}`}>
+                    {isCompletedTrip ? 'COMPLETED' : isBlockedTrip ? cssuStatusLabel : 'APPROVED'}
+                  </span>
+                </div>
+                <strong>{slip.destination}</strong>
+                <span>Departure: {formatStatusDate(slip.departureTime)}</span>
+                <span>Expected return: {formatStatusDate(slip.expectedReturnTime)}</span>
+                {tripAccessHelper && <span>{tripAccessHelper}</span>}
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
@@ -4986,6 +5132,13 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   };
 
   const startTrip = async () => {
+    const tripActionState = getLocatorSlipActionState(locatorSlip, activeTrip);
+
+    if (!tripActionState.startTrip) {
+      setMapError(tripActionState.helperText || 'CSSU must allow exit before you can start this trip.');
+      return;
+    }
+
     if (!destination) {
       setMapError('Resolve or pin the locator slip destination first.');
       return;
@@ -5621,7 +5774,12 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
                 Choose Another Slip
               </button>
             ) : !activeTrip || tripLifecycleState === 'COMPLETED' ? (
-              <button type="button" className="trip-start-btn" onClick={startTrip} disabled={mapLoading || !destination}>
+              <button
+                type="button"
+                className="trip-start-btn"
+                onClick={startTrip}
+                disabled={mapLoading || !destination || !getLocatorSlipActionState(locatorSlip, activeTrip).startTrip}
+              >
                 {mapLoading ? 'Preparing...' : 'Start Trip'}
               </button>
             ) : tripLifecycleState === 'ACTIVE' ? (
@@ -5667,6 +5825,9 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           )}
           {tripLifecycleState === 'RETURNING' && (
             <p className="trip-search-state">Destination updated. You are now returning back to the original starting location.</p>
+          )}
+          {!activeTrip && locatorSlip && getLocatorSlipActionState(locatorSlip, activeTrip).helperText && (
+            <p className="trip-search-state">{getLocatorSlipActionState(locatorSlip, activeTrip).helperText}</p>
           )}
           {tripSummary?.summary && (
             <div className="trip-summary-card">
@@ -7383,11 +7544,13 @@ const LockPrivIcon = ({ color = "currentColor" }) => (
   </svg>
 );
 
-const PrivacySecurityView = ({ setView, profileData }) => {
+const PrivacySecurityView = ({ setView, profileData, mode = 'faculty' }) => {
   const [locationTracking, setLocationTracking] = useState(false);
   const [locationPermissionLoading, setLocationPermissionLoading] = useState(false);
   const [permissionPrefs, setPermissionPrefs] = useState(null);
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
+  const isDeanMode = mode === 'dean';
+  const backView = isDeanMode ? 'dean-profile' : 'profile';
 
   const formatPrivacyApiMessage = (value) => {
     if (!value) return '';
@@ -7556,7 +7719,11 @@ const PrivacySecurityView = ({ setView, profileData }) => {
         alert('Notifications are blocked for this browser. Open your browser site settings for EduRoute/localhost and allow Notifications.');
       } else if (notificationStatus === 'granted') {
         await registerPushNotificationsForCurrentBrowser();
-        alert('Notifications are enabled for this browser.');
+        alert(
+          isDeanMode
+            ? 'Notifications are enabled for this dean panel. You can now receive faculty locator slip request alerts even when EduRoute is closed.'
+            : 'Notifications are enabled for this browser.'
+        );
       } else if (notificationStatus === 'unsupported') {
         alert('This browser does not support web notifications.');
       } else {
@@ -7572,7 +7739,7 @@ const PrivacySecurityView = ({ setView, profileData }) => {
       <div className="content fade-in dash-content priv-content">
 
         <div className="slip-top-nav chpw-top-nav">
-          <div className="slip-nav-left" onClick={() => setView('profile')}>
+          <div className="slip-nav-left" onClick={() => setView(backView)}>
             <BackArrowIcon color="var(--green)" />
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
@@ -7585,29 +7752,36 @@ const PrivacySecurityView = ({ setView, profileData }) => {
 
         <div className="priv-header">
           <h1 className="priv-title">Privacy & Security</h1>
-          <p className="priv-subtitle">Manage your digital footprint and data preferences across the EduRoute ecosystem.</p>
+          <p className="priv-subtitle">
+            {isDeanMode
+              ? 'Manage notification access for dean locator slip approvals and request alerts.'
+              : 'Manage your digital footprint and data preferences across the EduRoute ecosystem.'}
+          </p>
         </div>
 
-        {/* Location Tracking Card */}
-        <div className="priv-location-card">
-          <div className="priv-location-left">
-            <div className="priv-location-icon">
-              <LocationPinFilledIcon />
+        {!isDeanMode && (
+          <div className="priv-location-card">
+            <div className="priv-location-left">
+              <div className="priv-location-icon">
+                <LocationPinFilledIcon />
+              </div>
+              <div className="priv-location-text">
+                <h3>Location tracking</h3>
+                <p>Allow EduRoute to optimize your route based on real-time transit data.</p>
+              </div>
             </div>
-            <div className="priv-location-text">
-              <h3>Location tracking</h3>
-              <p>Allow EduRoute to optimize your route based on real-time transit data.</p>
-            </div>
+            <ToggleSwitch isOn={locationTracking} onToggle={handleLocationTrackingToggle} />
           </div>
-          <ToggleSwitch isOn={locationTracking} onToggle={handleLocationTrackingToggle} />
-        </div>
+        )}
 
         {/* Permissions Card */}
         <div className="priv-permissions-card">
           <PermissionsIcon color="var(--green)" />
           <h3>Permissions</h3>
           <p>
-            Notifications: {permissionPrefs?.notifications_status || 'unknown'}. Location: {permissionPrefs?.location_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.
+            {isDeanMode
+              ? `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Enable alerts so the dean panel can receive locator slip requests even while EduRoute is closed.`
+              : `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Location: ${permissionPrefs?.location_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.`}
           </p>
           <button type="button" className="priv-manage-btn" onClick={updateNotificationPermissionFromSettings} disabled={locationPermissionLoading}>
             {locationPermissionLoading ? 'UPDATING...' : 'MANAGE'}
@@ -7657,7 +7831,7 @@ const PrivacySecurityView = ({ setView, profileData }) => {
         </button>
 
       </div>
-      <BottomNav active="profile" setView={setView} />
+      {isDeanMode ? <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} /> : <BottomNav active="profile" setView={setView} />}
 
       <LegalDocumentModal
         activeLegalDoc={activeLegalDoc}
@@ -8907,7 +9081,7 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
             </div>
             <div className="hrmu-manager-copy">
               <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
-              <span>ADMIN PANEL</span>
+              <span>HRMU Administrator</span>
             </div>
             <div className="admin-avatar" onClick={() => setView('admin-profile')}>
               <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
@@ -9495,8 +9669,8 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
             : persistedReviewStatus === 'SUCCESSFUL'
               ? `${row.facultyName} submitted an arrival verification image for this completed trip. HRMU marked this as a successful trip.`
               : row.verificationImageUrl
-              ? `${row.facultyName} submitted an arrival verification image for this completed trip. Review the proof and decide whether to keep the trip successful or mark it as unverified location.`
-              : `${row.facultyName} completed the trip, but no uploaded arrival proof was found yet for HRMU review.`,
+                ? `${row.facultyName} submitted an arrival verification image for this completed trip. Review the proof and decide whether to keep the trip successful or mark it as unverified location.`
+                : `${row.facultyName} completed the trip, but no uploaded arrival proof was found yet for HRMU review.`,
           position: 'Faculty',
           flaggedReasons: row.flaggedReasons || [],
           locationVerificationStatus: proofStatus,
@@ -10527,26 +10701,26 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
         const verifiedAlerts = notificationRows
           .filter((notification) => positiveNotificationTypes.has(notification.type))
           .map((notification) => {
-          const defaultTitle = notification.type === 'hrmu_trip_started'
-            ? 'Trip started'
-            : notification.type === 'hrmu_trip_completed'
-              ? 'Faculty returned on time'
-              : notification.type === 'hrmu_cssu_validated_exit'
-                ? 'Exit clearance validated'
-                : notification.type === 'hrmu_trip_arrived'
-                  ? 'Faculty arrived at destination'
-                  : notification.title || 'Verified activity';
-          return {
-            id: `verified-${notification.id}`,
-            type: 'verified',
-            title: defaultTitle,
-            body: notification.message || `${notification.facultyName} locator slip approved.`,
-            time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
-            sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
-            actionLabelPrimary: notification.type === 'hrmu_cssu_validated_exit' ? 'Open Dashboard' : 'Open Dashboard',
-            actionLabelSecondary: notification.type === 'hrmu_trip_started' || notification.type === 'hrmu_trip_completed' ? 'Open Reports' : 'Review Verification',
-          };
-        });
+            const defaultTitle = notification.type === 'hrmu_trip_started'
+              ? 'Trip started'
+              : notification.type === 'hrmu_trip_completed'
+                ? 'Faculty returned on time'
+                : notification.type === 'hrmu_cssu_validated_exit'
+                  ? 'Exit clearance validated'
+                  : notification.type === 'hrmu_trip_arrived'
+                    ? 'Faculty arrived at destination'
+                    : notification.title || 'Verified activity';
+            return {
+              id: `verified-${notification.id}`,
+              type: 'verified',
+              title: defaultTitle,
+              body: notification.message || `${notification.facultyName} locator slip approved.`,
+              time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
+              sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
+              actionLabelPrimary: notification.type === 'hrmu_cssu_validated_exit' ? 'Open Dashboard' : 'Open Dashboard',
+              actionLabelSecondary: notification.type === 'hrmu_trip_started' || notification.type === 'hrmu_trip_completed' ? 'Open Reports' : 'Review Verification',
+            };
+          });
 
         const violationAlerts = flaggedRows.map((trip) => ({
           id: `violation-${trip.tripId}`,
@@ -12262,6 +12436,14 @@ const DeanProfileView = ({ setView, profileData, onLogout }) => {
                 <span className="aprof-menu-text">Change Password</span>
                 <AdminProfileChevronIcon />
               </button>
+
+              <button type="button" className="aprof-menu-item dean-profile-menu-item" onClick={() => setView('dean-privacy-security')}>
+                <div className="aprof-menu-icon-box">
+                  <PrivacyIcon color="var(--green)" />
+                </div>
+                <span className="aprof-menu-text">Privacy &amp; Security</span>
+                <AdminProfileChevronIcon />
+              </button>
             </div>
 
             <button className="aprof-logout-btn dean-profile-logout-btn" onClick={onLogout}>
@@ -12433,7 +12615,7 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
             </div>
             <div className="cssu-brand-text">
               <strong>EduRoute</strong>
-              <span>ADMIN CONSOLE</span>
+              <span>CSSU ADMIN</span>
             </div>
           </div>
 
@@ -12478,7 +12660,7 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
             </button>
             <div className="cssu-manager-copy">
               <strong>{profileData?.fullName || 'Admin User'}</strong>
-              <span>System Registrar</span>
+              <span>CSSU Admnistrator</span>
             </div>
             <div className="admin-avatar" onClick={() => setView('admin-profile')}>
               <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="CSSU Admin" />
@@ -14116,19 +14298,19 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
           )}
 
           <article className="cssu-checkpoint-manual-card">
-              <span className="cssu-checkpoint-card-kicker">{mobile ? 'LOOKUP ENTRY' : 'MANUAL ENTRY'}</span>
-              <div className="cssu-checkpoint-manual-row">
-                <input
-                  type="text"
-                  className="cssu-checkpoint-manual-input"
-                  placeholder="Enter Locator Slip Code (e.g. LS-8F3K2A)"
-                  value={manualFacultyId}
-                  onChange={(event) => setManualFacultyId(event.target.value)}
-                />
-                <button type="button" className="cssu-checkpoint-search-btn" aria-label="Search locator slip code" onClick={handleManualLookup} disabled={lookupLoading}>
-                  <FacultySearchIcon />
-                </button>
-              </div>
+            <span className="cssu-checkpoint-card-kicker">{mobile ? 'LOOKUP ENTRY' : 'MANUAL ENTRY'}</span>
+            <div className="cssu-checkpoint-manual-row">
+              <input
+                type="text"
+                className="cssu-checkpoint-manual-input"
+                placeholder="Enter Locator Slip Code (e.g. LS-8F3K2A)"
+                value={manualFacultyId}
+                onChange={(event) => setManualFacultyId(event.target.value)}
+              />
+              <button type="button" className="cssu-checkpoint-search-btn" aria-label="Search locator slip code" onClick={handleManualLookup} disabled={lookupLoading}>
+                <FacultySearchIcon />
+              </button>
+            </div>
             {mobile && (
               <button type="button" className="cssu-checkpoint-qr-trigger" onClick={handleQrLookup} disabled={lookupLoading}>
                 <ScanQRIcon color="var(--green)" />
@@ -14151,36 +14333,36 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
               </div>
             </div>
 
-              <div className="cssu-checkpoint-profile-meta">
-                <div>
-                  <span>FACULTY ID</span>
-                  <strong>{faculty?.facultyId || '--'}</strong>
-                </div>
-                <div>
-                  <span>LOCATOR SLIP CODE</span>
-                  <strong>{locatorSlip?.locatorSlipCode || '--'}</strong>
-                </div>
-                <div>
-                  <span>TYPE</span>
-                  <strong>{faculty?.employmentTypeLabel || '--'}</strong>
-                </div>
-                <div>
-                  <span>PURPOSE</span>
-                  <strong>{locatorSlip?.purpose || '--'}</strong>
-                </div>
-                <div>
-                  <span>DESTINATION</span>
-                  <strong>{locatorSlip?.destination || '--'}</strong>
-                </div>
-                <div>
-                  <span>DEPARTURE</span>
-                  <strong>{locatorSlip?.departureTime ? formatStatusDateTime(locatorSlip.departureTime) : '--'}</strong>
-                </div>
-                <div>
-                  <span>EXPECTED RETURN</span>
-                  <strong>{locatorSlip?.expectedReturnTime ? formatStatusDateTime(locatorSlip.expectedReturnTime) : '--'}</strong>
-                </div>
+            <div className="cssu-checkpoint-profile-meta">
+              <div>
+                <span>FACULTY ID</span>
+                <strong>{faculty?.facultyId || '--'}</strong>
               </div>
+              <div>
+                <span>LOCATOR SLIP CODE</span>
+                <strong>{locatorSlip?.locatorSlipCode || '--'}</strong>
+              </div>
+              <div>
+                <span>TYPE</span>
+                <strong>{faculty?.employmentTypeLabel || '--'}</strong>
+              </div>
+              <div>
+                <span>PURPOSE</span>
+                <strong>{locatorSlip?.purpose || '--'}</strong>
+              </div>
+              <div>
+                <span>DESTINATION</span>
+                <strong>{locatorSlip?.destination || '--'}</strong>
+              </div>
+              <div>
+                <span>DEPARTURE</span>
+                <strong>{locatorSlip?.departureTime ? formatStatusDateTime(locatorSlip.departureTime) : '--'}</strong>
+              </div>
+              <div>
+                <span>EXPECTED RETURN</span>
+                <strong>{locatorSlip?.expectedReturnTime ? formatStatusDateTime(locatorSlip.expectedReturnTime) : '--'}</strong>
+              </div>
+            </div>
 
             <div className={`cssu-checkpoint-slip-status ${slipVisualState}`}>
               <div className={`cssu-checkpoint-slip-icon ${slipVisualState}`}>

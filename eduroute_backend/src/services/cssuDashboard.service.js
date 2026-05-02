@@ -433,6 +433,22 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
         notes,
     });
 
+    const cssuValidationStatus = status === 'validated'
+        ? 'allowed'
+        : status === 'flagged'
+            ? 'flagged'
+            : status === 'denied'
+                ? 'denied'
+                : 'pending';
+
+    await cssuDashboardRepository.updateLocatorSlipCssuValidation({
+        locatorSlipId,
+        cssuValidationStatus,
+        cssuValidatedAt: row.validated_at || null,
+        cssuValidatedBy: cssuUserId,
+        cssuValidationNotes: notes,
+    }).catch(() => null);
+
     if (status === 'validated') {
         const hrmuValidationContext = await hrmuDashboardRepository.getApprovedLocatorSlipNotificationPayload(locatorSlipId).catch(() => null);
         if (hrmuValidationContext) {

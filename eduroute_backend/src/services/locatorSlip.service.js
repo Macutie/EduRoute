@@ -14,6 +14,7 @@ const tripsColumnExistsCache = {};
 let locatorSlipCodeColumnExistsCache = null;
 let qrGeneratedAtColumnExistsCache = null;
 let cssuValidationColumnsExistsCache = null;
+let cssuExitLogsTableExistsCache = null;
 
 const LOCATOR_SLIP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -90,6 +91,16 @@ const getLocatorSlipColumnExists = async (columnName) => {
     return Boolean(rows[0]?.exists);
 };
 
+const getCssuExitLogsTableExists = async () => {
+    if (cssuExitLogsTableExistsCache !== null) {
+        return cssuExitLogsTableExistsCache;
+    }
+
+    const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
+    cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return cssuExitLogsTableExistsCache;
+};
+
 const getLocatorSlipCodeColumnExists = async () => {
     if (locatorSlipCodeColumnExistsCache !== null) {
         return locatorSlipCodeColumnExistsCache;
@@ -135,6 +146,36 @@ const generateShortLocatorSlipCode = () => {
 };
 
 const LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS = 4 * 60 * 60;
+const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
+
+const getCssuValidationStatusSelect = ({
+    hasCssuValidationStatusColumn,
+    hasCssuExitLogsTable
+}) => {
+    if (hasCssuValidationStatusColumn) {
+        return `CASE
+            WHEN LOWER(COALESCE(ls.cssu_validation_status, '')) IN ('allowed', 'validated') THEN 'allowed'
+            WHEN LOWER(COALESCE(ls.cssu_validation_status, '')) = 'denied' THEN 'denied'
+            WHEN LOWER(COALESCE(ls.cssu_validation_status, '')) = 'flagged' THEN 'flagged'
+            ${hasCssuExitLogsTable ? `
+            WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+            WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+            WHEN latest_cssu_log.status = 'denied' THEN 'denied'` : ''}
+            ELSE 'pending'
+        END AS cssu_validation_status`;
+    }
+
+    if (hasCssuExitLogsTable) {
+        return `CASE
+            WHEN latest_cssu_log.status = 'validated' THEN 'allowed'
+            WHEN latest_cssu_log.status = 'denied' AND COALESCE(latest_cssu_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%' THEN 'flagged'
+            WHEN latest_cssu_log.status = 'denied' THEN 'denied'
+            ELSE 'pending'
+        END AS cssu_validation_status`;
+    }
+
+    return `NULL::text AS cssu_validation_status`;
+};
 
 const locatorSlipColumns = `
     ls.id,
@@ -405,7 +446,10 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
     const hasEndedAtColumn = await getTripsColumnExists('ended_at');
     const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
     const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
-    const hasCssuValidationColumns = await getCssuValidationColumnsExists();
+    const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
+    const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
     const locatorSlipTripJoin = buildLocatorSlipTripJoin({
         hasTripsLocatorSlipIdColumn,
@@ -424,11 +468,32 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
             ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
             ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
             ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
-            ${hasCssuValidationColumns ? ', ls.cssu_validated_at, ls.cssu_validation_status, ls.cssu_validation_notes' : ", NULL::timestamp AS cssu_validated_at, NULL::text AS cssu_validation_status, NULL::text AS cssu_validation_notes"}
+            , ${getCssuValidationStatusSelect({
+                hasCssuValidationStatusColumn,
+                hasCssuExitLogsTable
+            })}
+            ${hasCssuValidatedAtColumn
+                ? `, COALESCE(ls.cssu_validated_at, ${hasCssuExitLogsTable ? 'latest_cssu_log.validated_at' : 'NULL'}) AS cssu_validated_at`
+                : hasCssuExitLogsTable
+                    ? ', latest_cssu_log.validated_at AS cssu_validated_at'
+                    : ", NULL::timestamp AS cssu_validated_at"}
+            ${hasCssuValidationNotesColumn
+                ? `, COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
+                : hasCssuExitLogsTable
+                    ? ', latest_cssu_log.notes AS cssu_validation_notes'
+                    : ", NULL::text AS cssu_validation_notes"}
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = fu.department_id
         ${locatorSlipTripJoin}
+        ${hasCssuExitLogsTable ? `
+        LEFT JOIN LATERAL (
+            SELECT log.status, log.validated_at, log.notes
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = ls.id
+            ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
+            LIMIT 1
+        ) latest_cssu_log ON TRUE` : ''}
         WHERE ls.faculty_user_id = $1
           AND ls.status <> 'cancelled'
           ${statusFilter}
@@ -452,7 +517,10 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
     const hasEndedAtColumn = await getTripsColumnExists('ended_at');
     const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
     const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
-    const hasCssuValidationColumns = await getCssuValidationColumnsExists();
+    const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
+    const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
     const locatorSlipTripJoin = buildLocatorSlipTripJoin({
         hasTripsLocatorSlipIdColumn,
@@ -465,11 +533,32 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
             ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
             ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
             ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
-            ${hasCssuValidationColumns ? ', ls.cssu_validated_at, ls.cssu_validation_status, ls.cssu_validation_notes' : ", NULL::timestamp AS cssu_validated_at, NULL::text AS cssu_validation_status, NULL::text AS cssu_validation_notes"}
+            , ${getCssuValidationStatusSelect({
+                hasCssuValidationStatusColumn,
+                hasCssuExitLogsTable
+            })}
+            ${hasCssuValidatedAtColumn
+                ? `, COALESCE(ls.cssu_validated_at, ${hasCssuExitLogsTable ? 'latest_cssu_log.validated_at' : 'NULL'}) AS cssu_validated_at`
+                : hasCssuExitLogsTable
+                    ? ', latest_cssu_log.validated_at AS cssu_validated_at'
+                    : ", NULL::timestamp AS cssu_validated_at"}
+            ${hasCssuValidationNotesColumn
+                ? `, COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
+                : hasCssuExitLogsTable
+                    ? ', latest_cssu_log.notes AS cssu_validation_notes'
+                    : ", NULL::text AS cssu_validation_notes"}
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = fu.department_id
         ${locatorSlipTripJoin}
+        ${hasCssuExitLogsTable ? `
+        LEFT JOIN LATERAL (
+            SELECT log.status, log.validated_at, log.notes
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = ls.id
+            ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
+            LIMIT 1
+        ) latest_cssu_log ON TRUE` : ''}
         WHERE ls.id = $1
           AND ls.faculty_user_id = $2
         LIMIT 1
