@@ -4,7 +4,18 @@ import {
   getHrmuMonthlyReportDetails,
 } from '../services/hrmuReportsApi';
 
-export const useHrmuMonthlyReport = ({ initialMonthIndex = 1, initialYear = new Date().getUTCFullYear() } = {}) => {
+const getCurrentReportMonthDefaults = () => {
+  const now = new Date();
+  return {
+    monthIndex: now.getMonth() + 1,
+    year: now.getFullYear(),
+  };
+};
+
+export const useHrmuMonthlyReport = ({
+  initialMonthIndex = getCurrentReportMonthDefaults().monthIndex,
+  initialYear = getCurrentReportMonthDefaults().year,
+} = {}) => {
   const [monthIndex, setMonthIndex] = useState(initialMonthIndex);
   const [baseYear, setBaseYear] = useState(initialYear);
   const [report, setReport] = useState(null);

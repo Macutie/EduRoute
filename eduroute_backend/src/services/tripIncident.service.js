@@ -41,6 +41,27 @@ const getDetectedAt = (context) => (
     || new Date()
 );
 
+const isSameMoment = (left, right) => {
+    if (!(left instanceof Date) || !(right instanceof Date)) return false;
+    if (Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return false;
+    return left.getTime() === right.getTime();
+};
+
+const shouldReplaceExistingManualReviewTime = (existingManualReviewedAt, context) => {
+    if (!(existingManualReviewedAt instanceof Date) || Number.isNaN(existingManualReviewedAt.getTime())) {
+        return true;
+    }
+
+    const suspiciousFallbackDates = [
+        context?.ended_at ? new Date(context.ended_at) : null,
+        context?.verification_created_at ? new Date(context.verification_created_at) : null,
+        context?.trip_updated_at ? new Date(context.trip_updated_at) : null,
+        context?.locator_updated_at ? new Date(context.locator_updated_at) : null
+    ].filter(Boolean);
+
+    return suspiciousFallbackDates.some((candidate) => isSameMoment(existingManualReviewedAt, candidate));
+};
+
 const ensureIncidentTable = async () => {
     const exists = await tripIncidentRepository.getIncidentTableExists();
     return Boolean(exists);
@@ -248,6 +269,56 @@ const detectLocationDisconnected = async (context) => {
     return emitIncidentSignals(context, incident);
 };
 
+const flagTripAsUnverifiedLocation = async (tripId, metadata = {}) => {
+    const canRun = await ensureIncidentTable();
+    if (!canRun || !tripId) return null;
+
+    const context = await tripIncidentRepository.getTripIncidentContext(tripId);
+    if (!context) return null;
+    const existingIncident = await tripIncidentRepository.getTripIncidentByType(
+        context.trip_id,
+        tripIncidentRepository.INCIDENT_TYPES.UNVERIFIED_LOCATION
+    );
+    const reviewedAt = metadata.reviewedAt ? new Date(metadata.reviewedAt) : null;
+    const existingMetadata = existingIncident?.metadata && typeof existingIncident.metadata === 'object'
+        ? existingIncident.metadata
+        : {};
+    const existingManualReviewedAt = existingMetadata.reviewSource === 'hrmu_manual_review' && existingMetadata.reviewedAt
+        ? new Date(existingMetadata.reviewedAt)
+        : null;
+    const shouldUseExistingManualReviewedAt =
+        existingManualReviewedAt
+        && !Number.isNaN(existingManualReviewedAt.getTime())
+        && !shouldReplaceExistingManualReviewTime(existingManualReviewedAt, context);
+    const detectedAt = shouldUseExistingManualReviewedAt
+        ? existingManualReviewedAt
+        : (reviewedAt && !Number.isNaN(reviewedAt.getTime()) ? reviewedAt : new Date());
+
+    const incident = await tripIncidentRepository.upsertTripIncident({
+        tripId: context.trip_id,
+        locatorSlipId: context.locator_slip_id,
+        facultyUserId: context.faculty_user_id,
+        incidentType: tripIncidentRepository.INCIDENT_TYPES.UNVERIFIED_LOCATION,
+        incidentLabel: INCIDENT_LABELS.UNVERIFIED_LOCATION,
+        severity: 'high',
+        detectedAt,
+        metadata: {
+            verificationStatus: 'rejected',
+            reviewSource: metadata.reviewSource || 'hrmu_manual_review',
+            noProofSubmitted: Boolean(metadata.noProofSubmitted),
+            reviewedAt: (reviewedAt && !Number.isNaN(reviewedAt.getTime()) ? reviewedAt : detectedAt).toISOString()
+        }
+    });
+
+    return emitIncidentSignals(
+        {
+            ...context,
+            verification_status: 'rejected'
+        },
+        incident
+    );
+};
+
 const detectAllTripIncidents = async (tripId) => {
     const canRun = await ensureIncidentTable();
     if (!canRun) return [];
@@ -301,6 +372,7 @@ module.exports = {
     detectLateReturn,
     detectUnverifiedLocation,
     detectLocationDisconnected,
+    flagTripAsUnverifiedLocation,
     detectAllTripIncidents,
     evaluateTripIncidents,
     detectDisconnectedActiveTrips,

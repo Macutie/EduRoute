@@ -6,6 +6,7 @@ const tripTrackingService = require('../services/tripTracking.service');
 const { setSocketServer } = require('./socketBus');
 const { registerDeanNotificationSocketHandlers } = require('./deanNotifications.socket');
 const { registerHrmuSocketHandlers } = require('./hrmu.socket');
+const { registerNotificationSocketHandlers } = require('./notification.socket');
 
 const SOCKET_EVENTS = {
     subscribe: 'trip:subscribe',
@@ -60,6 +61,7 @@ const createTripTrackingSocketServer = (httpServer) => {
 
     registerDeanNotificationSocketHandlers(io);
     registerHrmuSocketHandlers(io);
+    registerNotificationSocketHandlers(io);
 
     io.on('connection', (socket) => {
         socket.on(SOCKET_EVENTS.subscribe, ({ tripId }) => {

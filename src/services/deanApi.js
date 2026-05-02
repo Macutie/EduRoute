@@ -61,3 +61,9 @@ export const approveDeanLocatorSlipRequest = (locatorSlipId) =>
   deanApiRequest(`/api/dean/requests/${locatorSlipId}/approve`, {
     method: 'PATCH',
   });
+
+export const rejectDeanLocatorSlipRequest = (locatorSlipId, remarks = '') =>
+  deanApiRequest(`/api/dean/requests/${locatorSlipId}/reject`, {
+    method: 'PATCH',
+    body: JSON.stringify({ remarks }),
+  });

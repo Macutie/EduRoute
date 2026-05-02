@@ -35,7 +35,7 @@ const mapReportLogRow = (row) => ({
     flaggedReasons: Array.isArray(row.flagged_reasons) ? row.flagged_reasons.map(mapFlaggedReason) : []
 });
 
-const getMonthlyReport = async (userId, { monthIndex = 1, year } = {}) => {
+const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 1), year } = {}) => {
     await assertHrmuUser(userId);
     await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);

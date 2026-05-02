@@ -215,6 +215,19 @@ const upsertTripIncident = async ({ tripId, locatorSlipId, facultyUserId, incide
     return rows[0] || null;
 };
 
+const getTripIncidentByType = async (tripId, incidentType) => {
+    const { rows } = await pool.query(
+        `SELECT *
+         FROM trip_incidents
+         WHERE trip_id = $1
+           AND incident_type = $2
+         LIMIT 1`,
+        [tripId, incidentType]
+    );
+
+    return rows[0] || null;
+};
+
 const getFlaggedTrips = async () => {
     const exists = await getIncidentTableExists();
     const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
@@ -257,6 +270,45 @@ const getFlaggedTrips = async () => {
                     COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) + INTERVAL '60 minutes'
               )
         ),
+        derived_unverified_locations AS (
+            SELECT
+                t.id AS trip_id,
+                COALESCE(ls.id, fallback_ls.id) AS locator_slip_id,
+                t.user_id AS faculty_user_id,
+                COALESCE(lv.created_at, t.ended_at, t.updated_at) AS detected_at,
+                'UNVERIFIED_LOCATION'::text AS incident_type,
+                'Unverified Location'::text AS incident_label,
+                'high'::text AS severity
+            FROM trips t
+            JOIN faculty_users fu ON fu.id = t.user_id
+            JOIN allowed_colleges ac ON ac.id = fu.department_id
+            LEFT JOIN locator_slips ls ON ${hasTripsLocatorSlipIdColumn ? "ls.id = t.locator_slip_id" : "FALSE"}
+            LEFT JOIN LATERAL (
+                SELECT
+                    slip.id
+                FROM locator_slips slip
+                WHERE ls.id IS NULL
+                  AND slip.faculty_user_id = t.user_id
+                  AND slip.status IN ('approved', 'verified', 'completed', 'rejected')
+                ORDER BY
+                    ABS(EXTRACT(EPOCH FROM (COALESCE(slip.departure_datetime, slip.created_at) - COALESCE(t.started_at, slip.created_at)))) ASC,
+                    COALESCE(slip.departure_datetime, slip.created_at) DESC
+                LIMIT 1
+            ) fallback_ls ON ls.id IS NULL
+            JOIN LATERAL (
+                SELECT
+                    verification.verification_status,
+                    verification.created_at
+                FROM locator_slip_location_verifications verification
+                WHERE verification.locator_slip_id = COALESCE(ls.id, fallback_ls.id)
+                  AND verification.faculty_user_id = t.user_id
+                ORDER BY verification.created_at DESC
+                LIMIT 1
+            ) lv ON TRUE
+            WHERE fu.account_role = 'faculty'
+              AND fu.status = 'active'
+              AND LOWER(COALESCE(lv.verification_status, '')) = 'rejected'
+        ),
         effective_incidents AS (
             ${exists ? `
             SELECT
@@ -279,6 +331,16 @@ const getFlaggedTrips = async () => {
                 dlr.severity,
                 dlr.detected_at
             FROM derived_late_returns dlr
+            UNION
+            SELECT
+                dul.trip_id,
+                dul.locator_slip_id,
+                dul.faculty_user_id,
+                dul.incident_type,
+                dul.incident_label,
+                dul.severity,
+                dul.detected_at
+            FROM derived_unverified_locations dul
         )
         SELECT
             ei.trip_id,
@@ -366,6 +428,39 @@ const getVerificationSummary = async () => {
                     COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) + INTERVAL '60 minutes'
               )
         ),
+        derived_unverified_locations AS (
+            SELECT DISTINCT
+                t.id AS trip_id,
+                'UNVERIFIED_LOCATION'::text AS incident_type
+            FROM trips t
+            JOIN faculty_users fu ON fu.id = t.user_id
+            JOIN allowed_colleges ac ON ac.id = fu.department_id
+            LEFT JOIN locator_slips ls ON ${hasTripsLocatorSlipIdColumn ? "ls.id = t.locator_slip_id" : "FALSE"}
+            LEFT JOIN LATERAL (
+                SELECT
+                    slip.id
+                FROM locator_slips slip
+                WHERE ls.id IS NULL
+                  AND slip.faculty_user_id = t.user_id
+                  AND slip.status IN ('approved', 'verified', 'completed', 'rejected')
+                ORDER BY
+                    ABS(EXTRACT(EPOCH FROM (COALESCE(slip.departure_datetime, slip.created_at) - COALESCE(t.started_at, slip.created_at)))) ASC,
+                    COALESCE(slip.departure_datetime, slip.created_at) DESC
+                LIMIT 1
+            ) fallback_ls ON ls.id IS NULL
+            JOIN LATERAL (
+                SELECT
+                    verification.verification_status
+                FROM locator_slip_location_verifications verification
+                WHERE verification.locator_slip_id = COALESCE(ls.id, fallback_ls.id)
+                  AND verification.faculty_user_id = t.user_id
+                ORDER BY verification.created_at DESC
+                LIMIT 1
+            ) lv ON TRUE
+            WHERE fu.account_role = 'faculty'
+              AND fu.status = 'active'
+              AND LOWER(COALESCE(lv.verification_status, '')) = 'rejected'
+        ),
         effective_incidents AS (
             ${exists ? `
             SELECT ti.trip_id, ti.incident_type
@@ -374,6 +469,9 @@ const getVerificationSummary = async () => {
             ` : ''}
             SELECT dlr.trip_id, dlr.incident_type
             FROM derived_late_returns dlr
+            UNION
+            SELECT dul.trip_id, dul.incident_type
+            FROM derived_unverified_locations dul
         )
         SELECT
             COUNT(DISTINCT trip_id)::int AS flagged_trips,
@@ -429,6 +527,7 @@ module.exports = {
     LOCATION_DISCONNECTED_TYPES,
     getIncidentTableExists,
     getTripIncidentContext,
+    getTripIncidentByType,
     upsertTripIncident,
     getFlaggedTrips,
     getVerificationSummary,

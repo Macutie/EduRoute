@@ -111,6 +111,28 @@ const buildReportScopeCte = ({ includeIncidents }) => `
         WHERE et.expected_return_datetime IS NOT NULL
           AND et.trip_finished_at > (et.expected_return_datetime + INTERVAL '${Number(env.lateReturnGraceMinutes || 60)} minutes')
     ),
+    derived_unverified_locations AS (
+        SELECT
+            et.trip_id,
+            COALESCE(lv.created_at, et.trip_finished_at, et.locator_updated_at) AS latest_detected_at,
+            JSONB_BUILD_OBJECT(
+                'type', 'UNVERIFIED_LOCATION',
+                'label', 'Unverified Location',
+                'severity', 'high'
+            ) AS flagged_reason
+        FROM ended_trips et
+        JOIN LATERAL (
+            SELECT
+                verification.verification_status,
+                verification.created_at
+            FROM locator_slip_location_verifications verification
+            WHERE verification.locator_slip_id = et.locator_slip_id
+              AND verification.faculty_user_id = et.faculty_user_id
+            ORDER BY verification.created_at DESC
+            LIMIT 1
+        ) lv ON TRUE
+        WHERE LOWER(COALESCE(lv.verification_status, '')) = 'rejected'
+    ),
     effective_trip_flags AS (
         SELECT
             flagged.trip_id,
@@ -131,6 +153,12 @@ const buildReportScopeCte = ({ includeIncidents }) => `
                 dlr.latest_detected_at,
                 dlr.flagged_reason
             FROM derived_late_returns dlr
+            UNION ALL
+            SELECT
+                dul.trip_id,
+                dul.latest_detected_at,
+                dul.flagged_reason
+            FROM derived_unverified_locations dul
         ) flagged
         GROUP BY flagged.trip_id
     )
@@ -140,9 +168,13 @@ const getMonthlySummary = async ({ start, endExclusive }) => {
     const includeIncidents = await getIncidentTableExists();
     const incidentSummaryColumns = includeIncidents
         ? `
-            (SELECT COUNT(DISTINCT et.trip_id)::int
+            (SELECT COUNT(DISTINCT COALESCE(et.locator_slip_id::text, et.trip_id::text))::int
              FROM ended_trips et
-             JOIN effective_trip_flags etf ON etf.trip_id = et.trip_id
+             WHERE EXISTS (
+                SELECT 1
+                FROM effective_trip_flags etf
+                WHERE etf.trip_id = et.trip_id
+             )
             ) AS flagged_incidents,
             (SELECT COUNT(DISTINCT trip_id)::int
              FROM (
@@ -156,9 +188,15 @@ const getMonthlySummary = async ({ start, endExclusive }) => {
              ) late_trip_ids
             ) AS late_returns,
             (SELECT COUNT(DISTINCT ti.trip_id)::int
-             FROM trip_incidents ti
-             JOIN ended_trips et ON et.trip_id = ti.trip_id
-             WHERE ti.incident_type = 'UNVERIFIED_LOCATION'
+             FROM (
+                SELECT ti.trip_id
+                FROM trip_incidents ti
+                JOIN ended_trips et ON et.trip_id = ti.trip_id
+                WHERE ti.incident_type = 'UNVERIFIED_LOCATION'
+                UNION
+                SELECT dul.trip_id
+                FROM derived_unverified_locations dul
+             ) unverified_trip_ids
             ) AS unverified_locations,
             (SELECT COUNT(DISTINCT ti.trip_id)::int
              FROM trip_incidents ti

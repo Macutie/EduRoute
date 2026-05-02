@@ -42,9 +42,23 @@ const reviewArrivalVerification = async (req, res, next) => {
     }
 };
 
+const flagTripWithoutProof = async (req, res, next) => {
+    try {
+        const payload = await hrmuVerificationService.flagTripWithoutProof(
+            req.user.sub,
+            req.params.tripId,
+            req.body?.locatorSlipId || null
+        );
+        return res.json(successResponse('Completed trip flagged as unverified location.', payload));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     getTrips,
     getFlaggedTrips,
     getVerificationSummary,
-    reviewArrivalVerification
+    reviewArrivalVerification,
+    flagTripWithoutProof
 };

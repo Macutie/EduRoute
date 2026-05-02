@@ -1,5 +1,7 @@
 const pool = require('../db/pool');
 const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
+const HRMU_REVIEW_FLAGGED_TYPE = 'hrmu_verification_review_flagged';
+const HRMU_REVIEW_SUCCESS_TYPE = 'hrmu_verification_review_successful';
 
 let verificationReviewColumnsCache = null;
 let incidentTableExistsCache = null;
@@ -34,6 +36,13 @@ const getVerificationReviewColumns = async () => {
 
 const getVerificationTrips = async () => {
     const hasIncidentTable = await getIncidentTableExists();
+    const verificationColumns = await getVerificationReviewColumns();
+    const reviewedAtSelect = verificationColumns.has('reviewed_at')
+        ? 'verification.reviewed_at AS verification_reviewed_at,'
+        : 'NULL::timestamp AS verification_reviewed_at,';
+    const reviewedAtProofSelect = verificationColumns.has('reviewed_at')
+        ? 'proof.reviewed_at'
+        : 'NULL::timestamp AS reviewed_at';
     const incidentGroupsCte = hasIncidentTable
         ? `incident_groups AS (
             SELECT
@@ -77,6 +86,9 @@ const getVerificationTrips = async () => {
             verification.verification_status AS arrival_verification_status,
             verification.image_url AS verification_image_url,
             verification.created_at AS verification_created_at,
+            ${reviewedAtSelect}
+            review_audit.flagged_reviewed_at,
+            review_audit.successful_reviewed_at,
             latest_location.recorded_at AS latest_location_at,
             COALESCE(incident_groups.incident_types, ARRAY[]::text[]) AS incident_types,
             COALESCE(incident_groups.incident_labels, ARRAY[]::text[]) AS incident_labels,
@@ -98,7 +110,8 @@ const getVerificationTrips = async () => {
                 proof.id,
                 proof.verification_status,
                 proof.image_url,
-                proof.created_at
+                proof.created_at,
+                ${reviewedAtProofSelect}
             FROM locator_slip_location_verifications proof
             WHERE proof.locator_slip_id = ls.id
             ORDER BY proof.created_at DESC
@@ -110,6 +123,14 @@ const getVerificationTrips = async () => {
             WHERE ll.trip_id = trip.id
             LIMIT 1
         ) latest_location ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT
+                MIN(CASE WHEN n.type = $2 THEN n.created_at END) AS flagged_reviewed_at,
+                MIN(CASE WHEN n.type = $3 THEN n.created_at END) AS successful_reviewed_at
+            FROM notifications n
+            WHERE n.locator_slip_id = ls.id
+              AND n.type = ANY($4::text[])
+        ) review_audit ON TRUE
         LEFT JOIN incident_groups ON incident_groups.trip_id = trip.id
         WHERE fu.account_role = 'faculty'
           AND fu.status = 'active'
@@ -117,7 +138,12 @@ const getVerificationTrips = async () => {
         ORDER BY
             COALESCE(trip.ended_at, incident_groups.latest_detected_at, verification.created_at, trip.started_at, ls.updated_at, ls.created_at) DESC,
             fu.full_name ASC`,
-        [ALLOWED_COLLEGE_NAMES]
+        [
+            ALLOWED_COLLEGE_NAMES,
+            HRMU_REVIEW_FLAGGED_TYPE,
+            HRMU_REVIEW_SUCCESS_TYPE,
+            [HRMU_REVIEW_FLAGGED_TYPE, HRMU_REVIEW_SUCCESS_TYPE]
+        ]
     );
 
     return rows;
@@ -152,6 +178,34 @@ const getVerificationReviewRow = async (verificationId) => {
          WHERE verification.id = $1
          LIMIT 1`,
         [verificationId]
+    );
+
+    return rows[0] || null;
+};
+
+const getCompletedTripForLocatorSlip = async (locatorSlipId) => {
+    const { rows } = await pool.query(
+        `SELECT
+            ls.id AS locator_slip_id,
+            fu.id AS faculty_user_id,
+            trip.id AS trip_id,
+            trip.ended_at
+         FROM locator_slips ls
+         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+         LEFT JOIN LATERAL (
+            SELECT t.id, t.status, t.started_at, t.ended_at
+            FROM trips t
+            WHERE t.user_id = fu.id
+              AND (t.status = 'completed' OR t.ended_at IS NOT NULL)
+            ORDER BY
+                ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(t.started_at, ls.created_at)))) ASC,
+                COALESCE(t.ended_at, t.started_at, t.created_at) DESC
+            LIMIT 1
+         ) trip ON TRUE
+         WHERE ls.id = $1
+           AND trip.id IS NOT NULL
+         LIMIT 1`,
+        [locatorSlipId]
     );
 
     return rows[0] || null;
@@ -195,5 +249,6 @@ const updateArrivalVerificationReview = async ({ verificationId, reviewerId, sta
 module.exports = {
     getVerificationTrips,
     getVerificationReviewRow,
+    getCompletedTripForLocatorSlip,
     updateArrivalVerificationReview
 };

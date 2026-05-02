@@ -2,6 +2,7 @@ const pool = require('../db/pool');
 
 const OPEN_TRIP_STATUSES = ['active', 'arrived', 'returning'];
 const APPROVED_SLIP_STATUSES = ['approved', 'verified'];
+const LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS = 4 * 60 * 60;
 let locatorSlipTripStatusColumnExistsCache = null;
 let locatorSlipDestinationLatColumnExistsCache = null;
 let locatorSlipDestinationLngColumnExistsCache = null;
@@ -242,12 +243,26 @@ const mapLocatorSlipRow = (row) => ({
 
 const getApprovedLocatorSlips = async (facultyUserId) => {
     const hasTripStatusColumn = await getLocatorSlipTripStatusColumnExists();
+    const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
+    const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
+    const hasEndedAtColumn = await getTripsColumnExists('ended_at');
+    const tripCompletionCheck = [
+        hasReturnedAtColumn ? 'trip.returned_at IS NOT NULL' : null,
+        hasEndedAtColumn ? 'trip.ended_at IS NOT NULL' : null,
+        `trip.status = 'completed'`
+    ].filter(Boolean).join(' OR ');
+    const tripRecencyExpression = [
+        hasEndedAtColumn ? 'trip.ended_at' : null,
+        hasReturnedAtColumn ? 'trip.returned_at' : null,
+        'trip.started_at',
+        'trip.created_at'
+    ].filter(Boolean).join(', ');
     const tripStatusSelect = hasTripStatusColumn
-        ? `COALESCE(ls.trip_status, 'not_started') AS trip_status`
-        : `'not_started' AS trip_status`;
-    const tripStatusWhere = hasTripStatusColumn
-        ? `AND COALESCE(ls.trip_status, 'not_started') <> 'completed'`
-        : '';
+        ? `CASE
+            WHEN COALESCE(resolved_trip.trip_status, '') = 'completed' OR COALESCE(ls.trip_status, '') = 'completed' THEN 'completed'
+            ELSE COALESCE(ls.trip_status, resolved_trip.trip_status, 'not_started')
+        END AS trip_status`
+        : `COALESCE(resolved_trip.trip_status, 'not_started') AS trip_status`;
 
     const { rows } = await pool.query(
         `SELECT
@@ -263,9 +278,34 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             ls.approved_at,
             ls.updated_at
          FROM locator_slips ls
+         LEFT JOIN LATERAL (
+            SELECT
+                trip.id AS trip_id,
+                CASE
+                    WHEN ${tripCompletionCheck} THEN 'completed'
+                    ELSE trip.status
+                END AS trip_status
+            FROM trips trip
+            WHERE trip.user_id = ls.faculty_user_id
+              AND (
+                ${hasTripsLocatorSlipIdColumn
+                    ? `trip.locator_slip_id = ls.id
+                       OR (
+                            trip.locator_slip_id IS NULL
+                            AND ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}
+                        )`
+                    : `ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}`})
+            ORDER BY
+                CASE
+                    WHEN ${tripCompletionCheck} THEN 0
+                    ELSE 1
+                END,
+                ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) ASC,
+                COALESCE(${tripRecencyExpression}) DESC
+            LIMIT 1
+         ) resolved_trip ON TRUE
          WHERE ls.faculty_user_id = $1
            AND ls.status = ANY($2::text[])
-           ${tripStatusWhere}
          ORDER BY COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC`,
         [facultyUserId, APPROVED_SLIP_STATUSES]
     );

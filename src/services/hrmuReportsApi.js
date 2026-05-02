@@ -70,6 +70,28 @@ export const reviewHrmuArrivalVerification = async (verificationId, payload) => 
   return data.data;
 };
 
+export const flagHrmuTripWithoutProof = async (tripId, locatorSlipId = null) => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/trips/${tripId}/flag-unverified`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      locatorSlipId,
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'HRMU trip flagging failed');
+  }
+
+  return data.data;
+};
+
 export const downloadHrmuMonthlyReportPdf = async ({ monthIndex, baseYear }) => {
   const searchParams = new URLSearchParams();
   if (monthIndex !== undefined && monthIndex !== null) searchParams.set('monthIndex', monthIndex);

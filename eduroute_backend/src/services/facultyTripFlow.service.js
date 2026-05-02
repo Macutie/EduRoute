@@ -155,7 +155,8 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             departureTime: locatorSlip.departure_time,
             expectedReturnTime: locatorSlip.expected_return_time,
             status: locatorSlip.status,
-            tripStatus: locatorSlip.trip_status
+            tripStatus: locatorSlip.trip_status,
+            displayStatus: String(locatorSlip.trip_status || '').toLowerCase() === 'completed' ? 'completed' : 'approved'
         }))
     };
 };

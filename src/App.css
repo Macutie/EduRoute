@@ -8119,8 +8119,13 @@ label {
 .hrmu-verify-action-btn.ghost {
   background: transparent;
   color: #2F3438;
-  padding-inline: 0;
-  min-height: auto;
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  background: #F6F8F6;
+  border: 1px solid #E1E9E1;
 }
 
 .hrmu-verify-footer-link {
@@ -8402,8 +8407,9 @@ label {
 
 .hrmu-verify-check-grid {
   display: grid;
-  grid-template-columns: minmax(0, 312px);
+  grid-template-columns: repeat(2, minmax(0, 312px));
   gap: 14px;
+  align-items: start;
 }
 
 .hrmu-verify-check-card {
@@ -8422,6 +8428,14 @@ label {
   font-size: 18px;
   font-weight: 900;
   line-height: 1.3;
+}
+
+.hrmu-verify-check-card.negative strong {
+  color: #D92D20;
+}
+
+.hrmu-verify-check-card.positive strong {
+  color: var(--green);
 }
 
 .hrmu-verify-check-card small {
@@ -9743,6 +9757,35 @@ label {
   color: #4f5d4f;
   font-size: 0.78rem;
   font-weight: 700;
+}
+
+.map-slip-selection-status.approved {
+  color: #12391c;
+}
+
+.map-slip-selection-status.completed {
+  color: #0c4a6e;
+}
+
+.map-slip-selection-card.is-completed {
+  border-color: #cfe0fb;
+  background: linear-gradient(180deg, #ffffff 0%, #f5fbff 100%);
+  opacity: 0.94;
+  cursor: not-allowed;
+  box-shadow: 0 12px 28px rgba(78, 122, 180, 0.10);
+}
+
+.map-slip-selection-card.is-completed:disabled {
+  cursor: not-allowed;
+}
+
+.map-slip-selection-card.is-completed strong {
+  color: #24517a;
+}
+
+.map-slip-selection-card.is-completed span,
+.map-slip-selection-card.is-completed .map-slip-selection-empty {
+  color: #62809a;
 }
 
 .map-slip-selection-card strong {

@@ -4,6 +4,7 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth.routes');
 const departmentRoutes = require('./routes/department.routes');
 const locatorSlipRoutes = require('./routes/locatorSlip.routes');
+const notificationRoutes = require('./routes/notification.routes');
 const permissionRoutes = require('./routes/permission.routes');
 const mapRoutes = require('./routes/map.routes');
 const tripRoutes = require('./routes/trip.routes');
@@ -46,6 +47,7 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/locator-slips', locatorSlipRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/permissions', permissionRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/maps', mapRoutes);

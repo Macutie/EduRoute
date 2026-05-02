@@ -13,6 +13,21 @@ const MONTH_NAMES = [
     'December'
 ];
 
+const REPORT_TIMEZONE_OFFSET_MINUTES = 8 * 60;
+
+const createReportBoundaryUtc = (
+    year,
+    month,
+    day,
+    hour = 0,
+    minute = 0,
+    second = 0,
+    millisecond = 0
+) => new Date(
+    Date.UTC(year, month, day, hour, minute, second, millisecond) -
+    REPORT_TIMEZONE_OFFSET_MINUTES * 60 * 1000
+);
+
 const getReportMonthFromIndex = (monthIndex, baseYear) => {
     const safeIndex = Number(monthIndex) || 1;
     const safeYear = Number(baseYear) || new Date().getUTCFullYear();
@@ -36,9 +51,9 @@ const getReportMonthFromIndex = (monthIndex, baseYear) => {
 
 const getMonthDateRange = (monthIndex, baseYear) => {
     const reportMonth = getReportMonthFromIndex(monthIndex, baseYear);
-    const start = new Date(Date.UTC(reportMonth.actualYear, reportMonth.actualMonth, 1, 0, 0, 0, 0));
-    const end = new Date(Date.UTC(reportMonth.actualYear, reportMonth.actualMonth + 1, 0, 23, 59, 59, 999));
-    const endExclusive = new Date(Date.UTC(reportMonth.actualYear, reportMonth.actualMonth + 1, 1, 0, 0, 0, 0));
+    const start = createReportBoundaryUtc(reportMonth.actualYear, reportMonth.actualMonth, 1, 0, 0, 0, 0);
+    const endExclusive = createReportBoundaryUtc(reportMonth.actualYear, reportMonth.actualMonth + 1, 1, 0, 0, 0, 0);
+    const end = new Date(endExclusive.getTime() - 1);
 
     return {
         ...reportMonth,

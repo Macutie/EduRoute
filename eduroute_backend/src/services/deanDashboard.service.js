@@ -2,6 +2,7 @@ const pool = require('../db/pool');
 const AppError = require('../utils/appError');
 const { formatDateTime } = require('../utils/dateFormatter');
 const notificationService = require('./notification.service');
+const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 
@@ -577,6 +578,15 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
 
         await client.query('COMMIT');
 
+        await locatorSlipNotificationService.notifyFacultyOfLocatorSlipApproval({
+            recipientUserId: slip.faculty_user_id,
+            senderUserId: dean.id,
+            locatorSlipId: slip.id,
+            destination: slip.destination
+        }).catch((notificationError) => {
+            console.error('Failed to notify faculty about approved locator slip:', notificationError);
+        });
+
         await socketBroadcasterService.broadcastHrmuNotificationNew(hrmuNotificationPayload).catch((broadcastError) => {
             console.error('Failed to broadcast HRMU approval notification:', broadcastError);
         });
@@ -609,6 +619,82 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
     }
 };
 
+const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '') => {
+    const dean = await getDeanContext(deanUserId);
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+
+        const slipResult = await client.query(
+            `SELECT
+                ls.id,
+                ls.faculty_user_id,
+                fu.full_name,
+                d.department_name,
+                ls.destination,
+                ls.status
+             FROM locator_slips ls
+             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+             JOIN departments d ON d.id = fu.department_id
+             WHERE ls.id = $1
+               AND fu.account_role = 'faculty'
+               AND fu.status = 'active'
+               AND fu.department_id = $2
+             LIMIT 1`,
+            [locatorSlipId, dean.college_id]
+        );
+
+        if (slipResult.rowCount === 0) {
+            throw new AppError('Locator slip not found for your assigned college.', 404);
+        }
+
+        const slip = slipResult.rows[0];
+
+        if (slip.status !== 'pending') {
+            throw new AppError('Only pending locator slips can be rejected.', 409);
+        }
+
+        const updateResult = await client.query(
+            `UPDATE locator_slips
+             SET status = 'rejected',
+                 rejected_at = CURRENT_TIMESTAMP,
+                 reviewed_by = $2,
+                 additional_remarks = COALESCE(NULLIF($3, ''), additional_remarks),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1
+             RETURNING *`,
+            [locatorSlipId, dean.id, remarks || null]
+        );
+
+        await client.query('COMMIT');
+
+        await locatorSlipNotificationService.notifyFacultyOfLocatorSlipRejection({
+            recipientUserId: slip.faculty_user_id,
+            senderUserId: dean.id,
+            locatorSlipId: slip.id,
+            remarks
+        }).catch((notificationError) => {
+            console.error('Failed to notify faculty about rejected locator slip:', notificationError);
+        });
+
+        return {
+            locatorSlipId: updateResult.rows[0].id,
+            status: updateResult.rows[0].status,
+            remarks: remarks || null
+        };
+    } catch (error) {
+        try {
+            await client.query('ROLLBACK');
+        } catch (rollbackError) {
+            console.error('Dean locator slip rejection rollback failed:', rollbackError);
+        }
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
 module.exports = {
     DEAN_ROLES,
     getDeanContext,
@@ -620,5 +706,6 @@ module.exports = {
     getFacultyOverview,
     getPendingRequestsPage,
     getRegistryPage,
-    approveLocatorSlipRequest
+    approveLocatorSlipRequest,
+    rejectLocatorSlipRequest
 };

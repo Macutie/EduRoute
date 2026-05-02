@@ -14,6 +14,7 @@ router.get('/pending-approvals', deanDashboardController.getPendingApprovals);
 router.get('/faculty', deanDashboardController.getFacultyOverview);
 router.get('/requests/pending', deanDashboardController.getPendingRequestsPage);
 router.patch('/requests/:id/approve', deanDashboardController.approveLocatorSlipRequest);
+router.patch('/requests/:id/reject', deanDashboardController.rejectLocatorSlipRequest);
 router.get('/registry', deanDashboardController.getRegistryPage);
 
 module.exports = router;

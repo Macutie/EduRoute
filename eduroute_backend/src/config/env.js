@@ -29,5 +29,9 @@ module.exports = {
     mapboxDirectionsProfile: process.env.MAPBOX_DIRECTIONS_PROFILE || 'mapbox/driving',
     liveLocationStaleMinutes: Number(process.env.LIVE_LOCATION_STALE_MINUTES || process.env.LOCATION_DISCONNECTED_MINUTES || 30),
     locationDisconnectedMinutes: Number(process.env.LOCATION_DISCONNECTED_MINUTES || process.env.LIVE_LOCATION_STALE_MINUTES || 30),
-    lateReturnGraceMinutes: Number(process.env.LATE_RETURN_GRACE_MINUTES || 60)
+    lateReturnGraceMinutes: Number(process.env.LATE_RETURN_GRACE_MINUTES || 60),
+    firebaseProjectId: process.env.FIREBASE_PROJECT_ID,
+    firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY,
+    fcmWebPushLink: process.env.FCM_WEB_PUSH_LINK || process.env.CLIENT_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:5173'
 };

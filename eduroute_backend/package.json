@@ -20,7 +20,8 @@
         "migrate:hrmu-reports-incidents": "node scripts/run-sql-file.js sql/hrmu_reports_incidents.sql",
         "migrate:faculty-trip-flow": "node scripts/run-sql-file.js sql/faculty_trip_flow.sql",
         "migrate:cssu-dashboard": "node scripts/run-sql-file.js sql/cssu_dashboard.sql",
-        "migrate:locator-slip-qr": "node scripts/run-sql-file.js sql/locator_slip_qr.sql"
+        "migrate:locator-slip-qr": "node scripts/run-sql-file.js sql/locator_slip_qr.sql",
+        "migrate:notifications-push": "node scripts/run-sql-file.js sql/notifications_push.sql"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",
@@ -30,6 +31,7 @@
         "express": "^4.19.2",
         "express-rate-limit": "^7.4.0",
         "express-validator": "^7.1.0",
+        "firebase-admin": "^13.8.0",
         "helmet": "^7.1.0",
         "jsonwebtoken": "^9.0.2",
         "multer": "^2.1.1",
@@ -38,7 +40,7 @@
         "pg": "^8.12.0",
         "sharp": "^0.34.5",
         "socket.io": "^4.8.3",
-        "uuid": "^10.0.0"
+        "uuid": "^14.0.0"
     },
     "devDependencies": {
         "nodemon": "^3.1.4"

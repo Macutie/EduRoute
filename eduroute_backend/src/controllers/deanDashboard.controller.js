@@ -82,6 +82,15 @@ const approveLocatorSlipRequest = async (req, res, next) => {
     }
 };
 
+const rejectLocatorSlipRequest = async (req, res, next) => {
+    try {
+        const rejectedSlip = await deanDashboardService.rejectLocatorSlipRequest(req.user.sub, req.params.id, req.body?.remarks || '');
+        return res.json(successResponse('Locator slip rejected successfully.', rejectedSlip));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     getSummary,
     getNotifications,
@@ -91,5 +100,6 @@ module.exports = {
     getFacultyOverview,
     getPendingRequestsPage,
     getRegistryPage,
-    approveLocatorSlipRequest
+    approveLocatorSlipRequest,
+    rejectLocatorSlipRequest
 };

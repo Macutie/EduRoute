@@ -217,6 +217,26 @@ const getNotifications = async (userId, query = {}) => {
             verificationImageUrl: null,
             verificationStatus: null
         }));
+    const unverifiedLocationNotifications = flaggedTrips
+        .filter((row) => Array.isArray(row.incident_types) && row.incident_types.includes('UNVERIFIED_LOCATION'))
+        .map((row) => ({
+            id: `unverified-location-${row.trip_id}`,
+            locatorSlipId: row.locator_slip_id,
+            tripId: row.trip_id,
+            facultyName: row.faculty_name,
+            collegeName: row.college_name,
+            purpose: row.purpose,
+            status: 'flagged',
+            type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
+            incidentType: 'UNVERIFIED_LOCATION',
+            title: 'Unverified location detected',
+            message: `${row.faculty_name} has an arrival verification that HRMU marked as unverified for ${row.destination || 'the approved destination'}.`,
+            createdAt: row.latest_detected_at ? new Date(row.latest_detected_at).toISOString() : null,
+            approvedAt: null,
+            reviewedByName: null,
+            verificationImageUrl: null,
+            verificationStatus: null
+        }));
 
     const notificationRows = result.rows.map((row) => ({
         id: row.id,
@@ -251,8 +271,14 @@ const getNotifications = async (userId, query = {}) => {
             .filter((item) => item.type === hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LATE_RETURN)
             .map((item) => String(item.tripId || ''))
     );
+    const seenUnverifiedTripIds = new Set(
+        notificationRows
+            .filter((item) => item.type === hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION)
+            .map((item) => String(item.tripId || ''))
+    );
     const mergedNotifications = [
         ...lateReturnNotifications.filter((item) => !seenLateReturnTripIds.has(String(item.tripId || ''))),
+        ...unverifiedLocationNotifications.filter((item) => !seenUnverifiedTripIds.has(String(item.tripId || ''))),
         ...notificationRows
     ].sort((left, right) => {
         const leftTime = left.createdAt ? new Date(left.createdAt).getTime() : 0;

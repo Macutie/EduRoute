@@ -1,0 +1,48 @@
+/* eslint-disable no-undef */
+const search = new URL(self.location.href).searchParams;
+
+const firebaseConfig = {
+  apiKey: search.get('apiKey') || '',
+  authDomain: search.get('authDomain') || '',
+  projectId: search.get('projectId') || '',
+  storageBucket: search.get('storageBucket') || '',
+  messagingSenderId: search.get('messagingSenderId') || '',
+  appId: search.get('appId') || '',
+};
+
+if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+  importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-messaging-compat.js');
+
+  firebase.initializeApp(firebaseConfig);
+  const messaging = firebase.messaging();
+
+  messaging.onBackgroundMessage((payload) => {
+    const title = payload.notification?.title || payload.data?.title || 'EduRoute';
+    const body = payload.notification?.body || payload.data?.message || 'You have a new notification.';
+    const url = payload.data?.url || '/';
+
+    self.registration.showNotification(title, {
+      body,
+      data: { url },
+      icon: '/profile_pic.png',
+    });
+  });
+}
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification?.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      const existingClient = clientList.find((client) => 'focus' in client);
+      if (existingClient) {
+        existingClient.navigate(targetUrl);
+        return existingClient.focus();
+      }
+
+      return clients.openWindow(targetUrl);
+    })
+  );
+});
