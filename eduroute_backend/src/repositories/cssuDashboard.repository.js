@@ -668,7 +668,7 @@ const upsertExitLogStatus = async ({
             $5,
             CASE
                 WHEN $4::text = 'approved' THEN NULL
-                ELSE (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
+                ELSE CURRENT_TIMESTAMP
             END,
             $6,
             $7
