@@ -8342,6 +8342,7 @@ const DeanNotificationsView = ({ setView, profileData }) => {
 
               {items.map((notification) => {
                 const isPendingNotice = /pending|approval|signature/i.test(notification.message || notification.title || '');
+                const reviewTarget = notification.type === 'LOCATOR_SLIP_CANCELLED' ? 'dean-registry' : 'dean-dashboard';
 
                 return (
                   <article className="dean-notification-card" key={notification.id}>
@@ -8353,7 +8354,7 @@ const DeanNotificationsView = ({ setView, profileData }) => {
                       </div>
                       <p>{notification.message}</p>
                       <div className="dean-notification-actions">
-                        <button type="button" className="review" onClick={() => setView('dean-dashboard')}>
+                        <button type="button" className="review" onClick={() => setView(reviewTarget)}>
                           REVIEW
                         </button>
                         <button type="button" className="dismiss" onClick={() => handleDismiss(notification.id)}>

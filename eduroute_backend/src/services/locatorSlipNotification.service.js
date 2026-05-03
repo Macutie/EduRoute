@@ -69,6 +69,7 @@ const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUser
                 : `${facultyName} cancelled the locator slip to ${destination}.`,
             data: {
                 locatorSlipId,
+                cancellationReason: cancellationReason || '',
                 url: `/dean/locator-slips/${locatorSlipId}`
             }
         }

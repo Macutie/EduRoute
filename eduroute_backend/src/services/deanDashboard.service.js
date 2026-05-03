@@ -489,7 +489,10 @@ const getRegistryPage = async (deanUserId) => {
             ls.updated_at,
             ls.approved_at,
             ls.rejected_at,
-            ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text AS cancellation_reason,'}
+            COALESCE(
+                ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text,'}
+                latest_cancel_notification.cancellation_reason
+            ) AS cancellation_reason,
             ls.departure_datetime,
             ls.expected_return_datetime,
             reviewer.full_name AS reviewed_by_name,
@@ -498,6 +501,14 @@ const getRegistryPage = async (deanUserId) => {
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          JOIN departments d ON d.id = fu.department_id
          LEFT JOIN faculty_users reviewer ON reviewer.id = ls.reviewed_by
+         LEFT JOIN LATERAL (
+            SELECT n.data ->> 'cancellationReason' AS cancellation_reason
+            FROM notifications n
+            WHERE n.locator_slip_id = ls.id
+              AND n.type = 'LOCATOR_SLIP_CANCELLED'
+            ORDER BY n.created_at DESC, n.id DESC
+            LIMIT 1
+         ) latest_cancel_notification ON TRUE
          WHERE fu.account_role = 'faculty'
            AND fu.status = 'active'
            AND fu.department_id = $1

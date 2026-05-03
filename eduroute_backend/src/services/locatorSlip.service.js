@@ -4,6 +4,7 @@ const { formatDateTime } = require('../utils/dateFormatter');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
 const notificationService = require('./notification.service');
+const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
