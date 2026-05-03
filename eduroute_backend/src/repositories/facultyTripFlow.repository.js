@@ -689,10 +689,12 @@ const getBlockingTripForLocatorSlip = async (locatorSlipId, facultyUserId, clien
                        OR (
                             trip.locator_slip_id IS NULL
                             AND ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}
-                            AND COALESCE(trip.started_at, trip.created_at) >= ls.created_at - INTERVAL '1 hour'
+                            AND COALESCE(trip.started_at, trip.created_at) >= ls.created_at
+                            AND NOT (ls.status IN ('approved', 'verified', 'pending') AND (${tripCompletionCheck}))
                         )`
                     : `ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(trip.started_at, trip.created_at)))) <= ${LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS}
-                       AND COALESCE(trip.started_at, trip.created_at) >= ls.created_at - INTERVAL '1 hour'`})
+                       AND COALESCE(trip.started_at, trip.created_at) >= ls.created_at
+                       AND NOT (ls.status IN ('approved', 'verified', 'pending') AND (${tripCompletionCheck}))`})
          ORDER BY
             CASE
                 WHEN ${tripCompletionCheck} THEN 1
