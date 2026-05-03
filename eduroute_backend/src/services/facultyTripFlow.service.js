@@ -65,7 +65,12 @@ const ensureApprovedLocatorSlip = (locatorSlip) => {
         throw new AppError('Approved locator slip not found.', 404);
     }
 
-    if (!VERIFIABLE_SLIP_STATUSES.has(String(locatorSlip.status || '').toLowerCase())) {
+    const slipStatus = String(locatorSlip.status || '').toLowerCase();
+    const tripStatus = String(locatorSlip.trip_status || locatorSlip.tripStatus || '').toLowerCase();
+    const isApprovedOrVerified = VERIFIABLE_SLIP_STATUSES.has(slipStatus);
+    const hasTripInProgress = ACTIVE_TRIP_STATUSES.has(tripStatus);
+
+    if (!isApprovedOrVerified && !hasTripInProgress) {
         throw new AppError('Only approved or verified locator slips can be used for trip access.', 409);
     }
 
