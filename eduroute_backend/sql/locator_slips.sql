@@ -25,6 +25,9 @@ CREATE TABLE IF NOT EXISTS locator_slips (
         )
 );
 
+ALTER TABLE locator_slips
+    ADD COLUMN IF NOT EXISTS expected_return_datetime TIMESTAMP;
+
 CREATE INDEX IF NOT EXISTS idx_locator_slips_faculty_user_id
     ON locator_slips(faculty_user_id);
 
