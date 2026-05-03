@@ -52,6 +52,21 @@ const getDeanContext = async (deanUserId) => {
     return rows[0];
 };
 
+const getLocatorSlipColumnExists = async (columnName) => {
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'locator_slips'
+              AND column_name = $1
+        ) AS exists`,
+        [columnName]
+    );
+
+    return Boolean(rows[0]?.exists);
+};
+
 const getDashboardSummary = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
 
@@ -143,6 +158,7 @@ const normalizeLocatorSlipRow = (row) => ({
     destination: row.destination,
     isUrgent: row.is_urgent === true,
     status: row.status,
+    cancellationReason: row.cancellation_reason || null,
     createdAt: row.created_at,
     dateSubmitted: formatDateOnly(row.created_at),
     formattedCreatedAt: formatDateTime(row.created_at),
@@ -438,6 +454,7 @@ const formatSignatureRoleLabel = (role, collegeName) => {
 
 const getRegistryPage = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
+    const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
 
     const summaryResult = await pool.query(
         `SELECT
@@ -472,6 +489,7 @@ const getRegistryPage = async (deanUserId) => {
             ls.updated_at,
             ls.approved_at,
             ls.rejected_at,
+            ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text AS cancellation_reason,'}
             ls.departure_datetime,
             ls.expected_return_datetime,
             reviewer.full_name AS reviewed_by_name,
@@ -501,8 +519,8 @@ const getRegistryPage = async (deanUserId) => {
             position: row.department_position || row.department_name || 'Instructor',
             profileImageUrl: row.profile_image_url,
             statusLabel: normalizeRegistryStatus(row.status),
-            dateLabel: 'DATE SUBMITTED',
-            dateValue: formatDateOnly(row.created_at),
+            dateLabel: row.status === 'cancelled' ? 'DATE CANCELLED' : 'DATE SUBMITTED',
+            dateValue: formatDateOnly(row.status === 'cancelled' ? (row.updated_at || row.created_at) : row.created_at),
             referenceNumber: `LS-${new Date(row.created_at).getFullYear()}-${String(row.id).padStart(3, '0')}`,
             assignedDean: {
                 name: row.reviewed_by_name || dean.full_name,

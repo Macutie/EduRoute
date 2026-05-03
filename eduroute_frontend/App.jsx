@@ -3374,6 +3374,7 @@ const LOCATOR_PURPOSE_OPTIONS = [
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
+  { key: 'cancelled', label: 'Cancelled' },
   { key: 'completed', label: 'Completed' },
   { key: 'pending', label: 'Pending' },
   { key: 'rejected', label: 'Rejected' },
@@ -3386,13 +3387,20 @@ const LOCATOR_SLIP_CANCEL_REASONS = [
   { value: 'incorrect_locator_slip_details', label: 'Incorrect locator slip details' },
 ];
 
+const getCancellationReasonLabel = (reasonValue) => (
+  LOCATOR_SLIP_CANCEL_REASONS.find((reason) => reason.value === reasonValue)?.label || 'Cancelled'
+);
+
 const getSlipDisplayStatus = (slip) => {
   const locatorSlipStatus = String(slip?.status || 'pending').toLowerCase();
   if (locatorSlipStatus === 'pending') {
     return 'pending';
   }
-  if (locatorSlipStatus === 'rejected' || locatorSlipStatus === 'cancelled') {
+  if (locatorSlipStatus === 'rejected') {
     return 'rejected';
+  }
+  if (locatorSlipStatus === 'cancelled') {
+    return 'cancelled';
   }
   if (locatorSlipStatus === 'completed') {
     return 'completed';
@@ -4078,7 +4086,6 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [showTripSummary, setShowTripSummary] = useState(false);
   const [tripSummaryLoading, setTripSummaryLoading] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
-  const getCancelReasonLabel = (reasonValue) => LOCATOR_SLIP_CANCEL_REASONS.find((reason) => reason.value === reasonValue)?.label || 'Cancelled';
   const slip = selectedSlip;
 
   useEffect(() => {
@@ -4161,6 +4168,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const isCompleted = getSlipDisplayStatus(slip) === 'completed';
   const isApproved = ['approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && !isCompleted;
   const isRejected = slip.status === 'rejected';
+  const isCancelled = slip.status === 'cancelled';
   const actionState = getLocatorSlipActionState(slip, slip.currentTrip || null);
   const cssuValidationStatus = getCssuValidationStatus(slip);
   const canShowQrCode = actionState.showQr && Boolean(slip.locator_slip_code);
@@ -4168,7 +4176,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
     ? 'Verification in'
     : isCompleted
       ? 'Trip'
-      : (isApproved || isRejected)
+      : (isApproved || isRejected || isCancelled)
         ? 'Verification'
         : `${slip.status.charAt(0).toUpperCase()}${slip.status.slice(1)}`;
   const referralId = `FAC-${String(slip.id).slice(0, 8).toUpperCase()}`;
@@ -4181,7 +4189,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
   const cancelRequest = async () => {
     if (!isPending || cancelLoading) return;
-    const reasonLabel = getCancelReasonLabel(selectedCancelReason);
+    const reasonLabel = getCancellationReasonLabel(selectedCancelReason);
 
     setCancelLoading(true);
 
@@ -4246,6 +4254,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
             {isApproved && <span className="text-green">Approved</span>}
             {isCompleted && <span className="text-green">Completed</span>}
             {isRejected && <span className="text-red">Rejected</span>}
+            {isCancelled && <span className="text-red">Cancelled</span>}
           </h2>
           <p>
             {isPending
@@ -4258,6 +4267,8 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                     : 'Your request has been reviewed and approved by the dean. CSSU exit validation is still required before you can start the trip.'
                   : isRejected
                     ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
+                    : isCancelled
+                      ? 'This locator slip was cancelled by the faculty user before approval.'
                     : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
           {isApproved && actionState.helperText && (
@@ -4268,9 +4279,9 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
           )}
         </div>
 
-        {(isPending || isApproved || isCompleted || isRejected) && (
+        {(isPending || isApproved || isCompleted || isRejected || isCancelled) && (
           <div className="progress-bar-container">
-            <div className={`progress-track ${(isApproved || isCompleted) ? 'approved' : ''} ${isRejected ? 'rejected' : ''}`}>
+            <div className={`progress-track ${(isApproved || isCompleted) ? 'approved' : ''} ${(isRejected || isCancelled) ? 'rejected' : ''}`}>
               <div className="progress-fill"></div>
             </div>
             <div className="progress-points">
@@ -4284,10 +4295,10 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 </div>
                 <span className="point-label green-label">REVIEW</span>
               </div>
-              <div className={`progress-point ${(isApproved || isCompleted || isRejected) ? 'active' : 'pending'}`}>
-                <div className={`point-dot ${(isApproved || isCompleted || isRejected) ? 'green-dot-solid' : 'grey-dot-solid'}`}></div>
-                <span className={`point-label ${(isApproved || isCompleted) ? 'green-label' : ''} ${isRejected ? 'red-label' : ''}`}>
-                  {isRejected ? 'INACTIVE' : 'ACTIVE'}
+              <div className={`progress-point ${(isApproved || isCompleted || isRejected || isCancelled) ? 'active' : 'pending'}`}>
+                <div className={`point-dot ${(isApproved || isCompleted || isRejected || isCancelled) ? 'green-dot-solid' : 'grey-dot-solid'}`}></div>
+                <span className={`point-label ${(isApproved || isCompleted) ? 'green-label' : ''} ${(isRejected || isCancelled) ? 'red-label' : ''}`}>
+                  {(isRejected || isCancelled) ? 'INACTIVE' : 'ACTIVE'}
                 </span>
               </div>
               {isCompleted && (
@@ -4331,7 +4342,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
         {slip.status === 'cancelled' && slip.cancellation_reason && (
           <div className="cancel-reason-card">
             <span>CANCELLATION REASON</span>
-            <strong>{getCancelReasonLabel(slip.cancellation_reason)}</strong>
+            <strong>{getCancellationReasonLabel(slip.cancellation_reason)}</strong>
           </div>
         )}
 
@@ -8757,6 +8768,12 @@ const DeanRegistryView = ({ setView, profileData }) => {
                   <span className="areg-detail-value">{item.destination}</span>
                 </div>
               </div>
+              {item.status === 'cancelled' && item.cancellationReason && (
+                <div className="areg-card-cancel-reason">
+                  <span className="areg-detail-label">CANCELLATION REASON</span>
+                  <span className="areg-detail-value">{getCancellationReasonLabel(item.cancellationReason)}</span>
+                </div>
+              )}
 
               <div className="areg-card-actions">
                 <button
@@ -11834,6 +11851,15 @@ const RegistryDetailsModal = ({ item, onClose }) => {
               <span className="rmodal-detail-value">{item.purpose}</span>
             </div>
           </div>
+          {status === 'cancelled' && item.cancellationReason && (
+            <div className="rmodal-detail-item">
+              <DetailDocIcon />
+              <div className="rmodal-detail-text">
+                <span className="rmodal-detail-label">CANCELLATION REASON</span>
+                <span className="rmodal-detail-value">{getCancellationReasonLabel(item.cancellationReason)}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Travel Schedule */}

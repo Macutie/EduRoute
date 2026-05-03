@@ -147,6 +147,12 @@ const generateShortLocatorSlipCode = () => {
 
 const LOCATOR_SLIP_TRIP_FALLBACK_WINDOW_SECONDS = 4 * 60 * 60;
 const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
+const CANCELLATION_REASON_LABELS = {
+    change_of_schedule: 'Change of schedule',
+    trip_no_longer_needed: 'Trip no longer needed',
+    meeting_event_cancelled: 'Meeting/event cancelled',
+    incorrect_locator_slip_details: 'Incorrect locator slip details'
+};
 
 const getCssuValidationStatusSelect = ({
     hasCssuValidationStatusColumn,
@@ -498,7 +504,6 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
             LIMIT 1
         ) latest_cssu_log ON TRUE` : ''}
         WHERE ls.faculty_user_id = $1
-          AND ls.status <> 'cancelled'
           ${statusFilter}
           ${completedFilter}
         ORDER BY ls.created_at DESC
@@ -601,7 +606,22 @@ const cancelLocatorSlip = async (facultyUserId, locatorSlipId, cancellationReaso
         throw new AppError('Pending locator slip not found or cannot be cancelled.', 404);
     }
 
-    return getLocatorSlipById(facultyUserId, rows[0].id);
+    const locatorSlip = await getLocatorSlipById(facultyUserId, rows[0].id);
+    const facultyName = locatorSlip.faculty?.full_name || 'A faculty user';
+    const reasonLabel = CANCELLATION_REASON_LABELS[cancellationReason] || null;
+
+    await locatorSlipNotificationService.notifyDeansOfLocatorSlipCancellation({
+        locatorSlipId: locatorSlip.id,
+        facultyUserId,
+        collegeId: locatorSlip.college_id,
+        facultyName,
+        destination: locatorSlip.destination,
+        cancellationReason: reasonLabel
+    }).catch((notificationError) => {
+        console.error('Failed to notify deans about locator slip cancellation:', notificationError);
+    });
+
+    return locatorSlip;
 };
 
 const uploadVerificationToCloudinary = (optimizedImage, locatorSlipId) =>

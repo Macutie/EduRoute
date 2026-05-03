@@ -53,8 +53,31 @@ const notifyFacultyOfLocatorSlipRejection = async ({ recipientUserId, senderUser
     })
 );
 
+const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUserId, collegeId, facultyName, destination, cancellationReason }) => {
+    const deans = await userRepository.getDeanUsersByCollegeId(collegeId);
+    if (deans.length === 0) return [];
+
+    return notificationService.notifyUsers(
+        deans.map((dean) => dean.id),
+        {
+            senderUserId: facultyUserId,
+            locatorSlipId,
+            type: 'LOCATOR_SLIP_CANCELLED',
+            title: 'Locator Slip Cancelled',
+            message: cancellationReason
+                ? `${facultyName} cancelled the locator slip to ${destination}. Reason: ${cancellationReason}.`
+                : `${facultyName} cancelled the locator slip to ${destination}.`,
+            data: {
+                locatorSlipId,
+                url: `/dean/locator-slips/${locatorSlipId}`
+            }
+        }
+    );
+};
+
 module.exports = {
     notifyDeansOfLocatorSlipSubmission,
+    notifyDeansOfLocatorSlipCancellation,
     notifyFacultyOfLocatorSlipApproval,
     notifyFacultyOfLocatorSlipRejection
 };

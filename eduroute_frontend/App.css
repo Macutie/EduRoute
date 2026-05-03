@@ -12985,6 +12985,16 @@ label {
   margin-bottom: 16px;
 }
 
+.areg-card-cancel-reason {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: -4px 0 16px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #F9FAFB;
+}
+
 .areg-detail-col {
   display: flex;
   flex-direction: column;
