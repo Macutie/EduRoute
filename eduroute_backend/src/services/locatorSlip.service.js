@@ -190,7 +190,6 @@ const locatorSlipColumns = `
     ls.departure_datetime,
     ls.expected_return_datetime,
     ls.additional_remarks,
-    ls.cancellation_reason,
     ls.is_urgent,
     ls.status,
     resolved_trip.trip_status,
@@ -448,6 +447,7 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
     const hasEndedAtColumn = await getTripsColumnExists('ended_at');
     const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
     const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
+    const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
     const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
     const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
     const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
@@ -470,6 +470,7 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
             ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
             ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
             ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
+            ${hasCancellationReasonColumn ? ', ls.cancellation_reason' : ", NULL::text AS cancellation_reason"}
             , ${getCssuValidationStatusSelect({
                 hasCssuValidationStatusColumn,
                 hasCssuExitLogsTable
@@ -519,6 +520,7 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
     const hasEndedAtColumn = await getTripsColumnExists('ended_at');
     const hasLocatorSlipCodeColumn = await getLocatorSlipCodeColumnExists();
     const hasQrGeneratedAtColumn = await getQrGeneratedAtColumnExists();
+    const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
     const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
     const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
     const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
@@ -535,6 +537,7 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
             ${locatorSlipColumns.replace('resolved_trip.trip_status,', `${tripStatusSelect},`)}
             ${hasLocatorSlipCodeColumn ? ', ls.locator_slip_code' : ", NULL::text AS locator_slip_code"}
             ${hasQrGeneratedAtColumn ? ', ls.qr_generated_at' : ", NULL::timestamp AS qr_generated_at"}
+            ${hasCancellationReasonColumn ? ', ls.cancellation_reason' : ", NULL::text AS cancellation_reason"}
             , ${getCssuValidationStatusSelect({
                 hasCssuValidationStatusColumn,
                 hasCssuExitLogsTable
