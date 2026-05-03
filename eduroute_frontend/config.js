@@ -6,29 +6,40 @@ const getApiBaseUrl = () => {
   }
 
   const { protocol, hostname } = window.location;
+  const isLocalHost = ['localhost', '127.0.0.1'].includes(hostname);
+  const isLanHost = /^(192\.168|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
+  const isNgrokHost = /\.ngrok(-free)?\.(app|dev)$/i.test(hostname);
+  const isLocalDev = isLocalHost || isLanHost;
 
   if (!configuredApiBaseUrl) {
-    return `${protocol}//${hostname}:5000`;
+    if (isLocalDev) {
+      return `${protocol}//${hostname}:5000`;
+    }
+    if (isNgrokHost) {
+      return '';
+    }
+    return '';
   }
 
   try {
     const configuredUrl = new URL(configuredApiBaseUrl);
-    const appIsRunningOnLanHost = !['localhost', '127.0.0.1'].includes(hostname);
     const apiIsConfiguredForLocalhost = ['localhost', '127.0.0.1'].includes(configuredUrl.hostname);
-    const appIsRunningOnNgrok = /\.ngrok(-free)?\.(app|dev)$/i.test(hostname);
 
-    if (appIsRunningOnNgrok && apiIsConfiguredForLocalhost) {
+    if (isNgrokHost && apiIsConfiguredForLocalhost) {
       return '';
     }
 
-    if (appIsRunningOnLanHost && apiIsConfiguredForLocalhost) {
+    if (isLanHost && apiIsConfiguredForLocalhost) {
       configuredUrl.hostname = hostname;
       return configuredUrl.toString().replace(/\/$/, '');
     }
 
     return configuredApiBaseUrl.replace(/\/$/, '');
   } catch (error) {
-    return `${protocol}//${hostname}:5000`;
+    if (isLocalDev) {
+      return `${protocol}//${hostname}:5000`;
+    }
+    return '';
   }
 };
 
