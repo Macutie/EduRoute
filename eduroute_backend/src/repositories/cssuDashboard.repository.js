@@ -45,8 +45,8 @@ const getLocatorSlipColumnExists = async (columnName) => {
 const getDashboardSummary = async () => {
     const { rows } = await pool.query(
         `SELECT
-            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'rejected'))::int AS total_faculty_exiting,
-            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified'))::int AS approved_locator_slips,
+            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed', 'rejected'))::int AS total_faculty_exiting,
+            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed'))::int AS approved_locator_slips,
             COUNT(*) FILTER (WHERE ls.status = 'rejected')::int AS rejected_locator_slips
          FROM locator_slips ls
          WHERE COALESCE(ls.departure_datetime::date, ls.created_at::date) = CURRENT_DATE`
@@ -524,7 +524,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
                 JOIN faculty_users fu ON fu.id = ls.faculty_user_id
                 LEFT JOIN departments d ON d.id = fu.department_id
                 WHERE COALESCE(ls.departure_datetime::date, ls.created_at::date) = CURRENT_DATE
-                  AND ls.status IN ('approved', 'verified')
+                  AND ls.status IN ('approved', 'verified', 'completed')
             )
             SELECT
                 slip.locator_slip_id,
@@ -571,7 +571,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          LEFT JOIN departments d ON d.id = fu.department_id
          WHERE COALESCE(ls.departure_datetime::date, ls.created_at::date) = CURRENT_DATE
-           AND ls.status IN ('approved', 'verified')
+           AND ls.status IN ('approved', 'verified', 'completed')
            AND $1 = 'main_gate'
          ORDER BY COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC
          LIMIT $2`,
