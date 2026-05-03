@@ -6,9 +6,18 @@ const { createTripTrackingSocketServer } = require('./socket/tripTracking.socket
 
 const startServer = async () => {
     try {
-        console.log('DATABASE_URL:', process.env.DATABASE_URL);
+        console.log('Starting EduRoute backend...');
         await pool.query('SELECT 1');
         console.log('PostgreSQL connected successfully.');
+
+        // Auto-run missing migrations to fix Railway DB sync issues
+        try {
+            console.log('Running auto-migrations...');
+            await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS expected_return_datetime TIMESTAMP;');
+            console.log('Auto-migrations completed successfully.');
+        } catch (migrationError) {
+            console.error('Auto-migration failed, but continuing:', migrationError);
+        }
 
         const server = http.createServer(app);
         createTripTrackingSocketServer(server);
