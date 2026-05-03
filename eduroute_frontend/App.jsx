@@ -501,16 +501,31 @@ function App() {
       setIsInstallable(true);
     };
 
+    if (window.deferredPrompt) {
+      setDeferredPrompt(window.deferredPrompt);
+      setIsInstallable(true);
+    }
+
+    const handleDeferredReady = () => {
+      if (window.deferredPrompt) {
+        setDeferredPrompt(window.deferredPrompt);
+        setIsInstallable(true);
+      }
+    };
+
     const handleAppInstalled = () => {
       setIsInstallable(false);
       setDeferredPrompt(null);
+      window.deferredPrompt = null;
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('deferredpromptready', handleDeferredReady);
     window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('deferredpromptready', handleDeferredReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
@@ -9351,7 +9366,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
           tone: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved' ? 'green' : 'red',
           icon: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved'
             ? <HrmuMiniCheckIcon color="var(--green)" />
-            : <HrmuWarningMiniIcon color="#C81E1E" />,
+            : <HrmuWarningIcon color="#C81E1E" />,
         })));
       } catch (error) {
         if (isMounted) {
