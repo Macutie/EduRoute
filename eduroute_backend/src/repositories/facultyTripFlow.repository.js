@@ -912,6 +912,7 @@ const getTripSummaryRow = async (tripId, facultyUserId) => {
                 WHERE ls.faculty_user_id = t.user_id
                   AND ls.status IN ('approved', 'verified', 'completed')
                 ORDER BY
+                    CASE WHEN ls.status = 'completed' AND t.status != 'completed' AND t.status != 'cancelled' THEN 1 ELSE 0 END ASC,
                     ABS(EXTRACT(EPOCH FROM (COALESCE(ls.departure_datetime, ls.created_at) - COALESCE(t.started_at, ls.created_at)))) ASC,
                     COALESCE(ls.departure_datetime, ls.created_at) DESC
                 LIMIT 1
