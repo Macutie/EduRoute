@@ -60,13 +60,13 @@ const getLogicalTripStatus = (trip) => {
     return trip.status || 'not_started';
 };
 
-const ensureApprovedLocatorSlip = (locatorSlip) => {
+const ensureApprovedLocatorSlip = (locatorSlip, existingTrip = null) => {
     if (!locatorSlip) {
         throw new AppError('Approved locator slip not found.', 404);
     }
 
     const slipStatus = String(locatorSlip.status || '').toLowerCase();
-    const tripStatus = String(locatorSlip.trip_status || locatorSlip.tripStatus || '').toLowerCase();
+    const tripStatus = String(existingTrip?.status || locatorSlip.trip_status || locatorSlip.tripStatus || '').toLowerCase();
     const isApprovedOrVerified = VERIFIABLE_SLIP_STATUSES.has(slipStatus);
     const hasTripInProgress = ACTIVE_TRIP_STATUSES.has(tripStatus);
 
@@ -74,7 +74,7 @@ const ensureApprovedLocatorSlip = (locatorSlip) => {
         throw new AppError('Only approved or verified locator slips can be used for trip access.', 409);
     }
 
-    if (isLocatorSlipCompleted(locatorSlip)) {
+    if (isLocatorSlipCompleted(locatorSlip, existingTrip)) {
         throw new AppError('This locator slip has already been completed and cannot be used for another trip.', 409);
     }
 };
@@ -498,7 +498,7 @@ const verifyArrival = async (facultyUserId, tripId, file, payload = {}) => {
     }
 
     const linkedLocatorSlip = await facultyTripRepository.getLocatorSlipForTripAccess(facultyUserId, effectiveLocatorSlipId);
-    ensureApprovedLocatorSlip(linkedLocatorSlip);
+    ensureApprovedLocatorSlip(linkedLocatorSlip, trip);
 
     const optimizedImage = await optimizeImage(file, 'locationVerification');
     const uploadResult = await uploadArrivalVerificationToCloudinary(optimizedImage, effectiveLocatorSlipId);
