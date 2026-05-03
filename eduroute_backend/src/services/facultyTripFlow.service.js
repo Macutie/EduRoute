@@ -491,7 +491,7 @@ const verifyArrival = async (facultyUserId, tripId, file, payload = {}) => {
     }
 
     const fallbackLocatorSlipId = String(payload.locatorSlipId || '').trim() || null;
-    const effectiveLocatorSlipId = trip.locator_slip_id || fallbackLocatorSlipId;
+    const effectiveLocatorSlipId = fallbackLocatorSlipId || trip.locator_slip_id;
 
     if (!effectiveLocatorSlipId) {
         throw new AppError('A locator slip is required to attach the arrival verification.', 409);

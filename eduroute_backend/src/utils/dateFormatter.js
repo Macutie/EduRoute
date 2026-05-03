@@ -9,15 +9,18 @@ const formatDateTime = (value) => {
         return null;
     }
 
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const year = date.getFullYear();
-    const hours24 = date.getHours();
-    const hours12 = hours24 % 12 || 12;
-    const minutes = pad(date.getMinutes());
-    const meridiem = hours24 >= 12 ? 'PM' : 'AM';
+    const manilaString = date.toLocaleString('en-US', {
+        timeZone: 'Asia/Manila',
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
 
-    return `${month}/${day}/${year} ${pad(hours12)}:${minutes} ${meridiem}`;
+    // manilaString is like "05/03/2026, 03:35 PM"
+    return manilaString.replace(',', '');
 };
 
 module.exports = {

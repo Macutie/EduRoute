@@ -3637,9 +3637,15 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
 
     setLocatorSlipLoading(true);
     try {
+      const payload = {
+        ...locatorSlipForm,
+        departure_datetime: locatorSlipForm.departure_datetime ? new Date(locatorSlipForm.departure_datetime).toISOString() : '',
+        expected_return_datetime: locatorSlipForm.expected_return_datetime ? new Date(locatorSlipForm.expected_return_datetime).toISOString() : '',
+      };
+
       const data = await fetchLocatorSlipJson('/api/locator-slips', {
         method: 'POST',
-        body: JSON.stringify(locatorSlipForm),
+        body: JSON.stringify(payload),
       });
       alert(data.message);
       if (data.data) {

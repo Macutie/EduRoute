@@ -5,6 +5,7 @@ const formatTimestampLabel = (value) => {
     if (Number.isNaN(date.getTime())) return '--';
 
     return date.toLocaleString('en-US', {
+        timeZone: 'Asia/Manila',
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
