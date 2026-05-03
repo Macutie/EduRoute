@@ -38,16 +38,23 @@ import {
   updateCssuExitStatus,
 } from './services/cssuApi';
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
+import { useProofOfCompliance } from './hooks/useProofOfCompliance';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
 import FacultyActivityLog from './components/hrmu/FacultyActivityLog';
+import ProofOfComplianceForm from './components/faculty/ProofOfComplianceForm';
+import ProofOfCompliancePreview from './components/faculty/ProofOfCompliancePreview';
+import ProofComplianceList from './components/hrmu/ProofComplianceList';
+import ProofComplianceDetails from './components/hrmu/ProofComplianceDetails';
 import {
   downloadHrmuMonthlyReportPdf,
-  flagHrmuTripWithoutProof,
   getHrmuFlaggedTrips,
   getHrmuVerificationIncidentSummary,
-  getHrmuVerificationTrips,
-  reviewHrmuArrivalVerification,
 } from './services/hrmuReportsApi';
+import {
+  getHrmuProofComplianceDetails,
+  getHrmuProofComplianceList,
+  reviewHrmuProofCompliance,
+} from './services/proofComplianceApi';
 import {
   getApprovedFacultyLocatorSlips,
   getFacultyLocatorSlipDetails,
@@ -58,38 +65,9 @@ import {
   saveFacultyManualPin,
   startFacultyTrip,
   startFacultyTripReturn,
-  verifyFacultyTripArrival,
 } from './services/facultyTripApi';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
-const HRMU_REVIEW_AUDIT_STORAGE_KEY = 'eduroute_hrmu_review_audit';
-
-const getStoredHrmuReviewAuditMap = () => {
-  if (typeof window === 'undefined' || !window.localStorage) return {};
-  try {
-    const raw = window.localStorage.getItem(HRMU_REVIEW_AUDIT_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (error) {
-    return {};
-  }
-};
-
-const setStoredHrmuReviewAuditEntry = (locatorSlipId, audit) => {
-  if (!locatorSlipId || typeof window === 'undefined' || !window.localStorage) return;
-  try {
-    const current = getStoredHrmuReviewAuditMap();
-    current[String(locatorSlipId)] = audit;
-    window.localStorage.setItem(HRMU_REVIEW_AUDIT_STORAGE_KEY, JSON.stringify(current));
-  } catch (error) {
-    void error;
-  }
-};
-
-const getStoredHrmuReviewAuditEntry = (locatorSlipId) => {
-  const current = getStoredHrmuReviewAuditMap();
-  return current[String(locatorSlipId)] || null;
-};
-
 const decodeJwtPayload = (token) => {
   try {
     const payload = token.split('.')[1];
@@ -4766,9 +4744,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   const [mapError, setMapError] = useState('');
   const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
   const [tripSummary, setTripSummary] = useState(null);
-  const [arrivalPhotoFile, setArrivalPhotoFile] = useState(null);
-  const [arrivalPhotoPreview, setArrivalPhotoPreview] = useState('');
-  const [arrivalVerification, setArrivalVerification] = useState(null);
   const [overlayOffsets, setOverlayOffsets] = useState({
     search: { x: 0, y: 0 },
     action: { x: 0, y: 0 },
@@ -4777,7 +4752,14 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
     panel: { x: 0, y: 0 },
   });
   const dragStateRef = useRef(null);
-  const arrivalFileInputRef = useRef(null);
+  const {
+    proof: proofCompliance,
+    submitting: proofSubmitting,
+    error: proofError,
+    submitProof,
+    loadProof,
+    clearProofError,
+  } = useProofOfCompliance(activeTrip?.id);
 
   const routeModes = [
     { key: 'mapbox/driving-traffic', label: 'Best Route', tone: 'green' },
@@ -4807,7 +4789,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
     if (!trip) return !destination ? 'DESTINATION_RESOLVING' : (isPinMode ? 'MANUAL_PIN_REQUIRED' : 'READY_TO_START');
     if (trip.returned_at || trip.ended_at || trip.status === 'completed') return 'COMPLETED';
     if (trip.status === 'returning') return 'RETURNING';
-    if (trip.arrived_at && (trip.arrival_verified_at || arrivalVerification?.image_url)) return 'ARRIVAL_VERIFIED';
+    if (trip.arrived_at && (trip.arrival_verified_at || proofCompliance?.proofComplianceImageUrl)) return 'ARRIVAL_VERIFIED';
     if (trip.arrived_at || trip.status === 'arrived') return 'ARRIVED';
     if (trip.status === 'active') return 'ACTIVE';
     return !destination ? 'DESTINATION_RESOLVING' : (isPinMode ? 'MANUAL_PIN_REQUIRED' : 'READY_TO_START');
@@ -5338,43 +5320,27 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
     }
   };
 
-  const handleArrivalFile = (event) => {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setMapError('Please choose a valid image file for arrival verification.');
+  const submitProofOfCompliance = async (formPayload) => {
+    if (!activeTrip) {
+      setMapError('Trip is missing.');
       return;
     }
 
-    if (arrivalPhotoPreview?.startsWith('blob:')) {
-      URL.revokeObjectURL(arrivalPhotoPreview);
-    }
-
-    setArrivalPhotoFile(file);
-    setArrivalPhotoPreview(URL.createObjectURL(file));
     setMapError('');
-    event.target.value = '';
-  };
-
-  const submitArrivalVerification = async () => {
-    if (!activeTrip || !arrivalPhotoFile) {
-      setMapError('Capture or upload an arrival verification image first.');
-      return;
-    }
-
-    setMapLoading(true);
-    setMapError('');
+    clearProofError();
 
     try {
-      const data = await verifyFacultyTripArrival(activeTrip.id, arrivalPhotoFile, locatorSlip?.id);
-      setActiveTrip(data.trip);
-      setArrivalVerification(data.verification || null);
+      const data = await submitProof(formPayload);
+      if (data?.trip) {
+        setActiveTrip((current) => ({
+          ...(current || {}),
+          ...data.trip,
+        }));
+      }
       setMapError('');
+      await loadProof({ silent: true });
     } catch (error) {
-      setMapError(error.message);
-    } finally {
-      setMapLoading(false);
+      setMapError(error.message || 'Failed to submit proof of compliance.');
     }
   };
 
@@ -5487,14 +5453,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
       setLocatorSlip(selectedSlip);
     }
   }, [selectedSlip]);
-
-  useEffect(() => {
-    return () => {
-      if (arrivalPhotoPreview?.startsWith('blob:')) {
-        URL.revokeObjectURL(arrivalPhotoPreview);
-      }
-    };
-  }, [arrivalPhotoPreview]);
 
   useEffect(() => {
     const storedSlipId = localStorage.getItem('edurouteMapSlipId');
@@ -5924,23 +5882,16 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
               </button>
             ) : tripLifecycleState === 'ARRIVED' ? (
               <div className="trip-map-verification-stack">
-                <button type="button" className="trip-start-btn" onClick={() => arrivalFileInputRef.current?.click()} disabled={mapLoading}>
-                  Verify Location
-                </button>
-                <input
-                  ref={arrivalFileInputRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="map-arrival-file-input"
-                  onChange={handleArrivalFile}
+                <ProofOfComplianceForm
+                  initialValues={{
+                    focalPersonName: '',
+                    focalPersonPosition: '',
+                  }}
+                  disabled={mapLoading || proofSubmitting}
+                  loading={proofSubmitting}
+                  error={proofError || mapError}
+                  onSubmit={submitProofOfCompliance}
                 />
-                {arrivalPhotoPreview && <img src={arrivalPhotoPreview} alt="Arrival verification preview" className="map-arrival-preview" />}
-                {arrivalPhotoFile && (
-                  <button type="button" className="trip-location-btn" onClick={submitArrivalVerification} disabled={mapLoading}>
-                    {mapLoading ? 'Uploading...' : 'Submit Verification'}
-                  </button>
-                )}
               </div>
             ) : tripLifecycleState === 'ARRIVAL_VERIFIED' ? (
               <button type="button" className="trip-start-btn" onClick={beginReturnTrip} disabled={mapLoading}>
@@ -5956,14 +5907,20 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
               </button>
             )}
           </div>
-          {arrivalVerification?.image_url && tripLifecycleState !== 'RETURNING' && (
-            <p className="trip-search-state">Arrival verification uploaded successfully. You can now start the return route back to the original starting location.</p>
+          {proofCompliance?.proofComplianceImageUrl && tripLifecycleState !== 'RETURNING' && (
+            <p className="trip-search-state">Proof of compliance submitted successfully. You can now start the return route back to the original starting location.</p>
           )}
           {tripLifecycleState === 'RETURNING' && (
             <p className="trip-search-state">Destination updated. You are now returning back to the original starting location.</p>
           )}
           {!activeTrip && locatorSlip && getLocatorSlipActionState(locatorSlip, activeTrip).helperText && (
             <p className="trip-search-state">{getLocatorSlipActionState(locatorSlip, activeTrip).helperText}</p>
+          )}
+          {proofCompliance && (
+            <ProofOfCompliancePreview
+              proof={proofCompliance}
+              title={tripLifecycleState === 'ARRIVED' ? 'Drafted Proof Preview' : 'Submitted Proof of Compliance'}
+            />
           )}
           {tripSummary?.summary && (
             <div className="trip-summary-card">
@@ -9699,6 +9656,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
 const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const [selectedRegistryRow, setSelectedRegistryRow] = useState(null);
+  const [selectedProofDetails, setSelectedProofDetails] = useState(null);
   const [summary, setSummary] = useState({
     completedTrips: 0,
     pendingReviews: 0,
@@ -9709,35 +9667,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const [reviewing, setReviewing] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
   const [reviewLocked, setReviewLocked] = useState(false);
-
-  const formatShortTime = (value) => {
-    if (!value) return '--';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return '--';
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' });
-  };
-
-  const formatFullDateTime = (value) => {
-    if (!value) return 'Not available';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return 'Not available';
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-      timeZone: 'Asia/Manila',
-    });
-  };
-
-  const formatReviewerRole = (role, collegeName) => {
-    if (role === 'assistant_dean') return `Assistant Dean - ${collegeName}`;
-    if (role === 'college_dean') return `College Dean - ${collegeName}`;
-    if (role === 'admin') return `Admin - ${collegeName}`;
-    return collegeName || 'Approving authority';
-  };
+  const [reviewRemarks, setReviewRemarks] = useState('');
 
   const buildSlipReference = (locatorSlipId) => {
     const normalized = String(locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
@@ -9750,88 +9680,43 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     }
 
     try {
-      const verificationData = await getHrmuVerificationTrips();
-      const completedTrips = Array.isArray(verificationData?.trips) ? verificationData.trips : [];
-      const mappedRows = completedTrips.map((row) => {
-        const storedReviewAudit = getStoredHrmuReviewAuditEntry(row.locatorSlipId);
-        const persistedReviewStatus = row.flaggedReviewAt
-          ? 'FLAGGED'
-          : row.successfulReviewAt
-            ? 'SUCCESSFUL'
-            : storedReviewAudit?.status || null;
-        const normalizedStatus = row.displayStatus === 'FLAGGED'
-          ? 'FLAGGED'
-          : row.displayStatus === 'COMPLETED'
-            ? 'COMPLETED'
-            : 'PENDING';
-        const normalizedArrivalVerificationStatus = String(row.arrivalVerificationStatus || '').toLowerCase();
-        const proofStatus = normalizedArrivalVerificationStatus === 'accepted'
-          ? 'ACCEPTED'
-          : normalizedArrivalVerificationStatus === 'rejected'
-            ? 'REJECTED'
-            : row.verificationImageUrl
-              ? 'SUBMITTED'
-              : 'MISSING';
-
+      const proofData = await getHrmuProofComplianceList();
+      const proofs = Array.isArray(proofData?.proofs) ? proofData.proofs : [];
+      const mappedRows = proofs.map((row) => {
+        const normalizedStatus = String(row.verificationStatus || 'submitted').toLowerCase();
         return {
-          key: [row.locatorSlipId, row.tripId, row.verificationId || 'no-proof'].filter(Boolean).join(':'),
-          verificationId: row.verificationId,
+          key: row.id,
+          proofId: row.id,
           tripId: row.tripId,
           locatorSlipId: row.locatorSlipId,
-          flaggedReviewAt: row.flaggedReviewAt || (persistedReviewStatus === 'FLAGGED' ? storedReviewAudit?.reviewedAt : null) || null,
-          successfulReviewAt: row.successfulReviewAt || (persistedReviewStatus === 'SUCCESSFUL' ? storedReviewAudit?.reviewedAt : null) || null,
-          reviewDecisionStatus: persistedReviewStatus,
-          name: row.facultyName,
+          name: row.facultyName || 'Faculty member',
           id: row.facultyUserId || 'N/A',
           department: row.collegeName || 'Unknown college',
-          timeout: formatShortTime(row.actualReturnTime),
-          destination: row.destination || 'Completed trip destination',
-          status: persistedReviewStatus === 'FLAGGED' ? 'FLAGGED' : persistedReviewStatus === 'SUCCESSFUL' ? 'COMPLETED' : normalizedStatus,
-          statusTone: persistedReviewStatus === 'FLAGGED' ? 'red' : persistedReviewStatus === 'SUCCESSFUL' ? 'green' : normalizedStatus === 'FLAGGED' ? 'red' : normalizedStatus === 'COMPLETED' ? 'green' : 'yellow',
-          actionLabel: 'View Proof',
+          destination: row.destination || 'No destination provided.',
+          status: normalizedStatus === 'verified'
+            ? 'VERIFIED'
+            : normalizedStatus === 'rejected'
+              ? 'REJECTED'
+              : 'SUBMITTED',
+          statusTone: normalizedStatus === 'verified' ? 'green' : normalizedStatus === 'rejected' ? 'red' : 'yellow',
           actionTone: 'ghost',
           actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
           slipNumber: buildSlipReference(row.locatorSlipId),
-          purposeOfTravel: row.purpose || 'No purpose provided.',
-          timeoutFull: formatFullDateTime(row.actualReturnTime),
-          departureFull: formatFullDateTime(row.actualReturnTime),
-          returnFull: formatFullDateTime(row.expectedReturnTime),
-          deanName: 'Approved by dean',
-          deanRole: formatReviewerRole(null, row.collegeName),
-          signatureTime: formatFullDateTime(
-            row.verificationReviewedAt || row.successfulReviewAt || row.flaggedReviewAt || row.verificationCreatedAt || row.actualReturnTime
-          ),
-          verificationStatus: persistedReviewStatus === 'FLAGGED'
-            ? 'FLAGGED FOR REVIEW'
-            : persistedReviewStatus === 'SUCCESSFUL'
-              ? 'SUCCESSFUL TRIP'
-              : normalizedStatus === 'FLAGGED'
-                ? 'FLAGGED FOR REVIEW'
-                : normalizedStatus === 'COMPLETED'
-                  ? 'SUCCESSFUL TRIP'
-                  : 'PENDING PROOF REVIEW',
-          verificationBody: persistedReviewStatus === 'FLAGGED'
-            ? `${row.facultyName} has a completed trip with flagged conditions: ${(row.flaggedReasons || []).join(', ')}.`
-            : persistedReviewStatus === 'SUCCESSFUL'
-              ? `${row.facultyName} submitted an arrival verification image for this completed trip. HRMU marked this as a successful trip.`
-              : row.verificationImageUrl
-                ? `${row.facultyName} submitted an arrival verification image for this completed trip. Review the proof and decide whether to keep the trip successful or mark it as unverified location.`
-                : `${row.facultyName} completed the trip, but no uploaded arrival proof was found yet for HRMU review.`,
-          position: 'Faculty',
-          flaggedReasons: row.flaggedReasons || [],
-          locationVerificationStatus: proofStatus,
-          locationVerificationImageUrl: row.verificationImageUrl || null,
-          locationVerificationAt: row.verificationCreatedAt || row.actualReturnTime || null,
-          latestReviewAt: persistedReviewStatus === 'FLAGGED'
-            ? (row.flaggedReviewAt || (storedReviewAudit?.status === 'FLAGGED' ? storedReviewAudit.reviewedAt : null) || null)
-            : persistedReviewStatus === 'SUCCESSFUL'
-              ? (row.successfulReviewAt || (storedReviewAudit?.status === 'SUCCESSFUL' ? storedReviewAudit.reviewedAt : null) || null)
-              : null,
+          focalPersonName: row.focalPersonName || 'N/A',
+          focalPersonPosition: row.focalPersonPosition || 'N/A',
+          proofComplianceImageUrl: row.proofComplianceImageUrl || null,
+          arrivalPhotoUrl: row.arrivalPhotoUrl || null,
+          verificationStatus: normalizedStatus,
+          submittedAt: row.submittedAt || null,
+          reviewRemarks: row.reviewRemarks || '',
+          reviewedAt: row.reviewedAt || null,
+          expectedReturnTime: row.expectedReturnTime || null,
+          actualReturnTime: row.actualReturnTime || null,
         };
       });
 
-      const successfulTrips = mappedRows.filter((row) => row.status === 'COMPLETED').length;
-      const pendingReviews = mappedRows.filter((row) => row.status === 'PENDING').length;
+      const successfulTrips = mappedRows.filter((row) => row.status === 'VERIFIED').length;
+      const pendingReviews = mappedRows.filter((row) => row.status === 'SUBMITTED').length;
 
       setRegistryRows(mappedRows);
       setSummary({
@@ -9841,26 +9726,13 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       });
       setSelectedRegistryRow((current) => {
         if (!current) return null;
-        const refreshedRow = mappedRows.find((row) => row.key === current.key);
-        if (!refreshedRow) return null;
-
-        return {
-          ...refreshedRow,
-          latestReviewAt: refreshedRow.latestReviewAt || current.latestReviewAt || null,
-          flaggedReviewAt: refreshedRow.flaggedReviewAt || current.flaggedReviewAt || null,
-          successfulReviewAt: refreshedRow.successfulReviewAt || current.successfulReviewAt || null,
-          reviewDecisionStatus: refreshedRow.reviewDecisionStatus || current.reviewDecisionStatus || null,
-          verificationStatus: refreshedRow.verificationStatus || current.verificationStatus,
-          verificationBody: refreshedRow.verificationBody || current.verificationBody,
-          flaggedReasons: (Array.isArray(refreshedRow.flaggedReasons) && refreshedRow.flaggedReasons.length > 0)
-            ? refreshedRow.flaggedReasons
-            : (current.flaggedReasons || []),
-        };
+        return mappedRows.find((row) => row.key === current.key) || null;
       });
     } catch (error) {
       console.error('Failed to load HRMU verification registry:', error);
       setRegistryRows([]);
       setSelectedRegistryRow(null);
+      setSelectedProofDetails(null);
       setSummary({
         completedTrips: 0,
         pendingReviews: 0,
@@ -9891,22 +9763,9 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     { label: 'COMPLETED TRIPS', value: String(summary.completedTrips).padStart(2, '0'), tone: 'green', decorate: true },
     { label: 'PENDING REVIEWS', value: String(summary.pendingReviews).padStart(2, '0'), tone: 'neutral' },
   ];
-  const proofStatusTone = ['REJECTED', 'MISSING'].includes(String(selectedRegistryRow?.locationVerificationStatus || '').toUpperCase())
-    ? 'negative'
-    : 'positive';
-  const reviewDecisionTone = selectedRegistryRow?.reviewDecisionStatus === 'FLAGGED'
-    ? 'negative'
-    : selectedRegistryRow?.reviewDecisionStatus === 'SUCCESSFUL'
-      ? 'positive'
-      : 'neutral';
-  const applyRegistryDecisionLocally = useCallback((rowKey, updater) => {
-    setRegistryRows((currentRows) => currentRows.map((row) => (
-      row.key === rowKey ? { ...row, ...updater(row) } : row
-    )));
-  }, []);
 
   const handleProofReview = async (nextStatus) => {
-    if (!selectedRegistryRow?.verificationId && !(nextStatus === 'unverified' && (selectedRegistryRow?.tripId || selectedRegistryRow?.locatorSlipId))) {
+    if (!selectedRegistryRow?.proofId) {
       setReviewMessage('No uploaded proof is available to review for this trip.');
       return;
     }
@@ -9914,74 +9773,15 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     try {
       setReviewing(true);
       setReviewMessage('');
-      if (!selectedRegistryRow?.verificationId && nextStatus === 'unverified') {
-        const result = await flagHrmuTripWithoutProof(selectedRegistryRow.tripId || 'lookup', selectedRegistryRow.locatorSlipId);
-        setStoredHrmuReviewAuditEntry(selectedRegistryRow.locatorSlipId, {
-          status: 'FLAGGED',
-          reviewedAt: result?.reviewedAt || new Date().toISOString(),
-        });
-        applyRegistryDecisionLocally(selectedRegistryRow.key, (row) => ({
-          status: 'FLAGGED',
-          statusTone: 'red',
-          reviewDecisionStatus: 'FLAGGED',
-          verificationStatus: 'FLAGGED FOR REVIEW',
-          verificationBody: `${row.name} has a completed trip with flagged conditions: ${(result?.flaggedReasons || ['Unverified Location']).join(', ')}.`,
-          flaggedReasons: result?.flaggedReasons || ['Unverified Location'],
-          latestReviewAt: result?.reviewedAt || new Date().toISOString(),
-          flaggedReviewAt: result?.reviewedAt || new Date().toISOString(),
-        }));
-        setSelectedRegistryRow((current) => current ? {
-          ...current,
-          status: 'FLAGGED',
-          statusTone: 'red',
-          reviewDecisionStatus: 'FLAGGED',
-          verificationStatus: 'FLAGGED FOR REVIEW',
-          verificationBody: `${current.name} has a completed trip with flagged conditions: ${(result?.flaggedReasons || ['Unverified Location']).join(', ')}.`,
-          flaggedReasons: result?.flaggedReasons || ['Unverified Location'],
-          latestReviewAt: result?.reviewedAt || new Date().toISOString(),
-          flaggedReviewAt: result?.reviewedAt || new Date().toISOString(),
-        } : current);
-      } else {
-        const result = await reviewHrmuArrivalVerification(selectedRegistryRow.verificationId, {
-          status: nextStatus,
-        });
-        setStoredHrmuReviewAuditEntry(selectedRegistryRow.locatorSlipId, {
-          status: nextStatus === 'verified' ? 'SUCCESSFUL' : 'FLAGGED',
-          reviewedAt: result?.reviewedAt || new Date().toISOString(),
-        });
-        applyRegistryDecisionLocally(selectedRegistryRow.key, (row) => ({
-          status: nextStatus === 'verified' ? 'COMPLETED' : 'FLAGGED',
-          statusTone: nextStatus === 'verified' ? 'green' : 'red',
-          reviewDecisionStatus: nextStatus === 'verified' ? 'SUCCESSFUL' : 'FLAGGED',
-          verificationStatus: nextStatus === 'verified' ? 'SUCCESSFUL TRIP' : 'FLAGGED FOR REVIEW',
-          verificationBody: nextStatus === 'verified'
-            ? `${row.name} submitted an arrival verification image for this completed trip. HRMU marked this as a successful trip.`
-            : `${row.name} has a completed trip with flagged conditions: ${(result?.flaggedReasons || ['Unverified Location']).join(', ')}.`,
-          flaggedReasons: result?.flaggedReasons || row.flaggedReasons || [],
-          latestReviewAt: result?.reviewedAt || new Date().toISOString(),
-          flaggedReviewAt: nextStatus === 'verified' ? row.flaggedReviewAt || null : (result?.reviewedAt || new Date().toISOString()),
-          successfulReviewAt: nextStatus === 'verified' ? (result?.reviewedAt || new Date().toISOString()) : row.successfulReviewAt || null,
-        }));
-        setSelectedRegistryRow((current) => current ? {
-          ...current,
-          status: nextStatus === 'verified' ? 'COMPLETED' : 'FLAGGED',
-          statusTone: nextStatus === 'verified' ? 'green' : 'red',
-          reviewDecisionStatus: nextStatus === 'verified' ? 'SUCCESSFUL' : 'FLAGGED',
-          verificationStatus: nextStatus === 'verified' ? 'SUCCESSFUL TRIP' : 'FLAGGED FOR REVIEW',
-          verificationBody: nextStatus === 'verified'
-            ? `${current.name} submitted an arrival verification image for this completed trip. HRMU marked this as a successful trip.`
-            : `${current.name} has a completed trip with flagged conditions: ${(result?.flaggedReasons || ['Unverified Location']).join(', ')}.`,
-          flaggedReasons: result?.flaggedReasons || current.flaggedReasons || [],
-          latestReviewAt: result?.reviewedAt || new Date().toISOString(),
-          flaggedReviewAt: nextStatus === 'verified' ? current.flaggedReviewAt || null : (result?.reviewedAt || new Date().toISOString()),
-          successfulReviewAt: nextStatus === 'verified' ? (result?.reviewedAt || new Date().toISOString()) : current.successfulReviewAt || null,
-          locationVerificationStatus: nextStatus === 'verified' ? 'ACCEPTED' : 'REJECTED',
-        } : current);
-      }
+      const result = await reviewHrmuProofCompliance(selectedRegistryRow.proofId, {
+        verificationStatus: nextStatus,
+        reviewRemarks: reviewRemarks.trim(),
+      });
       setReviewMessage(nextStatus === 'verified'
-        ? 'Trip marked as successful.'
-        : 'Trip flagged as unverified location.');
+        ? 'Proof marked as verified.'
+        : 'Proof rejected successfully.');
       setReviewLocked(true);
+      setSelectedProofDetails(result);
       await loadVerificationPage({ silent: true });
     } catch (error) {
       setReviewMessage(error.message || 'Verification review could not be saved.');
@@ -9990,22 +9790,27 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     }
   };
 
-  const isReviewFlagged = String(selectedRegistryRow?.verificationStatus || '').toUpperCase().includes('FLAGGED');
-  const hasPersistedReviewDecision = Boolean(
-    selectedRegistryRow?.flaggedReviewAt
-    || selectedRegistryRow?.successfulReviewAt
-  );
-
-  const openRegistryRow = (row) => {
+  const openRegistryRow = async (row) => {
     setReviewLocked(false);
     setReviewMessage('');
+    setReviewRemarks(row.reviewRemarks || '');
     setSelectedRegistryRow(row);
+    setSelectedProofDetails(null);
+    try {
+      const details = await getHrmuProofComplianceDetails(row.proofId);
+      setSelectedProofDetails(details);
+      setReviewRemarks(details?.reviewRemarks || row.reviewRemarks || '');
+    } catch (error) {
+      setReviewMessage(error.message || 'Failed to load proof details.');
+    }
   };
 
   const closeRegistryRow = () => {
     setReviewLocked(false);
     setReviewMessage('');
+    setReviewRemarks('');
     setSelectedRegistryRow(null);
+    setSelectedProofDetails(null);
   };
 
   return (
@@ -10042,197 +9847,29 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         <div className="hrmu-verify-registry-header">
           <div className="hrmu-verify-registry-title">
             <span className="hrmu-verify-registry-accent" aria-hidden="true" />
-            <h2>Completed Trips Registry</h2>
+            <h2>Submitted Proof Registry</h2>
           </div>
         </div>
 
-        <div className="hrmu-verify-table">
-          <div className="hrmu-verify-table-head">
-            <span>FACULTY MEMBER</span>
-            <span>DEPARTMENT</span>
-            <span>TIME OUT</span>
-            <span>DESTINATION</span>
-            <span>STATUS</span>
-            <span>PROOF</span>
-          </div>
-
-          {loading && (
-            <div className="hrmu-verify-row hrmu-verify-empty-row">
-              <div className="hrmu-verify-faculty"><strong>Loading completed trips registry...</strong></div>
-            </div>
-          )}
-
-          {!loading && registryRows.length === 0 && (
-            <div className="hrmu-verify-row hrmu-verify-empty-row">
-              <div className="hrmu-verify-faculty"><strong>No completed trips are ready for HRMU proof review.</strong></div>
-            </div>
-          )}
-
-          {!loading && registryRows.map((row) => (
-            <div key={row.key} className="hrmu-verify-row">
-              <div className="hrmu-verify-faculty">
-                <div className="hrmu-verify-avatar">
-                  <img src={DEFAULT_PROFILE_IMAGE} alt={row.name} />
-                </div>
-                <div>
-                  <strong>{row.name}</strong>
-                  <span>ID:</span>
-                  <small>{row.id}</small>
-                </div>
-              </div>
-              <div className="hrmu-verify-dept">{row.department}</div>
-              <div className="hrmu-verify-time">{row.timeout}</div>
-              <div className="hrmu-verify-destination"><HrmuPinMiniIcon /> <span>{row.destination}</span></div>
-              <span className={`hrmu-verify-status ${row.statusTone}`}>{row.status}</span>
-              <div className="hrmu-verify-actions">
-                <button
-                  type="button"
-                  className={`hrmu-verify-action-btn ${row.actionTone}`}
-                  onClick={() => openRegistryRow(row)}
-                  aria-label={`View proof for ${row.name}`}
-                  title={`View proof for ${row.name}`}
-                >
-                  {row.actionIcon}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <ProofComplianceList rows={registryRows} loading={loading} onOpen={openRegistryRow} />
 
         <button type="button" className="hrmu-verify-footer-link">
-          View All {registryRows.length} Completed Trips
+          View All {registryRows.length} Submitted Proofs
         </button>
       </section>
 
       {selectedRegistryRow && (
-        <div className="hrmu-verify-modal-overlay" role="presentation" onClick={closeRegistryRow}>
-          <div className="hrmu-verify-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-verify-modal-title" onClick={(event) => event.stopPropagation()}>
-            <div className="hrmu-verify-modal-header">
-              <div className="hrmu-verify-modal-person">
-                <div className="hrmu-verify-modal-avatar">
-                  <img src={DEFAULT_PROFILE_IMAGE} alt={selectedRegistryRow.name} />
-                </div>
-                <div className="hrmu-verify-modal-person-copy">
-                  <div className="hrmu-verify-modal-topline">
-                    <h2 id="hrmu-verify-modal-title">{selectedRegistryRow.name}</h2>
-                    <span className="hrmu-verify-modal-pill">COMPLETED TRIP</span>
-                  </div>
-                  <p>{selectedRegistryRow.position} - {selectedRegistryRow.department}</p>
-                  <div className="hrmu-verify-modal-times">
-                    <span>Returned: {selectedRegistryRow.timeoutFull}</span>
-                    <span>Est. Return: {selectedRegistryRow.returnFull}</span>
-                  </div>
-                </div>
-              </div>
-              <button type="button" className="hrmu-verify-modal-close" onClick={closeRegistryRow} aria-label="Close verification modal">
-                x
-              </button>
-            </div>
-
-            <div className="hrmu-verify-modal-body">
-              <div className="hrmu-verify-modal-left">
-                <div className="hrmu-verify-modal-label">OFFICIAL LOCATOR SLIP #{selectedRegistryRow.slipNumber}</div>
-
-                <div className="hrmu-verify-modal-card">
-                  <div className="hrmu-verify-modal-meta-grid">
-                    <div>
-                      <span>PURPOSE OF TRAVEL</span>
-                      <strong>{selectedRegistryRow.purposeOfTravel}</strong>
-                    </div>
-                    <div>
-                      <span>REQUESTED BY</span>
-                      <strong>{selectedRegistryRow.requestedBy}</strong>
-                    </div>
-                  </div>
-
-                  <div className="hrmu-verify-modal-signature-block">
-                    <span>APPROVAL SIGNATURE</span>
-                    <div className="hrmu-verify-signature-card">
-                      <div className="hrmu-verify-signature-art">
-                        <div className="hrmu-verify-signature-scribble" />
-                        <div className="hrmu-verify-signature-watermark">DIGITALLY VERIFIED</div>
-                      </div>
-                      <div className="hrmu-verify-signature-copy">
-                        <strong>{selectedRegistryRow.deanName}</strong>
-                        <span>{selectedRegistryRow.deanRole}</span>
-                        <small>{selectedRegistryRow.signatureTime}</small>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="hrmu-verify-modal-label">PROOF VERIFICATION CHECKS</div>
-                <div className="hrmu-verify-check-grid">
-                  <div className={`hrmu-verify-check-card ${proofStatusTone}`}>
-                    <span>PROOF STATUS</span>
-                    <strong>{String(selectedRegistryRow.locationVerificationStatus || 'missing').toUpperCase()}</strong>
-                  </div>
-                  {selectedRegistryRow.reviewDecisionStatus && selectedRegistryRow.latestReviewAt && (
-                    <div className={`hrmu-verify-check-card ${reviewDecisionTone}`}>
-                      <span>HRMU REVIEW</span>
-                      <strong>{selectedRegistryRow.reviewDecisionStatus}</strong>
-                      <small>{formatFullDateTime(selectedRegistryRow.latestReviewAt)}</small>
-                    </div>
-                  )}
-                  <div className={`hrmu-verify-check-card ${selectedRegistryRow.locationVerificationImageUrl ? 'positive' : 'negative'}`}>
-                    <span>LOCATION PROOF</span>
-                    <strong>{selectedRegistryRow.locationVerificationImageUrl ? 'SUBMITTED' : 'NOT YET SUBMITTED'}</strong>
-                    <small>{selectedRegistryRow.locationVerificationAt ? formatFullDateTime(selectedRegistryRow.locationVerificationAt) : 'Awaiting arrival proof upload'}</small>
-                  </div>
-                </div>
-                {selectedRegistryRow.locationVerificationImageUrl && (
-                  <div className="hrmu-verify-proof-card">
-                    <span>UPLOADED ARRIVAL IMAGE</span>
-                    <img src={selectedRegistryRow.locationVerificationImageUrl} alt={`${selectedRegistryRow.name} arrival verification`} />
-                  </div>
-                )}
-              </div>
-
-              <div className="hrmu-verify-modal-right">
-                <div className="hrmu-verify-current-status">
-                  <div className={`hrmu-verify-current-status-row ${isReviewFlagged ? 'review' : ''}`}>
-                    <span>CURRENT STATUS</span>
-                    <strong>{selectedRegistryRow.verificationStatus}</strong>
-                  </div>
-                  <div className={`hrmu-verify-status-bar ${isReviewFlagged ? 'review' : ''}`} aria-hidden="true" />
-                  <p>{selectedRegistryRow.verificationBody}</p>
-                </div>
-
-                {reviewMessage && (
-                  <div className="hrmu-analytics-feedback">
-                    <span>{reviewMessage}</span>
-                  </div>
-                )}
-
-                <div className="hrmu-verify-review-actions">
-                  <button
-                    type="button"
-                    className="hrmu-verify-request-btn"
-                    onClick={() => handleProofReview('unverified')}
-                    disabled={
-                      reviewing
-                      || reviewLocked
-                      || hasPersistedReviewDecision
-                      || (!selectedRegistryRow.verificationId && !selectedRegistryRow.tripId && !selectedRegistryRow.locatorSlipId)
-                    }
-                  >
-                    {reviewing ? 'Saving...' : 'Flag as Unverified Location'}
-                  </button>
-                  <button
-                    type="button"
-                    className="hrmu-verify-clear-btn"
-                    onClick={() => handleProofReview('verified')}
-                    disabled={reviewing || reviewLocked || hasPersistedReviewDecision || !selectedRegistryRow.verificationId}
-                  >
-                    {reviewing ? 'Saving...' : 'Successful Trip'}
-                  </button>
-                </div>
-
-                <button type="button" className="hrmu-verify-return-btn" onClick={closeRegistryRow}>Return to Registry</button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ProofComplianceDetails
+          row={selectedRegistryRow}
+          details={selectedProofDetails}
+          reviewMessage={reviewMessage}
+          reviewRemarks={reviewRemarks}
+          setReviewRemarks={setReviewRemarks}
+          reviewing={reviewing}
+          reviewLocked={reviewLocked || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'}
+          onClose={closeRegistryRow}
+          onReview={handleProofReview}
+        />
       )}
     </HrmuWorkspaceShell>
   );

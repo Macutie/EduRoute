@@ -1,6 +1,7 @@
 const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
+const path = require('path');
 const authRoutes = require('./routes/auth.routes');
 const departmentRoutes = require('./routes/department.routes');
 const locatorSlipRoutes = require('./routes/locatorSlip.routes');
@@ -9,6 +10,7 @@ const permissionRoutes = require('./routes/permission.routes');
 const mapRoutes = require('./routes/map.routes');
 const tripRoutes = require('./routes/trip.routes');
 const facultyTripFlowRoutes = require('./routes/facultyTripFlow.routes');
+const proofComplianceRoutes = require('./routes/proofCompliance.routes');
 const searchRoutes = require('./routes/search.routes');
 const deanDashboardRoutes = require('./routes/deanDashboard.routes');
 const hrmuDashboardRoutes = require('./routes/hrmuDashboard.routes');
@@ -39,6 +41,7 @@ app.use(
 );
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.get('/health', (req, res) => {
     res.json({ success: true, message: 'EduRoute backend is running.' });
@@ -53,6 +56,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/maps', mapRoutes);
 app.use('/api/trips', tripRoutes);
 app.use('/api/faculty', facultyTripFlowRoutes);
+app.use('/api', proofComplianceRoutes);
 app.use('/api/dean', deanDashboardRoutes);
 app.use('/api/hrmu', hrmuDashboardRoutes);
 app.use('/api/cssu', cssuDashboardRoutes);
