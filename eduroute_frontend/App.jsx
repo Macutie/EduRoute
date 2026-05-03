@@ -230,6 +230,8 @@ function App() {
   const [permissionSetupStep, setPermissionSetupStep] = useState('intro');
   const [permissionSetupMessage, setPermissionSetupMessage] = useState('');
   const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
 
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
 
@@ -491,6 +493,37 @@ function App() {
 
     loadPermissionSetup();
   }, [view]);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    const handleAppInstalled = () => {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+    }
+    setDeferredPrompt(null);
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -1045,6 +1078,18 @@ function App() {
           onMaybeLater={handleMaybeLaterPermissions}
           onClose={() => setShowPermissionSetup(false)}
         />
+      )}
+
+      {isInstallable && (
+        <button
+          className="pwa-floating-install-btn"
+          onClick={handleInstallClick}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Install App
+        </button>
       )}
     </div>
   );
