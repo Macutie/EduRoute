@@ -9571,7 +9571,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
     if (!value) return '--';
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '--';
-    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Manila' });
   };
 
   const formatFullDateTime = (value) => {
@@ -9585,6 +9585,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Asia/Manila',
     });
   };
 
