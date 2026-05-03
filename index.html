@@ -3,10 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="manifest" href="/manifest.json" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>eduroute</title>
   </head>
   <body>
+    <script>
+      window.deferredPrompt = null;
+      console.log('Early PWA script loaded');
+      window.addEventListener('beforeinstallprompt', (e) => {
+        console.log('beforeinstallprompt fired! App is installable');
+        e.preventDefault();
+        window.deferredPrompt = e;
+        window.dispatchEvent(new Event('deferredpromptready'));
+      });
+      window.addEventListener('appinstalled', () => {
+        console.log('App was installed successfully');
+      });
+    </script>
     <div id="root"></div>
     <script type="module" src="/eduroute_frontend/main.jsx"></script>
   </body>
