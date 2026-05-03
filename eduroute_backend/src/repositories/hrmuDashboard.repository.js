@@ -427,6 +427,7 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             COALESCE(ls.custom_purpose, ls.purpose_of_travel) AS purpose,
             ls.status AS verification_status,
             location_verification.verification_status AS location_verification_status,
+            location_verification.image_url AS location_verification_image_url,
             COALESCE(t.status, 'not_started') AS trip_status,
             COALESCE(t.ended_at, t.updated_at) AS actual_return_time,
             latest_location.recorded_at AS latest_location_at
@@ -450,7 +451,7 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             LIMIT 1
         ) latest_location ON TRUE
         LEFT JOIN LATERAL (
-            SELECT verification.verification_status
+            SELECT verification.verification_status, verification.image_url
             FROM locator_slip_location_verifications verification
             WHERE verification.locator_slip_id = ls.id
               AND verification.faculty_user_id = fu.id

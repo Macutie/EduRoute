@@ -134,6 +134,7 @@ const mapRecentActivityRow = (row) => {
         purpose: row.purpose,
         verificationStatus: row.verification_status,
         locationVerificationStatus: row.location_verification_status || null,
+        verificationImageUrl: row.location_verification_image_url || null,
         tripStatus: row.trip_status,
         isFlagged,
         incidentLabels: flaggedReasons,
