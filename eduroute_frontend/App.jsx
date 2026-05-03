@@ -3387,9 +3387,11 @@ const LOCATOR_SLIP_CANCEL_REASONS = [
   { value: 'incorrect_locator_slip_details', label: 'Incorrect locator slip details' },
 ];
 
-const getCancellationReasonLabel = (reasonValue) => (
-  LOCATOR_SLIP_CANCEL_REASONS.find((reason) => reason.value === reasonValue)?.label || 'Cancelled'
-);
+const getCancellationReasonLabel = (reasonValue) => {
+  if (!reasonValue) return 'Cancelled';
+  const matchedReason = LOCATOR_SLIP_CANCEL_REASONS.find((reason) => reason.value === reasonValue);
+  return matchedReason?.label || String(reasonValue);
+};
 
 const getSlipDisplayStatus = (slip) => {
   const locatorSlipStatus = String(slip?.status || 'pending').toLowerCase();
