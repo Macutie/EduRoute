@@ -190,6 +190,7 @@ const locatorSlipColumns = `
     ls.departure_datetime,
     ls.expected_return_datetime,
     ls.additional_remarks,
+    ls.cancellation_reason,
     ls.is_urgent,
     ls.status,
     resolved_trip.trip_status,
@@ -215,6 +216,7 @@ const formatLocatorSlip = (row) => ({
     formatted_departure_datetime: formatDateTime(row.departure_datetime),
     formatted_expected_return_datetime: formatDateTime(row.expected_return_datetime),
     additional_remarks: row.additional_remarks,
+    cancellation_reason: row.cancellation_reason || null,
     is_urgent: row.is_urgent === true,
     status: row.status,
     locator_slip_code: row.locator_slip_code || null,
@@ -573,10 +575,12 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
     return formatLocatorSlip(rows[0]);
 };
 
-const cancelLocatorSlip = async (facultyUserId, locatorSlipId) => {
+const cancelLocatorSlip = async (facultyUserId, locatorSlipId, cancellationReason = null) => {
+    const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
     const query = `
         UPDATE locator_slips
         SET status = 'cancelled',
+            ${hasCancellationReasonColumn ? 'cancellation_reason = $3,' : ''}
             updated_at = CURRENT_TIMESTAMP
         WHERE id = $1
           AND faculty_user_id = $2
@@ -584,7 +588,11 @@ const cancelLocatorSlip = async (facultyUserId, locatorSlipId) => {
         RETURNING id
     `;
 
-    const { rows, rowCount } = await pool.query(query, [locatorSlipId, facultyUserId]);
+    const queryValues = hasCancellationReasonColumn
+        ? [locatorSlipId, facultyUserId, cancellationReason]
+        : [locatorSlipId, facultyUserId];
+
+    const { rows, rowCount } = await pool.query(query, queryValues);
 
     if (rowCount === 0) {
         throw new AppError('Pending locator slip not found or cannot be cancelled.', 404);

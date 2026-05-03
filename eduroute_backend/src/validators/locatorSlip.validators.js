@@ -9,6 +9,13 @@ const PURPOSE_OPTIONS = [
     'Others'
 ];
 
+const CANCELLATION_REASON_OPTIONS = [
+    'change_of_schedule',
+    'trip_no_longer_needed',
+    'meeting_event_cancelled',
+    'incorrect_locator_slip_details'
+];
+
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
 
@@ -106,8 +113,20 @@ const locatorSlipIdValidator = [
     handleValidation
 ];
 
+const cancelLocatorSlipValidator = [
+    body('cancellation_reason')
+        .trim()
+        .notEmpty()
+        .withMessage('Cancellation reason is required.')
+        .isIn(CANCELLATION_REASON_OPTIONS)
+        .withMessage('Cancellation reason is invalid.'),
+    handleValidation
+];
+
 module.exports = {
     PURPOSE_OPTIONS,
+    CANCELLATION_REASON_OPTIONS,
     createLocatorSlipValidator,
-    locatorSlipIdValidator
+    locatorSlipIdValidator,
+    cancelLocatorSlipValidator
 };

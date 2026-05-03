@@ -39,7 +39,11 @@ const getLocatorSlipById = async (req, res, next) => {
 
 const cancelLocatorSlip = async (req, res, next) => {
     try {
-        const locatorSlip = await locatorSlipService.cancelLocatorSlip(req.user.sub, req.params.id);
+        const locatorSlip = await locatorSlipService.cancelLocatorSlip(
+            req.user.sub,
+            req.params.id,
+            req.body?.cancellation_reason || req.body?.reason || null
+        );
         return res.json(successResponse('Locator slip request cancelled successfully.', locatorSlip));
     } catch (error) {
         return next(error);

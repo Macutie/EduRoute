@@ -4,7 +4,8 @@ const { protect, requireRole } = require('../middlewares/auth.middleware');
 const { uploadLocationVerificationImage } = require('../middlewares/upload.middleware');
 const {
     createLocatorSlipValidator,
-    locatorSlipIdValidator
+    locatorSlipIdValidator,
+    cancelLocatorSlipValidator
 } = require('../validators/locatorSlip.validators');
 
 const router = express.Router();
@@ -14,7 +15,7 @@ router.use(protect, requireRole('faculty'));
 router.get('/faculty-profile', locatorSlipController.getFacultyProfile);
 router.post('/', createLocatorSlipValidator, locatorSlipController.createLocatorSlip);
 router.get('/my-slips', locatorSlipController.getMyLocatorSlips);
-router.patch('/:id/cancel', locatorSlipIdValidator, locatorSlipController.cancelLocatorSlip);
+router.patch('/:id/cancel', locatorSlipIdValidator, cancelLocatorSlipValidator, locatorSlipController.cancelLocatorSlip);
 router.get('/:id/location-verification', locatorSlipIdValidator, locatorSlipController.getLocationVerification);
 router.post(
     '/:id/verify-location',

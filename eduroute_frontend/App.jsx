@@ -232,6 +232,7 @@ function App() {
   const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
+  const permissionSetupSeenRef = useRef(false);
 
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
 
@@ -473,6 +474,7 @@ function App() {
     const token = localStorage.getItem('token');
 
     if (!token || view !== 'dashboard') return;
+    if (permissionSetupSeenRef.current) return;
 
     const loadPermissionSetup = async () => {
       try {
@@ -480,6 +482,7 @@ function App() {
         const preferences = data.data;
 
         if (!preferences?.first_login_setup_completed) {
+          permissionSetupSeenRef.current = true;
           setPermissionSetupStep('intro');
           setPermissionSetupMessage('');
           setShowPermissionSetup(true);
@@ -572,6 +575,7 @@ function App() {
       });
       localStorage.setItem('token', data.data.token);
       localStorage.removeItem('edurouteLastView');
+      permissionSetupSeenRef.current = false;
       setProfileData((prev) => ({
         ...prev,
         fullName: data.data.user?.full_name || 'Faculty User',
@@ -601,6 +605,7 @@ function App() {
     setShowPermissionSetup(false);
     setPermissionSetupStep('intro');
     setPermissionSetupMessage('');
+    permissionSetupSeenRef.current = false;
     setProfileData({
       fullName: 'Faculty User',
       employeeId: '',
@@ -632,6 +637,7 @@ function App() {
         notifications_status: notificationsStatus,
         first_login_setup_completed: true,
       });
+      permissionSetupSeenRef.current = true;
       setShowPermissionSetup(false);
       setPermissionSetupStep('intro');
       setPermissionSetupMessage('');
@@ -667,6 +673,7 @@ function App() {
         notifications_status: notificationStatus,
         first_login_setup_completed: true,
       });
+      permissionSetupSeenRef.current = true;
 
       if (notificationStatus === 'granted') {
         await registerPushNotificationsForCurrentBrowser();
@@ -3372,6 +3379,13 @@ const STATUS_FILTERS = [
   { key: 'rejected', label: 'Rejected' },
 ];
 
+const LOCATOR_SLIP_CANCEL_REASONS = [
+  { value: 'change_of_schedule', label: 'Change of schedule' },
+  { value: 'trip_no_longer_needed', label: 'Trip no longer needed' },
+  { value: 'meeting_event_cancelled', label: 'Meeting/event cancelled' },
+  { value: 'incorrect_locator_slip_details', label: 'Incorrect locator slip details' },
+];
+
 const getSlipDisplayStatus = (slip) => {
   const locatorSlipStatus = String(slip?.status || 'pending').toLowerCase();
   if (locatorSlipStatus === 'pending') {
@@ -4056,12 +4070,15 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
 
 const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [cancelLoading, setCancelLoading] = useState(false);
+  const [showCancelReasonModal, setShowCancelReasonModal] = useState(false);
+  const [selectedCancelReason, setSelectedCancelReason] = useState(LOCATOR_SLIP_CANCEL_REASONS[0].value);
   const [locationVerification, setLocationVerification] = useState(null);
   const [showLocationProof, setShowLocationProof] = useState(false);
   const [completedTripSummary, setCompletedTripSummary] = useState(null);
   const [showTripSummary, setShowTripSummary] = useState(false);
   const [tripSummaryLoading, setTripSummaryLoading] = useState(false);
   const [showQrCode, setShowQrCode] = useState(false);
+  const getCancelReasonLabel = (reasonValue) => LOCATOR_SLIP_CANCEL_REASONS.find((reason) => reason.value === reasonValue)?.label || 'Cancelled';
   const slip = selectedSlip;
 
   useEffect(() => {
@@ -4073,6 +4090,8 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   useEffect(() => {
     setShowLocationProof(false);
     setShowTripSummary(false);
+    setShowCancelReasonModal(false);
+    setSelectedCancelReason(LOCATOR_SLIP_CANCEL_REASONS[0].value);
   }, [slip?.id]);
 
   useEffect(() => {
@@ -4162,10 +4181,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
   const cancelRequest = async () => {
     if (!isPending || cancelLoading) return;
-
-    const confirmed = window.confirm('Cancel this pending locator slip request? It will be archived from your active status list.');
-
-    if (!confirmed) return;
+    const reasonLabel = getCancelReasonLabel(selectedCancelReason);
 
     setCancelLoading(true);
 
@@ -4173,8 +4189,10 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
       const response = await fetch(`${API_BASE_URL}/api/locator-slips/${slip.id}/cancel`, {
         method: 'PATCH',
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
         },
+        body: JSON.stringify({ cancellation_reason: selectedCancelReason }),
       });
       const data = await response.json();
 
@@ -4182,7 +4200,8 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
         throw new Error(data.message || 'Failed to cancel locator slip.');
       }
 
-      alert(data.message || 'Locator slip request cancelled successfully.');
+      alert(`${data.message || 'Locator slip request cancelled successfully.'} Reason: ${reasonLabel}.`);
+      setShowCancelReasonModal(false);
       setView('status');
     } catch (error) {
       alert(error.message);
@@ -4304,9 +4323,16 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
         </div>
 
         {isPending && (
-          <button className="cancel-request-btn" onClick={cancelRequest} disabled={cancelLoading}>
+          <button className="cancel-request-btn" onClick={() => setShowCancelReasonModal(true)} disabled={cancelLoading}>
             {cancelLoading ? 'CANCELLING...' : 'CANCEL REQUEST'}
           </button>
+        )}
+
+        {slip.status === 'cancelled' && slip.cancellation_reason && (
+          <div className="cancel-reason-card">
+            <span>CANCELLATION REASON</span>
+            <strong>{getCancelReasonLabel(slip.cancellation_reason)}</strong>
+          </div>
         )}
 
         {(isApproved || isCompleted) && (
@@ -4403,6 +4429,37 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
             <button type="button" className="rejected-dashboard-btn" onClick={() => setView('dashboard')}>
               RETURN TO DASHBOARD
             </button>
+          </div>
+        )}
+
+        {showCancelReasonModal && (
+          <div className="cancel-reason-modal-backdrop" role="presentation" onClick={() => !cancelLoading && setShowCancelReasonModal(false)}>
+            <div className="cancel-reason-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+              <span className="cancel-reason-modal-kicker">CANCEL LOCATOR SLIP</span>
+              <h3>Why are you cancelling this request?</h3>
+              <p>Select the reason that best matches the cancellation.</p>
+              <div className="cancel-reason-options">
+                {LOCATOR_SLIP_CANCEL_REASONS.map((reason) => (
+                  <button
+                    key={reason.value}
+                    type="button"
+                    className={`cancel-reason-option ${selectedCancelReason === reason.value ? 'selected' : ''}`}
+                    onClick={() => setSelectedCancelReason(reason.value)}
+                    disabled={cancelLoading}
+                  >
+                    {reason.label}
+                  </button>
+                ))}
+              </div>
+              <div className="cancel-reason-actions">
+                <button type="button" className="cancel-reason-secondary" onClick={() => setShowCancelReasonModal(false)} disabled={cancelLoading}>
+                  Back
+                </button>
+                <button type="button" className="cancel-reason-primary" onClick={cancelRequest} disabled={cancelLoading}>
+                  {cancelLoading ? 'Cancelling...' : 'Confirm cancel'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -6093,7 +6150,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
                   <small>{activeSteps.length ? `${activeSteps.length} steps` : 'Instructions will appear after routing'}</small>
                 </div>
                 <div className="trip-steps-list">
-                  {activeSteps.length ? activeSteps.slice(0, 8).map((step, index) => (
+                  {activeSteps.length ? activeSteps.map((step, index) => (
                     <button
                       type="button"
                       key={`${step.instruction}-${index}`}
@@ -9721,7 +9778,9 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           returnFull: formatFullDateTime(row.expectedReturnTime),
           deanName: 'Approved by dean',
           deanRole: formatReviewerRole(null, row.collegeName),
-          signatureTime: formatFullDateTime(row.actualReturnTime),
+          signatureTime: formatFullDateTime(
+            row.verificationReviewedAt || row.successfulReviewAt || row.flaggedReviewAt || row.verificationCreatedAt || row.actualReturnTime
+          ),
           verificationStatus: persistedReviewStatus === 'FLAGGED'
             ? 'FLAGGED FOR REVIEW'
             : persistedReviewStatus === 'SUCCESSFUL'

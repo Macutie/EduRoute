@@ -9,11 +9,22 @@ CREATE TABLE IF NOT EXISTS locator_slips (
     departure_datetime TIMESTAMP NOT NULL,
     expected_return_datetime TIMESTAMP NOT NULL,
     additional_remarks TEXT,
+    cancellation_reason VARCHAR(60),
     status VARCHAR(20) NOT NULL DEFAULT 'pending',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT chk_locator_slips_status
         CHECK (status IN ('pending', 'approved', 'rejected', 'completed', 'cancelled')),
+    CONSTRAINT chk_locator_slips_cancellation_reason
+        CHECK (
+            cancellation_reason IS NULL
+            OR cancellation_reason IN (
+                'change_of_schedule',
+                'trip_no_longer_needed',
+                'meeting_event_cancelled',
+                'incorrect_locator_slip_details'
+            )
+        ),
     CONSTRAINT chk_locator_slips_return_after_departure
         CHECK (expected_return_datetime > departure_datetime),
     CONSTRAINT chk_locator_slips_remarks_length

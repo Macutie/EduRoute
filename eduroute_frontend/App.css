@@ -3446,6 +3446,120 @@ label {
   cursor: not-allowed;
 }
 
+.cancel-reason-card {
+  width: calc(100% - 48px);
+  margin: -8px 24px 20px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: #FFF7ED;
+  border: 1px solid #FDBA74;
+}
+
+.cancel-reason-card span,
+.cancel-reason-modal-kicker {
+  display: block;
+  color: #C2410C;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+}
+
+.cancel-reason-card strong {
+  display: block;
+  margin-top: 6px;
+  color: #7C2D12;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.cancel-reason-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(15, 23, 42, 0.52);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.cancel-reason-modal-card {
+  width: min(560px, 100%);
+  border-radius: 24px;
+  background: #ffffff;
+  padding: 24px;
+  box-shadow: 0 24px 50px rgba(15, 23, 42, 0.24);
+}
+
+.cancel-reason-modal-card h3 {
+  margin: 10px 0 8px;
+  color: var(--text-dark);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.cancel-reason-modal-card p {
+  margin: 0 0 16px;
+  color: var(--text-gray);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.cancel-reason-options {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.cancel-reason-option {
+  width: 100%;
+  border: 1px solid #E5E7EB;
+  background: #F9FAFB;
+  color: var(--text-dark);
+  border-radius: 16px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+
+.cancel-reason-option.selected {
+  background: rgba(11, 150, 23, 0.08);
+  border-color: rgba(11, 150, 23, 0.24);
+  color: var(--green);
+}
+
+.cancel-reason-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.cancel-reason-secondary,
+.cancel-reason-primary {
+  min-height: 46px;
+  border-radius: 999px;
+  border: none;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.cancel-reason-secondary {
+  background: #EEF2F7;
+  color: var(--text-dark);
+}
+
+.cancel-reason-primary {
+  background: var(--green);
+  color: #ffffff;
+}
+
 .progress-track.approved .progress-fill {
   width: 100%;
 }
@@ -4993,7 +5107,7 @@ label {
 }
 
 .trip-steps-list {
-  max-height: none;
+  max-height: min(56vh, 520px);
   min-height: 0;
   flex: 1;
   overflow-y: auto;
