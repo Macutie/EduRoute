@@ -598,10 +598,11 @@ const startReturn = async (facultyUserId, tripId) => {
         throw new AppError('Trip not found.', 404);
     }
 
+    const latestArrivalVerification = await facultyTripRepository.getLatestArrivalVerification(tripId);
     const latestLocationVerification = trip.locator_slip_id
         ? await facultyTripRepository.getLatestLocatorSlipLocationVerification(trip.locator_slip_id, facultyUserId)
         : null;
-    trip = hydrateTripWithVerification(trip, latestLocationVerification);
+    trip = hydrateTripWithVerification(trip, latestLocationVerification || latestArrivalVerification);
 
     if (getLogicalTripStatus(trip) !== 'arrived') {
         throw new AppError('Return route can only start after arrival.', 409);
@@ -648,10 +649,11 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         throw new AppError('Trip not found.', 404);
     }
 
+    const latestArrivalVerification = await facultyTripRepository.getLatestArrivalVerification(tripId);
     const latestLocationVerification = trip.locator_slip_id
         ? await facultyTripRepository.getLatestLocatorSlipLocationVerification(trip.locator_slip_id, facultyUserId)
         : null;
-    trip = hydrateTripWithVerification(trip, latestLocationVerification);
+    trip = hydrateTripWithVerification(trip, latestLocationVerification || latestArrivalVerification);
 
     if (!['returning', 'arrived', 'active'].includes(getLogicalTripStatus(trip))) {
         throw new AppError('Only a returning trip can be completed.', 409);
