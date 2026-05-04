@@ -380,6 +380,40 @@ const startTrip = async (facultyUserId, payload) => {
         };
     }
 
+    if (existingTrip && !existingTripForSlip) {
+        const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
+        const onlyCurrentSlipAvailable = approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === locatorSlipId;
+
+        if (onlyCurrentSlipAvailable && isTripOpen(existingTrip)) {
+            const adoptedTrip = await facultyTripRepository.updateTripLifecycle(existingTrip.id, facultyUserId, {
+                locator_slip_id: locatorSlipId,
+            });
+            const effectiveTrip = adoptedTrip || existingTrip;
+            await facultyTripRepository.updateLocatorSlipTripStatus(locatorSlipId, effectiveTrip.status || 'active');
+
+            const route = await mapboxService.getDirections({
+                origin,
+                destination,
+                profile: payload.profile,
+                alternatives: false
+            });
+
+            return {
+                locatorSlip: {
+                    ...locatorSlip,
+                    trip_status: effectiveTrip.status || 'active',
+                    canStartTrip: false,
+                    actions: getFacultyLocatorSlipActions({
+                        ...locatorSlip,
+                        trip_status: effectiveTrip.status || 'active'
+                    }, effectiveTrip)
+                },
+                trip: effectiveTrip,
+                route
+            };
+        }
+    }
+
     if (existingTrip) {
         throw new AppError('Complete the current trip before starting another one.', 409);
     }

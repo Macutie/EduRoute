@@ -362,11 +362,24 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
 };
 
 const getOpenTripForUser = async (facultyUserId, client = pool) => {
+    const hasReturnedAtColumn = await getTripsColumnExists('returned_at', client);
+    const hasEndedAtColumn = await getTripsColumnExists('ended_at', client);
+    const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists(client);
+    const locatorSlipJoin = hasTripsLocatorSlipIdColumn
+        ? 'LEFT JOIN locator_slips ls ON ls.id = trips.locator_slip_id'
+        : '';
+    const endedFilters = [
+        hasReturnedAtColumn ? 'trips.returned_at IS NULL' : null,
+        hasEndedAtColumn ? 'trips.ended_at IS NULL' : null,
+        hasTripsLocatorSlipIdColumn ? `(ls.id IS NULL OR ls.status <> 'completed')` : null,
+    ].filter(Boolean).join(' AND ');
     const { rows } = await client.query(
-        `SELECT *
+        `SELECT trips.*
          FROM trips
-         WHERE user_id = $1
-           AND status = ANY($2::text[])
+         ${locatorSlipJoin}
+         WHERE trips.user_id = $1
+           AND trips.status = ANY($2::text[])
+           ${endedFilters ? `AND ${endedFilters}` : ''}
          ORDER BY started_at DESC NULLS LAST, created_at DESC
          LIMIT 1`,
         [facultyUserId, OPEN_TRIP_STATUSES]
