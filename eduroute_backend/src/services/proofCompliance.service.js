@@ -242,20 +242,6 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             arrived_at: updatedTrip.arrived_at || trip.arrived_at || submittedAt
         }, client);
 
-        await facultyTripRepository.mirrorLocatorSlipLocationVerification({
-            locatorSlipId: trip.locator_slip_id,
-            facultyUserId,
-            targetLocation: destination,
-            imageUrl: proofImageUpload.url,
-            imagePublicId: proofImageUpload.publicId,
-            mimeType: 'image/png',
-            fileSize: proofImageBuffer.length,
-            originalFileSize: proofImageBuffer.length,
-            imageWidth: null,
-            imageHeight: null,
-            status: 'submitted'
-        }, client).catch(() => null);
-
         await tripRepository.insertTripEvent(client, {
             tripId,
             userId: facultyUserId,

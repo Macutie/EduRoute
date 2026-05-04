@@ -53,6 +53,7 @@ import {
 import {
   getHrmuProofComplianceDetails,
   getHrmuProofComplianceList,
+  getFacultyProofOfCompliance,
   reviewHrmuProofCompliance,
 } from './services/proofComplianceApi';
 import {
@@ -4062,6 +4063,8 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const [selectedCancelReason, setSelectedCancelReason] = useState(LOCATOR_SLIP_CANCEL_REASONS[0].value);
   const [locationVerification, setLocationVerification] = useState(null);
   const [showLocationProof, setShowLocationProof] = useState(false);
+  const [proofCompliance, setProofCompliance] = useState(null);
+  const [showProofCompliance, setShowProofCompliance] = useState(false);
   const [completedTripSummary, setCompletedTripSummary] = useState(null);
   const [showTripSummary, setShowTripSummary] = useState(false);
   const [tripSummaryLoading, setTripSummaryLoading] = useState(false);
@@ -4076,6 +4079,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
   useEffect(() => {
     setShowLocationProof(false);
+    setShowProofCompliance(false);
     setShowTripSummary(false);
     setShowCancelReasonModal(false);
     setSelectedCancelReason(LOCATOR_SLIP_CANCEL_REASONS[0].value);
@@ -4084,7 +4088,9 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   useEffect(() => {
     if (!slip || !['approved', 'verified', 'completed'].includes(String(slip.status || '').toLowerCase())) {
       setLocationVerification(null);
+      setProofCompliance(null);
       setShowLocationProof(false);
+      setShowProofCompliance(false);
       setCompletedTripSummary(null);
       setShowTripSummary(false);
       return;
@@ -4109,6 +4115,36 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
 
     fetchLocationVerification();
   }, [slip]);
+
+  useEffect(() => {
+    if (!slip?.trip_id) {
+      setProofCompliance(null);
+      setShowProofCompliance(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadProofCompliance = async () => {
+      try {
+        const proof = await getFacultyProofOfCompliance(slip.trip_id);
+        if (!cancelled) {
+          setProofCompliance(proof || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setProofCompliance(null);
+          console.error('Failed to load proof of compliance:', error);
+        }
+      }
+    };
+
+    loadProofCompliance();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slip?.trip_id]);
 
   useEffect(() => {
     if (!slip || getSlipDisplayStatus(slip) !== 'completed' || !slip.trip_id) {
@@ -4364,6 +4400,15 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                 {showLocationProof ? 'HIDE PROOF OF ARRIVAL' : 'VIEW PROOF OF ARRIVAL'}
               </button>
             )}
+            {isCompleted && proofCompliance && (
+              <button
+                type="button"
+                className="approved-view-proof-btn"
+                onClick={() => setShowProofCompliance((current) => !current)}
+              >
+                {showProofCompliance ? 'HIDE PROOF OF COMPLIANCE' : 'VIEW PROOF OF COMPLIANCE'}
+              </button>
+            )}
             {isCompleted && (completedTripSummary?.summary || tripSummaryLoading) && (
               <button
                 type="button"
@@ -4389,6 +4434,23 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
               Uploaded {formatStatusDate(locationVerification.created_at)} for this approved locator slip.
             </p>
             <img src={locationVerification.image_url} alt="Uploaded proof of arrival" />
+          </div>
+        )}
+
+        {isCompleted && showProofCompliance && proofCompliance && (
+          <div className="location-proof-card compliance-proof-card">
+            <span className="location-proof-kicker">PROOF OF COMPLIANCE</span>
+            <h3>{proofCompliance.focalPersonName || 'Focal Person'}</h3>
+            <p>
+              Submitted {formatStatusDate(proofCompliance.submittedAt)} for this completed trip.
+            </p>
+            <ProofOfCompliancePreview
+              proof={proofCompliance}
+              title="Completed Trip Compliance"
+              showStatus={false}
+              showFullCard={false}
+              showArrivalPhoto={false}
+            />
           </div>
         )}
 

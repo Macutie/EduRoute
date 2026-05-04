@@ -3910,6 +3910,27 @@ label {
   border: 1px solid #dce8dd;
 }
 
+.compliance-proof-card .proof-preview-card {
+  margin-top: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.compliance-proof-card .proof-preview-head {
+  display: none;
+}
+
+.compliance-proof-card .proof-preview-grid {
+  margin-top: 0;
+}
+
+.compliance-proof-card .proof-preview-signature-image {
+  min-height: 140px;
+  max-height: 180px;
+}
+
 .trip-summary-status-card {
   text-align: left;
 }

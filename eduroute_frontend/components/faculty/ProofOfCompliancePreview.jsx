@@ -1,4 +1,10 @@
-const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Compliance' }) => {
+const ProofOfCompliancePreview = ({
+  proof,
+  title = 'Submitted Proof of Compliance',
+  showStatus = true,
+  showFullCard = true,
+  showArrivalPhoto = true,
+}) => {
   if (!proof) return null;
 
   return (
@@ -8,9 +14,11 @@ const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Complianc
           <span className="proof-form-eyebrow">PROOF STATUS</span>
           <h3>{title}</h3>
         </div>
-        <span className={`proof-status-badge ${String(proof.verificationStatus || '').toLowerCase()}`}>
-          {String(proof.verificationStatus || 'submitted').toUpperCase()}
-        </span>
+        {showStatus && (
+          <span className={`proof-status-badge ${String(proof.verificationStatus || '').toLowerCase()}`}>
+            {String(proof.verificationStatus || 'submitted').toUpperCase()}
+          </span>
+        )}
       </div>
 
       {proof.focalPersonSignatureUrl && (
@@ -39,7 +47,7 @@ const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Complianc
         </div>
       </div>
 
-      {proof.proofComplianceImageUrl && (
+      {showFullCard && proof.proofComplianceImageUrl && (
         <div className="proof-preview-proof-card">
           <span>Full Compliance Card</span>
           <img
@@ -50,7 +58,7 @@ const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Complianc
         </div>
       )}
 
-      {proof.arrivalPhotoUrl && (
+      {showArrivalPhoto && proof.arrivalPhotoUrl && (
         <div className="proof-arrival-card">
           <span>Arrival Photo</span>
           <img src={proof.arrivalPhotoUrl} alt="Arrival upload" className="proof-arrival-preview" />

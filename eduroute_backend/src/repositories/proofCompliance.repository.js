@@ -1,8 +1,25 @@
 const pool = require('../db/pool');
 
 let arrivalVerificationColumnsCache = null;
+let arrivalVerificationsTableExistsCache = null;
+
+const getArrivalVerificationsTableExists = async (client = pool) => {
+    if (arrivalVerificationsTableExistsCache !== null) {
+        return arrivalVerificationsTableExistsCache;
+    }
+
+    const { rows } = await client.query(`SELECT to_regclass('public.arrival_verifications') AS table_name`);
+    arrivalVerificationsTableExistsCache = Boolean(rows[0]?.table_name);
+    return arrivalVerificationsTableExistsCache;
+};
 
 const getArrivalVerificationColumns = async (client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        arrivalVerificationColumnsCache = new Set();
+        return arrivalVerificationColumnsCache;
+    }
+
     if (arrivalVerificationColumnsCache) {
         return arrivalVerificationColumnsCache;
     }
@@ -87,6 +104,11 @@ const mapProofRow = (row) => {
 };
 
 const getProofByTripForFaculty = async (tripId, facultyUserId, client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        return null;
+    }
+
     const proofSelect = await buildProofSelect(client);
     const hasSubmittedAtColumn = await hasArrivalVerificationColumn('submitted_at', client);
     const orderByExpression = hasSubmittedAtColumn
@@ -106,6 +128,11 @@ const getProofByTripForFaculty = async (tripId, facultyUserId, client = pool) =>
 };
 
 const insertProof = async (payload, client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        throw new Error('arrival_verifications table does not exist.');
+    }
+
     const columns = await getArrivalVerificationColumns(client);
     const supportedColumns = [
         ['trip_id', payload.tripId],
@@ -142,6 +169,11 @@ const insertProof = async (payload, client = pool) => {
 };
 
 const getHrmuProofList = async (client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        return [];
+    }
+
     const proofSelect = await buildProofSelect(client);
     const hasReviewedByColumn = await hasArrivalVerificationColumn('reviewed_by', client);
     const hasSubmittedAtColumn = await hasArrivalVerificationColumn('submitted_at', client);
@@ -187,6 +219,11 @@ const getHrmuProofList = async (client = pool) => {
 };
 
 const getHrmuProofById = async (proofId, client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        return null;
+    }
+
     const proofSelect = await buildProofSelect(client);
     const hasReviewedByColumn = await hasArrivalVerificationColumn('reviewed_by', client);
     const reviewedByJoin = hasReviewedByColumn
@@ -236,6 +273,11 @@ const getHrmuProofById = async (proofId, client = pool) => {
 };
 
 const updateProofReview = async ({ proofId, reviewerId, verificationStatus, reviewRemarks }, client = pool) => {
+    const tableExists = await getArrivalVerificationsTableExists(client);
+    if (!tableExists) {
+        return null;
+    }
+
     const columns = await getArrivalVerificationColumns(client);
     const clauses = [];
     const values = [];
