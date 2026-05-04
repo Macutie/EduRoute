@@ -221,9 +221,11 @@ const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
     let currentTrip = await facultyTripRepository.getCurrentTripForLocatorSlip(facultyUserId, locatorSlipId);
 
     // Older databases may not have trips.locator_slip_id yet, so fall back to the
-    // user's currently open trip to keep the faculty map recoverable after refresh.
+    // best trip inferred for this specific locator slip only. Avoid attaching an
+    // unrelated open trip from another slip, which can leak stale proof state into
+    // a newly created locator slip.
     if (!currentTrip) {
-        currentTrip = await facultyTripRepository.getOpenTripForUser(facultyUserId);
+        currentTrip = await facultyTripRepository.getBlockingTripForLocatorSlip(locatorSlipId, facultyUserId);
     }
 
     const latestArrivalVerification = currentTrip
