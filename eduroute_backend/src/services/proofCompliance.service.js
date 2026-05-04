@@ -64,6 +64,7 @@ const normalizeProofResponse = (proof, context = {}) => ({
     tripId: proof.tripId,
     locatorSlipId: proof.locatorSlipId,
     facultyUserId: proof.facultyUserId,
+    facultyId: context.facultyId || null,
     focalPersonName: proof.focalPersonName,
     focalPersonPosition: proof.focalPersonPosition,
     focalPersonSignatureUrl: proof.focalPersonSignatureUrl,
@@ -75,12 +76,14 @@ const normalizeProofResponse = (proof, context = {}) => ({
     reviewedBy: proof.reviewedBy,
     reviewRemarks: proof.reviewRemarks,
     facultyName: context.facultyName || null,
+    collegeName: context.collegeName || null,
     destination: context.destination || null,
     purpose: context.purpose || null,
     locatorSlipCode: context.locatorSlipCode || null,
     reviewedByName: context.reviewedByName || null,
     actualReturnTime: context.actualReturnTime || null,
-    expectedReturnTime: context.expectedReturnTime || null
+    expectedReturnTime: context.expectedReturnTime || null,
+    tripStartedAt: context.tripStartedAt || null
 });
 
 const buildLocatorSlipCode = (locatorSlipId) => {
@@ -296,13 +299,16 @@ const listHrmuProofs = async (userId) => {
     const proofs = await proofComplianceRepository.getHrmuProofList();
     return {
         proofs: proofs.map((proof) => normalizeProofResponse(proof, {
+            facultyId: proof.facultyId,
             facultyName: proof.facultyName,
+            collegeName: proof.collegeName,
             destination: proof.destination,
             purpose: proof.purpose,
             locatorSlipCode: buildLocatorSlipCode(proof.locatorSlipId),
             reviewedByName: proof.reviewedByName,
             actualReturnTime: proof.actualReturnTime,
-            expectedReturnTime: proof.expectedReturnTime
+            expectedReturnTime: proof.expectedReturnTime,
+            tripStartedAt: proof.tripStartedAt
         }))
     };
 };
@@ -315,13 +321,16 @@ const getHrmuProofDetails = async (proofId, userId) => {
     }
 
     return normalizeProofResponse(proof, {
+        facultyId: proof.facultyId,
         facultyName: proof.facultyName,
+        collegeName: proof.collegeName,
         destination: proof.destination,
         purpose: proof.purpose,
         locatorSlipCode: buildLocatorSlipCode(proof.locatorSlipId),
         reviewedByName: proof.reviewedByName,
         actualReturnTime: proof.actualReturnTime,
-        expectedReturnTime: proof.expectedReturnTime
+        expectedReturnTime: proof.expectedReturnTime,
+        tripStartedAt: proof.tripStartedAt
     });
 };
 
@@ -332,15 +341,15 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
         throw new AppError('Verification status is invalid.', 422);
     }
 
-    const reviewRemarks = String(payload.reviewRemarks || '').trim();
-    if (normalizedStatus === 'rejected' && !reviewRemarks) {
-        throw new AppError('Review remarks are required when rejecting the proof.', 422);
-    }
-
     const existingProof = await proofComplianceRepository.getHrmuProofById(proofId);
     if (!existingProof) {
         throw new AppError('Proof of compliance not found.', 404);
     }
+    const existingStatus = String(existingProof.verificationStatus || 'submitted').trim().toLowerCase();
+    if (existingStatus !== 'submitted') {
+        throw new AppError('This proof review has already been finalized.', 409);
+    }
+    const reviewRemarks = String(payload.reviewRemarks || '').trim();
 
     const client = await pool.connect();
 
@@ -380,13 +389,16 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
 
         return normalizeProofResponse(updated, {
+            facultyId: existingProof.facultyId,
             facultyName: existingProof.facultyName,
+            collegeName: existingProof.collegeName,
             destination: existingProof.destination,
             purpose: existingProof.purpose,
             locatorSlipCode: buildLocatorSlipCode(existingProof.locatorSlipId),
             reviewedByName: existingProof.reviewedByName,
             actualReturnTime: existingProof.actualReturnTime,
-            expectedReturnTime: existingProof.expectedReturnTime
+            expectedReturnTime: existingProof.expectedReturnTime,
+            tripStartedAt: existingProof.tripStartedAt
         });
     } catch (error) {
         await client.query('ROLLBACK');

@@ -3,21 +3,21 @@ const ProofComplianceList = ({ rows, loading, onOpen }) => (
     <div className="hrmu-verify-table-head">
       <span>FACULTY MEMBER</span>
       <span>DEPARTMENT</span>
+      <span>TIME OUT</span>
       <span>DESTINATION</span>
-      <span>FOCAL PERSON</span>
       <span>STATUS</span>
       <span>PROOF</span>
     </div>
 
     {loading && (
       <div className="hrmu-verify-row hrmu-verify-empty-row">
-        <div className="hrmu-verify-faculty"><strong>Loading proofs of compliance...</strong></div>
+        <div className="hrmu-verify-faculty"><strong>Loading completed trips...</strong></div>
       </div>
     )}
 
     {!loading && rows.length === 0 && (
       <div className="hrmu-verify-row hrmu-verify-empty-row">
-        <div className="hrmu-verify-faculty"><strong>No submitted proofs are ready for HRMU review.</strong></div>
+        <div className="hrmu-verify-faculty"><strong>No completed trips with proof of compliance are ready for review.</strong></div>
       </div>
     )}
 
@@ -34,11 +34,8 @@ const ProofComplianceList = ({ rows, loading, onOpen }) => (
           </div>
         </div>
         <div className="hrmu-verify-dept">{row.department}</div>
+        <div className="hrmu-verify-time">{row.timeOut}</div>
         <div className="hrmu-verify-destination">{row.destination}</div>
-        <div className="hrmu-verify-dept">
-          <strong>{row.focalPersonName}</strong>
-          <small>{row.focalPersonPosition}</small>
-        </div>
         <span className={`hrmu-verify-status ${row.statusTone}`}>{row.status}</span>
         <div className="hrmu-verify-actions">
           <button

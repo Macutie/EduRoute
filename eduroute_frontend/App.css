@@ -8489,7 +8489,7 @@ label {
 .hrmu-verify-table-head,
 .hrmu-verify-row {
   display: grid;
-  grid-template-columns: minmax(215px, 1.5fr) minmax(140px, 1.1fr) minmax(86px, 0.62fr) minmax(130px, 0.95fr) minmax(110px, 0.78fr) minmax(120px, 0.82fr);
+  grid-template-columns: minmax(230px, 1.55fr) minmax(170px, 1.05fr) minmax(96px, 0.68fr) minmax(150px, 1fr) minmax(110px, 0.75fr) minmax(84px, 0.5fr);
   align-items: center;
   gap: 14px;
   padding: 18px 24px;
@@ -8860,6 +8860,19 @@ label {
   justify-content: center;
 }
 
+.hrmu-verify-signature-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.hrmu-verify-signature-empty {
+  color: #6d7e6f;
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .hrmu-verify-signature-scribble {
   width: 84px;
   height: 84px;
@@ -9183,6 +9196,13 @@ label {
   background: var(--green);
   color: white;
   box-shadow: 0 18px 28px rgba(11, 150, 23, 0.18);
+}
+
+.hrmu-verify-request-btn:disabled,
+.hrmu-verify-clear-btn:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .hrmu-statement-modal {

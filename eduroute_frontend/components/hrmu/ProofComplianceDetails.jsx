@@ -1,9 +1,39 @@
+const formatDateTime = (value) => {
+  if (!value) return 'N/A';
+  return new Date(value).toLocaleString();
+};
+
+const formatStatusText = (status) => {
+  const normalized = String(status || 'submitted').toLowerCase();
+  if (normalized === 'verified') return 'SUCCESSFUL TRIP';
+  if (normalized === 'rejected') return 'UNVERIFIED LOCATION';
+  return 'PENDING PROOF REVIEW';
+};
+
+const formatProofStatus = (status) => {
+  const normalized = String(status || 'submitted').toLowerCase();
+  if (normalized === 'verified') return 'SUCCESSFUL';
+  if (normalized === 'rejected') return 'FLAGGED';
+  return 'SUBMITTED';
+};
+
+const buildStatusCopy = (proof) => {
+  const normalized = String(proof?.verificationStatus || 'submitted').toLowerCase();
+  if (normalized === 'verified') {
+    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU marked this as a successful trip.`;
+  }
+
+  if (normalized === 'rejected') {
+    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU flagged this trip as an unverified location.`;
+  }
+
+  return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location.`;
+};
+
 const ProofComplianceDetails = ({
   row,
   details,
   reviewMessage,
-  reviewRemarks,
-  setReviewRemarks,
   reviewing,
   reviewLocked,
   onClose,
@@ -12,7 +42,14 @@ const ProofComplianceDetails = ({
   if (!row) return null;
 
   const activeProof = details || row;
-  const status = String(activeProof.verificationStatus || row.status || 'submitted').toUpperCase();
+  const normalizedStatus = String(activeProof.verificationStatus || row.verificationStatus || 'submitted').toLowerCase();
+  const displayStatus = formatStatusText(normalizedStatus);
+  const proofStatus = formatProofStatus(normalizedStatus);
+  const statusBarClassName = normalizedStatus === 'rejected'
+    ? 'hrmu-verify-status-bar review'
+    : 'hrmu-verify-status-bar';
+  const focalPersonName = activeProof.focalPersonName || 'N/A';
+  const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
 
   return (
     <div className="hrmu-verify-modal-overlay" role="presentation" onClick={onClose}>
@@ -25,12 +62,12 @@ const ProofComplianceDetails = ({
             <div className="hrmu-verify-modal-person-copy">
               <div className="hrmu-verify-modal-topline">
                 <h2 id="hrmu-verify-modal-title">{row.name}</h2>
-                <span className="hrmu-verify-modal-pill">PROOF OF COMPLIANCE</span>
+                <span className="hrmu-verify-modal-pill">COMPLETED TRIP</span>
               </div>
-              <p>{row.department}</p>
+              <p>{row.roleLine}</p>
               <div className="hrmu-verify-modal-times">
-                <span>Submitted: {activeProof.submittedAt ? new Date(activeProof.submittedAt).toLocaleString() : 'N/A'}</span>
-                <span>Status: {status}</span>
+                <span>Returned: {formatDateTime(activeProof.actualReturnTime || row.actualReturnTime)}</span>
+                <span>Est. Return: {formatDateTime(activeProof.expectedReturnTime || row.expectedReturnTime)}</span>
               </div>
             </div>
           </div>
@@ -42,33 +79,72 @@ const ProofComplianceDetails = ({
         <div className="hrmu-verify-modal-body">
           <div className="hrmu-verify-modal-left">
             <div className="hrmu-verify-modal-label">OFFICIAL LOCATOR SLIP #{row.slipNumber}</div>
-            {activeProof.proofComplianceImageUrl && (
-              <div className="hrmu-verify-proof-card">
-                <span>COMBINED PROOF IMAGE</span>
-                <img src={activeProof.proofComplianceImageUrl} alt={`${row.name} proof of compliance`} />
+            <div className="hrmu-verify-modal-card">
+              <div className="hrmu-verify-modal-meta-grid">
+                <div>
+                  <span>PURPOSE OF TRAVEL</span>
+                  <strong>{activeProof.purpose || 'Official travel'}</strong>
+                </div>
+                <div>
+                  <span>REQUESTED BY</span>
+                  <strong>{row.name}</strong>
+                </div>
               </div>
-            )}
 
+              <div className="hrmu-verify-modal-signature-block">
+                <span>PROOF OF COMPLIANCE</span>
+                <div className="hrmu-verify-signature-card">
+                  <div className="hrmu-verify-signature-art">
+                    {activeProof.focalPersonSignatureUrl ? (
+                      <img
+                        className="hrmu-verify-signature-image"
+                        src={activeProof.focalPersonSignatureUrl}
+                        alt={`${row.name} proof of compliance signature`}
+                      />
+                    ) : (
+                      <div className="hrmu-verify-signature-empty">No signature uploaded.</div>
+                    )}
+                  </div>
+                  <div className="hrmu-verify-signature-copy">
+                    <strong>Confirmed by focal person</strong>
+                    <span>{focalPersonName}</span>
+                    <span>{focalPersonPosition}</span>
+                    <span>{formatDateTime(activeProof.submittedAt || row.submittedAt)}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="hrmu-verify-modal-label">PROOF VERIFICATION CHECKS</div>
             <div className="hrmu-verify-check-grid">
               <div className="hrmu-verify-check-card positive">
+                <span>PROOF STATUS</span>
+                <strong>{proofStatus}</strong>
+              </div>
+              <div className="hrmu-verify-check-card positive">
+                <span>PROOF OF COMPLIANCE</span>
+                <strong>{formatProofStatus('submitted')}</strong>
+                <small>{formatDateTime(activeProof.submittedAt || row.submittedAt)}</small>
+              </div>
+              <div className={`hrmu-verify-check-card ${normalizedStatus === 'rejected' ? 'negative' : 'positive'}`}>
+                <span>HRMU REVIEW</span>
+                <strong>{normalizedStatus === 'verified' ? 'SUCCESSFUL' : normalizedStatus === 'rejected' ? 'FLAGGED' : 'PENDING'}</strong>
+                <small>{activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.'}</small>
+              </div>
+              <div className="hrmu-verify-check-card positive">
                 <span>FOCAL PERSON</span>
-                <strong>{activeProof.focalPersonName || 'N/A'}</strong>
+                <strong>{focalPersonName}</strong>
               </div>
               <div className="hrmu-verify-check-card positive">
                 <span>POSITION</span>
-                <strong>{activeProof.focalPersonPosition || 'N/A'}</strong>
-              </div>
-              <div className={`hrmu-verify-check-card ${status === 'REJECTED' ? 'negative' : 'positive'}`}>
-                <span>VERIFICATION STATUS</span>
-                <strong>{status}</strong>
-                <small>{activeProof.reviewRemarks || 'Awaiting HRMU review remarks.'}</small>
+                <strong>{focalPersonPosition}</strong>
               </div>
             </div>
 
             {activeProof.arrivalPhotoUrl && (
               <div className="hrmu-verify-proof-card">
-                <span>OPTIONAL ARRIVAL PHOTO</span>
-                <img src={activeProof.arrivalPhotoUrl} alt={`${row.name} arrival upload`} />
+                <span>UPLOADED ARRIVAL IMAGE</span>
+                <img src={activeProof.arrivalPhotoUrl} alt={`${row.name} uploaded arrival image`} />
               </div>
             )}
           </div>
@@ -77,12 +153,10 @@ const ProofComplianceDetails = ({
             <div className="hrmu-verify-current-status">
               <div className="hrmu-verify-current-status-row">
                 <span>CURRENT STATUS</span>
-                <strong>{status}</strong>
+                <strong>{displayStatus}</strong>
               </div>
-              <div className="hrmu-verify-status-bar" aria-hidden="true" />
-              <p>
-                Review the combined proof image, the focal person details, and the optional arrival photo before deciding whether to accept or reject this submission.
-              </p>
+              <div className={statusBarClassName} aria-hidden="true" />
+              <p>{buildStatusCopy(activeProof)}</p>
             </div>
 
             {reviewMessage && (
@@ -91,17 +165,6 @@ const ProofComplianceDetails = ({
               </div>
             )}
 
-            <label className="proof-form-field">
-              <span>HRMU Remarks</span>
-              <textarea
-                value={reviewRemarks}
-                onChange={(event) => setReviewRemarks(event.target.value)}
-                placeholder="Add remarks when needed, especially for rejection."
-                rows={5}
-                disabled={reviewing || reviewLocked}
-              />
-            </label>
-
             <div className="hrmu-verify-review-actions">
               <button
                 type="button"
@@ -109,7 +172,7 @@ const ProofComplianceDetails = ({
                 onClick={() => onReview('rejected')}
                 disabled={reviewing || reviewLocked}
               >
-                {reviewing ? 'Saving...' : 'Reject Proof'}
+                {reviewing ? 'Saving...' : 'Flag as Unverified Location'}
               </button>
               <button
                 type="button"
@@ -117,7 +180,7 @@ const ProofComplianceDetails = ({
                 onClick={() => onReview('verified')}
                 disabled={reviewing || reviewLocked}
               >
-                {reviewing ? 'Saving...' : 'Verify Proof'}
+                {reviewing ? 'Saving...' : 'Successful Trip'}
               </button>
             </div>
 

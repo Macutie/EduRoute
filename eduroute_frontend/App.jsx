@@ -9764,7 +9764,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const [reviewing, setReviewing] = useState(false);
   const [reviewMessage, setReviewMessage] = useState('');
   const [reviewLocked, setReviewLocked] = useState(false);
-  const [reviewRemarks, setReviewRemarks] = useState('');
 
   const buildSlipReference = (locatorSlipId) => {
     const normalized = String(locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
@@ -9781,20 +9780,23 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       const proofs = Array.isArray(proofData?.proofs) ? proofData.proofs : [];
       const mappedRows = proofs.map((row) => {
         const normalizedStatus = String(row.verificationStatus || 'submitted').toLowerCase();
+        const collegeName = row.collegeName || 'Unknown college';
+        const facultyName = row.facultyName || 'Faculty member';
         return {
           key: row.id,
           proofId: row.id,
           tripId: row.tripId,
           locatorSlipId: row.locatorSlipId,
-          name: row.facultyName || 'Faculty member',
-          id: row.facultyUserId || 'N/A',
-          department: row.collegeName || 'Unknown college',
+          name: facultyName,
+          id: row.facultyId || row.facultyUserId || 'N/A',
+          department: collegeName,
+          roleLine: `Faculty - ${collegeName}`,
           destination: row.destination || 'No destination provided.',
           status: normalizedStatus === 'verified'
-            ? 'VERIFIED'
+            ? 'SUCCESSFUL'
             : normalizedStatus === 'rejected'
-              ? 'REJECTED'
-              : 'SUBMITTED',
+              ? 'FLAGGED'
+              : 'PENDING',
           statusTone: normalizedStatus === 'verified' ? 'green' : normalizedStatus === 'rejected' ? 'red' : 'yellow',
           actionTone: 'ghost',
           actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
@@ -9805,15 +9807,18 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           arrivalPhotoUrl: row.arrivalPhotoUrl || null,
           verificationStatus: normalizedStatus,
           submittedAt: row.submittedAt || null,
-          reviewRemarks: row.reviewRemarks || '',
           reviewedAt: row.reviewedAt || null,
           expectedReturnTime: row.expectedReturnTime || null,
           actualReturnTime: row.actualReturnTime || null,
+          purpose: row.purpose || 'Official travel',
+          timeOut: row.actualReturnTime
+            ? new Date(row.actualReturnTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            : 'N/A',
         };
       });
 
-      const successfulTrips = mappedRows.filter((row) => row.status === 'VERIFIED').length;
-      const pendingReviews = mappedRows.filter((row) => row.status === 'SUBMITTED').length;
+      const successfulTrips = mappedRows.filter((row) => row.verificationStatus === 'verified').length;
+      const pendingReviews = mappedRows.filter((row) => row.verificationStatus === 'submitted').length;
 
       setRegistryRows(mappedRows);
       setSummary({
@@ -9872,11 +9877,10 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       setReviewMessage('');
       const result = await reviewHrmuProofCompliance(selectedRegistryRow.proofId, {
         verificationStatus: nextStatus,
-        reviewRemarks: reviewRemarks.trim(),
       });
       setReviewMessage(nextStatus === 'verified'
-        ? 'Proof marked as verified.'
-        : 'Proof rejected successfully.');
+        ? 'Trip marked as successful.'
+        : 'Trip flagged as unverified location.');
       setReviewLocked(true);
       setSelectedProofDetails(result);
       await loadVerificationPage({ silent: true });
@@ -9890,13 +9894,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const openRegistryRow = async (row) => {
     setReviewLocked(false);
     setReviewMessage('');
-    setReviewRemarks(row.reviewRemarks || '');
     setSelectedRegistryRow(row);
     setSelectedProofDetails(null);
     try {
       const details = await getHrmuProofComplianceDetails(row.proofId);
       setSelectedProofDetails(details);
-      setReviewRemarks(details?.reviewRemarks || row.reviewRemarks || '');
     } catch (error) {
       setReviewMessage(error.message || 'Failed to load proof details.');
     }
@@ -9905,7 +9907,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
   const closeRegistryRow = () => {
     setReviewLocked(false);
     setReviewMessage('');
-    setReviewRemarks('');
     setSelectedRegistryRow(null);
     setSelectedProofDetails(null);
   };
@@ -9915,7 +9916,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       <section className="hrmu-verification-hero">
         <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
         <h1>External Faculty Verification</h1>
-        <p>Review completed trips, inspect uploaded arrival proof, and decide whether each trip remains successful or should be flagged as an unverified location.</p>
+        <p>Review completed trips, inspect the submitted proof of compliance, and decide whether each trip remains successful or should be flagged as an unverified location.</p>
       </section>
 
       <section className="hrmu-verification-stats">
@@ -9944,7 +9945,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         <div className="hrmu-verify-registry-header">
           <div className="hrmu-verify-registry-title">
             <span className="hrmu-verify-registry-accent" aria-hidden="true" />
-            <h2>Submitted Proof Registry</h2>
+            <h2>Completed Trips Registry</h2>
           </div>
         </div>
 
@@ -9960,8 +9961,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           row={selectedRegistryRow}
           details={selectedProofDetails}
           reviewMessage={reviewMessage}
-          reviewRemarks={reviewRemarks}
-          setReviewRemarks={setReviewRemarks}
           reviewing={reviewing}
           reviewLocked={reviewLocked || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'}
           onClose={closeRegistryRow}

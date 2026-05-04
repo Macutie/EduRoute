@@ -187,6 +187,7 @@ const getHrmuProofList = async (client = pool) => {
         `SELECT
             ${proofSelect},
             faculty.full_name AS faculty_name,
+            faculty.id AS faculty_id,
             department.department_name AS college_name,
             COALESCE(locator.custom_purpose, locator.purpose_of_travel) AS purpose,
             locator.destination,
@@ -207,6 +208,7 @@ const getHrmuProofList = async (client = pool) => {
     return rows.map((row) => ({
         ...mapProofRow(row),
         facultyName: row.faculty_name,
+        facultyId: row.faculty_id,
         collegeName: row.college_name || null,
         purpose: row.purpose || null,
         destination: row.destination || null,
