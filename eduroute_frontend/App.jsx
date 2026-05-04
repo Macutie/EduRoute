@@ -9489,16 +9489,29 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
         if (!isMounted || !data) return;
 
         const rows = Array.isArray(data.notifications) ? data.notifications : [];
-        setNotificationRows(rows.map((notification) => ({
-          id: notification.id,
-          title: notification.title || 'HRMU Update',
-          body: notification.message || `${notification.facultyName} submitted a trip update.`,
-          meta: formatNotificationMeta(notification.createdAt || notification.approvedAt),
-          tone: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved' ? 'green' : 'red',
-          icon: notification.type === 'hrmu_location_verification_submitted' || notification.type === 'hrmu_locator_slip_approved'
-            ? <HrmuMiniCheckIcon color="var(--green)" />
-            : <HrmuWarningIcon color="#C81E1E" />,
-        })));
+        const positiveNotificationTypes = new Set([
+          'hrmu_location_verification_submitted',
+          'hrmu_locator_slip_approved',
+          'hrmu_trip_started',
+          'hrmu_trip_arrived',
+          'hrmu_trip_completed',
+          'hrmu_cssu_validated_exit',
+          'hrmu_verification_review_successful',
+        ]);
+
+        setNotificationRows(rows.map((notification) => {
+          const isPositive = positiveNotificationTypes.has(notification.type);
+          return {
+            id: notification.id,
+            title: notification.title || 'HRMU Update',
+            body: notification.message || `${notification.facultyName} submitted a trip update.`,
+            meta: formatNotificationMeta(notification.createdAt || notification.approvedAt),
+            tone: isPositive ? 'green' : 'red',
+            icon: isPositive
+              ? <HrmuMiniCheckIcon color="var(--green)" />
+              : <HrmuWarningIcon color="#C81E1E" />,
+          };
+        }));
       } catch (error) {
         if (isMounted) {
           console.error('Failed to load HRMU notifications:', error);
@@ -13424,7 +13437,13 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
                   )}
 
                   {!loading && !activityLoading && mobileActivityItems.map((item) => {
-                    const tone = item.type === 'trip_completed' || item.type === 'trip_cancelled' ? 'warning' : 'success';
+                    const normalizedType = String(item.type || '').toLowerCase();
+                    const tone = [
+                      'trip_cancelled',
+                      'late_return_detected',
+                      'unverified_location_flagged',
+                      'trip_flagged_unverified',
+                    ].includes(normalizedType) ? 'warning' : 'success';
                     return (
                       <div key={item.id || `${item.type}-${item.occurredAt}`} className="cssu-mobile-live-activity-item">
                         <div className={`cssu-mobile-live-activity-icon ${tone}`}>

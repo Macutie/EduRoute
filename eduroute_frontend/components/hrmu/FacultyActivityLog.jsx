@@ -1,9 +1,17 @@
 import React from 'react';
 
 const toneByType = (type) => {
-  if (type === 'trip_completed') return 'yellow';
-  if (type === 'trip_cancelled') return 'yellow';
-  if (type === 'location_update') return 'green';
+  const normalizedType = String(type || '').toLowerCase();
+
+  if ([
+    'trip_cancelled',
+    'late_return_detected',
+    'unverified_location_flagged',
+    'trip_flagged_unverified',
+  ].includes(normalizedType)) {
+    return 'yellow';
+  }
+
   return 'green';
 };
 
