@@ -13,12 +13,15 @@ const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Complianc
         </span>
       </div>
 
-      {proof.proofComplianceImageUrl && (
-        <img
-          src={proof.proofComplianceImageUrl}
-          alt="Proof of compliance"
-          className="proof-preview-image"
-        />
+      {proof.focalPersonSignatureUrl && (
+        <div className="proof-preview-signature-card">
+          <span>Captured Signature</span>
+          <img
+            src={proof.focalPersonSignatureUrl}
+            alt="Focal person signature"
+            className="proof-preview-signature-image"
+          />
+        </div>
       )}
 
       <div className="proof-preview-grid">
@@ -34,11 +37,18 @@ const ProofOfCompliancePreview = ({ proof, title = 'Submitted Proof of Complianc
           <span>Submitted</span>
           <strong>{proof.submittedAt ? new Date(proof.submittedAt).toLocaleString() : 'N/A'}</strong>
         </div>
-        <div>
-          <span>Remarks</span>
-          <strong>{proof.reviewRemarks || 'No HRMU remarks yet.'}</strong>
-        </div>
       </div>
+
+      {proof.proofComplianceImageUrl && (
+        <div className="proof-preview-proof-card">
+          <span>Full Compliance Card</span>
+          <img
+            src={proof.proofComplianceImageUrl}
+            alt="Proof of compliance"
+            className="proof-preview-image"
+          />
+        </div>
+      )}
 
       {proof.arrivalPhotoUrl && (
         <div className="proof-arrival-card">

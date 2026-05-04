@@ -4740,6 +4740,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   const [showActionBoard, setShowActionBoard] = useState(true);
   const [showTripMetrics, setShowTripMetrics] = useState(false);
   const [showRouteTools, setShowRouteTools] = useState(true);
+  const [showProofPanel, setShowProofPanel] = useState(true);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
   const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
@@ -4748,6 +4749,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
     search: { x: 0, y: 0 },
     action: { x: 0, y: 0 },
     metrics: { x: 0, y: 0 },
+    proof: { x: 0, y: 0 },
     tools: { x: 0, y: 0 },
     panel: { x: 0, y: 0 },
   });
@@ -5455,6 +5457,12 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   }, [selectedSlip]);
 
   useEffect(() => {
+    if (proofCompliance?.id) {
+      setShowProofPanel(true);
+    }
+  }, [proofCompliance?.id]);
+
+  useEffect(() => {
     const storedSlipId = localStorage.getItem('edurouteMapSlipId');
 
     if (!selectedSlip?.id && !storedSlipId) {
@@ -5916,12 +5924,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           {!activeTrip && locatorSlip && getLocatorSlipActionState(locatorSlip, activeTrip).helperText && (
             <p className="trip-search-state">{getLocatorSlipActionState(locatorSlip, activeTrip).helperText}</p>
           )}
-          {proofCompliance && (
-            <ProofOfCompliancePreview
-              proof={proofCompliance}
-              title={tripLifecycleState === 'ARRIVED' ? 'Drafted Proof Preview' : 'Submitted Proof of Compliance'}
-            />
-          )}
           {tripSummary?.summary && (
             <div className="trip-summary-card">
               <strong>Trip Summary Ready</strong>
@@ -5936,6 +5938,39 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           Show Route
         </button>
       )}
+
+      {proofCompliance && showProofPanel ? (
+        <div className="trip-proof-panel fade-in" style={getOverlayStyle('proof')}>
+          <div className="trip-metrics-head">
+            <span>Compliance Proof</span>
+            <div className="overlay-card-controls">
+              <button type="button" className="overlay-toggle-btn" onClick={() => setShowProofPanel(false)}>
+                Hide
+              </button>
+              <button
+                type="button"
+                className="overlay-drag-handle"
+                onMouseDown={startOverlayDrag('proof')}
+                onTouchStart={startOverlayDrag('proof')}
+              >
+                Drag
+              </button>
+            </div>
+          </div>
+          <ProofOfCompliancePreview
+            proof={proofCompliance}
+            title="Submitted Proof of Compliance"
+          />
+        </div>
+      ) : proofCompliance ? (
+        <button
+          type="button"
+          className="trip-proof-restore-btn fade-in"
+          onClick={() => setShowProofPanel(true)}
+        >
+          Show Compliance
+        </button>
+      ) : null}
 
       {tripSummary?.summary && (
         <div className="trip-summary-panel fade-in">

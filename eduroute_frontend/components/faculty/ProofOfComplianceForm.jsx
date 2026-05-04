@@ -11,7 +11,7 @@ const createCanvasPoint = (event, canvas) => {
 
 const drawSignatureStroke = (ctx, fromPoint, toPoint) => {
   ctx.strokeStyle = '#111827';
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 3.8;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   ctx.beginPath();
@@ -190,8 +190,8 @@ const ProofOfComplianceForm = ({
         </div>
         <canvas
           ref={canvasRef}
-          width={720}
-          height={220}
+          width={960}
+          height={320}
           className="proof-signature-canvas"
           onMouseDown={beginDraw}
           onMouseMove={continueDraw}

@@ -2,7 +2,7 @@ const sharp = require('sharp');
 const AppError = require('../utils/appError');
 
 const CARD_WIDTH = 1400;
-const CARD_HEIGHT = 1780;
+const CARD_HEIGHT = 1180;
 
 const escapeXml = (value) => String(value || '')
     .replace(/&/g, '&amp;')
@@ -103,16 +103,16 @@ const generateProofComplianceImage = async ({
     }
 
     const signatureCardBuffer = await ensurePngBuffer(signatureBuffer, {
-        width: 460,
-        height: 170,
+        width: 1180,
+        height: 260,
         fit: 'contain',
         background: { r: 255, g: 255, b: 255, alpha: 0 }
     });
 
     const arrivalThumbBuffer = arrivalPhotoBuffer
         ? await ensurePngBuffer(arrivalPhotoBuffer, {
-            width: 320,
-            height: 220,
+            width: 280,
+            height: 200,
             fit: 'cover'
         })
         : null;
@@ -142,7 +142,7 @@ const generateProofComplianceImage = async ({
         label: 'FACULTY NAME',
         value: facultyName,
         x: 80,
-        y: 280,
+        y: 640,
         maxChars: 26,
         maxLines: 2
     });
@@ -150,7 +150,7 @@ const generateProofComplianceImage = async ({
         label: 'LOCATOR SLIP CODE',
         value: locatorSlipCode,
         x: 760,
-        y: 280,
+        y: 640,
         maxChars: 18,
         maxLines: 2
     });
@@ -158,23 +158,23 @@ const generateProofComplianceImage = async ({
         label: 'DESTINATION',
         value: destination,
         x: 80,
-        y: 450,
+        y: 815,
         maxChars: 38,
-        maxLines: 3
+        maxLines: 2
     });
     const purposeBlock = renderTextBlock({
         label: 'PURPOSE',
         value: purpose,
-        x: 80,
-        y: 660,
+        x: 760,
+        y: 815,
         maxChars: 38,
-        maxLines: 3
+        maxLines: 2
     });
     const focalNameBlock = renderTextBlock({
         label: 'CONFIRMED BY',
         value: focalPersonName,
         x: 80,
-        y: 930,
+        y: 990,
         maxChars: 24,
         maxLines: 2
     });
@@ -182,15 +182,15 @@ const generateProofComplianceImage = async ({
         label: 'POSITION',
         value: focalPersonPosition,
         x: 760,
-        y: 930,
+        y: 990,
         maxChars: 22,
         maxLines: 2
     });
     const submittedBlock = renderTextBlock({
         label: 'SUBMITTED AT',
         value: formatDisplayDateTime(submittedAt),
-        x: 80,
-        y: 1500,
+        x: 760,
+        y: 990,
         maxChars: 24,
         maxLines: 2,
         valueFontSize: 30
@@ -198,7 +198,7 @@ const generateProofComplianceImage = async ({
 
     const photoCardLabel = arrivalThumbBuffer
         ? `
-            <text x="950" y="152" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#6f7782" letter-spacing="0">
+            <text x="990" y="192" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#6f7782" letter-spacing="0">
                 ARRIVAL PHOTO
             </text>
           `
@@ -206,7 +206,7 @@ const generateProofComplianceImage = async ({
 
     const photoCardRect = arrivalThumbBuffer
         ? `
-            <rect x="950" y="170" width="320" height="220" rx="18" ry="18" fill="#ffffff" stroke="#d6dde7" stroke-width="2" />
+            <rect x="990" y="210" width="280" height="200" rx="18" ry="18" fill="#ffffff" stroke="#d6dde7" stroke-width="2" />
           `
         : '';
 
@@ -215,30 +215,18 @@ const generateProofComplianceImage = async ({
             <rect x="28" y="28" width="${CARD_WIDTH - 56}" height="${CARD_HEIGHT - 56}" rx="28" ry="28" fill="#ffffff" stroke="#dbe5dd" stroke-width="3" />
             <circle cx="62" cy="76" r="8" fill="#0b9617" />
             ${titleBlock.svg}
-            ${facultyBlock.svg}
-            ${slipBlock.svg}
-            ${createSectionLine(420)}
-            ${destinationBlock.svg}
-            ${createSectionLine(630)}
-            ${purposeBlock.svg}
-            ${createSectionLine(900)}
-            ${focalNameBlock.svg}
-            ${focalPositionBlock.svg}
-            <text x="80" y="1180" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#6f7782" letter-spacing="0">
+            <text x="80" y="190" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#6f7782" letter-spacing="0">
                 FOCAL PERSON SIGNATURE
             </text>
-            <rect x="80" y="1205" width="510" height="220" rx="24" ry="24" fill="#fbfcfd" stroke="#d6dde7" stroke-width="2" />
-            <text x="760" y="1200" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700" fill="#6f7782" letter-spacing="0">
-                REVIEW NOTES
-            </text>
-            <rect x="760" y="1225" width="510" height="200" rx="24" ry="24" fill="#f8fbf8" stroke="#d6dde7" stroke-width="2" />
-            <text x="790" y="1305" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600" fill="#3f4b5c" letter-spacing="0">
-                Submitted for HRMU review
-            </text>
-            <text x="790" y="1355" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="500" fill="#6f7782" letter-spacing="0">
-                Faculty and HRMU can inspect the raw fields below the proof image.
-            </text>
-            ${createSectionLine(1470)}
+            <rect x="80" y="210" width="860" height="320" rx="28" ry="28" fill="#fbfcfd" stroke="#d6dde7" stroke-width="2" />
+            ${facultyBlock.svg}
+            ${slipBlock.svg}
+            ${createSectionLine(780)}
+            ${destinationBlock.svg}
+            ${createSectionLine(955)}
+            ${purposeBlock.svg}
+            ${focalNameBlock.svg}
+            ${focalPositionBlock.svg}
             ${submittedBlock.svg}
             ${photoCardLabel}
             ${photoCardRect}
@@ -253,16 +241,16 @@ const generateProofComplianceImage = async ({
         },
         {
             input: signatureCardBuffer,
-            top: 1240,
-            left: 105
+            top: 240,
+            left: 120
         }
     ];
 
     if (arrivalThumbBuffer) {
         composites.push({
             input: arrivalThumbBuffer,
-            top: 171,
-            left: 951
+            top: 211,
+            left: 991
         });
     }
 
