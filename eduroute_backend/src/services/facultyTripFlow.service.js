@@ -156,6 +156,17 @@ const applyLogicalTripStatus = (trip, status) => (
     trip ? { ...trip, status } : trip
 );
 
+const isTripOpen = (trip) => ACTIVE_TRIP_STATUSES.has(String(trip?.status || '').toLowerCase());
+
+const isSameLocatorSlipTrip = (trip, locatorSlipId, existingTripForSlip = null) => {
+    if (!trip) return false;
+    if (trip.locator_slip_id && String(trip.locator_slip_id) === String(locatorSlipId)) {
+        return true;
+    }
+
+    return Boolean(existingTripForSlip?.id && trip.id && String(existingTripForSlip.id) === String(trip.id));
+};
+
 const getVerificationTimestamp = (verification) => (
     verification?.verified_at
     || verification?.created_at
@@ -346,6 +357,29 @@ const startTrip = async (facultyUserId, payload) => {
     );
 
     const existingTrip = await facultyTripRepository.getOpenTripForUser(facultyUserId);
+    if (existingTrip && isSameLocatorSlipTrip(existingTrip, locatorSlipId, existingTripForSlip) && isTripOpen(existingTrip)) {
+        const route = await mapboxService.getDirections({
+            origin,
+            destination,
+            profile: payload.profile,
+            alternatives: false
+        });
+
+        return {
+            locatorSlip: {
+                ...locatorSlip,
+                trip_status: existingTrip.status || 'active',
+                canStartTrip: false,
+                actions: getFacultyLocatorSlipActions({
+                    ...locatorSlip,
+                    trip_status: existingTrip.status || 'active'
+                }, existingTrip)
+            },
+            trip: existingTrip,
+            route
+        };
+    }
+
     if (existingTrip) {
         throw new AppError('Complete the current trip before starting another one.', 409);
     }
