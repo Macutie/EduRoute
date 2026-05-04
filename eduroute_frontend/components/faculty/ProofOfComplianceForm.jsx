@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 const createCanvasPoint = (event, canvas) => {
   const rect = canvas.getBoundingClientRect();
   const source = event.touches?.[0] || event.changedTouches?.[0] || event;
+  const scaleX = rect.width ? canvas.width / rect.width : 1;
+  const scaleY = rect.height ? canvas.height / rect.height : 1;
   return {
-    x: source.clientX - rect.left,
-    y: source.clientY - rect.top,
+    x: (source.clientX - rect.left) * scaleX,
+    y: (source.clientY - rect.top) * scaleY,
   };
 };
 
@@ -65,6 +67,9 @@ const ProofOfComplianceForm = ({
     if (disabled || loading) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (event.cancelable) {
+      event.preventDefault();
+    }
     drawingRef.current = true;
     lastPointRef.current = createCanvasPoint(event, canvas);
     setHasSignature(true);

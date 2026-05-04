@@ -5552,7 +5552,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
 
         if (slip.currentTrip) {
           setActiveTrip(slip.currentTrip);
-          setArrivalVerification(slip.latestArrivalVerification || null);
           if (slip.currentTrip.origin) {
             setOrigin(slip.currentTrip.origin);
             setTripStartOrigin(slip.currentTrip.origin);
@@ -5586,7 +5585,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           }
         } else {
           setActiveTrip(null);
-          setArrivalVerification(null);
           setTripStartOrigin(null);
         }
 
@@ -6022,6 +6020,8 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           <ProofOfCompliancePreview
             proof={proofCompliance}
             title="Submitted Proof of Compliance"
+            showFullCard={false}
+            showArrivalPhoto={false}
           />
         </div>
       ) : proofCompliance ? (

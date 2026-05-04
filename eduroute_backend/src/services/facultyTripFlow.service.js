@@ -53,6 +53,7 @@ const getLogicalTripStatus = (trip) => {
     if (!trip) return 'not_started';
     if (trip.returned_at || trip.ended_at || trip.status === 'completed') return 'completed';
     if (trip.status === 'returning') return 'returning';
+    if (trip.arrival_verified_at) return 'arrived';
     if (trip.arrived_at && trip.arrival_verified_at) return 'arrived';
     if (trip.arrived_at) return 'arrived';
     if (trip.status === 'arrived') return 'arrived';
