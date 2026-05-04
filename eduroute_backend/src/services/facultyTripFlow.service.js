@@ -168,6 +168,9 @@ const isSameLocatorSlipTrip = (trip, locatorSlipId, existingTripForSlip = null) 
 };
 
 const getVerificationTimestamp = (verification) => (
+    verification?.submitted_at
+    || verification?.submittedAt
+    ||
     verification?.verified_at
     || verification?.created_at
     || verification?.updated_at
@@ -185,6 +188,17 @@ const hydrateTripWithVerification = (trip, verification) => {
         arrived_at: trip.arrived_at || verificationTime,
         arrival_verified_at: trip.arrival_verified_at || verificationTime
     };
+};
+
+const hydrateTripWithSavedProofState = async (trip, facultyUserId) => {
+    if (!trip) return trip;
+
+    const latestArrivalVerification = await facultyTripRepository.getLatestArrivalVerification(trip.id);
+    const latestLocationVerification = trip.locator_slip_id
+        ? await facultyTripRepository.getLatestLocatorSlipLocationVerification(trip.locator_slip_id, facultyUserId)
+        : null;
+
+    return hydrateTripWithVerification(trip, latestLocationVerification || latestArrivalVerification);
 };
 
 const buildHrmuTripNotificationMessage = (type, context = {}) => {
@@ -358,6 +372,7 @@ const startTrip = async (facultyUserId, payload) => {
 
     const existingTrip = await facultyTripRepository.getOpenTripForUser(facultyUserId);
     if (existingTrip && isSameLocatorSlipTrip(existingTrip, locatorSlipId, existingTripForSlip) && isTripOpen(existingTrip)) {
+        const resumedTrip = await hydrateTripWithSavedProofState(existingTrip, facultyUserId);
         const route = await mapboxService.getDirections({
             origin,
             destination,
@@ -372,10 +387,10 @@ const startTrip = async (facultyUserId, payload) => {
                 canStartTrip: false,
                 actions: getFacultyLocatorSlipActions({
                     ...locatorSlip,
-                    trip_status: existingTrip.status || 'active'
-                }, existingTrip)
+                    trip_status: resumedTrip?.status || existingTrip.status || 'active'
+                }, resumedTrip || existingTrip)
             },
-            trip: existingTrip,
+            trip: resumedTrip || existingTrip,
             route
         };
     }
@@ -388,7 +403,7 @@ const startTrip = async (facultyUserId, payload) => {
             const adoptedTrip = await facultyTripRepository.updateTripLifecycle(existingTrip.id, facultyUserId, {
                 locator_slip_id: locatorSlipId,
             });
-            const effectiveTrip = adoptedTrip || existingTrip;
+            const effectiveTrip = await hydrateTripWithSavedProofState(adoptedTrip || existingTrip, facultyUserId);
             await facultyTripRepository.updateLocatorSlipTripStatus(locatorSlipId, effectiveTrip.status || 'active');
 
             const route = await mapboxService.getDirections({

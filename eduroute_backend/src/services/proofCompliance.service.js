@@ -134,7 +134,20 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
 
     const existingProof = await proofComplianceRepository.getProofByTripForFaculty(tripId, facultyUserId);
     if (existingProof) {
-        throw new AppError('Proof of compliance has already been submitted for this trip.', 409);
+        return {
+            trip: {
+                id: trip.id,
+                status: logicalStatus === 'active' ? 'arrived' : trip.status,
+                arrived_at: trip.arrived_at || existingProof.submittedAt || new Date(),
+                arrival_verified_at: trip.arrival_verified_at || existingProof.submittedAt || new Date()
+            },
+            proof: normalizeProofResponse(existingProof, {
+                facultyName: payload.facultyName || trip.faculty_name || 'Faculty member',
+                destination: trip.destination || trip.destination_name || 'Destination',
+                purpose: trip.custom_purpose || trip.purpose_of_travel || 'Official travel',
+                locatorSlipCode: buildLocatorSlipCode(trip.locator_slip_id)
+            })
+        };
     }
 
     const linkedLocatorSlip = await facultyTripRepository.getLocatorSlipForTripAccess(facultyUserId, trip.locator_slip_id);
