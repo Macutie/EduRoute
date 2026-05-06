@@ -778,6 +778,7 @@ function App() {
           setView={setView}
           loginForm={loginForm}
           setLoginForm={setLoginForm}
+          setForgotPasswordBackView={setForgotPasswordBackView}
           onLogin={handleLogin}
           loading={loading}
           showLoginPassword={showLoginPassword}
@@ -1677,7 +1678,7 @@ const LOGIN_PORTAL_ROLES = [
   { key: 'cssu', label: 'CSSU', title: 'Gordon College CSSU Portal', icon: CssuRoleIcon, portalRole: 'cssu', viewports: ['mobile', 'desktop'] },
 ];
 
-const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLoginPassword, setShowLoginPassword }) => {
+const LoginView = ({ setView, loginForm, setLoginForm, setForgotPasswordBackView, onLogin, loading, showLoginPassword, setShowLoginPassword }) => {
   const getDesktopRoleViewport = () => (typeof window !== 'undefined' ? window.innerWidth >= 768 : true);
   const [isDesktopRoleViewport, setIsDesktopRoleViewport] = useState(getDesktopRoleViewport);
   const [selectedRole, setSelectedRole] = useState(() => (getDesktopRoleViewport() ? 'hrmu' : 'faculty'));
