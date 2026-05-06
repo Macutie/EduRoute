@@ -209,22 +209,9 @@ function App() {
   const [permissionSetupStep, setPermissionSetupStep] = useState('intro');
   const [permissionSetupMessage, setPermissionSetupMessage] = useState('');
   const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
-  const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallPromptReady, setIsInstallPromptReady] = useState(false);
   const permissionSetupSeenRef = useRef(false);
 
-  const isStandaloneMode = useCallback(() => {
-    if (typeof window === 'undefined') return false;
-
-    return Boolean(
-      window.matchMedia?.('(display-mode: standalone)')?.matches
-      || window.navigator?.standalone
-      || document.referrer.startsWith('android-app://')
-    );
-  }, []);
-
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
-  const shouldShowInstallButton = !isStandaloneMode();
 
   const formatApiMessage = (value) => {
     if (!value) return '';
@@ -486,96 +473,6 @@ function App() {
 
     loadPermissionSetup();
   }, [view]);
-
-  useEffect(() => {
-    const syncInstallAvailability = () => {
-      if (isStandaloneMode()) {
-        setIsInstallPromptReady(false);
-        setDeferredPrompt(null);
-        return;
-      }
-
-      if (window.deferredPrompt) {
-        setDeferredPrompt(window.deferredPrompt);
-        setIsInstallPromptReady(true);
-        return;
-      }
-
-      setDeferredPrompt(null);
-      setIsInstallPromptReady(false);
-    };
-
-    const handleBeforeInstallPrompt = (e) => {
-      e.preventDefault();
-      window.deferredPrompt = e;
-      setDeferredPrompt(e);
-      setIsInstallPromptReady(true);
-    };
-
-    const handleDeferredReady = () => {
-      syncInstallAvailability();
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstallPromptReady(false);
-      setDeferredPrompt(null);
-      window.deferredPrompt = null;
-    };
-
-    const handleVisibilityRefresh = () => {
-      if (document.visibilityState === 'visible') {
-        syncInstallAvailability();
-      }
-    };
-
-    const handleWindowFocus = () => {
-      syncInstallAvailability();
-    };
-
-    const handlePageShow = () => {
-      syncInstallAvailability();
-    };
-
-    syncInstallAvailability();
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('deferredpromptready', handleDeferredReady);
-    window.addEventListener('appinstalled', handleAppInstalled);
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('pageshow', handlePageShow);
-    document.addEventListener('visibilitychange', handleVisibilityRefresh);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('deferredpromptready', handleDeferredReady);
-      window.removeEventListener('appinstalled', handleAppInstalled);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('pageshow', handlePageShow);
-      document.removeEventListener('visibilitychange', handleVisibilityRefresh);
-    };
-  }, [isStandaloneMode]);
-
-  const handleInstallClick = async () => {
-    if (!deferredPrompt) {
-      alert(
-        'To install EduRoute, use your browser install option. In Chrome or Edge, look for the install icon in the address bar or open the browser menu and choose "Install app".'
-      );
-      return;
-    }
-
-    deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setIsInstallPromptReady(false);
-      setDeferredPrompt(null);
-      window.deferredPrompt = null;
-      return;
-    }
-
-    setIsInstallPromptReady(false);
-    setDeferredPrompt(null);
-    window.deferredPrompt = null;
-  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -1136,18 +1033,6 @@ function App() {
         />
       )}
 
-      {shouldShowInstallButton && (
-        <button
-          className="pwa-floating-install-btn"
-          onClick={handleInstallClick}
-          title={isInstallPromptReady ? 'Install EduRoute' : 'Show install instructions'}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Install App
-        </button>
-      )}
     </div>
   );
 }

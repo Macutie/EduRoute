@@ -9,19 +9,6 @@
     <title>eduroute</title>
   </head>
   <body>
-    <script>
-      window.deferredPrompt = null;
-      console.log('Early PWA script loaded');
-      window.addEventListener('beforeinstallprompt', (e) => {
-        console.log('beforeinstallprompt fired! App is installable');
-        e.preventDefault();
-        window.deferredPrompt = e;
-        window.dispatchEvent(new Event('deferredpromptready'));
-      });
-      window.addEventListener('appinstalled', () => {
-        console.log('App was installed successfully');
-      });
-    </script>
     <div id="root"></div>
     <script type="module" src="/eduroute_frontend/main.jsx"></script>
   </body>
