@@ -213,6 +213,16 @@ function App() {
   const [isInstallable, setIsInstallable] = useState(false);
   const permissionSetupSeenRef = useRef(false);
 
+  const isStandaloneMode = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+
+    return Boolean(
+      window.matchMedia?.('(display-mode: standalone)')?.matches
+      || window.navigator?.standalone
+      || document.referrer.startsWith('android-app://')
+    );
+  }, []);
+
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
 
   const formatApiMessage = (value) => {
@@ -477,22 +487,32 @@ function App() {
   }, [view]);
 
   useEffect(() => {
+    const syncInstallAvailability = () => {
+      if (isStandaloneMode()) {
+        setIsInstallable(false);
+        setDeferredPrompt(null);
+        return;
+      }
+
+      if (window.deferredPrompt) {
+        setDeferredPrompt(window.deferredPrompt);
+        setIsInstallable(true);
+        return;
+      }
+
+      setDeferredPrompt(null);
+      setIsInstallable(false);
+    };
+
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
+      window.deferredPrompt = e;
       setDeferredPrompt(e);
       setIsInstallable(true);
     };
 
-    if (window.deferredPrompt) {
-      setDeferredPrompt(window.deferredPrompt);
-      setIsInstallable(true);
-    }
-
     const handleDeferredReady = () => {
-      if (window.deferredPrompt) {
-        setDeferredPrompt(window.deferredPrompt);
-        setIsInstallable(true);
-      }
+      syncInstallAvailability();
     };
 
     const handleAppInstalled = () => {
@@ -501,16 +521,38 @@ function App() {
       window.deferredPrompt = null;
     };
 
+    const handleVisibilityRefresh = () => {
+      if (document.visibilityState === 'visible') {
+        syncInstallAvailability();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      syncInstallAvailability();
+    };
+
+    const handlePageShow = () => {
+      syncInstallAvailability();
+    };
+
+    syncInstallAvailability();
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('deferredpromptready', handleDeferredReady);
     window.addEventListener('appinstalled', handleAppInstalled);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('pageshow', handlePageShow);
+    document.addEventListener('visibilitychange', handleVisibilityRefresh);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('deferredpromptready', handleDeferredReady);
       window.removeEventListener('appinstalled', handleAppInstalled);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('pageshow', handlePageShow);
+      document.removeEventListener('visibilitychange', handleVisibilityRefresh);
     };
-  }, []);
+  }, [isStandaloneMode]);
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
@@ -518,8 +560,11 @@ function App() {
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
       setIsInstallable(false);
+    } else {
+      setIsInstallable(false);
     }
     setDeferredPrompt(null);
+    window.deferredPrompt = null;
   };
 
   const handleRegister = async (e) => {
