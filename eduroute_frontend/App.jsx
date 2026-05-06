@@ -184,6 +184,7 @@ function App() {
   const [forgotForm, setForgotForm] = useState({
     email: ''
   });
+  const [forgotPasswordBackView, setForgotPasswordBackView] = useState('login');
   const [resetCode, setResetCode] = useState('');
   const [resetToken, setResetToken] = useState('');
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -791,6 +792,7 @@ function App() {
           setForgotForm={setForgotForm}
           onForgotPassword={handleForgotPassword}
           loading={loading}
+          backView={forgotPasswordBackView}
         />
       )}
 
@@ -867,7 +869,7 @@ function App() {
       )}
       {view === 'map' && <MapTrackingView setView={setView} profileData={profileData} selectedSlip={selectedStatusSlip} setSelectedSlip={setSelectedStatusSlip} />}
       {view === 'profile' && <ProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
-      {view === 'change-password' && <ChangePasswordView setView={setView} profileData={profileData} />}
+      {view === 'change-password' && <ChangePasswordView setView={setView} profileData={profileData} setForgotPasswordBackView={setForgotPasswordBackView} />}
       {view === 'notification-settings' && <NotificationSettingsView setView={setView} profileData={profileData} />}
       {view === 'edit-profile' && (
         <EditProfileView
@@ -903,7 +905,7 @@ function App() {
           setSelectedDeanRequest={setSelectedDeanRequest}
         />
       )}
-      {view === 'dean-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="dean-profile" />}
+      {view === 'dean-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="dean-profile" setForgotPasswordBackView={setForgotPasswordBackView} />}
       {view === 'dean-edit-profile' && (
         <EditProfileView
           setView={setView}
@@ -957,7 +959,7 @@ function App() {
         localStorage.removeItem('edurouteLastView');
         setView('login');
       }} />}
-      {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" />}
+      {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />}
       {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
 
 
@@ -1790,6 +1792,7 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
                           className="dlogin-forgot-link"
                           onClick={(e) => {
                             e.preventDefault();
+                            setForgotPasswordBackView('login');
                             setView('forgot-password');
                           }}
                         >
@@ -1905,6 +1908,7 @@ const LoginView = ({ setView, loginForm, setLoginForm, onLogin, loading, showLog
                     className="forgot-link"
                     onClick={(e) => {
                       e.preventDefault();
+                      setForgotPasswordBackView('login');
                       setView('forgot-password');
                     }}
                   >
@@ -2028,7 +2032,11 @@ const DesktopAuthShell = ({
   </div>
 );
 
-const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading }) => (
+const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPassword, loading, backView = 'login' }) => {
+  const isProfileRecovery = backView !== 'login';
+  const backLabel = isProfileRecovery ? 'Back to Change Password' : 'Back to Login';
+
+  return (
   <>
     <DesktopAuthShell
       portalLabel="ACCOUNT RECOVERY PORTAL"
@@ -2062,8 +2070,8 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
           {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
         </button>
 
-        <button type="button" className="ghost-btn" onClick={() => setView('login')}>
-          <LoginDoorIcon /> Back to Login
+        <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
+          <LoginDoorIcon /> {backLabel}
         </button>
       </form>
 
@@ -2080,6 +2088,11 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
 
     <div className="auth-mobile-view content fade-in forgot-pw-content">
       <div className="recovery-header">
+        {isProfileRecovery && (
+          <button type="button" className="recovery-back-btn" onClick={() => setView(backView)} aria-label={backLabel}>
+            <BackArrowIcon color="var(--green)" />
+          </button>
+        )}
         <CapIcon />
         <span>EduRoute Portal</span>
       </div>
@@ -2117,8 +2130,8 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
           {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
         </button>
 
-        <button type="button" className="ghost-btn" onClick={() => setView('login')}>
-          <LoginDoorIcon /> Back to Login
+        <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
+          <LoginDoorIcon /> {backLabel}
         </button>
       </form>
 
@@ -2133,7 +2146,8 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
       </div>
     </div>
   </>
-);
+  );
+};
 
 const ResetCodeView = ({
   setView,
@@ -6823,7 +6837,7 @@ const EyeOffIcon = () => (
   </svg>
 );
 
-const ChangePasswordView = ({ setView, profileData, backView = 'profile' }) => {
+const ChangePasswordView = ({ setView, profileData, backView = 'profile', setForgotPasswordBackView }) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -7140,7 +7154,10 @@ const ChangePasswordView = ({ setView, profileData, backView = 'profile' }) => {
         </button>
 
         <div className="chpw-lost-access">
-          FORGOT CURRENT PASSWORD? <span onClick={() => setView('forgot-password')}>RESET PASSWORD</span>
+          FORGOT CURRENT PASSWORD? <span onClick={() => {
+            setForgotPasswordBackView('change-password');
+            setView('forgot-password');
+          }}>RESET PASSWORD</span>
         </div>
 
       </div>

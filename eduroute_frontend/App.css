@@ -923,6 +923,20 @@ label {
   width: 100%;
 }
 
+.recovery-back-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(4, 149, 22, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
 .recovery-title-box {
   display: flex;
   align-items: stretch;
