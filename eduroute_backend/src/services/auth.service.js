@@ -429,11 +429,16 @@ const forgotPassword = async ({ email }) => {
         [user.id, resetCodeHash, expiresAt]
     );
 
-    await sendResetCodeEmail({
-        to: user.email,
-        fullName: user.full_name,
-        resetCode
-    });
+    try {
+        await sendResetCodeEmail({
+            to: user.email,
+            fullName: user.full_name,
+            resetCode
+        });
+    } catch (error) {
+        console.error('Failed to send password reset email:', error);
+        throw new AppError('EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.', 503);
+    }
 };
 
 const verifyResetCode = async ({ email, reset_code }) => {
