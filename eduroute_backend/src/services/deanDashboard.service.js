@@ -308,7 +308,7 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
             COALESCE(fu.employment_type, 'full_time') AS employment_type,
             d.department_name,
             COUNT(ls.id)::int AS total_requests,
-            COUNT(ls.id) FILTER (WHERE ls.status = 'approved')::int AS approved_requests,
+            COUNT(ls.id) FILTER (WHERE ls.status IN ('approved', 'completed', 'verified'))::int AS approved_requests,
             COUNT(ls.id) FILTER (WHERE ls.status = 'rejected')::int AS rejected_requests,
             COALESCE(
                 ARRAY_AGG(ls.status ORDER BY ls.created_at DESC)
@@ -326,7 +326,7 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
     );
 
     const items = facultyResult.rows.map((row) => {
-        const approvalDenominator = Number(row.approved_requests || 0) + Number(row.rejected_requests || 0);
+        const approvalDenominator = Number(row.total_requests || 0);
         const approvalRate = approvalDenominator > 0
             ? Math.round((Number(row.approved_requests || 0) / approvalDenominator) * 100)
             : 0;
