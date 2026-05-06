@@ -159,6 +159,7 @@ const normalizeLocatorSlipRow = (row) => ({
     isUrgent: row.is_urgent === true,
     status: row.status,
     cancellationReason: row.cancellation_reason || null,
+    additionalRemarks: row.additional_remarks || null,
     createdAt: row.created_at,
     dateSubmitted: formatDateOnly(row.created_at),
     formattedCreatedAt: formatDateTime(row.created_at),
@@ -489,6 +490,7 @@ const getRegistryPage = async (deanUserId) => {
             ls.updated_at,
             ls.approved_at,
             ls.rejected_at,
+            ls.additional_remarks,
             COALESCE(
                 ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text,'}
                 latest_cancel_notification.cancellation_reason
