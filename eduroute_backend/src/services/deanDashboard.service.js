@@ -650,6 +650,12 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
 
 const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '') => {
     const dean = await getDeanContext(deanUserId);
+    const trimmedRemarks = String(remarks || '').trim();
+
+    if (!trimmedRemarks) {
+        throw new AppError('A reason for rejection is required.', 422);
+    }
+
     const client = await pool.connect();
 
     try {
@@ -693,7 +699,7 @@ const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '')
                  updated_at = CURRENT_TIMESTAMP
              WHERE id = $1
              RETURNING *`,
-            [locatorSlipId, dean.id, remarks || null]
+            [locatorSlipId, dean.id, trimmedRemarks]
         );
 
         await client.query('COMMIT');
@@ -702,7 +708,7 @@ const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '')
             recipientUserId: slip.faculty_user_id,
             senderUserId: dean.id,
             locatorSlipId: slip.id,
-            remarks
+            remarks: trimmedRemarks
         }).catch((notificationError) => {
             console.error('Failed to notify faculty about rejected locator slip:', notificationError);
         });
@@ -710,7 +716,7 @@ const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '')
         return {
             locatorSlipId: updateResult.rows[0].id,
             status: updateResult.rows[0].status,
-            remarks: remarks || null
+            remarks: trimmedRemarks
         };
     } catch (error) {
         try {

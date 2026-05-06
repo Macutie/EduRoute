@@ -20,6 +20,7 @@ import {
   getDeanPendingRequestsPage,
   getDeanRegistryPage,
   markDeanNotificationRead,
+  rejectDeanLocatorSlipRequest,
 } from './services/deanApi';
 import {
   exportHrmuRecentActivityCsvPlaceholder,
@@ -4230,6 +4231,12 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                       ? 'This locator slip was cancelled by the faculty user before approval.'
                     : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
+          {isRejected && slip.additional_remarks && (
+            <div className="submitted-reason-card">
+              <span>REJECTION REASON</span>
+              <strong>{slip.additional_remarks}</strong>
+            </div>
+          )}
           {isApproved && actionState.helperText && (
             <p className="trip-search-state" style={{ marginTop: '0.75rem' }}>
               {actionState.helperText}
@@ -8509,6 +8516,9 @@ const DeanRequestsView = ({ setView, profileData, setSelectedDeanRequest }) => {
 
 const DeanRequestDetailView = ({ setView, profileData, request }) => {
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionRemarks, setRejectionRemarks] = useState('');
 
   if (!request) {
     return (
@@ -8535,6 +8545,10 @@ const DeanRequestDetailView = ({ setView, profileData, request }) => {
       ? `${normalizedStatus.charAt(0).toUpperCase()}${normalizedStatus.slice(1)}`
       : 'Pending';
   const showActions = request.status === 'pending';
+  const openRejectModal = () => {
+    setRejectionRemarks(request.additionalRemarks || '');
+    setShowRejectModal(true);
+  };
 
   const handleApproveRequest = async () => {
     if (!request?.locatorSlipId || approving) return;
@@ -8548,6 +8562,28 @@ const DeanRequestDetailView = ({ setView, profileData, request }) => {
       alert(error.message || 'Failed to approve locator slip.');
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    if (!request?.locatorSlipId || rejecting) return;
+    const trimmedRemarks = rejectionRemarks.trim();
+
+    if (!trimmedRemarks) {
+      alert('Please enter the reason for rejecting this locator slip.');
+      return;
+    }
+
+    try {
+      setRejecting(true);
+      await rejectDeanLocatorSlipRequest(request.locatorSlipId, trimmedRemarks);
+      alert('Locator slip rejected successfully.');
+      setShowRejectModal(false);
+      setView('dean-requests');
+    } catch (error) {
+      alert(error.message || 'Failed to reject locator slip.');
+    } finally {
+      setRejecting(false);
     }
   };
 
@@ -8651,14 +8687,44 @@ const DeanRequestDetailView = ({ setView, profileData, request }) => {
               {approving ? 'Approving...' : 'Approve Request'}
             </button>
             <div className="adet-secondary-actions">
-              <button type="button" className="adet-reject-btn">
+              <button type="button" className="adet-reject-btn" onClick={openRejectModal} disabled={rejecting}>
                 <RejectXIcon />
                 Reject
               </button>
-              <button type="button" className="adet-remarks-btn">
+              <button type="button" className="adet-remarks-btn" onClick={openRejectModal} disabled={rejecting}>
                 <RemarksIcon />
                 Remarks
               </button>
+            </div>
+          </div>
+        )}
+
+        {showRejectModal && (
+          <div className="adet-modal-backdrop" role="presentation" onClick={() => !rejecting && setShowRejectModal(false)}>
+            <div className="adet-modal-card" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
+              <span className="adet-modal-kicker">REJECT LOCATOR SLIP</span>
+              <h3>Reason for rejection</h3>
+              <p>Enter the reason so the faculty member can see why this locator slip was rejected.</p>
+              <div className="adet-modal-field">
+                <label htmlFor="dean-rejection-remarks">Dean remarks</label>
+                <textarea
+                  id="dean-rejection-remarks"
+                  value={rejectionRemarks}
+                  onChange={(event) => setRejectionRemarks(event.target.value)}
+                  placeholder="Type the reason for rejection..."
+                  maxLength={1000}
+                  disabled={rejecting}
+                />
+                <span>{rejectionRemarks.trim().length}/1000</span>
+              </div>
+              <div className="adet-modal-actions">
+                <button type="button" className="adet-modal-secondary" onClick={() => setShowRejectModal(false)} disabled={rejecting}>
+                  Back
+                </button>
+                <button type="button" className="adet-modal-primary" onClick={handleRejectRequest} disabled={rejecting}>
+                  {rejecting ? 'Rejecting...' : 'Confirm Reject'}
+                </button>
+              </div>
             </div>
           </div>
         )}
