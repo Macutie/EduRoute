@@ -145,6 +145,96 @@ const calculateLateReturn = (expectedReturnTime, actualReturnTime) => {
     };
 };
 
+const isFiniteCoordinate = (value) => Number.isFinite(Number(value));
+
+const getTripCoordinatePair = (trip) => {
+    const originLat = Number(trip?.origin?.lat ?? trip?.origin_lat);
+    const originLng = Number(trip?.origin?.lng ?? trip?.origin_lng);
+    const destinationLat = Number(trip?.destination?.lat ?? trip?.destination_lat);
+    const destinationLng = Number(trip?.destination?.lng ?? trip?.destination_lng);
+
+    if (
+        !isFiniteCoordinate(originLat)
+        || !isFiniteCoordinate(originLng)
+        || !isFiniteCoordinate(destinationLat)
+        || !isFiniteCoordinate(destinationLng)
+    ) {
+        return null;
+    }
+
+    return {
+        origin: { lat: originLat, lng: originLng },
+        destination: { lat: destinationLat, lng: destinationLng }
+    };
+};
+
+const getComputedTripTotals = async (trip) => {
+    const tripCoordinates = getTripCoordinatePair(trip);
+    let outboundDistanceMeters = Number(trip?.outbound_distance_meters ?? trip?.route_distance_meters ?? 0);
+    let returnDistanceMeters = Number(trip?.return_distance_meters ?? 0);
+    let totalDistanceMeters = Number(trip?.total_distance_meters ?? 0);
+    let totalDistanceKm = Number(trip?.total_distance_km ?? 0);
+    let totalTripMinutes = Number(trip?.total_trip_minutes ?? 0);
+    let totalTripHours = Number(trip?.total_trip_hours ?? 0);
+    const actualReturnTime = trip?.ended_at || trip?.returned_at || null;
+    const logicalStatus = getLogicalTripStatus(trip);
+
+    if ((!Number.isFinite(outboundDistanceMeters) || outboundDistanceMeters <= 0) && tripCoordinates) {
+        try {
+            const outboundRoute = await mapboxService.getDirections({
+                origin: tripCoordinates.origin,
+                destination: tripCoordinates.destination
+            });
+            outboundDistanceMeters = Number(outboundRoute?.distance_meters || 0);
+        } catch (_) {
+            outboundDistanceMeters = 0;
+        }
+    }
+
+    if ((!Number.isFinite(returnDistanceMeters) || returnDistanceMeters <= 0) && logicalStatus === 'completed') {
+        if (Number.isFinite(outboundDistanceMeters) && outboundDistanceMeters > 0) {
+            returnDistanceMeters = outboundDistanceMeters;
+        } else if (tripCoordinates) {
+            try {
+                const returnRoute = await mapboxService.getDirections({
+                    origin: tripCoordinates.destination,
+                    destination: tripCoordinates.origin
+                });
+                returnDistanceMeters = Number(returnRoute?.distance_meters || 0);
+            } catch (_) {
+                returnDistanceMeters = 0;
+            }
+        }
+    }
+
+    if (!Number.isFinite(totalDistanceMeters) || totalDistanceMeters <= 0) {
+        totalDistanceMeters = Math.max(Number(outboundDistanceMeters || 0), 0) + Math.max(Number(returnDistanceMeters || 0), 0);
+    }
+
+    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0) {
+        totalDistanceKm = totalDistanceMeters > 0 ? totalDistanceMeters / 1000 : 0;
+    }
+
+    if ((!Number.isFinite(totalTripMinutes) || totalTripMinutes <= 0 || !Number.isFinite(totalTripHours) || totalTripHours <= 0)
+        && trip?.started_at && actualReturnTime) {
+        const startedAt = new Date(trip.started_at);
+        const endedAt = new Date(actualReturnTime);
+        if (!Number.isNaN(startedAt.getTime()) && !Number.isNaN(endedAt.getTime())) {
+            totalTripMinutes = Math.max(Math.round((endedAt.getTime() - startedAt.getTime()) / 60000), 0);
+            totalTripHours = totalTripMinutes / 60;
+        }
+    }
+
+    return {
+        outboundDistanceMeters: Number.isFinite(outboundDistanceMeters) ? outboundDistanceMeters : 0,
+        returnDistanceMeters: Number.isFinite(returnDistanceMeters) ? returnDistanceMeters : 0,
+        totalDistanceMeters: Number.isFinite(totalDistanceMeters) ? totalDistanceMeters : 0,
+        totalDistanceKm: Number.isFinite(totalDistanceKm) ? totalDistanceKm : 0,
+        totalTripMinutes: Number.isFinite(totalTripMinutes) ? totalTripMinutes : 0,
+        totalTripHours: Number.isFinite(totalTripHours) ? totalTripHours : 0
+    };
+};
+
 const mapLocatorSlipResponse = (locatorSlip, currentTrip, verification) => ({
     ...locatorSlip,
     currentTrip,
@@ -860,6 +950,7 @@ const getTripSummary = async (facultyUserId, tripId) => {
     }
 
     const lateReturn = calculateLateReturn(trip.expected_return_datetime, trip.ended_at || trip.returned_at);
+    const totals = await getComputedTripTotals(trip);
 
     return {
         locatorSlip: {
@@ -883,12 +974,12 @@ const getTripSummary = async (facultyUserId, tripId) => {
             actualStartTripTime: trip.started_at,
             estimatedReturnTime: trip.expected_return_datetime,
             actualReturnTime: trip.ended_at || trip.returned_at,
-            outboundDistanceMeters: Number(trip.outbound_distance_meters || trip.route_distance_meters || 0),
-            returnDistanceMeters: Number(trip.return_distance_meters || 0),
-            totalDistanceMeters: Number(trip.total_distance_meters || 0),
-            totalDistanceKm: Number(trip.total_distance_km || 0),
-            totalTripMinutes: Number(trip.total_trip_minutes || 0),
-            totalTripHours: Number(trip.total_trip_hours || 0),
+            outboundDistanceMeters: totals.outboundDistanceMeters,
+            returnDistanceMeters: totals.returnDistanceMeters,
+            totalDistanceMeters: totals.totalDistanceMeters,
+            totalDistanceKm: totals.totalDistanceKm,
+            totalTripMinutes: totals.totalTripMinutes,
+            totalTripHours: totals.totalTripHours,
             isLateReturn: lateReturn.isLateReturn,
             minutesLate: lateReturn.minutesLate
         }
