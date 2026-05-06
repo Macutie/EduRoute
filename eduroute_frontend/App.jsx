@@ -3921,27 +3921,29 @@ const StatusView = ({ setView, profileData, setSelectedStatusSlip }) => {
   return (
     <div className="dashboard-wrapper status-wrapper">
       <div className="content fade-in dash-content status-content">
-        <div className="status-top-nav">
-          <div className="slip-nav-left" onClick={() => setView('dashboard')}>
-            <BackArrowIcon color="var(--green)" />
-            <span className="dash-logo-text">EduRoute</span>
+        <div className="status-sticky-header">
+          <div className="status-top-nav">
+            <div className="slip-nav-left" onClick={() => setView('dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text">EduRoute</span>
+            </div>
+            <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
+              <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
           </div>
-          <div className="dash-avatar" onClick={() => setView('profile')} style={{ cursor: 'pointer' }}>
-            <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-        </div>
 
-        <div className="status-filter-row">
-          {STATUS_FILTERS.map((filter) => (
-            <button
-              key={filter.key}
-              type="button"
-              className={`status-filter-chip ${activeFilter === filter.key ? 'active' : ''}`}
-              onClick={() => setActiveFilter(filter.key)}
-            >
-              {filter.label}
-            </button>
-          ))}
+          <div className="status-filter-row">
+            {STATUS_FILTERS.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                className={`status-filter-chip ${activeFilter === filter.key ? 'active' : ''}`}
+                onClick={() => setActiveFilter(filter.key)}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="status-slip-list">

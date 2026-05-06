@@ -2187,30 +2187,33 @@ label {
   padding: 0 24px 120px;
 }
 
+.status-sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  margin: 0 -24px 12px;
+  padding: 0 24px 6px;
+  background:
+    linear-gradient(to bottom, rgba(248, 250, 248, 0.98), rgba(248, 250, 248, 0.94));
+}
+
 .status-top-nav {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding-top: 18px;
   padding-bottom: 18px;
-  margin: 0 -24px 16px;
-  padding-left: 24px;
-  padding-right: 24px;
   background: rgba(248, 250, 248, 0.92);
   border-bottom: 1px solid #e5e7eb;
 }
 
 .status-filter-row {
-  position: relative;
-  z-index: 2;
   display: flex;
   gap: 10px;
   overflow-x: auto;
   overflow-y: hidden;
-  padding: 0 0 18px;
-  margin: 0 -24px 8px;
-  padding-left: 24px;
-  padding-right: 24px;
+  padding: 14px 0 18px;
+  margin: 0;
   background: rgba(248, 250, 248, 0.96);
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -2250,7 +2253,7 @@ label {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-top: 4px;
+  padding-top: 6px;
 }
 
 .status-slip-card {
