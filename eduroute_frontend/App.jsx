@@ -210,7 +210,7 @@ function App() {
   const [permissionSetupMessage, setPermissionSetupMessage] = useState('');
   const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
-  const [isInstallable, setIsInstallable] = useState(false);
+  const [isInstallPromptReady, setIsInstallPromptReady] = useState(false);
   const permissionSetupSeenRef = useRef(false);
 
   const isStandaloneMode = useCallback(() => {
@@ -224,6 +224,7 @@ function App() {
   }, []);
 
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
+  const shouldShowInstallButton = !isStandaloneMode();
 
   const formatApiMessage = (value) => {
     if (!value) return '';
@@ -489,26 +490,26 @@ function App() {
   useEffect(() => {
     const syncInstallAvailability = () => {
       if (isStandaloneMode()) {
-        setIsInstallable(false);
+        setIsInstallPromptReady(false);
         setDeferredPrompt(null);
         return;
       }
 
       if (window.deferredPrompt) {
         setDeferredPrompt(window.deferredPrompt);
-        setIsInstallable(true);
+        setIsInstallPromptReady(true);
         return;
       }
 
       setDeferredPrompt(null);
-      setIsInstallable(false);
+      setIsInstallPromptReady(false);
     };
 
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       window.deferredPrompt = e;
       setDeferredPrompt(e);
-      setIsInstallable(true);
+      setIsInstallPromptReady(true);
     };
 
     const handleDeferredReady = () => {
@@ -516,7 +517,7 @@ function App() {
     };
 
     const handleAppInstalled = () => {
-      setIsInstallable(false);
+      setIsInstallPromptReady(false);
       setDeferredPrompt(null);
       window.deferredPrompt = null;
     };
@@ -555,14 +556,23 @@ function App() {
   }, [isStandaloneMode]);
 
   const handleInstallClick = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      alert(
+        'To install EduRoute, use your browser install option. In Chrome or Edge, look for the install icon in the address bar or open the browser menu and choose "Install app".'
+      );
+      return;
+    }
+
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
     if (outcome === 'accepted') {
-      setIsInstallable(false);
-    } else {
-      setIsInstallable(false);
+      setIsInstallPromptReady(false);
+      setDeferredPrompt(null);
+      window.deferredPrompt = null;
+      return;
     }
+
+    setIsInstallPromptReady(false);
     setDeferredPrompt(null);
     window.deferredPrompt = null;
   };
@@ -1126,10 +1136,11 @@ function App() {
         />
       )}
 
-      {isInstallable && (
+      {shouldShowInstallButton && (
         <button
           className="pwa-floating-install-btn"
           onClick={handleInstallClick}
+          title={isInstallPromptReady ? 'Install EduRoute' : 'Show install instructions'}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
