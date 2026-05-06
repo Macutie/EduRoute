@@ -1,6 +1,19 @@
 /* eslint-disable no-undef */
 const search = new URL(self.location.href).searchParams;
 
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
+self.addEventListener('fetch', () => {
+  // Keep the service worker recognized as a page-controlling app worker
+  // while allowing the browser/network to handle requests normally.
+});
+
 const firebaseConfig = {
   apiKey: search.get('apiKey') || '',
   authDomain: search.get('authDomain') || '',
