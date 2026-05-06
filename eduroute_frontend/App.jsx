@@ -8840,10 +8840,10 @@ const DeanRegistryView = ({ setView, profileData }) => {
                   <span className="areg-detail-value">{getCancellationReasonLabel(item.cancellationReason)}</span>
                 </div>
               )}
-              {item.status === 'rejected' && item.additionalRemarks && (
+              {item.status === 'rejected' && (item.rejectionReason || item.additionalRemarks) && (
                 <div className="areg-card-cancel-reason">
                   <span className="areg-detail-label">REJECTION REASON</span>
-                  <span className="areg-detail-value">{item.additionalRemarks}</span>
+                  <span className="areg-detail-value">{item.rejectionReason || item.additionalRemarks}</span>
                 </div>
               )}
 
@@ -11624,12 +11624,12 @@ const RegistryDetailsModal = ({ item, onClose }) => {
               </div>
             </div>
           )}
-          {status === 'rejected' && item.additionalRemarks && (
+          {status === 'rejected' && (item.rejectionReason || item.additionalRemarks) && (
             <div className="rmodal-detail-item">
               <DetailDocIcon />
               <div className="rmodal-detail-text">
                 <span className="rmodal-detail-label">REJECTION REASON</span>
-                <span className="rmodal-detail-value">{item.additionalRemarks}</span>
+                <span className="rmodal-detail-value">{item.rejectionReason || item.additionalRemarks}</span>
               </div>
             </div>
           )}
