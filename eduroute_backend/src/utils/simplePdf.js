@@ -322,19 +322,24 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     const brandIconX = left;
     const brandIconY = cursorY;
-    const logoBoxSize = 40;
-    const logoInset = 2;
-    const logoDrawSize = logoBoxSize - (logoInset * 2);
+    const logoBoxWidth = 86;
+    const logoBoxHeight = 40;
+    const logoInsetX = 4;
+    const logoInsetY = 2;
+    const logoDrawHeight = logoBoxHeight - (logoInsetY * 2);
+    const logoDrawWidth = logoDrawHeight;
+    const logoDrawX = brandIconX + logoInsetX;
+    const logoDrawY = brandIconY - logoInsetY;
 
-    fillRect(brandIconX, brandIconY, logoBoxSize, logoBoxSize, PALETTE.white);
-    strokeRect(brandIconX, brandIconY, logoBoxSize, logoBoxSize, PALETTE.border, 1);
-    if (!drawLogoImage(brandIconX + logoInset, brandIconY - logoInset, logoDrawSize, logoDrawSize)) {
-        drawFallbackLogo(brandIconX + logoInset, brandIconY - logoInset, logoDrawSize);
+    fillRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.white);
+    strokeRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.border, 1);
+    if (!drawLogoImage(logoDrawX, logoDrawY, logoDrawWidth, logoDrawHeight)) {
+        drawFallbackLogo(logoDrawX, logoDrawY, logoDrawWidth);
     }
 
     addText({
         text: 'EduRoute HRMU',
-        x: brandIconX + 52,
+        x: brandIconX + logoBoxWidth + 14,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -342,7 +347,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: brandIconX + 52,
+        x: brandIconX + logoBoxWidth + 14,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
