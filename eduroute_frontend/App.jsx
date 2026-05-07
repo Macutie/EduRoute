@@ -529,12 +529,33 @@ function App() {
     }
   };
 
+  const resetAuthFlowState = () => {
+    setLoginForm({
+      email_or_employee_id: '',
+      password: ''
+    });
+    setForgotForm({
+      email: ''
+    });
+    setForgotPasswordBackView('login');
+    setResetCode('');
+    setResetToken('');
+    setResendCooldown(0);
+    setNewPasswordForm({
+      password: '',
+      confirm_password: '',
+    });
+    setLoading(false);
+    setShowLoginPassword(false);
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('profileImage');
     localStorage.removeItem('edurouteLastView');
     localStorage.removeItem('edurouteVerifySlipId');
     localStorage.removeItem('edurouteMapSlipId');
+    resetAuthFlowState();
     setShowPermissionSetup(false);
     setPermissionSetupStep('intro');
     setPermissionSetupMessage('');
@@ -956,9 +977,7 @@ function App() {
           requestPortalLogout('cssu');
           return;
         }
-        localStorage.removeItem('token');
-        localStorage.removeItem('edurouteLastView');
-        setView('login');
+        handleLogout();
       }} />}
       {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />}
       {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
