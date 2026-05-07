@@ -117,8 +117,8 @@ const reportLogoPath = resolveExistingPath([
 ]);
 
 const reportLogoBuffer = reportLogoPath ? fs.readFileSync(reportLogoPath) : null;
-const reportLogoWidth = 600;
-const reportLogoHeight = 600;
+const reportLogoWidth = reportLogoPath && reportLogoPath.endsWith('gc-logo-header.jpg') ? 1400 : 600;
+const reportLogoHeight = reportLogoPath && reportLogoPath.endsWith('gc-logo-header.jpg') ? 1400 : 600;
 
 const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => {
     const pageWidth = 595;
@@ -300,22 +300,12 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     const brandIconX = left;
     const brandIconY = cursorY;
-    const logoBoxWidth = 48;
-    const logoBoxHeight = 40;
-    const logoInsetX = 2;
-    const logoInsetY = 2;
-    const logoDrawHeight = logoBoxHeight - (logoInsetY * 2);
-    const logoDrawWidth = logoDrawHeight;
-    const logoDrawX = brandIconX + logoInsetX;
-    const logoDrawY = brandIconY - logoInsetY;
-
-    fillRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.white);
-    strokeRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.border, 1);
-    drawLogoImage(logoDrawX, logoDrawY, logoDrawWidth, logoDrawHeight);
+    const logoDrawSize = 46;
+    drawLogoImage(brandIconX, brandIconY, logoDrawSize, logoDrawSize);
 
     addText({
         text: 'EduRoute HRMU',
-        x: brandIconX + logoBoxWidth + 10,
+        x: brandIconX + logoDrawSize + 12,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -323,7 +313,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: brandIconX + logoBoxWidth + 10,
+        x: brandIconX + logoDrawSize + 12,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
