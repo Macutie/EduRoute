@@ -104,6 +104,8 @@ const toneAccent = {
 const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
 
 const reportLogoPath = resolveExistingPath([
+    path.resolve(__dirname, '../assets/gc-logo-header.jpg'),
+    path.resolve(__dirname, '../assets/gc-logo.jpg'),
     path.resolve(process.cwd(), 'public/gc-logo-header.jpg'),
     path.resolve(process.cwd(), '../public/gc-logo-header.jpg'),
     path.resolve(process.cwd(), 'gc-logo-header.jpg'),
@@ -222,6 +224,18 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         return true;
     };
 
+    const drawLogoFallbackBadge = (x, y, width, height) => {
+        fillRect(x, y, width, height, [232, 244, 232]);
+        addText({
+            text: 'GC',
+            x: x + 9,
+            y: y - 26,
+            size: 16,
+            color: PALETTE.green,
+            font: fonts.bold,
+        });
+    };
+
     const drawPolygon = (points, color) => {
         if (!Array.isArray(points) || points.length < 3) return;
         ensurePage();
@@ -301,7 +315,10 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const brandIconX = left;
     const brandIconY = cursorY;
     const logoDrawSize = 46;
-    drawLogoImage(brandIconX, brandIconY, logoDrawSize, logoDrawSize);
+    fillRect(brandIconX, brandIconY, logoDrawSize, logoDrawSize, [232, 244, 232]);
+    if (!drawLogoImage(brandIconX, brandIconY, logoDrawSize, logoDrawSize)) {
+        drawLogoFallbackBadge(brandIconX, brandIconY, logoDrawSize, logoDrawSize);
+    }
 
     addText({
         text: 'EduRoute HRMU',
