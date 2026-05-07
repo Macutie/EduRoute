@@ -7590,7 +7590,8 @@ label {
   overflow: hidden;
 }
 
-.hrmu-brand-badge svg {
+.hrmu-brand-badge svg,
+.hrmu-brand-badge img {
   display: none;
 }
 
@@ -10090,13 +10091,21 @@ label {
 .hrmu-reports-brand-icon {
   width: 88px;
   height: 88px;
-  border-radius: 12px;
-  background: var(--green);
-  color: white;
+  border-radius: 18px;
+  background: #FFFFFF;
+  border: 1px solid #E2EBDD;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 14px 24px rgba(11, 150, 23, 0.18);
+  overflow: hidden;
+  box-shadow: 0 14px 24px rgba(11, 150, 23, 0.10);
+}
+
+.hrmu-reports-brand-icon img {
+  width: 78%;
+  height: 78%;
+  object-fit: contain;
+  display: block;
 }
 
 .hrmu-reports-brand-block strong {
@@ -16529,7 +16538,8 @@ label {
   overflow: hidden;
 }
 
-.cssu-brand-badge svg {
+.cssu-brand-badge svg,
+.cssu-brand-badge img {
   display: none;
 }
 
