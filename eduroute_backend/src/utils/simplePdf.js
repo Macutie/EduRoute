@@ -104,6 +104,11 @@ const toneAccent = {
 const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
 
 const reportLogoPath = resolveExistingPath([
+    path.resolve(process.cwd(), 'public/gc-logo-header.jpg'),
+    path.resolve(process.cwd(), '../public/gc-logo-header.jpg'),
+    path.resolve(process.cwd(), 'gc-logo-header.jpg'),
+    path.resolve(__dirname, '../../public/gc-logo-header.jpg'),
+    path.resolve(__dirname, '../../../public/gc-logo-header.jpg'),
     path.resolve(process.cwd(), 'public/gc-logo.jpg'),
     path.resolve(process.cwd(), '../public/gc-logo.jpg'),
     path.resolve(process.cwd(), 'gc-logo.jpg'),
@@ -252,33 +257,6 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         page.drawings.push(`q ${rgb(...color)} rg ${pathOps} f Q`);
     };
 
-    const drawFallbackLogo = (x, y, size) => {
-        const centerX = x + size * 0.5;
-        const centerY = y - size * 0.44;
-        const outerRadius = size * 0.31;
-        const innerRadius = size * 0.17;
-
-        drawCircleFill(centerX, centerY, outerRadius, PALETTE.green);
-        drawPolygon([
-            [centerX - size * 0.15, y - size * 0.62],
-            [centerX + size * 0.15, y - size * 0.62],
-            [centerX, y - size * 0.95],
-        ], PALETTE.green);
-        drawCircleFill(centerX, centerY, innerRadius, PALETTE.white);
-        drawPolygon([
-            [x + size * 0.25, y - size * 0.45],
-            [x + size * 0.79, y - size * 0.33],
-            [x + size * 0.73, y - size * 0.54],
-            [x + size * 0.19, y - size * 0.66],
-        ], [255, 209, 0]);
-        drawPolygon([
-            [x + size * 0.72, y - size * 0.58],
-            [x + size * 0.96, y - size * 0.52],
-            [x + size * 0.88, y - size * 0.30],
-            [x + size * 0.66, y - size * 0.36],
-        ], PALETTE.white);
-    };
-
     const reserve = (height) => {
         ensurePage();
         if (cursorY - height < bottom) {
@@ -322,9 +300,9 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     const brandIconX = left;
     const brandIconY = cursorY;
-    const logoBoxWidth = 86;
+    const logoBoxWidth = 48;
     const logoBoxHeight = 40;
-    const logoInsetX = 4;
+    const logoInsetX = 2;
     const logoInsetY = 2;
     const logoDrawHeight = logoBoxHeight - (logoInsetY * 2);
     const logoDrawWidth = logoDrawHeight;
@@ -333,13 +311,11 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     fillRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.white);
     strokeRect(brandIconX, brandIconY, logoBoxWidth, logoBoxHeight, PALETTE.border, 1);
-    if (!drawLogoImage(logoDrawX, logoDrawY, logoDrawWidth, logoDrawHeight)) {
-        drawFallbackLogo(logoDrawX, logoDrawY, logoDrawWidth);
-    }
+    drawLogoImage(logoDrawX, logoDrawY, logoDrawWidth, logoDrawHeight);
 
     addText({
         text: 'EduRoute HRMU',
-        x: brandIconX + logoBoxWidth + 14,
+        x: brandIconX + logoBoxWidth + 10,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -347,7 +323,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: brandIconX + logoBoxWidth + 14,
+        x: brandIconX + logoBoxWidth + 10,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
