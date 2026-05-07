@@ -104,11 +104,11 @@ const toneAccent = {
 const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
 
 const reportLogoPath = resolveExistingPath([
-    path.resolve(process.cwd(), 'public/eduroute-logo.jfif'),
-    path.resolve(process.cwd(), '../public/eduroute-logo.jfif'),
-    path.resolve(process.cwd(), 'eduroute-logo.jfif'),
-    path.resolve(__dirname, '../../public/eduroute-logo.jfif'),
-    path.resolve(__dirname, '../../../public/eduroute-logo.jfif'),
+    path.resolve(process.cwd(), 'public/gc-logo.jpg'),
+    path.resolve(process.cwd(), '../public/gc-logo.jpg'),
+    path.resolve(process.cwd(), 'gc-logo.jpg'),
+    path.resolve(__dirname, '../../public/gc-logo.jpg'),
+    path.resolve(__dirname, '../../../public/gc-logo.jpg'),
 ]);
 
 const reportLogoBuffer = reportLogoPath ? fs.readFileSync(reportLogoPath) : null;
@@ -322,8 +322,8 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     const brandIconX = left;
     const brandIconY = cursorY;
-    const logoBoxSize = 64;
-    const logoInset = 4;
+    const logoBoxSize = 40;
+    const logoInset = 2;
     const logoDrawSize = logoBoxSize - (logoInset * 2);
 
     fillRect(brandIconX, brandIconY, logoBoxSize, logoBoxSize, PALETTE.white);
@@ -334,7 +334,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     addText({
         text: 'EduRoute HRMU',
-        x: brandIconX + 78,
+        x: brandIconX + 52,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -342,7 +342,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: brandIconX + 78,
+        x: brandIconX + 52,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
