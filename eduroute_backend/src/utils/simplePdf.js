@@ -101,8 +101,16 @@ const toneAccent = {
     yellow: [155, 131, 24],
 };
 
-const reportLogoPath = path.resolve(__dirname, '../../../public/eduroute-logo.jfif');
-const reportLogoBuffer = fs.existsSync(reportLogoPath) ? fs.readFileSync(reportLogoPath) : null;
+const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
+
+const reportLogoPath = resolveExistingPath([
+    path.resolve(process.cwd(), 'public/eduroute-logo.jfif'),
+    path.resolve(process.cwd(), '../public/eduroute-logo.jfif'),
+    path.resolve(process.cwd(), 'eduroute-logo.jfif'),
+    path.resolve(__dirname, '../../public/eduroute-logo.jfif'),
+    path.resolve(__dirname, '../../../public/eduroute-logo.jfif'),
+]);
+const reportLogoBuffer = reportLogoPath ? fs.readFileSync(reportLogoPath) : null;
 const reportLogoWidth = 600;
 const reportLogoHeight = 600;
 
