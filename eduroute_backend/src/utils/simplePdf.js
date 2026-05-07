@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 const escapePdfText = (value = '') => String(value)
     .replace(/\\/g, '\\\\')
     .replace(/\(/g, '\\(')
@@ -98,6 +101,20 @@ const toneAccent = {
     yellow: [155, 131, 24],
 };
 
+const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
+
+const reportLogoPath = resolveExistingPath([
+    path.resolve(process.cwd(), 'public/eduroute-logo.jfif'),
+    path.resolve(process.cwd(), '../public/eduroute-logo.jfif'),
+    path.resolve(process.cwd(), 'eduroute-logo.jfif'),
+    path.resolve(__dirname, '../../public/eduroute-logo.jfif'),
+    path.resolve(__dirname, '../../../public/eduroute-logo.jfif'),
+]);
+
+const reportLogoBuffer = reportLogoPath ? fs.readFileSync(reportLogoPath) : null;
+const reportLogoWidth = 600;
+const reportLogoHeight = 600;
+
 const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => {
     const pageWidth = 595;
     const pageHeight = 842;
@@ -193,6 +210,13 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         page.drawings.push(`q ${rgb(...color)} RG ${lineWidth.toFixed(2)} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`);
     };
 
+    const drawLogoImage = (x, y, width, height) => {
+        if (!reportLogoBuffer) return false;
+        ensurePage();
+        page.drawings.push(`q ${width.toFixed(2)} 0 0 ${height.toFixed(2)} ${x.toFixed(2)} ${(y - height).toFixed(2)} cm /Im1 Do Q`);
+        return true;
+    };
+
     const drawPolygon = (points, color) => {
         if (!Array.isArray(points) || points.length < 3) return;
         ensurePage();
@@ -228,7 +252,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         page.drawings.push(`q ${rgb(...color)} rg ${pathOps} f Q`);
     };
 
-    const drawReportLogo = (x, y, size) => {
+    const drawFallbackLogo = (x, y, size) => {
         const centerX = x + size * 0.5;
         const centerY = y - size * 0.44;
         const outerRadius = size * 0.31;
@@ -300,7 +324,9 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const brandIconY = cursorY;
     fillRect(brandIconX, brandIconY, 40, 40, PALETTE.white);
     strokeRect(brandIconX, brandIconY, 40, 40, PALETTE.border, 1);
-    drawReportLogo(brandIconX + 2, brandIconY - 1, 36);
+    if (!drawLogoImage(brandIconX + 2, brandIconY - 1, 36, 36)) {
+        drawFallbackLogo(brandIconX + 2, brandIconY - 1, 36);
+    }
 
     addText({
         text: 'EduRoute HRMU',
@@ -550,7 +576,8 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const pageObjectIds = [];
     const fontRegularObjectId = 3;
     const fontBoldObjectId = 4;
-    const firstContentObjectId = 5;
+    const imageObjectId = reportLogoBuffer ? 5 : null;
+    const firstContentObjectId = reportLogoBuffer ? 6 : 5;
 
     pages.forEach((pdfPage, index) => {
         const textOps = pdfPage.texts.flatMap((line) => ([
@@ -570,37 +597,51 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         const contentObjectId = firstContentObjectId + (index * 2);
         const pageObjectId = contentObjectId + 1;
 
-        objectEntries[contentObjectId] = `<< /Length ${Buffer.byteLength(contentStream, 'utf8')} >>\nstream\n${contentStream}\nendstream`;
+        objectEntries[contentObjectId] = Buffer.from(`<< /Length ${Buffer.byteLength(contentStream, 'utf8')} >>\nstream\n${contentStream}\nendstream`, 'utf8');
         objectEntries[pageObjectId] =
-            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularObjectId} 0 R /F2 ${fontBoldObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
+            Buffer.from(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularObjectId} 0 R /F2 ${fontBoldObjectId} 0 R >>${reportLogoBuffer ? ` /XObject << /Im1 ${imageObjectId} 0 R >>` : ''} >> /Contents ${contentObjectId} 0 R >>`, 'utf8');
         pageObjectIds.push(pageObjectId);
     });
 
-    objectEntries[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-    objectEntries[2] = `<< /Type /Pages /Count ${pageObjectIds.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] >>`;
-    objectEntries[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-    objectEntries[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
+    objectEntries[1] = Buffer.from('<< /Type /Catalog /Pages 2 0 R >>', 'utf8');
+    objectEntries[2] = Buffer.from(`<< /Type /Pages /Count ${pageObjectIds.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] >>`, 'utf8');
+    objectEntries[3] = Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>', 'utf8');
+    objectEntries[4] = Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>', 'utf8');
+    if (reportLogoBuffer) {
+        objectEntries[imageObjectId] = Buffer.concat([
+            Buffer.from(`<< /Type /XObject /Subtype /Image /Width ${reportLogoWidth} /Height ${reportLogoHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${reportLogoBuffer.length} >>\nstream\n`, 'utf8'),
+            reportLogoBuffer,
+            Buffer.from('\nendstream', 'utf8'),
+        ]);
+    }
 
     const normalizedObjects = objectEntries
-        .map((entry, index) => (entry ? `${index} 0 obj\n${entry}\nendobj\n` : null))
+        .map((entry, index) => (entry ? Buffer.concat([
+            Buffer.from(`${index} 0 obj\n`, 'utf8'),
+            Buffer.isBuffer(entry) ? entry : Buffer.from(String(entry), 'utf8'),
+            Buffer.from('\nendobj\n', 'utf8'),
+        ]) : null))
         .filter(Boolean);
-    let pdf = '%PDF-1.4\n';
+
+    const parts = [Buffer.from('%PDF-1.4\n', 'utf8')];
     const offsets = [0];
 
     normalizedObjects.forEach((entry) => {
-        offsets.push(Buffer.byteLength(pdf, 'utf8'));
-        pdf += entry;
+        const currentSize = parts.reduce((sum, part) => sum + part.length, 0);
+        offsets.push(currentSize);
+        parts.push(entry);
     });
 
-    const xrefOffset = Buffer.byteLength(pdf, 'utf8');
-    pdf += `xref\n0 ${normalizedObjects.length + 1}\n`;
-    pdf += '0000000000 65535 f \n';
+    const xrefOffset = parts.reduce((sum, part) => sum + part.length, 0);
+    let xref = `xref\n0 ${normalizedObjects.length + 1}\n`;
+    xref += '0000000000 65535 f \n';
     offsets.slice(1).forEach((offset) => {
-        pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+        xref += `${String(offset).padStart(10, '0')} 00000 n \n`;
     });
-    pdf += `trailer\n<< /Size ${normalizedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    xref += `trailer\n<< /Size ${normalizedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    parts.push(Buffer.from(xref, 'utf8'));
 
-    return Buffer.from(pdf, 'utf8');
+    return Buffer.concat(parts);
 };
 
 module.exports = {
