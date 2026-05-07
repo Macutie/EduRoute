@@ -1,6 +1,3 @@
-const fs = require('fs');
-const path = require('path');
-
 const escapePdfText = (value = '') => String(value)
     .replace(/\\/g, '\\\\')
     .replace(/\(/g, '\\(')
@@ -101,19 +98,6 @@ const toneAccent = {
     yellow: [155, 131, 24],
 };
 
-const resolveExistingPath = (candidates = []) => candidates.find((candidate) => fs.existsSync(candidate)) || null;
-
-const reportLogoPath = resolveExistingPath([
-    path.resolve(process.cwd(), 'public/eduroute-logo.jfif'),
-    path.resolve(process.cwd(), '../public/eduroute-logo.jfif'),
-    path.resolve(process.cwd(), 'eduroute-logo.jfif'),
-    path.resolve(__dirname, '../../public/eduroute-logo.jfif'),
-    path.resolve(__dirname, '../../../public/eduroute-logo.jfif'),
-]);
-const reportLogoBuffer = reportLogoPath ? fs.readFileSync(reportLogoPath) : null;
-const reportLogoWidth = 600;
-const reportLogoHeight = 600;
-
 const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => {
     const pageWidth = 595;
     const pageHeight = 842;
@@ -209,10 +193,66 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         page.drawings.push(`q ${rgb(...color)} RG ${lineWidth.toFixed(2)} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`);
     };
 
-    const drawLogoImage = (x, y, width, height) => {
-        if (!reportLogoBuffer) return;
+    const drawPolygon = (points, color) => {
+        if (!Array.isArray(points) || points.length < 3) return;
         ensurePage();
-        page.drawings.push(`q ${width.toFixed(2)} 0 0 ${height.toFixed(2)} ${x.toFixed(2)} ${(y - height).toFixed(2)} cm /Im1 Do Q`);
+        const [first, ...rest] = points;
+        const pathOps = [
+            `${first[0].toFixed(2)} ${first[1].toFixed(2)} m`,
+            ...rest.map(([px, py]) => `${px.toFixed(2)} ${py.toFixed(2)} l`),
+            'h',
+        ].join(' ');
+        page.drawings.push(`q ${rgb(...color)} rg ${pathOps} f Q`);
+    };
+
+    const drawCircleFill = (cx, cy, radius, color) => {
+        ensurePage();
+        const k = 0.5522847498;
+        const c = radius * k;
+        const x0 = cx - radius;
+        const x1 = cx - c;
+        const x2 = cx + c;
+        const x3 = cx + radius;
+        const y0 = cy - radius;
+        const y1 = cy - c;
+        const y2 = cy + c;
+        const y3 = cy + radius;
+        const pathOps = [
+            `${cx.toFixed(2)} ${y3.toFixed(2)} m`,
+            `${x2.toFixed(2)} ${y3.toFixed(2)} ${x3.toFixed(2)} ${y2.toFixed(2)} ${x3.toFixed(2)} ${cy.toFixed(2)} c`,
+            `${x3.toFixed(2)} ${y1.toFixed(2)} ${x2.toFixed(2)} ${y0.toFixed(2)} ${cx.toFixed(2)} ${y0.toFixed(2)} c`,
+            `${x1.toFixed(2)} ${y0.toFixed(2)} ${x0.toFixed(2)} ${y1.toFixed(2)} ${x0.toFixed(2)} ${cy.toFixed(2)} c`,
+            `${x0.toFixed(2)} ${y2.toFixed(2)} ${x1.toFixed(2)} ${y3.toFixed(2)} ${cx.toFixed(2)} ${y3.toFixed(2)} c`,
+            'h',
+        ].join(' ');
+        page.drawings.push(`q ${rgb(...color)} rg ${pathOps} f Q`);
+    };
+
+    const drawReportLogo = (x, y, size) => {
+        const centerX = x + size * 0.5;
+        const centerY = y - size * 0.44;
+        const outerRadius = size * 0.31;
+        const innerRadius = size * 0.17;
+
+        drawCircleFill(centerX, centerY, outerRadius, PALETTE.green);
+        drawPolygon([
+            [centerX - size * 0.15, y - size * 0.62],
+            [centerX + size * 0.15, y - size * 0.62],
+            [centerX, y - size * 0.95],
+        ], PALETTE.green);
+        drawCircleFill(centerX, centerY, innerRadius, PALETTE.white);
+        drawPolygon([
+            [x + size * 0.25, y - size * 0.45],
+            [x + size * 0.79, y - size * 0.33],
+            [x + size * 0.73, y - size * 0.54],
+            [x + size * 0.19, y - size * 0.66],
+        ], [255, 209, 0]);
+        drawPolygon([
+            [x + size * 0.72, y - size * 0.58],
+            [x + size * 0.96, y - size * 0.52],
+            [x + size * 0.88, y - size * 0.30],
+            [x + size * 0.66, y - size * 0.36],
+        ], PALETTE.white);
     };
 
     const reserve = (height) => {
@@ -260,7 +300,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const brandIconY = cursorY;
     fillRect(brandIconX, brandIconY, 40, 40, PALETTE.white);
     strokeRect(brandIconX, brandIconY, 40, 40, PALETTE.border, 1);
-    drawLogoImage(brandIconX + 3, brandIconY - 3, 34, 34);
+    drawReportLogo(brandIconX + 2, brandIconY - 1, 36);
 
     addText({
         text: 'EduRoute HRMU',
@@ -510,8 +550,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const pageObjectIds = [];
     const fontRegularObjectId = 3;
     const fontBoldObjectId = 4;
-    const imageObjectId = 5;
-    const firstContentObjectId = reportLogoBuffer ? 6 : 5;
+    const firstContentObjectId = 5;
 
     pages.forEach((pdfPage, index) => {
         const textOps = pdfPage.texts.flatMap((line) => ([
@@ -532,9 +571,8 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         const pageObjectId = contentObjectId + 1;
 
         objectEntries[contentObjectId] = `<< /Length ${Buffer.byteLength(contentStream, 'utf8')} >>\nstream\n${contentStream}\nendstream`;
-        const imageResource = reportLogoBuffer ? ` /XObject << /Im1 ${imageObjectId} 0 R >>` : '';
         objectEntries[pageObjectId] =
-            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularObjectId} 0 R /F2 ${fontBoldObjectId} 0 R >>${imageResource} >> /Contents ${contentObjectId} 0 R >>`;
+            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularObjectId} 0 R /F2 ${fontBoldObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
         pageObjectIds.push(pageObjectId);
     });
 
@@ -542,9 +580,6 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     objectEntries[2] = `<< /Type /Pages /Count ${pageObjectIds.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] >>`;
     objectEntries[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
     objectEntries[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
-    if (reportLogoBuffer) {
-        objectEntries[imageObjectId] = `<< /Type /XObject /Subtype /Image /Width ${reportLogoWidth} /Height ${reportLogoHeight} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${reportLogoBuffer.length} >>\nstream\n${reportLogoBuffer.toString('latin1')}\nendstream`;
-    }
 
     const normalizedObjects = objectEntries
         .map((entry, index) => (entry ? `${index} 0 obj\n${entry}\nendobj\n` : null))
@@ -553,11 +588,11 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     const offsets = [0];
 
     normalizedObjects.forEach((entry) => {
-        offsets.push(Buffer.byteLength(pdf, 'latin1'));
+        offsets.push(Buffer.byteLength(pdf, 'utf8'));
         pdf += entry;
     });
 
-    const xrefOffset = Buffer.byteLength(pdf, 'latin1');
+    const xrefOffset = Buffer.byteLength(pdf, 'utf8');
     pdf += `xref\n0 ${normalizedObjects.length + 1}\n`;
     pdf += '0000000000 65535 f \n';
     offsets.slice(1).forEach((offset) => {
@@ -565,7 +600,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     pdf += `trailer\n<< /Size ${normalizedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
 
-    return Buffer.from(pdf, 'latin1');
+    return Buffer.from(pdf, 'utf8');
 };
 
 module.exports = {
