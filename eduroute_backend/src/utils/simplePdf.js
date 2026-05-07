@@ -322,15 +322,19 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     const brandIconX = left;
     const brandIconY = cursorY;
-    fillRect(brandIconX, brandIconY, 40, 40, PALETTE.white);
-    strokeRect(brandIconX, brandIconY, 40, 40, PALETTE.border, 1);
-    if (!drawLogoImage(brandIconX + 2, brandIconY - 1, 36, 36)) {
-        drawFallbackLogo(brandIconX + 2, brandIconY - 1, 36);
+    const logoBoxSize = 64;
+    const logoInset = 4;
+    const logoDrawSize = logoBoxSize - (logoInset * 2);
+
+    fillRect(brandIconX, brandIconY, logoBoxSize, logoBoxSize, PALETTE.white);
+    strokeRect(brandIconX, brandIconY, logoBoxSize, logoBoxSize, PALETTE.border, 1);
+    if (!drawLogoImage(brandIconX + logoInset, brandIconY - logoInset, logoDrawSize, logoDrawSize)) {
+        drawFallbackLogo(brandIconX + logoInset, brandIconY - logoInset, logoDrawSize);
     }
 
     addText({
         text: 'EduRoute HRMU',
-        x: brandIconX + 52,
+        x: brandIconX + 78,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -338,7 +342,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: brandIconX + 52,
+        x: brandIconX + 78,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
