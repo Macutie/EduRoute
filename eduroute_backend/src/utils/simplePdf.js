@@ -198,28 +198,28 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         fillRect(x, y, size, size, PALETTE.white);
         strokeRect(x, y, size, size, PALETTE.border, 1);
 
-        const cx = x + size / 2;
-        const cy = y - size / 2 + 2;
-        const outer = size * 0.24;
-        const inner = size * 0.12;
+        const cx = x + size * 0.52;
+        const cy = y - size * 0.42;
+        const outer = size * 0.255;
+        const inner = size * 0.135;
 
-        drawFilledCircle(page, cx, cy + 3, outer, PALETTE.green);
+        drawFilledCircle(page, cx, cy + 1.5, outer, PALETTE.green);
 
         page.drawings.push(
             `q ${rgb(...PALETTE.green)} rg `
-            + `${(cx - outer * 0.66).toFixed(2)} ${(cy - 5).toFixed(2)} m `
-            + `${cx.toFixed(2)} ${(cy - outer - 13).toFixed(2)} l `
-            + `${(cx + outer * 0.66).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
+            + `${(cx - outer * 0.72).toFixed(2)} ${(cy - 5).toFixed(2)} m `
+            + `${cx.toFixed(2)} ${(cy - outer - 11.5).toFixed(2)} l `
+            + `${(cx + outer * 0.72).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
         );
 
-        drawFilledCircle(page, cx, cy + 3, inner, PALETTE.white);
+        drawFilledCircle(page, cx, cy + 1.5, inner, PALETTE.white);
 
         page.drawings.push(
             `q ${rgb(241, 197, 16)} rg `
-            + `${(cx - outer - 1).toFixed(2)} ${(cy + 2).toFixed(2)} m `
-            + `${(cx + outer + 2).toFixed(2)} ${(cy + 10).toFixed(2)} l `
-            + `${(cx + outer - 1).toFixed(2)} ${(cy + 3).toFixed(2)} l `
-            + `${(cx - outer + 2).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
+            + `${(cx - outer - 1.5).toFixed(2)} ${(cy + 0.5).toFixed(2)} m `
+            + `${(cx + outer + 1.5).toFixed(2)} ${(cy + 6.2).toFixed(2)} l `
+            + `${(cx + outer - 0.4).toFixed(2)} ${(cy + 1.4).toFixed(2)} l `
+            + `${(cx - outer + 2.8).toFixed(2)} ${(cy - 4.1).toFixed(2)} l h f Q`
         );
     };
 
