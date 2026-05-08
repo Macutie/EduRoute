@@ -20188,6 +20188,81 @@ label {
   line-height: 1.5;
 }
 
+.cssu-mobile-notif-content {
+  padding-bottom: 112px;
+}
+
+.cssu-mobile-notif-filter-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  margin: 0 0 18px;
+  padding-bottom: 4px;
+}
+
+.cssu-mobile-notif-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.cssu-mobile-notif-summary-card {
+  border-radius: 18px;
+  background: #F8FBF6;
+  padding: 14px 12px;
+  box-shadow: 0 10px 24px rgba(56, 80, 56, 0.06);
+  text-align: center;
+}
+
+.cssu-mobile-notif-summary-card span {
+  display: block;
+  color: #6E7A6C;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+.cssu-mobile-notif-summary-card strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--green);
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.cssu-mobile-notif-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.cssu-mobile-notif-action {
+  min-height: 44px;
+  border-radius: 999px;
+  border: none;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cssu-mobile-notif-action.primary {
+  background: var(--green);
+  color: white;
+  box-shadow: 0 12px 24px rgba(11, 150, 23, 0.18);
+}
+
+.cssu-mobile-notif-action.secondary {
+  background: white;
+  color: var(--text-dark);
+  border: 1px solid #D9E4D7;
+}
+
 /* FAB */
 .cssu-scan-fab {
   position: absolute;

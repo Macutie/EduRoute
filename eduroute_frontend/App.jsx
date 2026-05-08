@@ -15027,6 +15027,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
 };
 
 const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
   const [alerts, setAlerts] = useState([]);
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState('');
@@ -15126,6 +15127,110 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
       : featuredAlert
         ? 'VALIDATED'
         : 'NO ALERTS';
+
+  if (!isDesktopViewport) {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="content fade-in dash-content notif-content cssu-mobile-notif-content">
+          <div className="slip-top-nav chpw-top-nav">
+            <div className="slip-nav-left" onClick={() => setView('cssu-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text chpw-nav-title">EduRoute</span>
+            </div>
+            <div className="dash-avatar">
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          </div>
+
+          <div className="chpw-divider-line" />
+
+          <div className="notif-header">
+            <span className="notif-label-green">INTERNAL LOGISTICS</span>
+            <h1 className="notif-title">System Alerts</h1>
+            <p className="notif-subtitle">Real-time monitoring and clearance notifications after locator slips are validated by CSSU.</p>
+          </div>
+
+          <div className="cssu-mobile-notif-filter-row">
+            <button
+              type="button"
+              className={`status-filter-chip ${alertFilter === 'all' ? 'active' : ''}`}
+              onClick={() => setAlertFilter('all')}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={`status-filter-chip ${alertFilter === 'validated' ? 'active' : ''}`}
+              onClick={() => setAlertFilter('validated')}
+            >
+              Validated
+            </button>
+            <button
+              type="button"
+              className={`status-filter-chip ${alertFilter === 'flagged' ? 'active' : ''}`}
+              onClick={() => setAlertFilter('flagged')}
+            >
+              Flagged
+            </button>
+          </div>
+
+          <div className="cssu-mobile-notif-summary">
+            <div className="cssu-mobile-notif-summary-card">
+              <span>Validated</span>
+              <strong>{String(summary.validatedClearances || 0).padStart(2, '0')}</strong>
+            </div>
+            <div className="cssu-mobile-notif-summary-card">
+              <span>Flagged</span>
+              <strong>{String(summary.flaggedExits || 0).padStart(2, '0')}</strong>
+            </div>
+            <div className="cssu-mobile-notif-summary-card">
+              <span>Unauthorized</span>
+              <strong>{String(summary.unauthorizedExit || 0).padStart(2, '0')}</strong>
+            </div>
+          </div>
+
+          {alertsError ? <div className="cssu-mobile-incident-empty error">{alertsError}</div> : null}
+          {alertsLoading ? <div className="cssu-mobile-incident-empty">Loading system alerts...</div> : null}
+          {!alertsLoading && filteredAlerts.length === 0 ? (
+            <div className="cssu-mobile-incident-empty">No {alertFilter === 'all' ? '' : alertFilter} alerts available right now.</div>
+          ) : null}
+
+          {!alertsLoading && filteredAlerts.map((alert) => {
+            const tone = alert.type === 'flagged' ? 'moderate' : 'low';
+            return (
+              <div key={alert.id} className={`cssu-mobile-incident-card ${tone}`}>
+                <div className="cssu-mobile-incident-top">
+                  <span className={`cssu-mobile-incident-badge ${tone}`}>
+                    {alert.type === 'flagged' ? 'FLAGGED' : 'VALIDATED'}
+                  </span>
+                  <time>{alert.time}</time>
+                </div>
+                <h3>{alert.title}</h3>
+                <p>{alert.body}</p>
+                <div className="cssu-mobile-notif-actions">
+                  <button
+                    type="button"
+                    className="cssu-mobile-notif-action primary"
+                    onClick={() => setView(alert.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
+                  >
+                    {alert.actionLabelPrimary}
+                  </button>
+                  <button
+                    type="button"
+                    className="cssu-mobile-notif-action secondary"
+                    onClick={() => setView(alert.type === 'flagged' ? 'cssu-reports' : 'cssu-dashboard')}
+                  >
+                    {alert.actionLabelSecondary}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <CSSUBottomNav active="" setView={setView} />
+      </div>
+    );
+  }
 
   return (
     <CSSUDesktopPage
