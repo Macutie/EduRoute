@@ -20192,6 +20192,15 @@ label {
   padding-bottom: 112px;
 }
 
+.cssu-mobile-notif-sticky-header {
+  position: sticky;
+  top: 78px;
+  z-index: 8;
+  margin: 0 -24px 18px;
+  padding: 0 24px 10px;
+  background: linear-gradient(180deg, #EEF7E8 0%, #F6FBF1 82%, rgba(246, 251, 241, 0.92) 100%);
+}
+
 .cssu-mobile-notif-filter-row {
   display: flex;
   gap: 10px;

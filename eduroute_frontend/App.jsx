@@ -15150,42 +15150,44 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
             <p className="notif-subtitle">Real-time monitoring and clearance notifications after locator slips are validated by CSSU.</p>
           </div>
 
-          <div className="cssu-mobile-notif-filter-row">
-            <button
-              type="button"
-              className={`status-filter-chip ${alertFilter === 'all' ? 'active' : ''}`}
-              onClick={() => setAlertFilter('all')}
-            >
-              All
-            </button>
-            <button
-              type="button"
-              className={`status-filter-chip ${alertFilter === 'validated' ? 'active' : ''}`}
-              onClick={() => setAlertFilter('validated')}
-            >
-              Validated
-            </button>
-            <button
-              type="button"
-              className={`status-filter-chip ${alertFilter === 'flagged' ? 'active' : ''}`}
-              onClick={() => setAlertFilter('flagged')}
-            >
-              Flagged
-            </button>
-          </div>
+          <div className="cssu-mobile-notif-sticky-header">
+            <div className="cssu-mobile-notif-filter-row">
+              <button
+                type="button"
+                className={`status-filter-chip ${alertFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setAlertFilter('all')}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className={`status-filter-chip ${alertFilter === 'validated' ? 'active' : ''}`}
+                onClick={() => setAlertFilter('validated')}
+              >
+                Validated
+              </button>
+              <button
+                type="button"
+                className={`status-filter-chip ${alertFilter === 'flagged' ? 'active' : ''}`}
+                onClick={() => setAlertFilter('flagged')}
+              >
+                Flagged
+              </button>
+            </div>
 
-          <div className="cssu-mobile-notif-summary">
-            <div className="cssu-mobile-notif-summary-card">
-              <span>Validated</span>
-              <strong>{String(summary.validatedClearances || 0).padStart(2, '0')}</strong>
-            </div>
-            <div className="cssu-mobile-notif-summary-card">
-              <span>Flagged</span>
-              <strong>{String(summary.flaggedExits || 0).padStart(2, '0')}</strong>
-            </div>
-            <div className="cssu-mobile-notif-summary-card">
-              <span>Unauthorized</span>
-              <strong>{String(summary.unauthorizedExit || 0).padStart(2, '0')}</strong>
+            <div className="cssu-mobile-notif-summary">
+              <div className="cssu-mobile-notif-summary-card">
+                <span>Validated</span>
+                <strong>{String(summary.validatedClearances || 0).padStart(2, '0')}</strong>
+              </div>
+              <div className="cssu-mobile-notif-summary-card">
+                <span>Flagged</span>
+                <strong>{String(summary.flaggedExits || 0).padStart(2, '0')}</strong>
+              </div>
+              <div className="cssu-mobile-notif-summary-card">
+                <span>Unauthorized</span>
+                <strong>{String(summary.unauthorizedExit || 0).padStart(2, '0')}</strong>
+              </div>
             </div>
           </div>
 
