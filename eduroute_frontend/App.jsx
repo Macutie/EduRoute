@@ -12347,8 +12347,92 @@ const getDeanBadgeLabel = (department = '', accountRole = '') => {
 };
 
 const DeanProfileView = ({ setView, profileData, onLogout }) => {
+  const isDesktopViewport = useDesktopWorkspaceViewport();
   const roleLabel = getDeanRoleLabel(profileData?.accountRole);
   const department = profileData?.department || 'College of Computer Studies';
+  const badgeLabel = getDeanBadgeLabel(department, profileData?.accountRole);
+  const fullName = profileData?.fullName || 'Dean User';
+
+  if (!isDesktopViewport) {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="content fade-in dash-content profile-content">
+
+          <div className="slip-top-nav">
+            <div className="slip-nav-left" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text">EduRoute</span>
+            </div>
+            <div className="admin-header-right">
+              <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+                <AdminBellIcon color="var(--text-dark)" />
+                <div className="admin-bell-dot" />
+              </div>
+              <div className="dash-avatar">
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-header-card">
+            <div className="profile-bg-wrapper">
+              <div className="profile-bg-shape"></div>
+            </div>
+            <div className="profile-image-container">
+              <div className="profile-image-wrapper">
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div className="faculty-badge">{badgeLabel}</div>
+            </div>
+
+            <h1 className="profile-name">{fullName}</h1>
+            <p className="profile-dept">{roleLabel} of {department}</p>
+
+            <div className="profile-id-pill">
+              <IdBadgeIcon color="currentColor" />
+              <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+            </div>
+          </div>
+
+          <div className="profile-section-title">
+            ACCOUNT ADMINISTRATION
+          </div>
+
+          <div className="profile-menu-list">
+            <div className="profile-menu-item" onClick={() => setView('dean-edit-profile')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <ProfileEditIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Edit Profile</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+
+            <div className="profile-menu-item" onClick={() => setView('dean-change-password')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <PasswordIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Change Password</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+
+            <div className="profile-menu-item" onClick={() => setView('dean-privacy-security')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <PrivacyIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Privacy &amp; Security</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+          </div>
+
+          <button type="button" className="session-logout-btn" onClick={onLogout}>
+            <LogoutIcon color="white" /> LOGOUT SESSION
+          </button>
+
+        </div>
+        <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} />
+      </div>
+    );
+  }
 
   return (
     <div className="admin-dash-wrapper dean-profile-wrapper">
@@ -12381,7 +12465,7 @@ const DeanProfileView = ({ setView, profileData, onLogout }) => {
                   {getDeanBadgeLabel(department, profileData?.accountRole)}
                 </div>
               </div>
-              <h2 className="aprof-name dean-profile-name">{profileData?.fullName || 'Dean User'}</h2>
+              <h2 className="aprof-name dean-profile-name">{fullName}</h2>
               <p className="aprof-role dean-profile-role">{roleLabel} of {department}</p>
               <div className="aprof-id-pill dean-profile-id-pill">
                 <AdminProfileIdIcon />
@@ -15240,6 +15324,79 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
       <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
         {desktopProfileContent}
       </CSSUDesktopPage>
+    );
+  }
+
+  if (accountRole === 'cssu') {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="content fade-in dash-content profile-content">
+
+          <div className="slip-top-nav">
+            <div className="slip-nav-left" onClick={() => setView(homeView)}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text">EduRoute</span>
+            </div>
+            <div className="admin-header-right">
+              <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
+                <AdminBellIcon color="var(--text-dark)" />
+                <div className="admin-bell-dot" />
+              </div>
+              <div className="dash-avatar">
+                <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="profile-header-card">
+            <div className="profile-bg-wrapper">
+              <div className="profile-bg-shape"></div>
+            </div>
+            <div className="profile-image-container">
+              <div className="profile-image-wrapper">
+                <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <div className="faculty-badge">{badgeLabel}</div>
+            </div>
+
+            <h1 className="profile-name">{fullName}</h1>
+            <p className="profile-dept">{position}</p>
+
+            <div className="profile-id-pill">
+              <IdBadgeIcon color="currentColor" />
+              <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+            </div>
+          </div>
+
+          <div className="profile-section-title">
+            ACCOUNT ADMINISTRATION
+          </div>
+
+          <div className="profile-menu-list">
+            <div className="profile-menu-item" onClick={() => setView('admin-edit-profile')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <ProfileEditIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Edit Profile</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+
+            <div className="profile-menu-item" onClick={() => setView('admin-change-password')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <PasswordIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Change Password</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+          </div>
+
+          <button type="button" className="session-logout-btn" onClick={onLogout}>
+            <LogoutIcon color="white" /> LOGOUT SESSION
+          </button>
+
+        </div>
+        <CSSUBottomNav active="" setView={setView} />
+      </div>
     );
   }
 
