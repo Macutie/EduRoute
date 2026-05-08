@@ -19131,6 +19131,19 @@ label {
   margin: 0;
 }
 
+.cssu-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.cssu-header-actions .admin-bell-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .cssu-avatar {
   width: 44px;
   height: 44px;

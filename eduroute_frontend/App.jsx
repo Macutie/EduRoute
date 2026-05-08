@@ -13215,8 +13215,14 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
         {/* Header */}
         <div className="cssu-header">
           <h1>Security Command</h1>
-          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          <div className="cssu-header-actions">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
           </div>
         </div>
 
@@ -13499,8 +13505,14 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
       <div className="admin-dash-scroll cssu-scroll">
         <div className="cssu-header cssu-map-mobile-header">
           <h1>Security Command</h1>
-          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          <div className="cssu-header-actions">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
           </div>
         </div>
 
@@ -13827,8 +13839,14 @@ const CSSUIncidentsView = ({ setView, profileData, onLogout }) => {
       <div className="admin-dash-scroll cssu-scroll">
         <div className="cssu-header cssu-map-mobile-header">
           <h1>Security Command</h1>
-          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          <div className="cssu-header-actions">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
           </div>
         </div>
 
@@ -14586,7 +14604,19 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
   return (
     <div className="mobile-container">
       <div className="content cssu-checkpoint-mobile-content">
-        <div className="header">
+        <div className="cssu-header cssu-map-mobile-header">
+          <h1>Security Command</h1>
+          <div className="cssu-header-actions">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
+          </div>
+        </div>
+        <div className="header cssu-scan-mobile-title">
           <h1>Exit Verification</h1>
           <p className="map-subtitle">Enter a locator slip code manually or use QR lookup on mobile.</p>
         </div>
@@ -14910,8 +14940,14 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
       <div className="admin-dash-scroll cssu-scroll">
         <div className="cssu-header cssu-map-mobile-header">
           <h1>Security Command</h1>
-          <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+          <div className="cssu-header-actions">
+            <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
+              <AdminBellIcon color="var(--green)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="cssu-avatar" onClick={() => setView('admin-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
+            </div>
           </div>
         </div>
 
