@@ -10485,9 +10485,40 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
     }
   };
 
-  const handlePrintReport = () => {
+  const handlePrintReport = async () => {
     if (loading) return;
-    window.print();
+
+    try {
+      const { blob } = await downloadHrmuMonthlyReportPdf({ monthIndex, baseYear });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const printFrame = document.createElement('iframe');
+      printFrame.style.position = 'fixed';
+      printFrame.style.right = '0';
+      printFrame.style.bottom = '0';
+      printFrame.style.width = '0';
+      printFrame.style.height = '0';
+      printFrame.style.border = '0';
+      printFrame.src = objectUrl;
+      document.body.appendChild(printFrame);
+
+      printFrame.onload = () => {
+        const cleanup = () => {
+          window.setTimeout(() => {
+            window.URL.revokeObjectURL(objectUrl);
+            printFrame.remove();
+          }, 1200);
+        };
+
+        try {
+          printFrame.contentWindow?.focus();
+          printFrame.contentWindow?.print();
+        } finally {
+          cleanup();
+        }
+      };
+    } catch (error) {
+      window.alert(error.message || 'Unable to print the monthly report.');
+    }
   };
 
   return (

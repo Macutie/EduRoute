@@ -86,6 +86,18 @@ const toneAccent = {
     yellow: [155, 131, 24],
 };
 
+const drawFilledCircle = (targetPage, x, y, radius, color) => {
+    const k = 0.5522847498;
+    const c = radius * k;
+    targetPage.drawings.push(
+        `q ${rgb(...color)} rg ${x.toFixed(2)} ${(y + radius).toFixed(2)} m `
+        + `${(x + c).toFixed(2)} ${(y + radius).toFixed(2)} ${(x + radius).toFixed(2)} ${(y + c).toFixed(2)} ${(x + radius).toFixed(2)} ${y.toFixed(2)} c `
+        + `${(x + radius).toFixed(2)} ${(y - c).toFixed(2)} ${(x + c).toFixed(2)} ${(y - radius).toFixed(2)} ${x.toFixed(2)} ${(y - radius).toFixed(2)} c `
+        + `${(x - c).toFixed(2)} ${(y - radius).toFixed(2)} ${(x - radius).toFixed(2)} ${(y - c).toFixed(2)} ${(x - radius).toFixed(2)} ${y.toFixed(2)} c `
+        + `${(x - radius).toFixed(2)} ${(y + c).toFixed(2)} ${(x - c).toFixed(2)} ${(y + radius).toFixed(2)} ${x.toFixed(2)} ${(y + radius).toFixed(2)} c f Q`
+    );
+};
+
 const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => {
     const pageWidth = 595;
     const pageHeight = 842;
@@ -181,6 +193,36 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
         page.drawings.push(`q ${rgb(...color)} RG ${lineWidth.toFixed(2)} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`);
     };
 
+    const drawEduRouteLogo = (x, y, size = 40) => {
+        ensurePage();
+        fillRect(x, y, size, size, PALETTE.white);
+        strokeRect(x, y, size, size, PALETTE.border, 1);
+
+        const cx = x + size / 2;
+        const cy = y - size / 2 + 2;
+        const outer = size * 0.24;
+        const inner = size * 0.12;
+
+        drawFilledCircle(page, cx, cy + 3, outer, PALETTE.green);
+
+        page.drawings.push(
+            `q ${rgb(...PALETTE.green)} rg `
+            + `${(cx - outer * 0.66).toFixed(2)} ${(cy - 5).toFixed(2)} m `
+            + `${cx.toFixed(2)} ${(cy - outer - 13).toFixed(2)} l `
+            + `${(cx + outer * 0.66).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
+        );
+
+        drawFilledCircle(page, cx, cy + 3, inner, PALETTE.white);
+
+        page.drawings.push(
+            `q ${rgb(241, 197, 16)} rg `
+            + `${(cx - outer - 1).toFixed(2)} ${(cy + 2).toFixed(2)} m `
+            + `${(cx + outer + 2).toFixed(2)} ${(cy + 10).toFixed(2)} l `
+            + `${(cx + outer - 1).toFixed(2)} ${(cy + 3).toFixed(2)} l `
+            + `${(cx - outer + 2).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
+        );
+    };
+
     const reserve = (height) => {
         ensurePage();
         if (cursorY - height < bottom) {
@@ -215,9 +257,11 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
 
     reserve(190);
 
+    drawEduRouteLogo(left, cursorY - 2, 40);
+
     addText({
         text: 'EduRoute HRMU',
-        x: left,
+        x: left + 54,
         y: cursorY - 6,
         size: 13,
         color: PALETTE.green,
@@ -225,7 +269,7 @@ const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => 
     });
     addText({
         text: 'FACULTY MOVEMENT',
-        x: left,
+        x: left + 54,
         y: cursorY - 23,
         size: 14,
         color: PALETTE.ink,
