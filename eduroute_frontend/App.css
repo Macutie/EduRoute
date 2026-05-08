@@ -17878,6 +17878,36 @@ label {
   padding: 0 24px 116px;
 }
 
+.cssu-checkpoint-mobile-scroll {
+  padding-bottom: 112px;
+}
+
+.cssu-checkpoint-mobile-layout {
+  padding-bottom: 24px;
+}
+
+.cssu-checkpoint-mobile-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cssu-checkpoint-mobile-intro h2 {
+  margin: 0;
+  color: var(--green);
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.cssu-checkpoint-mobile-intro p {
+  margin: 0;
+  color: #3D4B3E;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 320px;
+}
+
 .cssu-checkpoint-mobile-shell {
   display: flex;
   flex-direction: column;

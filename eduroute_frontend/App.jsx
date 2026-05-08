@@ -14602,9 +14602,9 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
   }
 
   return (
-    <div className="mobile-container">
-      <div className="content cssu-checkpoint-mobile-content">
-        <div className="cssu-header cssu-map-mobile-header">
+    <div className="admin-dash-wrapper cssu-wrapper">
+      <div className="admin-dash-scroll cssu-scroll cssu-checkpoint-mobile-scroll">
+        <div className="cssu-header">
           <h1>Security Command</h1>
           <div className="cssu-header-actions">
             <div className="admin-bell-wrapper hrmu-bell-wrapper" onClick={() => setView('cssu-notifications')}>
@@ -14616,16 +14616,21 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
             </div>
           </div>
         </div>
-        <div className="header cssu-scan-mobile-title">
-          <h1>Exit Verification</h1>
-          <p className="map-subtitle">Enter a locator slip code manually or use QR lookup on mobile.</p>
+
+        <div className="cssu-content cssu-checkpoint-mobile-layout">
+          <div className="cssu-checkpoint-mobile-intro">
+            <h2>Exit Verification</h2>
+            <p>Enter a locator slip code manually or use QR lookup on mobile.</p>
+          </div>
+
+          <div className="cssu-checkpoint-mobile-shell">
+            {renderCheckpointContent(true)}
+            {qrScannerError && <div className="cssu-checkpoint-inline-alert error">{qrScannerError}</div>}
+          </div>
         </div>
-        <div className="cssu-checkpoint-mobile-shell">
-          {renderCheckpointContent(true)}
-          {qrScannerError && <div className="cssu-checkpoint-inline-alert error">{qrScannerError}</div>}
-        </div>
-        <CSSUBottomNav active="scan" setView={setView} />
       </div>
+
+      <CSSUBottomNav active="scan" setView={setView} />
     </div>
   );
 };
