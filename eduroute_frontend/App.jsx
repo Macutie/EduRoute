@@ -12576,9 +12576,7 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
       <aside className="cssu-sidebar">
         <div className="cssu-sidebar-top">
           <div className="cssu-brand-lockup">
-            <div className="cssu-brand-badge">
-              <TogaLogoIcon size={24} />
-            </div>
+            <div className="cssu-brand-badge" />
             <div className="cssu-brand-text">
               <strong>EduRoute</strong>
               <span>CSSU ADMIN</span>
@@ -12806,13 +12804,16 @@ const CSSUDashboardDesktopViewLegacy = ({ setView, profileData, onLogout }) => (
           </div>
           <div>
             <strong>Duty Manager</strong>
-            <span>SGT. MILLER • ACTIVE</span>
+            <span>{`${getCssuDutyManagerLabel(profileData)} • ACTIVE`}</span>
           </div>
         </article>
       </aside>
     </div>
   </CSSUDesktopPage>
 );
+
+const getCssuDutyManagerLabel = (profileData) =>
+  profileData?.fullName || profileData?.email || 'CSSU Account';
 
 const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
   const [summary, setSummary] = useState({
@@ -13014,7 +13015,7 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
             </div>
             <div>
               <strong>Duty Manager</strong>
-              <span>SGT. MILLER • ACTIVE</span>
+              <span>{`${getCssuDutyManagerLabel(profileData)} • ACTIVE`}</span>
             </div>
           </article>
         </aside>
