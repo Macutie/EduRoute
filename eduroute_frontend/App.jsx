@@ -89,6 +89,74 @@ const getDefaultViewForRole = (role) => {
   return 'dashboard';
 };
 
+const APP_VIEWS = new Set([
+  'login',
+  'forgot-password',
+  'reset-code',
+  'set-new-password',
+  'signup',
+  'dashboard',
+  'scan',
+  'status',
+  'locator-slip-detail',
+  'locator-slip',
+  'updates',
+  'route-approved',
+  'slip-submitted',
+  'map-slip-selection',
+  'map',
+  'profile',
+  'change-password',
+  'notification-settings',
+  'dean-notification-settings',
+  'edit-profile',
+  'privacy-security',
+  'dean-privacy-security',
+  'dean-dashboard',
+  'dean-notifications',
+  'dean-requests',
+  'dean-request-detail',
+  'dean-profile',
+  'dean-faculty',
+  'dean-registry',
+  'dean-change-password',
+  'dean-edit-profile',
+  'hrmu-dashboard',
+  'hrmu-verification',
+  'hrmu-analytics',
+  'hrmu-reports',
+  'hrmu-live',
+  'hrmu-notifications',
+  'admin-dashboard',
+  'cssu-dashboard',
+  'cssu-map',
+  'cssu-incidents',
+  'cssu-scan',
+  'cssu-reports',
+  'cssu-notifications',
+  'admin-notifications',
+  'admin-approval-requests',
+  'admin-approval-detail',
+  'admin-registry',
+  'admin-faculty',
+  'admin-profile',
+  'admin-change-password',
+  'admin-edit-profile',
+]);
+
+const getViewFromUrlHash = () => {
+  if (typeof window === 'undefined') return null;
+  const rawHash = window.location.hash || '';
+  const normalized = decodeURIComponent(rawHash.replace(/^#\/?/, '').trim());
+  if (!normalized) return null;
+  return APP_VIEWS.has(normalized) ? normalized : null;
+};
+
+const getHashForView = (view) => {
+  if (!view || view === 'login') return '';
+  return `#/${encodeURIComponent(view)}`;
+};
+
 const getPortalHomeViewForRole = (role) => {
   if (role === 'hrmu') return 'hrmu-dashboard';
   if (role === 'cssu') return 'cssu-dashboard';
@@ -158,6 +226,8 @@ const registerPushNotificationsForCurrentBrowser = async () => {
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
   const [view, setView] = useState(() => {
+    const routedView = getViewFromUrlHash();
+    if (routedView) return routedView;
     const token = localStorage.getItem('token');
     const savedView = localStorage.getItem('edurouteLastView');
     const tokenRole = decodeJwtPayload(token || '')?.role || '';
@@ -212,6 +282,8 @@ function App() {
   const [permissionSetupMessage, setPermissionSetupMessage] = useState('');
   const [permissionSetupLoading, setPermissionSetupLoading] = useState(false);
   const permissionSetupSeenRef = useRef(false);
+  const syncingViewFromHashRef = useRef(false);
+  const initializedUrlSyncRef = useRef(false);
 
   const isAuthView = (v) => ['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup'].includes(v);
 
@@ -225,6 +297,46 @@ function App() {
 
     return String(value);
   };
+
+  useEffect(() => {
+    const syncViewFromHash = () => {
+      const routedView = getViewFromUrlHash();
+      if (!routedView || routedView === view) return;
+      syncingViewFromHashRef.current = true;
+      setView(routedView);
+    };
+
+    window.addEventListener('hashchange', syncViewFromHash);
+    return () => window.removeEventListener('hashchange', syncViewFromHash);
+  }, [view]);
+
+  useEffect(() => {
+    const targetHash = getHashForView(view);
+    const currentHash = window.location.hash || '';
+
+    if (syncingViewFromHashRef.current) {
+      syncingViewFromHashRef.current = false;
+      initializedUrlSyncRef.current = true;
+      return;
+    }
+
+    if (!initializedUrlSyncRef.current) {
+      initializedUrlSyncRef.current = true;
+      if (currentHash !== targetHash) {
+        const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
+        window.history.replaceState(null, '', nextUrl);
+      }
+      return;
+    }
+
+    if (currentHash !== targetHash) {
+      if (!targetHash) {
+        window.history.pushState(null, '', `${window.location.pathname}${window.location.search}`);
+      } else {
+        window.location.hash = targetHash;
+      }
+    }
+  }, [view]);
 
   const apiRequest = async (endpoint, options = {}) => {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
