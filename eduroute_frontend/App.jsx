@@ -10747,7 +10747,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
 
       try {
         const [notificationData, summaryData, flaggedTripsData] = await Promise.all([
-          getHrmuNotifications({ page: 1, limit: 6 }),
+          getHrmuNotifications({ page: 1, limit: 100 }),
           getHrmuVerificationIncidentSummary(),
           getHrmuFlaggedTrips(),
         ]);
@@ -10841,21 +10841,6 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
     return true;
   });
 
-  const featuredAlert = filteredAlerts[0] || null;
-  const featuredTone = featuredAlert?.type === 'violation' ? 'incident' : 'verified';
-  const featuredPillLabel = alertsLoading
-    ? 'LOADING'
-    : featuredAlert?.type === 'violation'
-      ? 'VIOLATION'
-      : featuredAlert
-        ? 'VERIFIED'
-        : 'NO ALERTS';
-  const filterLabel = alertFilter === 'all'
-    ? 'All'
-    : alertFilter === 'verified'
-      ? 'Verified'
-      : 'Flagged';
-
   return (
     <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
       <section className="hrmu-alerts-page">
@@ -10879,44 +10864,62 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
         </div>
 
         <section className="hrmu-alerts-grid">
-          <article className={`hrmu-alert-main-card ${featuredTone}`}>
-            <div className="hrmu-alert-main-accent" aria-hidden="true" />
-            <div className="hrmu-alert-main-body">
-              <div className="hrmu-alert-main-icon">
-                {featuredAlert?.type === 'violation' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+          <div className="hrmu-alert-feed-column">
+            {alertsLoading ? (
+              <div className="hrmu-alert-feed-empty">Loading system alerts...</div>
+            ) : null}
+
+            {!alertsLoading && !alertsError && filteredAlerts.length === 0 ? (
+              <div className="hrmu-alert-feed-empty">No alerts available for this filter right now.</div>
+            ) : null}
+
+            {!alertsLoading && filteredAlerts.length > 0 ? (
+              <div className="hrmu-alert-feed-list">
+                {filteredAlerts.map((alert) => {
+                  const tone = alert.type === 'violation' ? 'incident' : 'verified';
+                  const primaryTarget = alert.type === 'violation' ? 'hrmu-verification' : 'hrmu-dashboard';
+                  const secondaryTarget = alert.type === 'violation' ? 'hrmu-reports' : 'hrmu-verification';
+
+                  return (
+                    <article key={alert.id} className={`hrmu-alert-feed-card ${tone}`}>
+                      <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+                      <div className="hrmu-alert-feed-body">
+                        <div className={`hrmu-alert-feed-icon ${tone}`}>
+                          {alert.type === 'violation' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+                        </div>
+                        <div className="hrmu-alert-feed-copy">
+                          <div className="hrmu-alert-feed-head">
+                            <span className={`hrmu-alert-critical-pill ${tone}`}>
+                              {alert.type === 'violation' ? 'VIOLATION' : 'VERIFIED'}
+                            </span>
+                            <span className="hrmu-alert-feed-time">{alert.time}</span>
+                          </div>
+                          <h2>{alert.title}</h2>
+                          <p>{alert.body}</p>
+                          <div className="hrmu-alert-feed-actions">
+                            <button
+                              type="button"
+                              className={`hrmu-alert-primary-btn ${tone}`}
+                              onClick={() => setView(primaryTarget)}
+                            >
+                              {alert.actionLabelPrimary || 'Open Dashboard'}
+                            </button>
+                            <button
+                              type="button"
+                              className="hrmu-alert-text-btn"
+                              onClick={() => setView(secondaryTarget)}
+                            >
+                              {alert.actionLabelSecondary || 'Review Verification'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-              <div className="hrmu-alert-main-copy">
-                <div className="hrmu-alert-main-head">
-                  <div className="hrmu-alert-main-badges">
-                    <span className={`hrmu-alert-critical-pill ${featuredTone}`}>{featuredPillLabel}</span>
-                  </div>
-                  <span className="hrmu-alert-main-time">{featuredAlert?.time || 'Awaiting updates'}</span>
-                </div>
-                <h2>{featuredAlert?.title || 'No HRMU notifications yet'}</h2>
-                <p>
-                  {featuredAlert
-                    ? featuredAlert.body
-                    : `No ${filterLabel.toLowerCase()} alerts available right now.`}
-                </p>
-                <div className="hrmu-alert-main-actions">
-                  <button
-                    type="button"
-                    className={`hrmu-alert-primary-btn ${featuredTone}`}
-                    onClick={() => setView(featuredAlert?.type === 'violation' ? 'hrmu-verification' : 'hrmu-dashboard')}
-                  >
-                    {featuredAlert?.actionLabelPrimary || 'Open Dashboard'}
-                  </button>
-                  <button
-                    type="button"
-                    className="hrmu-alert-text-btn"
-                    onClick={() => setView(featuredAlert?.type === 'violation' ? 'hrmu-reports' : 'hrmu-verification')}
-                  >
-                    {featuredAlert?.actionLabelSecondary || 'Review Verification'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </article>
+            ) : null}
+          </div>
 
           <aside className="hrmu-alerts-side-column">
             <article className="hrmu-alert-summary-card">
