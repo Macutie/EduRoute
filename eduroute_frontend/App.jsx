@@ -6834,19 +6834,19 @@ const SlipSubmittedView = ({ setView, profileData }) => (
   </div>
 );
 
-const PolicyCheckIcon = ({ met }) => (
-  met ? (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="var(--green)" />
-      <path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  ) : (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <circle cx="12" cy="12" r="11" fill="#E5E7EB" />
-      <path d="M8 8L16 16M16 8L8 16" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-);
+const PolicyCheckIcon = ({ met, unmetTone = 'neutral' }) => (
+    met ? (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="11" fill="var(--green)" />
+        <path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    ) : (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="11" fill={unmetTone === 'danger' ? '#FEE2E2' : '#E5E7EB'} />
+        <path d="M8 8L16 16M16 8L8 16" stroke={unmetTone === 'danger' ? '#EF4444' : '#9CA3AF'} strokeWidth="2" strokeLinecap="round" />
+      </svg>
+    )
+  );
 
 const LinkIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -6971,16 +6971,16 @@ const ChangePasswordView = ({ setView, profileData, backView = 'profile', setFor
           </div>
 
           <div className="portal-settings-policy-card">
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.minLength ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.minLength} />
+            <div className={`chpw-policy-item ${policy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.minLength} unmetTone="danger" />
               <span>Minimum 10 characters</span>
             </div>
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.symbolsNumbers ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.symbolsNumbers} />
+            <div className={`chpw-policy-item ${policy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.symbolsNumbers} unmetTone="danger" />
               <span>Include symbols & numbers</span>
             </div>
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.noPersonal ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.noPersonal} />
+            <div className={`chpw-policy-item ${policy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.noPersonal} unmetTone="danger" />
               <span>No personal information</span>
             </div>
           </div>
@@ -7094,16 +7094,16 @@ const ChangePasswordView = ({ setView, profileData, backView = 'profile', setFor
             <span>PASSWORD POLICY</span>
           </div>
           <div className="chpw-policy-list">
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.minLength ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.minLength} />
+            <div className={`chpw-policy-item ${policy.minLength ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.minLength} unmetTone="danger" />
               <span>Minimum 10 characters</span>
             </div>
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.symbolsNumbers ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.symbolsNumbers} />
+            <div className={`chpw-policy-item ${policy.symbolsNumbers ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.symbolsNumbers} unmetTone="danger" />
               <span>Include symbols & numbers</span>
             </div>
-            <div className={`chpw-policy-item ${newPassword.length === 0 ? '' : policy.noPersonal ? 'met' : 'unmet'}`}>
-              <PolicyCheckIcon met={newPassword.length === 0 ? true : policy.noPersonal} />
+            <div className={`chpw-policy-item ${policy.noPersonal ? 'met' : 'unmet'}`}>
+              <PolicyCheckIcon met={policy.noPersonal} unmetTone="danger" />
               <span>No personal information</span>
             </div>
           </div>
