@@ -893,6 +893,7 @@ function App() {
       {view === 'profile' && <ProfileView setView={setView} profileData={profileData} onLogout={handleLogout} />}
       {view === 'change-password' && <ChangePasswordView setView={setView} profileData={profileData} setForgotPasswordBackView={setForgotPasswordBackView} />}
       {view === 'notification-settings' && <NotificationSettingsView setView={setView} profileData={profileData} />}
+      {view === 'dean-notification-settings' && <NotificationSettingsView setView={setView} profileData={profileData} mode="dean" backView="dean-profile" />}
       {view === 'edit-profile' && (
         <EditProfileView
           setView={setView}
@@ -7224,7 +7225,8 @@ const ToggleSwitch = ({ isOn, onToggle }) => (
   </div>
 );
 
-const NotificationSettingsView = ({ setView, profileData }) => {
+const NotificationSettingsView = ({ setView, profileData, mode = 'faculty', backView = 'profile' }) => {
+  const isDeanMode = mode === 'dean';
   const [approvalNotifs, setApprovalNotifs] = useState(false);
   const [reminderAlerts, setReminderAlerts] = useState(true);
   const [systemUpdates, setSystemUpdates] = useState(false);
@@ -7330,11 +7332,11 @@ const NotificationSettingsView = ({ setView, profileData }) => {
     <div className="dashboard-wrapper">
       <div className="content fade-in dash-content notif-content">
 
-        <div className="slip-top-nav chpw-top-nav">
-          <div className="slip-nav-left" onClick={() => setView('profile')}>
-            <BackArrowIcon color="var(--green)" />
-            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
-          </div>
+          <div className="slip-top-nav chpw-top-nav">
+            <div className="slip-nav-left" onClick={() => setView(backView)}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+            </div>
           <div className="dash-avatar">
             <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
@@ -7389,15 +7391,15 @@ const NotificationSettingsView = ({ setView, profileData }) => {
         </div>
 
         {/* Save Changes Button */}
-        <button type="button" className="notif-save-btn" onClick={() => setView('profile')}>
-          <SaveIcon /> SAVE CHANGES
-        </button>
+          <button type="button" className="notif-save-btn" onClick={() => setView(backView)}>
+            <SaveIcon /> SAVE CHANGES
+          </button>
 
+        </div>
+        {isDeanMode ? <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} /> : <BottomNav active="profile" setView={setView} />}
       </div>
-      <BottomNav active="profile" setView={setView} />
-    </div>
-  );
-};
+    );
+  };
 
 const CameraIcon = ({ color = "white" }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -12413,6 +12415,14 @@ const DeanProfileView = ({ setView, profileData, onLogout }) => {
               <ChevronRightIcon color="var(--text-light)" />
             </div>
 
+            <div className="profile-menu-item" onClick={() => setView('dean-notification-settings')}>
+              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                <NotificationIcon color="var(--green)" />
+              </div>
+              <span className="profile-menu-text">Notifications Settings</span>
+              <ChevronRightIcon color="var(--text-light)" />
+            </div>
+
             <div className="profile-menu-item" onClick={() => setView('dean-privacy-security')}>
               <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
                 <PrivacyIcon color="var(--green)" />
@@ -12489,6 +12499,14 @@ const DeanProfileView = ({ setView, profileData, onLogout }) => {
                   <AdminProfilePasswordIcon />
                 </div>
                 <span className="aprof-menu-text">Change Password</span>
+                <AdminProfileChevronIcon />
+              </button>
+
+              <button type="button" className="aprof-menu-item dean-profile-menu-item" onClick={() => setView('dean-notification-settings')}>
+                <div className="aprof-menu-icon-box">
+                  <NotificationIcon color="var(--green)" />
+                </div>
+                <span className="aprof-menu-text">Notifications Settings</span>
                 <AdminProfileChevronIcon />
               </button>
 
