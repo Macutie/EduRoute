@@ -15559,6 +15559,40 @@ const AdminEditProfileView = ({ setView, profileData, setProfileData }) => {
     }
   };
 
+  const handlePortalProfileSave = async () => {
+    setEditProfileLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'PATCH',
+        headers: editProfileHeaders(),
+        body: JSON.stringify({
+          full_name: fullName,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to update profile.');
+      }
+
+      setProfileData?.((prev) => ({
+        ...prev,
+        fullName: data.data.full_name,
+        email: data.data.email,
+        image: profileImage,
+        accountRole: data.data.account_role || prev.accountRole,
+      }));
+
+      alert(data.message);
+      setView('admin-profile');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setEditProfileLoading(false);
+    }
+  };
+
   const handleCssuPhotoChange = (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -15632,31 +15666,36 @@ const AdminEditProfileView = ({ setView, profileData, setProfileData }) => {
             <span>Keep your display name and portal email current for all system records.</span>
           </div>
 
-          <div className="portal-settings-desktop-fields">
-            <div className="portal-settings-desktop-field">
-              <label>Full Name</label>
-              <div className="aedit-input-wrapper portal-settings-input-wrapper">
-                <input type="text" defaultValue={profileData?.fullName || ''} />
-                <AdminUserOutlineIcon />
+            <div className="portal-settings-desktop-fields">
+              <div className="portal-settings-desktop-field">
+                <label>Full Name</label>
+                <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                  <input type="text" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                  <AdminUserOutlineIcon />
+                </div>
+              </div>
+
+              <div className="portal-settings-desktop-field">
+                <label>Academic Email</label>
+                <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                  <input type="email" value={email} disabled readOnly />
+                  <AdminEmailOutlineIcon />
+                </div>
               </div>
             </div>
 
-            <div className="portal-settings-desktop-field">
-              <label>Academic Email</label>
-              <div className="aedit-input-wrapper portal-settings-input-wrapper">
-                <input type="email" defaultValue={profileData?.email || ''} />
-                <AdminEmailOutlineIcon />
-              </div>
+            <div className="portal-settings-desktop-actions">
+              <button
+                type="button"
+                className="aedit-save-btn portal-settings-save-btn"
+                onClick={handlePortalProfileSave}
+                disabled={editProfileLoading || !fullName.trim()}
+              >
+                {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'}
+                <AdminSaveCheckIcon />
+              </button>
             </div>
           </div>
-
-          <div className="portal-settings-desktop-actions">
-            <button className="aedit-save-btn portal-settings-save-btn" onClick={() => setView('admin-profile')}>
-              SAVE CHANGES
-              <AdminSaveCheckIcon />
-            </button>
-          </div>
-        </div>
       </div>
     </section>
   );
