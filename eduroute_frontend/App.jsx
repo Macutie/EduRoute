@@ -9660,10 +9660,17 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
       setNotificationLoading(true);
 
       try {
-        const data = await getHrmuNotifications({ page: 1, limit: 3 });
+        const data = await getHrmuNotifications({ page: 1, limit: 2 });
         if (!isMounted || !data) return;
 
-        const rows = Array.isArray(data.notifications) ? data.notifications : [];
+        const rows = (Array.isArray(data.notifications) ? data.notifications : [])
+          .slice()
+          .sort((a, b) => {
+            const left = new Date(b?.createdAt || b?.approvedAt || 0).getTime();
+            const right = new Date(a?.createdAt || a?.approvedAt || 0).getTime();
+            return left - right;
+          })
+          .slice(0, 2);
         const positiveNotificationTypes = new Set([
           'hrmu_location_verification_submitted',
           'hrmu_locator_slip_approved',
