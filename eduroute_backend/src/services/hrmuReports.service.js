@@ -238,7 +238,7 @@ const getMonthlyReportDownload = async (userId, query = {}) => {
 
     const monthSlug = String(report.reportMeta.monthName || 'report').toLowerCase().replace(/\s+/g, '-');
     const filename = `eduroute-hrmu-report-${monthSlug}-${report.reportMeta.year}.pdf`;
-    const buffer = await buildHrmuMonthlyReportPdf(report);
+    const buffer = buildHrmuMonthlyReportPdf(report);
 
     return {
         buffer,
