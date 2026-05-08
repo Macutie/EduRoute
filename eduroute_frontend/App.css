@@ -15133,6 +15133,17 @@ label {
   font-size: 18px;
 }
 
+.portal-settings-readonly-email input:disabled {
+  color: var(--text-gray);
+  opacity: 0.75;
+  cursor: not-allowed;
+}
+
+.portal-settings-readonly-email svg {
+  color: var(--text-light);
+  stroke: var(--text-light);
+}
+
 .portal-settings-desktop-actions {
   display: flex;
   justify-content: flex-end;

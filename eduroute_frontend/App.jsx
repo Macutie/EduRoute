@@ -15677,7 +15677,7 @@ const AdminEditProfileView = ({ setView, profileData, setProfileData }) => {
 
               <div className="portal-settings-desktop-field">
                 <label>Academic Email</label>
-                <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                <div className="aedit-input-wrapper portal-settings-input-wrapper portal-settings-readonly-email">
                   <input type="email" value={email} disabled readOnly />
                   <AdminEmailOutlineIcon />
                 </div>
