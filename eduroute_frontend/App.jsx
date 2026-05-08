@@ -9292,16 +9292,14 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
   return (
     <div className="hrmu-workspace">
       <aside className="hrmu-sidebar">
-        <div className="hrmu-sidebar-top">
-          <div className="hrmu-brand-lockup">
-            <div className="hrmu-brand-badge">
-              <TogaLogoIcon size={24} />
+          <div className="hrmu-sidebar-top">
+            <div className="hrmu-brand-lockup">
+              <div className="hrmu-brand-badge" />
+              <div className="hrmu-brand-text">
+                <strong>EduRoute</strong>
+                <span>HRMU ADMIN</span>
+              </div>
             </div>
-            <div className="hrmu-brand-text">
-              <strong>EduRoute</strong>
-              <span>HRMU ADMIN</span>
-            </div>
-          </div>
 
           <nav className="hrmu-sidebar-nav">
             {sidebarItems.map((item) => {
