@@ -980,7 +980,7 @@ function App() {
         handleLogout();
       }} />}
       {view === 'admin-change-password' && <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />}
-      {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} />}
+      {view === 'admin-edit-profile' && <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />}
 
 
       {logoutModalPortal && (
@@ -15296,13 +15296,155 @@ const AdminSaveCheckIcon = () => (
   </svg>
 );
 
-const AdminEditProfileView = ({ setView, profileData }) => {
+const AdminEditProfileView = ({ setView, profileData, setProfileData }) => {
   const accountRole = profileData?.accountRole || '';
   const notificationsView = getPortalNotificationsViewForRole(accountRole);
   const isDesktopViewport = useDesktopWorkspaceViewport();
   const position = getPortalPositionLabel(profileData);
   const metaLabel = getPortalMetaLabel(profileData);
   const badgeLabel = getPortalBadgeLabel(accountRole);
+  const [fullName, setFullName] = useState(profileData?.fullName || '');
+  const [departmentId, setDepartmentId] = useState('');
+  const [email, setEmail] = useState(profileData?.email || '');
+  const [profileImage, setProfileImage] = useState(profileData?.image || DEFAULT_PROFILE_IMAGE);
+  const [editProfileLoading, setEditProfileLoading] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const formatEditProfileApiMessage = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(formatEditProfileApiMessage).filter(Boolean).join('\n');
+    if (typeof value === 'object') {
+      return Object.values(value).map(formatEditProfileApiMessage).filter(Boolean).join('\n');
+    }
+    return String(value);
+  };
+
+  const editProfileHeaders = () => ({
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+  });
+
+  useEffect(() => {
+    if (accountRole !== 'cssu') return undefined;
+
+    let isMounted = true;
+
+    const loadProfile = async () => {
+      setEditProfileLoading(true);
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+          headers: editProfileHeaders(),
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to load profile.');
+        }
+
+        if (!isMounted) return;
+
+        setFullName(data.data.full_name || '');
+        setDepartmentId(String(data.data.department_id || ''));
+        setEmail(data.data.email || '');
+        setProfileImage(data.data.profile_image_url || DEFAULT_PROFILE_IMAGE);
+      } catch (error) {
+        if (isMounted) {
+          alert(error.message);
+        }
+      } finally {
+        if (isMounted) {
+          setEditProfileLoading(false);
+        }
+      }
+    };
+
+    loadProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [accountRole]);
+
+  const handleCssuSave = async () => {
+    setEditProfileLoading(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        method: 'PATCH',
+        headers: editProfileHeaders(),
+        body: JSON.stringify({
+          full_name: fullName,
+          department_id: Number(departmentId),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to update profile.');
+      }
+
+      setProfileData?.((prev) => ({
+        ...prev,
+        fullName: data.data.full_name,
+        employeeId: data.data.employee_id || prev.employeeId,
+        department: data.data.department_name,
+        email: data.data.email,
+        image: profileImage,
+        accountRole: data.data.account_role || prev.accountRole,
+      }));
+
+      alert(data.message);
+      setView('admin-profile');
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setEditProfileLoading(false);
+    }
+  };
+
+  const handleCssuPhotoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const uploadProfileImage = async () => {
+      setEditProfileLoading(true);
+
+      try {
+        const formData = new FormData();
+        formData.append('profile_image', file);
+
+        const response = await fetch(`${API_BASE_URL}/api/auth/me/profile-picture`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          },
+          body: formData,
+        });
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(formatEditProfileApiMessage(data.errors) || formatEditProfileApiMessage(data.message) || 'Failed to upload profile picture.');
+        }
+
+        const imageUrl = data.data.profile_image_url;
+        setProfileImage(imageUrl);
+        setProfileData?.((prev) => ({
+          ...prev,
+          image: imageUrl,
+        }));
+        alert(data.message);
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        setEditProfileLoading(false);
+        event.target.value = '';
+      }
+    };
+
+    uploadProfileImage();
+  };
 
   const desktopEditContent = (
     <section className="portal-settings-desktop">
@@ -15377,6 +15519,89 @@ const AdminEditProfileView = ({ setView, profileData }) => {
       <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')} hideHeader>
         {desktopEditContent}
       </CSSUDesktopPage>
+    );
+  }
+
+  if (accountRole === 'cssu') {
+    return (
+      <div className="dashboard-wrapper">
+        <div className="content fade-in dash-content editp-content">
+
+          <div className="slip-top-nav chpw-top-nav">
+            <div className="slip-nav-left" onClick={() => setView('admin-profile')}>
+              <BackArrowIcon color="var(--green)" />
+              <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+            </div>
+            <div className="dash-avatar">
+              <img src={profileImage} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            </div>
+          </div>
+
+          <div className="chpw-divider-line" />
+
+          <div className="editp-header">
+            <span className="editp-badge">OFFICER IDENTITY</span>
+            <h1 className="editp-title">Edit Your Profile</h1>
+            <p className="editp-subtitle">Manage your professional presence across the EduRoute security ecosystem.</p>
+          </div>
+
+          <div className="editp-photo-section">
+            <div className="editp-photo-wrapper">
+              <img src={profileImage} alt="Profile" />
+              <button
+                type="button"
+                className="editp-camera-btn"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <CameraIcon />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleCssuPhotoChange}
+              />
+            </div>
+          </div>
+
+          <div className="editp-field">
+            <label className="editp-label">FULL NAME</label>
+            <div className="editp-input-wrapper">
+              <input
+                type="text"
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+              />
+              <PersonOutlineIcon color="var(--text-light)" />
+            </div>
+          </div>
+
+          <div className="editp-field">
+            <label className="editp-label">ACADEMIC EMAIL</label>
+            <div className="editp-input-wrapper">
+              <input
+                type="email"
+                value={email}
+                disabled
+                readOnly
+              />
+              <MailIcon color="var(--text-light)" />
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="editp-save-btn"
+            onClick={handleCssuSave}
+            disabled={editProfileLoading || !fullName.trim() || !departmentId}
+          >
+            {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'} <CheckCircleIcon />
+          </button>
+
+        </div>
+        <CSSUBottomNav active="" setView={setView} />
+      </div>
     );
   }
 
