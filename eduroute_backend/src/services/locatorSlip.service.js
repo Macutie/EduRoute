@@ -228,6 +228,8 @@ const formatLocatorSlip = (row) => ({
     locator_slip_code: row.locator_slip_code || null,
     qr_generated_at: row.qr_generated_at || null,
     cssu_validated_at: row.cssu_validated_at || null,
+    cssu_validated_by: row.cssu_validated_by || null,
+    cssu_validated_by_name: row.cssu_validated_by_name || null,
     cssu_validation_status: row.cssu_validation_status || null,
     cssu_validation_notes: row.cssu_validation_notes || null,
     qr_visible: QR_VISIBLE_SLIP_STATUSES.has(String(row.status || '').toLowerCase()),
@@ -457,6 +459,7 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
     const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
     const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
     const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasCssuValidatedByColumn = await getLocatorSlipColumnExists('cssu_validated_by');
     const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
     const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
@@ -487,6 +490,16 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
                 : hasCssuExitLogsTable
                     ? ', latest_cssu_log.validated_at AS cssu_validated_at'
                     : ", NULL::timestamp AS cssu_validated_at"}
+            ${hasCssuValidatedByColumn
+                ? `, ls.cssu_validated_by`
+                : ', NULL::text AS cssu_validated_by'}
+            ${hasCssuValidatedByColumn && hasCssuExitLogsTable
+                ? `, COALESCE(cssu_validator.full_name, latest_cssu_validator.full_name) AS cssu_validated_by_name`
+                : hasCssuValidatedByColumn
+                    ? ', cssu_validator.full_name AS cssu_validated_by_name'
+                    : hasCssuExitLogsTable
+                        ? ', latest_cssu_validator.full_name AS cssu_validated_by_name'
+                        : ", NULL::text AS cssu_validated_by_name"}
             ${hasCssuValidationNotesColumn
                 ? `, COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
                 : hasCssuExitLogsTable
@@ -498,12 +511,16 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
         ${locatorSlipTripJoin}
         ${hasCssuExitLogsTable ? `
         LEFT JOIN LATERAL (
-            SELECT log.status, log.validated_at, log.notes
+            SELECT log.status, log.validated_at, log.notes, log.validated_by
             FROM cssu_exit_logs log
             WHERE log.locator_slip_id = ls.id
             ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
             LIMIT 1
         ) latest_cssu_log ON TRUE` : ''}
+        ${hasCssuValidatedByColumn ? `
+        LEFT JOIN faculty_users cssu_validator ON cssu_validator.id = ls.cssu_validated_by` : ''}
+        ${hasCssuExitLogsTable ? `
+        LEFT JOIN faculty_users latest_cssu_validator ON latest_cssu_validator.id = latest_cssu_log.validated_by` : ''}
         WHERE ls.faculty_user_id = $1
           ${statusFilter}
           ${completedFilter}
@@ -529,6 +546,7 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
     const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
     const hasCssuValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
     const hasCssuValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
+    const hasCssuValidatedByColumn = await getLocatorSlipColumnExists('cssu_validated_by');
     const hasCssuValidationNotesColumn = await getLocatorSlipColumnExists('cssu_validation_notes');
     const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const tripStatusSelect = getResolvedTripStatusSelect(hasLocatorSlipTripStatusColumn);
@@ -553,6 +571,16 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
                 : hasCssuExitLogsTable
                     ? ', latest_cssu_log.validated_at AS cssu_validated_at'
                     : ", NULL::timestamp AS cssu_validated_at"}
+            ${hasCssuValidatedByColumn
+                ? `, ls.cssu_validated_by`
+                : ', NULL::text AS cssu_validated_by'}
+            ${hasCssuValidatedByColumn && hasCssuExitLogsTable
+                ? `, COALESCE(cssu_validator.full_name, latest_cssu_validator.full_name) AS cssu_validated_by_name`
+                : hasCssuValidatedByColumn
+                    ? ', cssu_validator.full_name AS cssu_validated_by_name'
+                    : hasCssuExitLogsTable
+                        ? ', latest_cssu_validator.full_name AS cssu_validated_by_name'
+                        : ", NULL::text AS cssu_validated_by_name"}
             ${hasCssuValidationNotesColumn
                 ? `, COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
                 : hasCssuExitLogsTable
@@ -564,12 +592,16 @@ const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
         ${locatorSlipTripJoin}
         ${hasCssuExitLogsTable ? `
         LEFT JOIN LATERAL (
-            SELECT log.status, log.validated_at, log.notes
+            SELECT log.status, log.validated_at, log.notes, log.validated_by
             FROM cssu_exit_logs log
             WHERE log.locator_slip_id = ls.id
             ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
             LIMIT 1
         ) latest_cssu_log ON TRUE` : ''}
+        ${hasCssuValidatedByColumn ? `
+        LEFT JOIN faculty_users cssu_validator ON cssu_validator.id = ls.cssu_validated_by` : ''}
+        ${hasCssuExitLogsTable ? `
+        LEFT JOIN faculty_users latest_cssu_validator ON latest_cssu_validator.id = latest_cssu_log.validated_by` : ''}
         WHERE ls.id = $1
           AND ls.faculty_user_id = $2
         LIMIT 1
