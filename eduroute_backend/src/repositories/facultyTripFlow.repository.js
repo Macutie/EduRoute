@@ -227,6 +227,7 @@ const mapLocatorSlipRow = (row) => ({
     cssu_validation_status: row.cssu_validation_status || 'pending',
     cssu_validated_at: row.cssu_validated_at || null,
     cssu_validated_by: row.cssu_validated_by || null,
+    cssu_validated_by_name: row.cssu_validated_by_name || null,
     cssu_validation_notes: row.cssu_validation_notes || null,
     approved_at: row.approved_at || null,
     updated_at: row.updated_at || null
@@ -291,6 +292,13 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
     const cssuValidatedBySelect = hasCssuValidatedByColumn
         ? `ls.cssu_validated_by`
         : `NULL::text AS cssu_validated_by`;
+    const cssuValidatedByNameSelect = hasCssuValidatedByColumn && hasCssuExitLogsTable
+        ? `COALESCE(cssu_validator.full_name, latest_cssu_validator.full_name) AS cssu_validated_by_name`
+        : hasCssuValidatedByColumn
+            ? `cssu_validator.full_name AS cssu_validated_by_name`
+            : hasCssuExitLogsTable
+                ? `latest_cssu_validator.full_name AS cssu_validated_by_name`
+                : `NULL::text AS cssu_validated_by_name`;
     const cssuValidationNotesSelect = hasCssuValidationNotesColumn
         ? `COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
         : hasCssuExitLogsTable
@@ -312,6 +320,7 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             ${cssuValidationStatusSelect},
             ${cssuValidatedAtSelect},
             ${cssuValidatedBySelect},
+            ${cssuValidatedByNameSelect},
             ${cssuValidationNotesSelect},
             ls.approved_at,
             ls.updated_at
@@ -344,12 +353,18 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
          ) resolved_trip ON TRUE
          ${hasCssuExitLogsTable ? `
          LEFT JOIN LATERAL (
-            SELECT log.status, log.notes, log.validated_at
+            SELECT log.status, log.notes, log.validated_at, log.validated_by
             FROM cssu_exit_logs log
             WHERE log.locator_slip_id = ls.id
             ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
             LIMIT 1
          ) latest_cssu_log ON TRUE` : ''}
+         ${hasCssuValidatedByColumn ? `
+         LEFT JOIN faculty_users cssu_validator
+           ON cssu_validator.id = ls.cssu_validated_by` : ''}
+         ${hasCssuExitLogsTable ? `
+         LEFT JOIN faculty_users latest_cssu_validator
+           ON latest_cssu_validator.id = latest_cssu_log.validated_by` : ''}
          WHERE ls.faculty_user_id = $1
            AND ls.status = ANY($2::text[])
            AND ls.status <> 'completed'
@@ -432,6 +447,13 @@ const getLocatorSlipForTripAccess = async (facultyUserId, locatorSlipId, client 
     const cssuValidatedBySelect = hasCssuValidatedByColumn
         ? `ls.cssu_validated_by`
         : `NULL::text AS cssu_validated_by`;
+    const cssuValidatedByNameSelect = hasCssuValidatedByColumn && hasCssuExitLogsTable
+        ? `COALESCE(cssu_validator.full_name, latest_cssu_validator.full_name) AS cssu_validated_by_name`
+        : hasCssuValidatedByColumn
+            ? `cssu_validator.full_name AS cssu_validated_by_name`
+            : hasCssuExitLogsTable
+                ? `latest_cssu_validator.full_name AS cssu_validated_by_name`
+                : `NULL::text AS cssu_validated_by_name`;
     const cssuValidationNotesSelect = hasCssuValidationNotesColumn
         ? `COALESCE(ls.cssu_validation_notes, ${hasCssuExitLogsTable ? 'latest_cssu_log.notes' : 'NULL'}) AS cssu_validation_notes`
         : hasCssuExitLogsTable
@@ -456,18 +478,25 @@ const getLocatorSlipForTripAccess = async (facultyUserId, locatorSlipId, client 
             ${cssuValidationStatusSelect},
             ${cssuValidatedAtSelect},
             ${cssuValidatedBySelect},
+            ${cssuValidatedByNameSelect},
             ${cssuValidationNotesSelect},
             ls.approved_at,
             ls.updated_at
          FROM locator_slips ls
          ${hasCssuExitLogsTable ? `
          LEFT JOIN LATERAL (
-            SELECT log.status, log.notes, log.validated_at
+            SELECT log.status, log.notes, log.validated_at, log.validated_by
             FROM cssu_exit_logs log
             WHERE log.locator_slip_id = ls.id
             ORDER BY COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
             LIMIT 1
          ) latest_cssu_log ON TRUE` : ''}
+         ${hasCssuValidatedByColumn ? `
+         LEFT JOIN faculty_users cssu_validator
+           ON cssu_validator.id = ls.cssu_validated_by` : ''}
+         ${hasCssuExitLogsTable ? `
+         LEFT JOIN faculty_users latest_cssu_validator
+           ON latest_cssu_validator.id = latest_cssu_log.validated_by` : ''}
          WHERE ls.id = $1
            AND ls.faculty_user_id = $2
          LIMIT 1`,

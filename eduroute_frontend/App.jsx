@@ -4165,6 +4165,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
   const isCancelled = slip.status === 'cancelled';
   const actionState = getLocatorSlipActionState(slip, slip.currentTrip || null);
   const cssuValidationStatus = getCssuValidationStatus(slip);
+  const cssuValidatedByName = slip.cssu_validated_by_name || slip.cssuValidatedByName || '';
   const canShowQrCode = actionState.showQr && Boolean(slip.locator_slip_code);
   const title = isPending
     ? 'Verification in'
@@ -4276,6 +4277,12 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
               {actionState.helperText}
               {cssuValidationStatus === 'pending' ? ' CSSU must allow exit before you can start this trip.' : ''}
             </p>
+          )}
+          {cssuValidationStatus === 'allowed' && cssuValidatedByName && (
+            <div className="submitted-reason-card">
+              <span>CSSU VALIDATED BY</span>
+              <strong>{cssuValidatedByName}</strong>
+            </div>
           )}
         </div>
 
