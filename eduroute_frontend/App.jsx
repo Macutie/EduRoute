@@ -14812,6 +14812,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [visibleRecordCount, setVisibleRecordCount] = useState(6);
+  const [logSortOrder, setLogSortOrder] = useState('desc');
   const startDateInputRef = useRef(null);
   const endDateInputRef = useRef(null);
 
@@ -14886,10 +14887,12 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
       .sort((left, right) => {
         const leftTime = left?.occurredAt ? new Date(left.occurredAt).getTime() : 0;
         const rightTime = right?.occurredAt ? new Date(right.occurredAt).getTime() : 0;
-        return rightTime - leftTime;
+        return logSortOrder === 'asc'
+          ? leftTime - rightTime
+          : rightTime - leftTime;
       })
       .slice(0, visibleRecordCount);
-  }, [reportData, visibleRecordCount]);
+  }, [reportData, visibleRecordCount, logSortOrder]);
 
   const hasMoreRecords = Array.isArray(reportData?.movementLogs) && visibleRecordCount < reportData.movementLogs.length;
 
@@ -15007,7 +15010,25 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                 </h2>
                 <p>Displaying data for {reportData?.filters?.dateRangeLabel || `${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</p>
               </div>
-              <span className="cssu-reports-draft-pill">DRAFT REPORT</span>
+              <div className="cssu-reports-preview-controls">
+                <div className="cssu-reports-sort-toggle" aria-label="Movement log sort order">
+                  <button
+                    type="button"
+                    className={logSortOrder === 'desc' ? 'active' : ''}
+                    onClick={() => setLogSortOrder('desc')}
+                  >
+                    Descending
+                  </button>
+                  <button
+                    type="button"
+                    className={logSortOrder === 'asc' ? 'active' : ''}
+                    onClick={() => setLogSortOrder('asc')}
+                  >
+                    Ascending
+                  </button>
+                </div>
+                <span className="cssu-reports-draft-pill">DRAFT REPORT</span>
+              </div>
             </div>
 
             <div className="cssu-reports-preview-list">
@@ -15194,6 +15215,23 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                 <p>{reportData?.filters?.dateRangeLabel || `${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</p>
               </div>
               <strong>{reportData?.summary?.totalMovements ?? 0} Records</strong>
+            </div>
+
+            <div className="cssu-mobile-reports-sort-toggle" aria-label="Movement log sort order">
+              <button
+                type="button"
+                className={logSortOrder === 'desc' ? 'active' : ''}
+                onClick={() => setLogSortOrder('desc')}
+              >
+                Descending
+              </button>
+              <button
+                type="button"
+                className={logSortOrder === 'asc' ? 'active' : ''}
+                onClick={() => setLogSortOrder('asc')}
+              >
+                Ascending
+              </button>
             </div>
 
             <div className="cssu-mobile-reports-list">
