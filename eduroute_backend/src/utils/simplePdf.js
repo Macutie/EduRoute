@@ -1,10 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const {
-    PDFDocument,
-    StandardFonts,
-    rgb,
-} = require('pdf-lib');
 
 const PAGE = {
     width: 595.28,
@@ -14,22 +9,24 @@ const PAGE = {
     marginBottom: 44,
 };
 
+const rgbTuple = (r, g, b) => [r / 255, g / 255, b / 255];
+
 const COLORS = {
-    green: rgb(6 / 255, 157 / 255, 27 / 255),
-    greenSoft: rgb(242 / 255, 248 / 255, 236 / 255),
-    greenText: rgb(12 / 255, 104 / 255, 29 / 255),
-    red: rgb(220 / 255, 53 / 255, 69 / 255),
-    redSoft: rgb(255 / 255, 239 / 255, 239 / 255),
-    redText: rgb(166 / 255, 30 / 255, 42 / 255),
-    yellow: rgb(139 / 255, 115 / 255, 0 / 255),
-    yellowSoft: rgb(248 / 255, 244 / 255, 226 / 255),
-    yellowText: rgb(108 / 255, 87 / 255, 5 / 255),
-    ink: rgb(39 / 255, 53 / 255, 72 / 255),
-    muted: rgb(112 / 255, 124 / 255, 139 / 255),
-    border: rgb(225 / 255, 232 / 255, 219 / 255),
-    cardFill: rgb(245 / 255, 249 / 255, 241 / 255),
-    headerFill: rgb(244 / 255, 248 / 255, 240 / 255),
-    white: rgb(1, 1, 1),
+    green: rgbTuple(6, 157, 27),
+    greenSoft: rgbTuple(242, 248, 236),
+    greenText: rgbTuple(12, 104, 29),
+    red: rgbTuple(220, 53, 69),
+    redSoft: rgbTuple(255, 239, 239),
+    redText: rgbTuple(166, 30, 42),
+    yellow: rgbTuple(139, 115, 0),
+    yellowSoft: rgbTuple(248, 244, 226),
+    yellowText: rgbTuple(108, 87, 5),
+    ink: rgbTuple(39, 53, 72),
+    muted: rgbTuple(112, 124, 139),
+    border: rgbTuple(225, 232, 219),
+    cardFill: rgbTuple(245, 249, 241),
+    headerFill: rgbTuple(244, 248, 240),
+    white: rgbTuple(255, 255, 255),
 };
 
 const REPORT_LOGO_CANDIDATES = [
@@ -74,30 +71,6 @@ const wrapTextByWidth = (font, text, size, width) => {
 
     if (current) lines.push(current);
     return lines;
-};
-
-const drawWrappedText = (page, font, text, options) => {
-    const {
-        x,
-        y,
-        width,
-        size,
-        color,
-        lineGap = 4,
-    } = options;
-
-    const lines = wrapTextByWidth(font, text, size, width);
-    lines.forEach((line, index) => {
-        page.drawText(line, {
-            x,
-            y: y - index * (size + lineGap),
-            size,
-            font,
-            color,
-        });
-    });
-
-    return lines.length;
 };
 
 const getStatusTone = (status) => {
@@ -148,7 +121,31 @@ const loadLogoBytes = () => {
     return logoPath ? fs.readFileSync(logoPath) : null;
 };
 
-const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
+const drawWrappedText = (page, font, text, options) => {
+    const {
+        x,
+        y,
+        width,
+        size,
+        color,
+        lineGap = 4,
+    } = options;
+
+    const lines = wrapTextByWidth(font, text, size, width);
+    lines.forEach((line, index) => {
+        page.drawText(line, {
+            x,
+            y: y - index * (size + lineGap),
+            size,
+            font,
+            color,
+        });
+    });
+
+    return lines.length;
+};
+
+const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
     const topY = PAGE.height - PAGE.marginTop;
     const brandBoxSize = 54;
     const brandBoxX = PAGE.marginX;
@@ -159,8 +156,8 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: brandBoxY,
         width: brandBoxSize,
         height: brandBoxSize,
-        color: COLORS.white,
-        borderColor: COLORS.border,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
         borderWidth: 1,
     });
 
@@ -178,7 +175,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: topY - 2,
         size: 15,
         font: fonts.regular,
-        color: COLORS.green,
+        color: colorize(COLORS.green),
     });
 
     page.drawText('FACULTY MOVEMENT', {
@@ -186,7 +183,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: topY - 26,
         size: 15,
         font: fonts.regular,
-        color: COLORS.ink,
+        color: colorize(COLORS.ink),
     });
 
     const rightMetaX = PAGE.width - PAGE.marginX - 150;
@@ -195,7 +192,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: topY - 1,
         size: 10,
         font: fonts.bold,
-        color: COLORS.ink,
+        color: colorize(COLORS.ink),
     });
 
     page.drawText(`Report Sequence: ${reportMeta.monthIndex} / ${reportMeta.totalMonths || 12}`, {
@@ -203,7 +200,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: topY - 17,
         size: 8.5,
         font: fonts.regular,
-        color: COLORS.muted,
+        color: colorize(COLORS.muted),
     });
 
     page.drawText(`Coverage: ${reportMeta.monthName}, ${reportMeta.year}`, {
@@ -211,20 +208,20 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
         y: topY - 31,
         size: 8.5,
         font: fonts.regular,
-        color: COLORS.muted,
+        color: colorize(COLORS.muted),
     });
 
     page.drawLine({
         start: { x: PAGE.marginX, y: topY - 62 },
         end: { x: PAGE.width - PAGE.marginX, y: topY - 62 },
         thickness: 2,
-        color: COLORS.green,
+        color: colorize(COLORS.green),
     });
 
     return topY - 95;
 };
 
-const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
+const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize }) => {
     let y = startY;
 
     page.drawText('Monthly Movement & Violation Summary', {
@@ -232,7 +229,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
         y,
         size: 18,
         font: fonts.regular,
-        color: COLORS.ink,
+        color: colorize(COLORS.ink),
     });
 
     page.drawRectangle({
@@ -240,7 +237,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
         y: y - 20,
         width: 78,
         height: 3,
-        color: COLORS.yellow,
+        color: colorize(COLORS.yellow),
     });
 
     const introLines = drawWrappedText(page, fonts.regular, `This report provides a comprehensive overview of logistical activities, security transitions, and flagged trip incidents within the HRMU jurisdiction for month of ${reportMeta.monthName}.`, {
@@ -248,7 +245,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
         y: y - 52,
         width: PAGE.width - PAGE.marginX * 2,
         size: 10.5,
-        color: COLORS.muted,
+        color: colorize(COLORS.muted),
         lineGap: 4,
     });
 
@@ -266,14 +263,14 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
             y: y - cardHeight,
             width: cardWidth,
             height: cardHeight,
-            color: COLORS.cardFill,
+            color: colorize(COLORS.cardFill),
         });
         page.drawRectangle({
             x,
             y: y - cardHeight,
             width: 4,
             height: cardHeight,
-            color: card.accent,
+            color: colorize(card.accent),
         });
 
         page.drawText(card.label, {
@@ -281,7 +278,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
             y: y - 18,
             size: 8.5,
             font: fonts.bold,
-            color: COLORS.muted,
+            color: colorize(COLORS.muted),
         });
 
         page.drawText(card.value, {
@@ -289,7 +286,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
             y: y - 42,
             size: 18,
             font: fonts.regular,
-            color: COLORS.ink,
+            color: colorize(COLORS.ink),
         });
 
         drawWrappedText(page, fonts.regular, card.note, {
@@ -297,7 +294,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
             y: y - 60,
             width: cardWidth - 28,
             size: 8.2,
-            color: COLORS.muted,
+            color: colorize(COLORS.muted),
             lineGap: 3,
         });
     });
@@ -305,7 +302,27 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
     return y - cardHeight - 30;
 };
 
-const drawTableHeader = ({ page, fonts, columns, y }) => {
+const drawLogTitle = ({ page, fonts, y, colorize }) => {
+    page.drawRectangle({
+        x: PAGE.marginX,
+        y: y - 12,
+        width: 4,
+        height: 12,
+        color: colorize(COLORS.green),
+    });
+
+    page.drawText('Key Incident Log', {
+        x: PAGE.marginX + 28,
+        y,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.ink),
+    });
+
+    return y - 22;
+};
+
+const drawTableHeader = ({ page, fonts, columns, y, colorize }) => {
     const totalWidth = columns.reduce((sum, column) => sum + column.width, 0);
 
     page.drawRectangle({
@@ -313,8 +330,8 @@ const drawTableHeader = ({ page, fonts, columns, y }) => {
         y: y - 34,
         width: totalWidth,
         height: 34,
-        color: COLORS.headerFill,
-        borderColor: COLORS.border,
+        color: colorize(COLORS.headerFill),
+        borderColor: colorize(COLORS.border),
         borderWidth: 1,
     });
 
@@ -325,7 +342,7 @@ const drawTableHeader = ({ page, fonts, columns, y }) => {
             y: y - 22,
             size: 8.2,
             font: fonts.bold,
-            color: COLORS.muted,
+            color: colorize(COLORS.muted),
         });
 
         cursorX += column.width;
@@ -334,7 +351,7 @@ const drawTableHeader = ({ page, fonts, columns, y }) => {
                 start: { x: cursorX, y },
                 end: { x: cursorX, y: y - 34 },
                 thickness: 1,
-                color: COLORS.border,
+                color: colorize(COLORS.border),
             });
         }
     });
@@ -342,27 +359,19 @@ const drawTableHeader = ({ page, fonts, columns, y }) => {
     return y - 34;
 };
 
-const drawLogTitle = ({ page, fonts, y }) => {
-    page.drawRectangle({
-        x: PAGE.marginX,
-        y: y - 12,
-        width: 4,
-        height: 12,
-        color: COLORS.green,
-    });
-
-    page.drawText('Key Incident Log', {
-        x: PAGE.marginX + 28,
-        y,
-        size: 15,
-        font: fonts.regular,
-        color: COLORS.ink,
-    });
-
-    return y - 22;
-};
-
 const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
+    let PDFDocument;
+    let StandardFonts;
+    let rgb;
+
+    try {
+        ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+    } catch (error) {
+        error.message = 'HRMU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        throw error;
+    }
+
+    const colorize = (tuple) => rgb(tuple[0], tuple[1], tuple[2]);
     const pdfDoc = await PDFDocument.create();
     const fonts = {
         regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
@@ -390,10 +399,10 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     const bodyLineGap = 3;
 
     let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
-    let cursorY = drawHeader({ page, fonts, logoImage, reportMeta });
-    cursorY = drawSummarySection({ page, fonts, summary, reportMeta, startY: cursorY });
-    cursorY = drawLogTitle({ page, fonts, y: cursorY });
-    cursorY = drawTableHeader({ page, fonts, columns, y: cursorY });
+    let cursorY = drawHeader({ page, fonts, logoImage, reportMeta, colorize });
+    cursorY = drawSummarySection({ page, fonts, summary, reportMeta, startY: cursorY, colorize });
+    cursorY = drawLogTitle({ page, fonts, y: cursorY, colorize });
+    cursorY = drawTableHeader({ page, fonts, columns, y: cursorY, colorize });
 
     if (rows.length === 0) {
         page.drawRectangle({
@@ -401,16 +410,16 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
             y: cursorY - 38,
             width: tableWidth,
             height: 38,
-            borderColor: COLORS.border,
+            borderColor: colorize(COLORS.border),
             borderWidth: 1,
-            color: COLORS.white,
+            color: colorize(COLORS.white),
         });
         page.drawText('No logs found for this month.', {
             x: PAGE.marginX + 12,
             y: cursorY - 24,
             size: 9,
             font: fonts.regular,
-            color: COLORS.muted,
+            color: colorize(COLORS.muted),
         });
     } else {
         rows.forEach((row) => {
@@ -422,9 +431,9 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
 
             if (cursorY - rowHeight < PAGE.marginBottom) {
                 page = pdfDoc.addPage([PAGE.width, PAGE.height]);
-                cursorY = drawHeader({ page, fonts, logoImage, reportMeta });
-                cursorY = drawLogTitle({ page, fonts, y: cursorY });
-                cursorY = drawTableHeader({ page, fonts, columns, y: cursorY });
+                cursorY = drawHeader({ page, fonts, logoImage, reportMeta, colorize });
+                cursorY = drawLogTitle({ page, fonts, y: cursorY, colorize });
+                cursorY = drawTableHeader({ page, fonts, columns, y: cursorY, colorize });
             }
 
             page.drawRectangle({
@@ -432,8 +441,8 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                 y: cursorY - rowHeight,
                 width: tableWidth,
                 height: rowHeight,
-                color: COLORS.white,
-                borderColor: COLORS.border,
+                color: colorize(COLORS.white),
+                borderColor: colorize(COLORS.border),
                 borderWidth: 1,
             });
 
@@ -447,7 +456,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                         start: { x: cellX, y: cursorY },
                         end: { x: cellX, y: cursorY - rowHeight },
                         thickness: 1,
-                        color: COLORS.border,
+                        color: colorize(COLORS.border),
                     });
                 }
 
@@ -463,14 +472,14 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                         y: pillY,
                         width: pillWidth,
                         height: pillHeight,
-                        color: tone.fill,
+                        color: colorize(tone.fill),
                     });
                     page.drawText(String(row.status || '--').toUpperCase(), {
                         x: pillX + 7,
                         y: pillY + 6,
                         size: 7.2,
                         font: fonts.bold,
-                        color: tone.text,
+                        color: colorize(tone.text),
                     });
                 } else if (column.key === 'action') {
                     page.drawText('Details', {
@@ -478,7 +487,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                         y: cursorY - 22,
                         size: 8.4,
                         font: fonts.bold,
-                        color: COLORS.green,
+                        color: colorize(COLORS.green),
                     });
                 } else {
                     const lines = rowCells[index];
@@ -488,7 +497,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                             y: cellTopY - lineIndex * (bodyFontSize + bodyLineGap),
                             size: bodyFontSize,
                             font: fonts.regular,
-                            color: COLORS.ink,
+                            color: colorize(COLORS.ink),
                         });
                     });
                 }
