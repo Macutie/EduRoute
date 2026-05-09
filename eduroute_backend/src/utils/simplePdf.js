@@ -149,7 +149,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
     const topY = PAGE.height - PAGE.marginTop;
     const brandBoxSize = 54;
     const brandBoxX = PAGE.marginX;
-    const headerCenterY = topY - 28;
+    const headerCenterY = topY - 24;
     const brandBoxY = headerCenterY - brandBoxSize / 2;
     const textX = brandBoxX + brandBoxSize + 16;
 
@@ -174,7 +174,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
 
     page.drawText('EduRoute HRMU', {
         x: textX,
-        y: headerCenterY + 11,
+        y: headerCenterY + 8,
         size: 15,
         font: fonts.regular,
         color: colorize(COLORS.green),
@@ -182,7 +182,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
 
     page.drawText('FACULTY MOVEMENT', {
         x: textX,
-        y: headerCenterY - 11,
+        y: headerCenterY - 14,
         size: 15,
         font: fonts.regular,
         color: colorize(COLORS.ink),
@@ -191,7 +191,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
     const rightMetaX = PAGE.width - PAGE.marginX - 150;
     page.drawText('OFFICIAL DOCUMENT', {
         x: rightMetaX,
-        y: topY - 1,
+        y: headerCenterY + 12,
         size: 10,
         font: fonts.bold,
         color: colorize(COLORS.ink),
@@ -199,7 +199,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
 
     page.drawText(`Report Sequence: ${reportMeta.monthIndex} / ${reportMeta.totalMonths || 12}`, {
         x: rightMetaX,
-        y: topY - 17,
+        y: headerCenterY - 2,
         size: 8.5,
         font: fonts.regular,
         color: colorize(COLORS.muted),
@@ -207,20 +207,13 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
 
     page.drawText(`Coverage: ${reportMeta.monthName}, ${reportMeta.year}`, {
         x: rightMetaX,
-        y: topY - 31,
+        y: headerCenterY - 16,
         size: 8.5,
         font: fonts.regular,
         color: colorize(COLORS.muted),
     });
 
-    page.drawLine({
-        start: { x: PAGE.marginX, y: topY - 62 },
-        end: { x: PAGE.width - PAGE.marginX, y: topY - 62 },
-        thickness: 2,
-        color: colorize(COLORS.green),
-    });
-
-    return topY - 95;
+    return topY - 82;
 };
 
 const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize }) => {
@@ -305,16 +298,8 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize
 };
 
 const drawLogTitle = ({ page, fonts, y, colorize }) => {
-    page.drawRectangle({
-        x: PAGE.marginX,
-        y: y - 10,
-        width: 4,
-        height: 10,
-        color: colorize(COLORS.green),
-    });
-
     page.drawText('Key Incident Log', {
-        x: PAGE.marginX + 22,
+        x: PAGE.marginX,
         y,
         size: 15,
         font: fonts.regular,
