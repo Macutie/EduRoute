@@ -149,7 +149,9 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
     const topY = PAGE.height - PAGE.marginTop;
     const brandBoxSize = 54;
     const brandBoxX = PAGE.marginX;
-    const brandBoxY = topY - brandBoxSize;
+    const headerCenterY = topY - 28;
+    const brandBoxY = headerCenterY - brandBoxSize / 2;
+    const textX = brandBoxX + brandBoxSize + 16;
 
     page.drawRectangle({
         x: brandBoxX,
@@ -171,16 +173,16 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
     }
 
     page.drawText('EduRoute HRMU', {
-        x: brandBoxX + brandBoxSize + 16,
-        y: topY - 2,
+        x: textX,
+        y: headerCenterY + 11,
         size: 15,
         font: fonts.regular,
         color: colorize(COLORS.green),
     });
 
     page.drawText('FACULTY MOVEMENT', {
-        x: brandBoxX + brandBoxSize + 16,
-        y: topY - 26,
+        x: textX,
+        y: headerCenterY - 11,
         size: 15,
         font: fonts.regular,
         color: colorize(COLORS.ink),
@@ -305,14 +307,14 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize
 const drawLogTitle = ({ page, fonts, y, colorize }) => {
     page.drawRectangle({
         x: PAGE.marginX,
-        y: y - 12,
+        y: y - 10,
         width: 4,
-        height: 12,
+        height: 10,
         color: colorize(COLORS.green),
     });
 
     page.drawText('Key Incident Log', {
-        x: PAGE.marginX + 28,
+        x: PAGE.marginX + 22,
         y,
         size: 15,
         font: fonts.regular,
