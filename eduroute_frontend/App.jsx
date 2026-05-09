@@ -14879,10 +14879,17 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     });
   };
 
-  const previewRows = useMemo(
-    () => Array.isArray(reportData?.movementLogs) ? reportData.movementLogs.slice(0, visibleRecordCount) : [],
-    [reportData, visibleRecordCount]
-  );
+  const previewRows = useMemo(() => {
+    if (!Array.isArray(reportData?.movementLogs)) return [];
+
+    return [...reportData.movementLogs]
+      .sort((left, right) => {
+        const leftTime = left?.occurredAt ? new Date(left.occurredAt).getTime() : 0;
+        const rightTime = right?.occurredAt ? new Date(right.occurredAt).getTime() : 0;
+        return rightTime - leftTime;
+      })
+      .slice(0, visibleRecordCount);
+  }, [reportData, visibleRecordCount]);
 
   const hasMoreRecords = Array.isArray(reportData?.movementLogs) && visibleRecordCount < reportData.movementLogs.length;
 
@@ -15021,7 +15028,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                   </div>
                   <div className="cssu-reports-preview-copy">
                     <strong>{row.facultyName}</strong>
-                    <p>{row.departmentName} • {row.eventLabel} • {row.occurredTimeLabel}</p>
+                    <p>{row.departmentName} • {row.eventLabel} • {row.occurredDateTimeLabel || row.occurredTimeLabel}</p>
                   </div>
                   <span className={`cssu-reports-preview-status ${row.movementStatus === 'flagged' ? 'flagged' : 'verified'}`}>
                     {row.movementStatusLabel}
@@ -15203,7 +15210,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                   <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-mobile-reports-avatar" />
                   <div className="cssu-mobile-reports-copy">
                     <strong>{row.facultyName}</strong>
-                    <p>{row.occurredTimeLabel} • {row.locationLabel}</p>
+                    <p>{row.occurredDateTimeLabel || row.occurredTimeLabel} • {row.locationLabel}</p>
                   </div>
                   <span className={`cssu-mobile-reports-status ${row.movementStatus === 'flagged' ? 'flagged' : 'verified'}`}>
                     {row.movementStatusLabel}
