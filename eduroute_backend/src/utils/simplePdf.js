@@ -346,6 +346,206 @@ const drawTableHeader = ({ page, fonts, columns, y, colorize }) => {
     return y - 34;
 };
 
+const drawCssuReportHeader = ({ page, fonts, logoImage, reportMeta, filters, colorize }) => {
+    const topY = PAGE.height - PAGE.marginTop;
+    const brandBoxSize = 54;
+    const brandBoxX = PAGE.marginX;
+    const headerCenterY = topY - 24;
+    const brandBoxY = headerCenterY - brandBoxSize / 2;
+    const textX = brandBoxX + brandBoxSize + 16;
+
+    page.drawRectangle({
+        x: brandBoxX,
+        y: brandBoxY,
+        width: brandBoxSize,
+        height: brandBoxSize,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+    });
+
+    if (logoImage) {
+        page.drawImage(logoImage, {
+            x: brandBoxX + 4,
+            y: brandBoxY + 4,
+            width: brandBoxSize - 8,
+            height: brandBoxSize - 8,
+        });
+    }
+
+    page.drawText('EduRoute CSSU', {
+        x: textX,
+        y: headerCenterY + 8,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.green),
+    });
+
+    page.drawText('MOVEMENT LOGS PREVIEW', {
+        x: textX,
+        y: headerCenterY - 14,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.ink),
+    });
+
+    const rightMetaX = PAGE.width - PAGE.marginX - 150;
+    page.drawText('OFFICIAL DOCUMENT', {
+        x: rightMetaX,
+        y: headerCenterY + 12,
+        size: 10,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+
+    page.drawText(`Report ID: ${reportMeta.reportId || 'CSSU-DRAFT'}`, {
+        x: rightMetaX,
+        y: headerCenterY - 2,
+        size: 8.5,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+
+    page.drawText(`Coverage: ${filters.dateRangeLabel || '--'}`, {
+        x: rightMetaX,
+        y: headerCenterY - 16,
+        size: 8.5,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+
+    return topY - 82;
+};
+
+const drawCssuSummaryCard = ({ page, fonts, summary, x, y, width, colorize }) => {
+    const height = 116;
+    page.drawRectangle({
+        x,
+        y: y - height,
+        width,
+        height,
+        color: colorize(COLORS.green),
+    });
+
+    page.drawText('TOTAL MOVEMENTS', {
+        x: x + 18,
+        y: y - 22,
+        size: 10,
+        font: fonts.bold,
+        color: colorize(COLORS.white),
+    });
+
+    page.drawText(String(summary.totalMovements || 0).padStart(2, '0'), {
+        x: x + 18,
+        y: y - 64,
+        size: 42,
+        font: fonts.bold,
+        color: colorize(COLORS.white),
+    });
+
+    drawWrappedText(page, fonts.regular, 'Verified and flagged CSSU movement records within the selected report range.', {
+        x: x + 18,
+        y: y - 92,
+        width: width - 36,
+        size: 9.5,
+        color: colorize(COLORS.white),
+        lineGap: 3,
+    });
+
+    return y - height;
+};
+
+const drawCssuMovementRow = ({ page, fonts, row, x, y, width, colorize }) => {
+    const height = 78;
+    page.drawRectangle({
+        x,
+        y: y - height,
+        width,
+        height,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+    });
+
+    const accentColor = row.movementStatus === 'flagged' ? COLORS.red : COLORS.green;
+    page.drawRectangle({
+        x,
+        y: y - height,
+        width: 4,
+        height,
+        color: colorize(accentColor),
+    });
+
+    const avatarCenterX = x + 26;
+    const avatarCenterY = y - 39;
+    page.drawCircle({
+        x: avatarCenterX,
+        y: avatarCenterY,
+        size: 15,
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+        color: colorize(COLORS.white),
+    });
+    page.drawText((row.facultyName || '?').slice(0, 1).toUpperCase(), {
+        x: avatarCenterX - 4,
+        y: avatarCenterY - 4,
+        size: 10,
+        font: fonts.bold,
+        color: colorize(accentColor),
+    });
+
+    const textX = x + 52;
+    page.drawText(row.facultyName || 'Unknown faculty', {
+        x: textX,
+        y: y - 24,
+        size: 10.5,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+
+    drawWrappedText(page, fonts.regular, `${row.departmentName} • ${row.eventLabel} • ${row.occurredDateTimeLabel || row.occurredTimeLabel || '--'}`, {
+        x: textX,
+        y: y - 42,
+        width: width - 210,
+        size: 8.8,
+        color: colorize(COLORS.muted),
+        lineGap: 2,
+    });
+
+    const tone = row.movementStatus === 'flagged'
+        ? { fill: COLORS.redSoft, text: COLORS.redText }
+        : { fill: COLORS.greenSoft, text: COLORS.greenText };
+    const pillWidth = 70;
+    const pillHeight = 22;
+    const pillX = x + width - 146;
+    const pillY = y - 33;
+
+    page.drawRectangle({
+        x: pillX,
+        y: pillY,
+        width: pillWidth,
+        height: pillHeight,
+        color: colorize(tone.fill),
+    });
+    page.drawText(String(row.movementStatusLabel || '--').toUpperCase(), {
+        x: pillX + 12,
+        y: pillY + 8,
+        size: 8.2,
+        font: fonts.bold,
+        color: colorize(tone.text),
+    });
+
+    page.drawText(row.movementStatus === 'flagged' ? (row.investigationLabel || row.locationLabel || '--') : (row.locationLabel || '--'), {
+        x: x + width - 68,
+        y: y - 28,
+        size: 9.2,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+
+    return y - height;
+};
+
 const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
     let PDFDocument;
     let StandardFonts;
@@ -500,6 +700,129 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     return Buffer.from(pdfBytes);
 };
 
+const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc' }) => {
+    let PDFDocument;
+    let StandardFonts;
+    let rgb;
+
+    try {
+        ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+    } catch (error) {
+        error.message = 'CSSU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        throw error;
+    }
+
+    const colorize = (tuple) => rgb(tuple[0], tuple[1], tuple[2]);
+    const pdfDoc = await PDFDocument.create();
+    const fonts = {
+        regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+        bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+    };
+
+    const logoBytes = loadLogoBytes();
+    let logoImage = null;
+    if (logoBytes) {
+        const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
+        logoImage = isPng ? await pdfDoc.embedPng(logoBytes) : await pdfDoc.embedJpg(logoBytes);
+    }
+
+    const rows = Array.isArray(movementLogs) ? movementLogs : [];
+    const reportTitle = 'Movement Logs Preview';
+    const reportSubtitle = `Displaying data for ${filters.dateRangeLabel || '--'}`;
+
+    let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+    let cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
+
+    page.drawText(reportTitle, {
+        x: PAGE.marginX,
+        y: cursorY,
+        size: 18,
+        font: fonts.bold,
+        color: colorize(COLORS.green),
+    });
+
+    page.drawText(reportSubtitle, {
+        x: PAGE.marginX,
+        y: cursorY - 22,
+        size: 10.5,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+
+    page.drawText(`Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`, {
+        x: PAGE.width - PAGE.marginX - 108,
+        y: cursorY - 4,
+        size: 8.8,
+        font: fonts.bold,
+        color: colorize(COLORS.greenText),
+    });
+
+    const summaryCardWidth = 150;
+    const summaryTopY = cursorY - 54;
+    drawCssuSummaryCard({
+        page,
+        fonts,
+        summary,
+        x: PAGE.width - PAGE.marginX - summaryCardWidth,
+        y: summaryTopY,
+        width: summaryCardWidth,
+        colorize,
+    });
+
+    cursorY = cursorY - 74;
+
+    const listWidth = PAGE.width - PAGE.marginX * 2 - summaryCardWidth - 18;
+    const listRightBound = PAGE.marginX + listWidth;
+
+    if (rows.length === 0) {
+        page.drawRectangle({
+            x: PAGE.marginX,
+            y: cursorY - 54,
+            width: listWidth,
+            height: 54,
+            color: colorize(COLORS.white),
+            borderColor: colorize(COLORS.border),
+            borderWidth: 1,
+        });
+        page.drawText('No movement logs found for the selected range.', {
+            x: PAGE.marginX + 14,
+            y: cursorY - 32,
+            size: 10,
+            font: fonts.regular,
+            color: colorize(COLORS.muted),
+        });
+    } else {
+        rows.forEach((row) => {
+            if (cursorY - 78 < PAGE.marginBottom) {
+                page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+                cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
+                cursorY -= 24;
+            }
+            cursorY = drawCssuMovementRow({
+                page,
+                fonts,
+                row,
+                x: PAGE.marginX,
+                y: cursorY,
+                width: listWidth,
+                colorize,
+            }) - 14;
+        });
+    }
+
+    page.drawText(`Preview Scope: ${rows.length} movement log${rows.length === 1 ? '' : 's'}`, {
+        x: listRightBound + 18,
+        y: summaryTopY - 136,
+        size: 8.4,
+        font: fonts.bold,
+        color: colorize(COLORS.muted),
+    });
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+};
+
 module.exports = {
     buildHrmuMonthlyReportPdf,
+    buildCssuMovementReportPdf,
 };

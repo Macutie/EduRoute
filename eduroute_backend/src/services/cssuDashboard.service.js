@@ -2,6 +2,7 @@ const AppError = require('../utils/appError');
 const cssuDashboardRepository = require('../repositories/cssuDashboard.repository');
 const { CSSU_FLAG_INCIDENT_NOTE_PREFIX } = require('../repositories/cssuDashboard.repository');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const { buildCssuMovementReportPdf } = require('../utils/simplePdf');
 
 const GATE_OPTIONS = new Set(['main_gate', 'back_gate']);
 const CSSU_ALLOWED_DEPARTMENTS = new Set([
@@ -99,6 +100,10 @@ const normalizeReportsFilters = (query = {}) => {
         departmentName,
     };
 };
+
+const normalizeSortOrder = (value) => (
+    String(value || 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc'
+);
 
 const getDashboardSummary = async () => {
     const summary = await cssuDashboardRepository.getDashboardSummary();
@@ -206,8 +211,35 @@ const getNotificationsOverview = async (query = {}) => {
     };
 };
 
+const buildMovementLogs = (rows, sortOrder = 'desc') => {
+    const movementLogs = rows.map((row) => ({
+        id: row.movement_id,
+        locatorSlipId: row.locator_slip_id,
+        facultyName: row.faculty_name || 'Unknown faculty',
+        facultyId: row.employee_id || '--',
+        departmentName: row.department_name || 'Unassigned Department',
+        purpose: row.purpose || 'Locator Slip Clearance',
+        destination: row.destination || 'Unknown destination',
+        occurredAt: row.occurred_at ? new Date(row.occurred_at).toISOString() : null,
+        occurredTimeLabel: formatTimeLabel(row.occurred_at),
+        occurredDateTimeLabel: formatDateTimeLabel(row.occurred_at),
+        movementStatus: String(row.movement_status || 'verified').toLowerCase(),
+        movementStatusLabel: String(row.movement_status || 'verified').toLowerCase() === 'flagged' ? 'FLAGGED' : 'VERIFIED',
+        locationLabel: row.location_label || row.destination || 'Unknown destination',
+        eventLabel: row.event_label || 'Movement',
+        investigationLabel: row.investigation_label || '',
+    }));
+
+    return movementLogs.sort((left, right) => {
+        const leftTime = left.occurredAt ? new Date(left.occurredAt).getTime() : 0;
+        const rightTime = right.occurredAt ? new Date(right.occurredAt).getTime() : 0;
+        return sortOrder === 'asc' ? leftTime - rightTime : rightTime - leftTime;
+    });
+};
+
 const getReportsOverview = async (query = {}) => {
     const filters = normalizeReportsFilters(query);
+    const sortOrder = normalizeSortOrder(query.sortOrder);
     const [summaryRow, activityRows, movementRows] = await Promise.all([
         cssuDashboardRepository.getReportsSummary(filters),
         cssuDashboardRepository.getReportsActivityByDepartment(filters),
@@ -235,28 +267,31 @@ const getReportsOverview = async (query = {}) => {
             locatorSlipCount: Number(row.locator_slip_count || 0),
             percentage: Number(row.percentage || 0),
         })),
-        movementLogs: movementRows.map((row) => ({
-            id: row.movement_id,
-            locatorSlipId: row.locator_slip_id,
-            facultyName: row.faculty_name || 'Unknown faculty',
-            facultyId: row.employee_id || '--',
-            departmentName: row.department_name || 'Unassigned Department',
-            purpose: row.purpose || 'Locator Slip Clearance',
-            destination: row.destination || 'Unknown destination',
-            occurredAt: row.occurred_at ? new Date(row.occurred_at).toISOString() : null,
-            occurredTimeLabel: formatTimeLabel(row.occurred_at),
-            occurredDateTimeLabel: formatDateTimeLabel(row.occurred_at),
-            movementStatus: String(row.movement_status || 'verified').toLowerCase(),
-            movementStatusLabel: String(row.movement_status || 'verified').toLowerCase() === 'flagged' ? 'FLAGGED' : 'VERIFIED',
-            locationLabel: row.location_label || row.destination || 'Unknown destination',
-            eventLabel: row.event_label || 'Movement',
-            investigationLabel: row.investigation_label || '',
-        })),
+        movementLogs: buildMovementLogs(movementRows, sortOrder),
         reportMeta: {
             reportId: `CSSU-${filters.startDate.replace(/-/g, '')}-${filters.endDate.replace(/-/g, '')}`,
             lastGeneratedAt: new Date().toISOString(),
             lastGeneratedLabel: formatDateTimeLabel(new Date().toISOString()),
         },
+    };
+};
+
+const getReportsDownload = async (query = {}) => {
+    const report = await getReportsOverview(query);
+    const startSlug = report.filters.startDate.replace(/-/g, '');
+    const endSlug = report.filters.endDate.replace(/-/g, '');
+    const filename = `eduroute-cssu-movement-${startSlug}-${endSlug}.pdf`;
+    const buffer = await buildCssuMovementReportPdf({
+        filters: report.filters,
+        summary: report.summary,
+        movementLogs: report.movementLogs,
+        reportMeta: report.reportMeta,
+        sortOrder: normalizeSortOrder(query.sortOrder),
+    });
+
+    return {
+        buffer,
+        filename,
     };
 };
 
@@ -481,6 +516,7 @@ module.exports = {
     getLiveExitMonitoring,
     getNotificationsOverview,
     getReportsOverview,
+    getReportsDownload,
     lookupExitCandidate,
     updateExitLogStatus,
 };

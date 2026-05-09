@@ -35,6 +35,7 @@ import {
   getCssuLiveExitMonitoring,
   getCssuNotificationsOverview,
   getCssuReportsOverview,
+  downloadCssuReportsPdf,
   lookupCssuExitCandidate,
   updateCssuExitStatus,
 } from './services/cssuApi';
@@ -14811,6 +14812,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [downloadLoading, setDownloadLoading] = useState(false);
   const [visibleRecordCount, setVisibleRecordCount] = useState(6);
   const [logSortOrder, setLogSortOrder] = useState('desc');
   const startDateInputRef = useRef(null);
@@ -14880,6 +14882,32 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     });
   };
 
+  const handleDownloadPdf = async () => {
+    if (loading || downloadLoading) return;
+
+    setDownloadLoading(true);
+    try {
+      const { blob, filename } = await downloadCssuReportsPdf({
+        startDate,
+        endDate,
+        department: selectedDepartment,
+        sortOrder: logSortOrder,
+      });
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      window.alert(error.message || 'Unable to download the CSSU report.');
+    } finally {
+      setDownloadLoading(false);
+    }
+  };
+
   const previewRows = useMemo(() => {
     if (!Array.isArray(reportData?.movementLogs)) return [];
 
@@ -14927,9 +14955,9 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
           </div>
 
           <div className="cssu-reports-toolbar">
-            <button type="button" className="cssu-reports-tool-btn">
+            <button type="button" className="cssu-reports-tool-btn" onClick={handleDownloadPdf} disabled={loading || downloadLoading}>
               <RegistryDownloadIcon />
-              <span>Export PDF</span>
+              <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
             </button>
             <button type="button" className="cssu-reports-tool-btn">
               <RegistryDownloadIcon />
