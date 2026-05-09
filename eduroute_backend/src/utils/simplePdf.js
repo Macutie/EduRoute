@@ -417,133 +417,74 @@ const drawCssuReportHeader = ({ page, fonts, logoImage, reportMeta, filters, col
     return topY - 82;
 };
 
-const drawCssuSummaryCard = ({ page, fonts, summary, x, y, width, colorize }) => {
-    const height = 116;
-    page.drawRectangle({
-        x,
-        y: y - height,
-        width,
-        height,
-        color: colorize(COLORS.green),
+const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
+    const cards = [
+        {
+            label: 'TOTAL MOVEMENTS',
+            value: String(summary.totalMovements || 0).padStart(2, '0'),
+            note: 'Verified and flagged movement logs',
+            accent: COLORS.green,
+        },
+        {
+            label: 'EXIT CLEARANCES',
+            value: String(summary.exitClearances || 0).padStart(2, '0'),
+            note: 'Validated CSSU departures',
+            accent: COLORS.green,
+        },
+        {
+            label: 'FLAGGED EVENTS',
+            value: String(summary.flaggedEvents || 0).padStart(2, '0'),
+            note: 'Denied or investigated exits',
+            accent: COLORS.red,
+        },
+    ];
+
+    const gap = 14;
+    const cardWidth = (PAGE.width - PAGE.marginX * 2 - gap * 2) / 3;
+    const cardHeight = 84;
+
+    cards.forEach((card, index) => {
+        const x = PAGE.marginX + index * (cardWidth + gap);
+        page.drawRectangle({
+            x,
+            y: y - cardHeight,
+            width: cardWidth,
+            height: cardHeight,
+            color: colorize(COLORS.cardFill),
+        });
+        page.drawRectangle({
+            x,
+            y: y - cardHeight,
+            width: 4,
+            height: cardHeight,
+            color: colorize(card.accent),
+        });
+
+        page.drawText(card.label, {
+            x: x + 14,
+            y: y - 18,
+            size: 8.5,
+            font: fonts.bold,
+            color: colorize(COLORS.muted),
+        });
+        page.drawText(card.value, {
+            x: x + 14,
+            y: y - 44,
+            size: 22,
+            font: fonts.bold,
+            color: colorize(COLORS.ink),
+        });
+        drawWrappedText(page, fonts.regular, card.note, {
+            x: x + 14,
+            y: y - 62,
+            width: cardWidth - 24,
+            size: 8.2,
+            color: colorize(COLORS.muted),
+            lineGap: 2,
+        });
     });
 
-    page.drawText('TOTAL MOVEMENTS', {
-        x: x + 18,
-        y: y - 22,
-        size: 10,
-        font: fonts.bold,
-        color: colorize(COLORS.white),
-    });
-
-    page.drawText(String(summary.totalMovements || 0).padStart(2, '0'), {
-        x: x + 18,
-        y: y - 64,
-        size: 42,
-        font: fonts.bold,
-        color: colorize(COLORS.white),
-    });
-
-    drawWrappedText(page, fonts.regular, 'Verified and flagged CSSU movement records within the selected report range.', {
-        x: x + 18,
-        y: y - 92,
-        width: width - 36,
-        size: 9.5,
-        color: colorize(COLORS.white),
-        lineGap: 3,
-    });
-
-    return y - height;
-};
-
-const drawCssuMovementRow = ({ page, fonts, row, x, y, width, colorize }) => {
-    const height = 78;
-    page.drawRectangle({
-        x,
-        y: y - height,
-        width,
-        height,
-        color: colorize(COLORS.white),
-        borderColor: colorize(COLORS.border),
-        borderWidth: 1,
-    });
-
-    const accentColor = row.movementStatus === 'flagged' ? COLORS.red : COLORS.green;
-    page.drawRectangle({
-        x,
-        y: y - height,
-        width: 4,
-        height,
-        color: colorize(accentColor),
-    });
-
-    const avatarCenterX = x + 26;
-    const avatarCenterY = y - 39;
-    page.drawCircle({
-        x: avatarCenterX,
-        y: avatarCenterY,
-        size: 15,
-        borderColor: colorize(COLORS.border),
-        borderWidth: 1,
-        color: colorize(COLORS.white),
-    });
-    page.drawText((row.facultyName || '?').slice(0, 1).toUpperCase(), {
-        x: avatarCenterX - 4,
-        y: avatarCenterY - 4,
-        size: 10,
-        font: fonts.bold,
-        color: colorize(accentColor),
-    });
-
-    const textX = x + 52;
-    page.drawText(row.facultyName || 'Unknown faculty', {
-        x: textX,
-        y: y - 24,
-        size: 10.5,
-        font: fonts.bold,
-        color: colorize(COLORS.ink),
-    });
-
-    drawWrappedText(page, fonts.regular, `${row.departmentName} • ${row.eventLabel} • ${row.occurredDateTimeLabel || row.occurredTimeLabel || '--'}`, {
-        x: textX,
-        y: y - 42,
-        width: width - 210,
-        size: 8.8,
-        color: colorize(COLORS.muted),
-        lineGap: 2,
-    });
-
-    const tone = row.movementStatus === 'flagged'
-        ? { fill: COLORS.redSoft, text: COLORS.redText }
-        : { fill: COLORS.greenSoft, text: COLORS.greenText };
-    const pillWidth = 70;
-    const pillHeight = 22;
-    const pillX = x + width - 146;
-    const pillY = y - 33;
-
-    page.drawRectangle({
-        x: pillX,
-        y: pillY,
-        width: pillWidth,
-        height: pillHeight,
-        color: colorize(tone.fill),
-    });
-    page.drawText(String(row.movementStatusLabel || '--').toUpperCase(), {
-        x: pillX + 12,
-        y: pillY + 8,
-        size: 8.2,
-        font: fonts.bold,
-        color: colorize(tone.text),
-    });
-
-    page.drawText(row.movementStatus === 'flagged' ? (row.investigationLabel || row.locationLabel || '--') : (row.locationLabel || '--'), {
-        x: x + width - 68,
-        y: y - 28,
-        size: 9.2,
-        font: fonts.bold,
-        color: colorize(COLORS.ink),
-    });
-
-    return y - height;
+    return y - cardHeight;
 };
 
 const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
@@ -729,6 +670,16 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     const rows = Array.isArray(movementLogs) ? movementLogs : [];
     const reportTitle = 'Movement Logs Preview';
     const reportSubtitle = `Displaying data for ${filters.dateRangeLabel || '--'}`;
+    const columns = [
+        { key: 'occurredDateTimeLabel', label: 'VALIDATED AT', width: 120 },
+        { key: 'facultyName', label: 'FACULTY MEMBER', width: 118 },
+        { key: 'details', label: 'DETAILS', width: 176 },
+        { key: 'movementStatusLabel', label: 'STATUS', width: 78 },
+        { key: 'place', label: 'LOCATION', width: 90 },
+    ];
+    const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+    const bodyFontSize = 8.3;
+    const bodyLineGap = 2;
 
     let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
     let cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
@@ -757,28 +708,35 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
         color: colorize(COLORS.greenText),
     });
 
-    const summaryCardWidth = 150;
-    const summaryTopY = cursorY - 54;
-    drawCssuSummaryCard({
+    cursorY = drawCssuSummaryCards({
         page,
         fonts,
         summary,
-        x: PAGE.width - PAGE.marginX - summaryCardWidth,
-        y: summaryTopY,
-        width: summaryCardWidth,
+        y: cursorY - 48,
         colorize,
+    }) - 28;
+
+    page.drawText('Movement Log Table', {
+        x: PAGE.marginX,
+        y: cursorY,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.ink),
     });
 
-    cursorY = cursorY - 74;
-
-    const listWidth = PAGE.width - PAGE.marginX * 2 - summaryCardWidth - 18;
-    const listRightBound = PAGE.marginX + listWidth;
+    cursorY = drawTableHeader({
+        page,
+        fonts,
+        columns,
+        y: cursorY - 16,
+        colorize,
+    });
 
     if (rows.length === 0) {
         page.drawRectangle({
             x: PAGE.marginX,
             y: cursorY - 54,
-            width: listWidth,
+            width: tableWidth,
             height: 54,
             color: colorize(COLORS.white),
             borderColor: colorize(COLORS.border),
@@ -793,30 +751,95 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
         });
     } else {
         rows.forEach((row) => {
-            if (cursorY - 78 < PAGE.marginBottom) {
+            const detailsText = `${row.departmentName || '--'} • ${row.eventLabel || 'Movement'}`;
+            const placeText = row.movementStatus === 'flagged'
+                ? (row.investigationLabel || row.locationLabel || '--')
+                : (row.locationLabel || '--');
+            const timestampLines = wrapTextByWidth(fonts.regular, row.occurredDateTimeLabel || row.occurredTimeLabel || '--', bodyFontSize, columns[0].width - 18);
+            const facultyLines = wrapTextByWidth(fonts.regular, row.facultyName || 'Unknown faculty', bodyFontSize, columns[1].width - 18);
+            const detailLines = wrapTextByWidth(fonts.regular, detailsText, bodyFontSize, columns[2].width - 18);
+            const placeLines = wrapTextByWidth(fonts.regular, placeText, bodyFontSize, columns[4].width - 18);
+            const maxLines = Math.max(timestampLines.length, facultyLines.length, detailLines.length, placeLines.length, 1);
+            const rowHeight = Math.max(34, 12 + maxLines * (bodyFontSize + bodyLineGap));
+
+            if (cursorY - rowHeight < PAGE.marginBottom) {
                 page = pdfDoc.addPage([PAGE.width, PAGE.height]);
                 cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
-                cursorY -= 24;
+                cursorY = drawTableHeader({
+                    page,
+                    fonts,
+                    columns,
+                    y: cursorY - 18,
+                    colorize,
+                });
             }
-            cursorY = drawCssuMovementRow({
-                page,
-                fonts,
-                row,
+
+            page.drawRectangle({
                 x: PAGE.marginX,
-                y: cursorY,
-                width: listWidth,
-                colorize,
-            }) - 14;
+                y: cursorY - rowHeight,
+                width: tableWidth,
+                height: rowHeight,
+                color: colorize(COLORS.white),
+                borderColor: colorize(COLORS.border),
+                borderWidth: 1,
+            });
+
+            let cellX = PAGE.marginX;
+            const cellTopY = cursorY - 16;
+            const rowCells = [timestampLines, facultyLines, detailLines, null, placeLines];
+
+            columns.forEach((column, index) => {
+                if (index > 0) {
+                    page.drawLine({
+                        start: { x: cellX, y: cursorY },
+                        end: { x: cellX, y: cursorY - rowHeight },
+                        thickness: 1,
+                        color: colorize(COLORS.border),
+                    });
+                }
+
+                if (column.key === 'movementStatusLabel') {
+                    const tone = row.movementStatus === 'flagged'
+                        ? { fill: COLORS.redSoft, text: COLORS.redText }
+                        : { fill: COLORS.greenSoft, text: COLORS.greenText };
+                    const pillWidth = 58;
+                    const pillHeight = 18;
+                    const pillX = cellX + 10;
+                    const pillY = cursorY - 9 - pillHeight;
+
+                    page.drawRectangle({
+                        x: pillX,
+                        y: pillY,
+                        width: pillWidth,
+                        height: pillHeight,
+                        color: colorize(tone.fill),
+                    });
+                    page.drawText(String(row.movementStatusLabel || '--').toUpperCase(), {
+                        x: pillX + 8,
+                        y: pillY + 6,
+                        size: 7.2,
+                        font: fonts.bold,
+                        color: colorize(tone.text),
+                    });
+                } else {
+                    const lines = rowCells[index];
+                    lines.forEach((line, lineIndex) => {
+                        page.drawText(line, {
+                            x: cellX + 10,
+                            y: cellTopY - lineIndex * (bodyFontSize + bodyLineGap),
+                            size: bodyFontSize,
+                            font: fonts.regular,
+                            color: colorize(COLORS.ink),
+                        });
+                    });
+                }
+
+                cellX += column.width;
+            });
+
+            cursorY -= rowHeight;
         });
     }
-
-    page.drawText(`Preview Scope: ${rows.length} movement log${rows.length === 1 ? '' : 's'}`, {
-        x: listRightBound + 18,
-        y: summaryTopY - 136,
-        size: 8.4,
-        font: fonts.bold,
-        color: colorize(COLORS.muted),
-    });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
