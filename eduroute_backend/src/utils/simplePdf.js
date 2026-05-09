@@ -1,41 +1,55 @@
-const escapePdfText = (value = '') => String(value)
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
+const fs = require('fs');
+const path = require('path');
+const {
+    PDFDocument,
+    StandardFonts,
+    rgb,
+} = require('pdf-lib');
 
-const rgb = (r, g, b) => `${(r / 255).toFixed(3)} ${(g / 255).toFixed(3)} ${(b / 255).toFixed(3)}`;
-
-const PALETTE = {
-    green: [6, 157, 27],
-    greenSoft: [239, 247, 236],
-    greenText: [12, 104, 29],
-    red: [220, 53, 69],
-    redSoft: [255, 239, 239],
-    redText: [166, 30, 42],
-    yellow: [154, 123, 5],
-    yellowSoft: [248, 244, 226],
-    yellowText: [108, 87, 5],
-    ink: [39, 53, 72],
-    muted: [112, 124, 139],
-    border: [225, 232, 219],
-    headerFill: [244, 248, 240],
-    cardFill: [245, 249, 241],
-    white: [255, 255, 255],
+const PAGE = {
+    width: 595.28,
+    height: 841.89,
+    marginX: 42,
+    marginTop: 44,
+    marginBottom: 44,
 };
 
-const wrapTextByWidth = (text, fontSize, maxWidth) => {
+const COLORS = {
+    green: rgb(6 / 255, 157 / 255, 27 / 255),
+    greenSoft: rgb(242 / 255, 248 / 255, 236 / 255),
+    greenText: rgb(12 / 255, 104 / 255, 29 / 255),
+    red: rgb(220 / 255, 53 / 255, 69 / 255),
+    redSoft: rgb(255 / 255, 239 / 255, 239 / 255),
+    redText: rgb(166 / 255, 30 / 255, 42 / 255),
+    yellow: rgb(139 / 255, 115 / 255, 0 / 255),
+    yellowSoft: rgb(248 / 255, 244 / 255, 226 / 255),
+    yellowText: rgb(108 / 255, 87 / 255, 5 / 255),
+    ink: rgb(39 / 255, 53 / 255, 72 / 255),
+    muted: rgb(112 / 255, 124 / 255, 139 / 255),
+    border: rgb(225 / 255, 232 / 255, 219 / 255),
+    cardFill: rgb(245 / 255, 249 / 255, 241 / 255),
+    headerFill: rgb(244 / 255, 248 / 255, 240 / 255),
+    white: rgb(1, 1, 1),
+};
+
+const REPORT_LOGO_CANDIDATES = [
+    path.join(__dirname, '../assets/eduroute-report-logo.jfif'),
+    path.join(__dirname, '../assets/eduroute-report-logo.jpg'),
+    path.join(__dirname, '../../public/eduroute-logo.jfif'),
+    path.join(__dirname, '../../public/eduroute-logo.png'),
+];
+
+const wrapTextByWidth = (font, text, size, width) => {
     const source = String(text || '').trim();
     if (!source) return [''];
 
-    const averageCharWidth = fontSize * 0.52;
-    const maxChars = Math.max(8, Math.floor(maxWidth / averageCharWidth));
     const words = source.split(/\s+/);
     const lines = [];
     let current = '';
 
     words.forEach((word) => {
         const candidate = current ? `${current} ${word}` : word;
-        if (candidate.length <= maxChars) {
+        if (font.widthOfTextAtSize(candidate, size) <= width) {
             current = candidate;
             return;
         }
@@ -47,510 +61,447 @@ const wrapTextByWidth = (text, fontSize, maxWidth) => {
         }
 
         let remainder = word;
-        while (remainder.length > maxChars) {
-            lines.push(remainder.slice(0, maxChars));
-            remainder = remainder.slice(maxChars);
+        while (remainder.length > 0) {
+            let splitIndex = remainder.length;
+            while (splitIndex > 1 && font.widthOfTextAtSize(remainder.slice(0, splitIndex), size) > width) {
+                splitIndex -= 1;
+            }
+            lines.push(remainder.slice(0, splitIndex));
+            remainder = remainder.slice(splitIndex);
         }
-        current = remainder;
+        current = '';
     });
 
     if (current) lines.push(current);
     return lines;
 };
 
-const formatStatusTone = (status) => {
+const drawWrappedText = (page, font, text, options) => {
+    const {
+        x,
+        y,
+        width,
+        size,
+        color,
+        lineGap = 4,
+    } = options;
+
+    const lines = wrapTextByWidth(font, text, size, width);
+    lines.forEach((line, index) => {
+        page.drawText(line, {
+            x,
+            y: y - index * (size + lineGap),
+            size,
+            font,
+            color,
+        });
+    });
+
+    return lines.length;
+};
+
+const getStatusTone = (status) => {
     const normalized = String(status || '').trim().toUpperCase();
     if (normalized === 'VERIFIED') {
         return {
-            fill: PALETTE.greenSoft,
-            text: PALETTE.greenText,
+            fill: COLORS.greenSoft,
+            text: COLORS.greenText,
         };
     }
 
     if (normalized === 'REJECTED') {
         return {
-            fill: PALETTE.redSoft,
-            text: PALETTE.redText,
+            fill: COLORS.redSoft,
+            text: COLORS.redText,
         };
     }
 
     return {
-        fill: PALETTE.yellowSoft,
-        text: PALETTE.yellowText,
+        fill: COLORS.yellowSoft,
+        text: COLORS.yellowText,
     };
 };
 
-const toneAccent = {
-    green: PALETTE.green,
-    red: PALETTE.red,
-    yellow: [155, 131, 24],
+const getSummaryCards = (summary) => ([
+    {
+        label: 'TOTAL MOVEMENTS',
+        value: String(summary.totalMovements || 0),
+        note: `${summary.successfulTrips || 0} successful trips`,
+        accent: COLORS.green,
+    },
+    {
+        label: 'FLAGGED INCIDENTS',
+        value: String(summary.flaggedIncidents || 0),
+        note: `${summary.lateReturns || 0} late | ${summary.unverifiedLocations || 0} unverified | ${summary.disconnectedLocations || 0} disconnected`,
+        accent: COLORS.red,
+    },
+    {
+        label: 'COMPLIANCE RATE',
+        value: `${Number(summary.complianceRate || 0).toFixed(1)}%`,
+        note: `${summary.successfulTrips || 0} compliant / ${summary.totalMovements || 0} total`,
+        accent: COLORS.yellow,
+    },
+]);
+
+const loadLogoBytes = () => {
+    const logoPath = REPORT_LOGO_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+    return logoPath ? fs.readFileSync(logoPath) : null;
 };
 
-const drawFilledCircle = (targetPage, x, y, radius, color) => {
-    const k = 0.5522847498;
-    const c = radius * k;
-    targetPage.drawings.push(
-        `q ${rgb(...color)} rg ${x.toFixed(2)} ${(y + radius).toFixed(2)} m `
-        + `${(x + c).toFixed(2)} ${(y + radius).toFixed(2)} ${(x + radius).toFixed(2)} ${(y + c).toFixed(2)} ${(x + radius).toFixed(2)} ${y.toFixed(2)} c `
-        + `${(x + radius).toFixed(2)} ${(y - c).toFixed(2)} ${(x + c).toFixed(2)} ${(y - radius).toFixed(2)} ${x.toFixed(2)} ${(y - radius).toFixed(2)} c `
-        + `${(x - c).toFixed(2)} ${(y - radius).toFixed(2)} ${(x - radius).toFixed(2)} ${(y - c).toFixed(2)} ${(x - radius).toFixed(2)} ${y.toFixed(2)} c `
-        + `${(x - radius).toFixed(2)} ${(y + c).toFixed(2)} ${(x - c).toFixed(2)} ${(y + radius).toFixed(2)} ${x.toFixed(2)} ${(y + radius).toFixed(2)} c f Q`
-    );
-};
+const drawHeader = ({ page, fonts, logoImage, reportMeta }) => {
+    const topY = PAGE.height - PAGE.marginTop;
+    const brandBoxSize = 54;
+    const brandBoxX = PAGE.marginX;
+    const brandBoxY = topY - brandBoxSize;
 
-const buildHrmuMonthlyReportPdf = ({ reportMeta, summary, locatorSlipLogs }) => {
-    const pageWidth = 595;
-    const pageHeight = 842;
-    const left = 32;
-    const right = 32;
-    const top = 810;
-    const bottom = 54;
-    const contentWidth = pageWidth - left - right;
-    const pages = [];
-
-    const fonts = {
-        regular: 3,
-        bold: 4,
-    };
-
-    let page = null;
-    let cursorY = top;
-
-    const createPage = () => ({
-        drawings: [],
-        texts: [],
+    page.drawRectangle({
+        x: brandBoxX,
+        y: brandBoxY,
+        width: brandBoxSize,
+        height: brandBoxSize,
+        color: COLORS.white,
+        borderColor: COLORS.border,
+        borderWidth: 1,
     });
 
-    const ensurePage = () => {
-        if (!page) {
-            page = createPage();
-            pages.push(page);
-            cursorY = top;
-        }
-    };
-
-    const newPage = () => {
-        page = createPage();
-        pages.push(page);
-        cursorY = top;
-    };
-
-    const addText = ({
-        text,
-        x,
-        y,
-        size = 12,
-        color = PALETTE.ink,
-        font = fonts.regular,
-    }) => {
-        ensurePage();
-        page.texts.push({
-            text: escapePdfText(text),
-            x,
-            y,
-            size,
-            color: rgb(...color),
-            font,
+    if (logoImage) {
+        page.drawImage(logoImage, {
+            x: brandBoxX + 4,
+            y: brandBoxY + 4,
+            width: brandBoxSize - 8,
+            height: brandBoxSize - 8,
         });
-    };
+    }
 
-    const addWrappedText = ({
-        text,
-        x,
-        y,
-        width,
-        size = 12,
-        lineGap = 4,
-        color = PALETTE.ink,
-        font = fonts.regular,
-    }) => {
-        const lines = wrapTextByWidth(text, size, width);
-        lines.forEach((line, index) => {
-            addText({
-                text: line,
-                x,
-                y: y - index * (size + lineGap),
-                size,
-                color,
-                font,
-            });
-        });
-        return lines.length;
-    };
-
-    const fillRect = (x, y, width, height, color) => {
-        ensurePage();
-        page.drawings.push(`q ${rgb(...color)} rg ${x.toFixed(2)} ${(y - height).toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re f Q`);
-    };
-
-    const strokeRect = (x, y, width, height, color, lineWidth = 1) => {
-        ensurePage();
-        page.drawings.push(`q ${rgb(...color)} RG ${lineWidth.toFixed(2)} w ${x.toFixed(2)} ${(y - height).toFixed(2)} ${width.toFixed(2)} ${height.toFixed(2)} re S Q`);
-    };
-
-    const drawLine = (x1, y1, x2, y2, color, lineWidth = 1) => {
-        ensurePage();
-        page.drawings.push(`q ${rgb(...color)} RG ${lineWidth.toFixed(2)} w ${x1.toFixed(2)} ${y1.toFixed(2)} m ${x2.toFixed(2)} ${y2.toFixed(2)} l S Q`);
-    };
-
-    const drawEduRouteLogo = (x, y, size = 40) => {
-        ensurePage();
-        fillRect(x, y, size, size, PALETTE.white);
-        strokeRect(x, y, size, size, PALETTE.border, 1);
-
-        const cx = x + size * 0.52;
-        const cy = y - size * 0.42;
-        const outer = size * 0.255;
-        const inner = size * 0.135;
-
-        drawFilledCircle(page, cx, cy + 1.5, outer, PALETTE.green);
-
-        page.drawings.push(
-            `q ${rgb(...PALETTE.green)} rg `
-            + `${(cx - outer * 0.72).toFixed(2)} ${(cy - 5).toFixed(2)} m `
-            + `${cx.toFixed(2)} ${(cy - outer - 11.5).toFixed(2)} l `
-            + `${(cx + outer * 0.72).toFixed(2)} ${(cy - 5).toFixed(2)} l h f Q`
-        );
-
-        drawFilledCircle(page, cx, cy + 1.5, inner, PALETTE.white);
-
-        page.drawings.push(
-            `q ${rgb(241, 197, 16)} rg `
-            + `${(cx - outer - 1.5).toFixed(2)} ${(cy + 0.5).toFixed(2)} m `
-            + `${(cx + outer + 1.5).toFixed(2)} ${(cy + 6.2).toFixed(2)} l `
-            + `${(cx + outer - 0.4).toFixed(2)} ${(cy + 1.4).toFixed(2)} l `
-            + `${(cx - outer + 2.8).toFixed(2)} ${(cy - 4.1).toFixed(2)} l h f Q`
-        );
-    };
-
-    const reserve = (height) => {
-        ensurePage();
-        if (cursorY - height < bottom) {
-            newPage();
-        }
-    };
-
-    const moveDown = (value) => {
-        cursorY -= value;
-    };
-
-    const summaryCards = [
-        {
-            label: 'TOTAL MOVEMENTS',
-            value: String(summary.totalMovements || 0),
-            note: `${summary.successfulTrips || 0} successful trips`,
-            tone: 'green',
-        },
-        {
-            label: 'FLAGGED INCIDENTS',
-            value: String(summary.flaggedIncidents || 0),
-            note: `${summary.lateReturns || 0} late | ${summary.unverifiedLocations || 0} unverified | ${summary.disconnectedLocations || 0} disconnected`,
-            tone: 'red',
-        },
-        {
-            label: 'COMPLIANCE RATE',
-            value: `${Number(summary.complianceRate || 0).toFixed(1)}%`,
-            note: `${summary.successfulTrips || 0} compliant / ${summary.totalMovements || 0} total`,
-            tone: 'yellow',
-        },
-    ];
-
-    reserve(190);
-
-    drawEduRouteLogo(left, cursorY - 2, 40);
-
-    addText({
-        text: 'EduRoute HRMU',
-        x: left + 54,
-        y: cursorY - 6,
-        size: 13,
-        color: PALETTE.green,
+    page.drawText('EduRoute HRMU', {
+        x: brandBoxX + brandBoxSize + 16,
+        y: topY - 2,
+        size: 15,
         font: fonts.regular,
-    });
-    addText({
-        text: 'FACULTY MOVEMENT',
-        x: left + 54,
-        y: cursorY - 23,
-        size: 14,
-        color: PALETTE.ink,
-        font: fonts.regular,
+        color: COLORS.green,
     });
 
-    addText({
-        text: 'OFFICIAL DOCUMENT',
-        x: pageWidth - right - 140,
-        y: cursorY - 4,
+    page.drawText('FACULTY MOVEMENT', {
+        x: brandBoxX + brandBoxSize + 16,
+        y: topY - 26,
+        size: 15,
+        font: fonts.regular,
+        color: COLORS.ink,
+    });
+
+    const rightMetaX = PAGE.width - PAGE.marginX - 150;
+    page.drawText('OFFICIAL DOCUMENT', {
+        x: rightMetaX,
+        y: topY - 1,
         size: 10,
-        color: PALETTE.ink,
         font: fonts.bold,
+        color: COLORS.ink,
     });
-    addText({
-        text: `Report Sequence: ${reportMeta.monthIndex} / ${reportMeta.totalMonths || 12}`,
-        x: pageWidth - right - 140,
-        y: cursorY - 18,
-        size: 8,
-        color: PALETTE.muted,
+
+    page.drawText(`Report Sequence: ${reportMeta.monthIndex} / ${reportMeta.totalMonths || 12}`, {
+        x: rightMetaX,
+        y: topY - 17,
+        size: 8.5,
         font: fonts.regular,
+        color: COLORS.muted,
     });
-    addText({
-        text: `Coverage: ${reportMeta.monthName}, ${reportMeta.year}`,
-        x: pageWidth - right - 140,
-        y: cursorY - 30,
-        size: 8,
-        color: PALETTE.muted,
+
+    page.drawText(`Coverage: ${reportMeta.monthName}, ${reportMeta.year}`, {
+        x: rightMetaX,
+        y: topY - 31,
+        size: 8.5,
         font: fonts.regular,
+        color: COLORS.muted,
     });
 
-    moveDown(50);
-    drawLine(left, cursorY, pageWidth - right, cursorY, PALETTE.green, 2);
-    moveDown(36);
+    page.drawLine({
+        start: { x: PAGE.marginX, y: topY - 62 },
+        end: { x: PAGE.width - PAGE.marginX, y: topY - 62 },
+        thickness: 2,
+        color: COLORS.green,
+    });
 
-    addText({
-        text: 'Monthly Movement & Violation Summary',
-        x: left,
-        y: cursorY,
-        size: 17,
-        color: PALETTE.ink,
+    return topY - 95;
+};
+
+const drawSummarySection = ({ page, fonts, summary, reportMeta, startY }) => {
+    let y = startY;
+
+    page.drawText('Monthly Movement & Violation Summary', {
+        x: PAGE.marginX,
+        y,
+        size: 18,
         font: fonts.regular,
+        color: COLORS.ink,
     });
-    moveDown(18);
-    fillRect(left, cursorY, 78, 2, [201, 166, 32]);
-    moveDown(22);
-    addWrappedText({
-        text: `This report provides a comprehensive overview of logistical activities, security transitions, and flagged trip incidents within the HRMU jurisdiction for month of ${reportMeta.monthName}.`,
-        x: left,
-        y: cursorY,
-        width: contentWidth,
-        size: 10,
-        lineGap: 5,
-        color: PALETTE.muted,
+
+    page.drawRectangle({
+        x: PAGE.marginX,
+        y: y - 20,
+        width: 78,
+        height: 3,
+        color: COLORS.yellow,
     });
-    moveDown(62);
 
-    const cardGap = 14;
-    const cardWidth = (contentWidth - cardGap * 2) / 3;
-    const cardHeight = 74;
+    const introLines = drawWrappedText(page, fonts.regular, `This report provides a comprehensive overview of logistical activities, security transitions, and flagged trip incidents within the HRMU jurisdiction for month of ${reportMeta.monthName}.`, {
+        x: PAGE.marginX,
+        y: y - 52,
+        width: PAGE.width - PAGE.marginX * 2,
+        size: 10.5,
+        color: COLORS.muted,
+        lineGap: 4,
+    });
 
-    summaryCards.forEach((card, index) => {
-        const x = left + (cardWidth + cardGap) * index;
-        fillRect(x, cursorY, cardWidth, cardHeight, PALETTE.cardFill);
-        fillRect(x, cursorY, 3, cardHeight, toneAccent[card.tone] || PALETTE.green);
-        addText({
-            text: card.label,
+    y = y - 52 - introLines * 15 - 26;
+
+    const cards = getSummaryCards(summary);
+    const gap = 18;
+    const cardWidth = (PAGE.width - PAGE.marginX * 2 - gap * 2) / 3;
+    const cardHeight = 86;
+
+    cards.forEach((card, index) => {
+        const x = PAGE.marginX + index * (cardWidth + gap);
+        page.drawRectangle({
+            x,
+            y: y - cardHeight,
+            width: cardWidth,
+            height: cardHeight,
+            color: COLORS.cardFill,
+        });
+        page.drawRectangle({
+            x,
+            y: y - cardHeight,
+            width: 4,
+            height: cardHeight,
+            color: card.accent,
+        });
+
+        page.drawText(card.label, {
             x: x + 16,
-            y: cursorY - 18,
-            size: 8,
-            color: PALETTE.muted,
+            y: y - 18,
+            size: 8.5,
             font: fonts.bold,
+            color: COLORS.muted,
         });
-        addText({
-            text: card.value,
+
+        page.drawText(card.value, {
             x: x + 16,
-            y: cursorY - 40,
+            y: y - 42,
             size: 18,
-            color: PALETTE.ink,
             font: fonts.regular,
+            color: COLORS.ink,
         });
-        addWrappedText({
-            text: card.note,
+
+        drawWrappedText(page, fonts.regular, card.note, {
             x: x + 16,
-            y: cursorY - 58,
+            y: y - 60,
             width: cardWidth - 28,
-            size: 8,
+            size: 8.2,
+            color: COLORS.muted,
             lineGap: 3,
-            color: PALETTE.muted,
         });
     });
 
-    moveDown(cardHeight + 28);
+    return y - cardHeight - 30;
+};
 
-    addText({
-        text: 'Key Incident Log',
-        x: left + 22,
-        y: cursorY,
-        size: 14,
-        color: PALETTE.ink,
-        font: fonts.regular,
+const drawTableHeader = ({ page, fonts, columns, y }) => {
+    const totalWidth = columns.reduce((sum, column) => sum + column.width, 0);
+
+    page.drawRectangle({
+        x: PAGE.marginX,
+        y: y - 34,
+        width: totalWidth,
+        height: 34,
+        color: COLORS.headerFill,
+        borderColor: COLORS.border,
+        borderWidth: 1,
     });
-    fillRect(left, cursorY, 3, 12, PALETTE.green);
-    moveDown(20);
 
-    const tableX = left;
-    const tableWidth = contentWidth;
-    const headerHeight = 32;
-    const columns = [
-        { key: 'timestampLabel', label: 'TIMESTAMP', width: 86 },
-        { key: 'location', label: 'LOCATION', width: 155 },
-        { key: 'personnel', label: 'PERSONNEL', width: 126 },
-        { key: 'status', label: 'STATUS', width: 90 },
-        { key: 'action', label: 'ACTION', width: 74 },
-    ];
+    let cursorX = PAGE.marginX;
+    columns.forEach((column, index) => {
+        page.drawText(column.label, {
+            x: cursorX + 10,
+            y: y - 22,
+            size: 8.2,
+            font: fonts.bold,
+            color: COLORS.muted,
+        });
 
-    const drawTableHeader = () => {
-        reserve(headerHeight + 8);
-        fillRect(tableX, cursorY, tableWidth, headerHeight, PALETTE.headerFill);
-        strokeRect(tableX, cursorY, tableWidth, headerHeight, PALETTE.border, 1);
-        let x = tableX;
-        columns.forEach((column) => {
-            addText({
-                text: column.label,
-                x: x + 10,
-                y: cursorY - 20,
-                size: 8,
-                color: PALETTE.muted,
-                font: fonts.bold,
+        cursorX += column.width;
+        if (index < columns.length - 1) {
+            page.drawLine({
+                start: { x: cursorX, y },
+                end: { x: cursorX, y: y - 34 },
+                thickness: 1,
+                color: COLORS.border,
             });
-            x += column.width;
-            if (x < tableX + tableWidth - 2) {
-                drawLine(x, cursorY, x, cursorY - headerHeight, PALETTE.border, 1);
-            }
-        });
-        moveDown(headerHeight);
+        }
+    });
+
+    return y - 34;
+};
+
+const drawLogTitle = ({ page, fonts, y }) => {
+    page.drawRectangle({
+        x: PAGE.marginX,
+        y: y - 12,
+        width: 4,
+        height: 12,
+        color: COLORS.green,
+    });
+
+    page.drawText('Key Incident Log', {
+        x: PAGE.marginX + 28,
+        y,
+        size: 15,
+        font: fonts.regular,
+        color: COLORS.ink,
+    });
+
+    return y - 22;
+};
+
+const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
+    const pdfDoc = await PDFDocument.create();
+    const fonts = {
+        regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+        bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
     };
 
-    drawTableHeader();
+    const logoBytes = loadLogoBytes();
+    let logoImage = null;
+
+    if (logoBytes) {
+        const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
+        logoImage = isPng ? await pdfDoc.embedPng(logoBytes) : await pdfDoc.embedJpg(logoBytes);
+    }
 
     const rows = Array.isArray(locatorSlipLogs) ? locatorSlipLogs : [];
-    const bodyFontSize = 8.8;
+    const columns = [
+        { key: 'timestampLabel', label: 'TIMESTAMP', width: 84 },
+        { key: 'location', label: 'LOCATION', width: 152 },
+        { key: 'personnel', label: 'PERSONNEL', width: 126 },
+        { key: 'status', label: 'STATUS', width: 92 },
+        { key: 'action', label: 'ACTION', width: 78 },
+    ];
+    const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+    const bodyFontSize = 8.5;
     const bodyLineGap = 3;
 
+    let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+    let cursorY = drawHeader({ page, fonts, logoImage, reportMeta });
+    cursorY = drawSummarySection({ page, fonts, summary, reportMeta, startY: cursorY });
+    cursorY = drawLogTitle({ page, fonts, y: cursorY });
+    cursorY = drawTableHeader({ page, fonts, columns, y: cursorY });
+
     if (rows.length === 0) {
-        reserve(38);
-        strokeRect(tableX, cursorY, tableWidth, 38, PALETTE.border, 1);
-        addText({
-            text: 'No logs found for this month.',
-            x: tableX + 12,
-            y: cursorY - 22,
-            size: 9,
-            color: PALETTE.muted,
-            font: fonts.regular,
+        page.drawRectangle({
+            x: PAGE.marginX,
+            y: cursorY - 38,
+            width: tableWidth,
+            height: 38,
+            borderColor: COLORS.border,
+            borderWidth: 1,
+            color: COLORS.white,
         });
-        moveDown(38);
+        page.drawText('No logs found for this month.', {
+            x: PAGE.marginX + 12,
+            y: cursorY - 24,
+            size: 9,
+            font: fonts.regular,
+            color: COLORS.muted,
+        });
     } else {
         rows.forEach((row) => {
-            const cellData = [
-                wrapTextByWidth(row.timestampLabel || '--', bodyFontSize, columns[0].width - 16),
-                wrapTextByWidth(row.location || 'Unknown destination', bodyFontSize, columns[1].width - 16),
-                wrapTextByWidth(row.personnel || 'Unknown faculty', bodyFontSize, columns[2].width - 16),
-                [String(row.status || '--').toUpperCase()],
-                ['Details'],
-            ];
+            const timestampLines = wrapTextByWidth(fonts.regular, row.timestampLabel || '--', bodyFontSize, columns[0].width - 18);
+            const locationLines = wrapTextByWidth(fonts.regular, row.location || 'Unknown destination', bodyFontSize, columns[1].width - 18);
+            const personnelLines = wrapTextByWidth(fonts.regular, row.personnel || 'Unknown faculty', bodyFontSize, columns[2].width - 18);
+            const maxLines = Math.max(timestampLines.length, locationLines.length, personnelLines.length, 1);
+            const rowHeight = Math.max(36, 14 + maxLines * (bodyFontSize + bodyLineGap));
 
-            const maxLines = Math.max(...cellData.slice(0, 3).map((lines) => lines.length), 1);
-            const rowHeight = Math.max(34, 14 + maxLines * (bodyFontSize + bodyLineGap));
-
-            if (cursorY - rowHeight < bottom) {
-                newPage();
-                drawTableHeader();
+            if (cursorY - rowHeight < PAGE.marginBottom) {
+                page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+                cursorY = drawHeader({ page, fonts, logoImage, reportMeta });
+                cursorY = drawLogTitle({ page, fonts, y: cursorY });
+                cursorY = drawTableHeader({ page, fonts, columns, y: cursorY });
             }
 
-            strokeRect(tableX, cursorY, tableWidth, rowHeight, PALETTE.border, 1);
+            page.drawRectangle({
+                x: PAGE.marginX,
+                y: cursorY - rowHeight,
+                width: tableWidth,
+                height: rowHeight,
+                color: COLORS.white,
+                borderColor: COLORS.border,
+                borderWidth: 1,
+            });
 
-            let x = tableX;
-            columns.forEach((column, columnIndex) => {
-                if (columnIndex > 0) {
-                    drawLine(x, cursorY, x, cursorY - rowHeight, PALETTE.border, 1);
+            let cellX = PAGE.marginX;
+            const cellTopY = cursorY - 18;
+            const rowCells = [timestampLines, locationLines, personnelLines];
+
+            columns.forEach((column, index) => {
+                if (index > 0) {
+                    page.drawLine({
+                        start: { x: cellX, y: cursorY },
+                        end: { x: cellX, y: cursorY - rowHeight },
+                        thickness: 1,
+                        color: COLORS.border,
+                    });
                 }
 
                 if (column.key === 'status') {
-                    const tone = formatStatusTone(row.status);
-                    const pillWidth = 54;
+                    const tone = getStatusTone(row.status);
+                    const pillWidth = 56;
                     const pillHeight = 18;
-                    const pillX = x + 18;
-                    const pillY = cursorY - 8;
-                    fillRect(pillX, pillY, pillWidth, pillHeight, tone.fill);
-                    addText({
-                        text: String(row.status || '--').toUpperCase(),
-                        x: pillX + 8,
-                        y: pillY - 12,
-                        size: 7.5,
-                        color: tone.text,
+                    const pillX = cellX + 16;
+                    const pillY = cursorY - 8 - pillHeight;
+
+                    page.drawRectangle({
+                        x: pillX,
+                        y: pillY,
+                        width: pillWidth,
+                        height: pillHeight,
+                        color: tone.fill,
+                    });
+                    page.drawText(String(row.status || '--').toUpperCase(), {
+                        x: pillX + 7,
+                        y: pillY + 6,
+                        size: 7.2,
                         font: fonts.bold,
+                        color: tone.text,
                     });
                 } else if (column.key === 'action') {
-                    addText({
-                        text: 'Details',
-                        x: x + 16,
-                        y: cursorY - 20,
-                        size: 8.5,
-                        color: PALETTE.green,
+                    page.drawText('Details', {
+                        x: cellX + 16,
+                        y: cursorY - 22,
+                        size: 8.4,
                         font: fonts.bold,
+                        color: COLORS.green,
                     });
                 } else {
-                    cellData[columnIndex].forEach((line, lineIndex) => {
-                        addText({
-                            text: line,
-                            x: x + 10,
-                            y: cursorY - 18 - lineIndex * (bodyFontSize + bodyLineGap),
+                    const lines = rowCells[index];
+                    lines.forEach((line, lineIndex) => {
+                        page.drawText(line, {
+                            x: cellX + 10,
+                            y: cellTopY - lineIndex * (bodyFontSize + bodyLineGap),
                             size: bodyFontSize,
-                            color: PALETTE.ink,
                             font: fonts.regular,
+                            color: COLORS.ink,
                         });
                     });
                 }
 
-                x += column.width;
+                cellX += column.width;
             });
 
-            moveDown(rowHeight);
+            cursorY -= rowHeight;
         });
     }
 
-    const objectEntries = [];
-    const pageObjectIds = [];
-    const fontRegularObjectId = 3;
-    const fontBoldObjectId = 4;
-    const firstContentObjectId = 5;
-
-    pages.forEach((pdfPage, index) => {
-        const textOps = pdfPage.texts.flatMap((line) => ([
-            'BT',
-            `${line.color} rg`,
-            `/F${line.font === fonts.bold ? 2 : 1} ${line.size} Tf`,
-            `1 0 0 1 ${line.x.toFixed(2)} ${line.y.toFixed(2)} Tm`,
-            `(${line.text}) Tj`,
-            'ET',
-        ]));
-
-        const contentStream = [
-            ...pdfPage.drawings,
-            ...textOps,
-        ].join('\n');
-
-        const contentObjectId = firstContentObjectId + (index * 2);
-        const pageObjectId = contentObjectId + 1;
-
-        objectEntries[contentObjectId] = `<< /Length ${Buffer.byteLength(contentStream, 'utf8')} >>\nstream\n${contentStream}\nendstream`;
-        objectEntries[pageObjectId] =
-            `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontRegularObjectId} 0 R /F2 ${fontBoldObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`;
-        pageObjectIds.push(pageObjectId);
-    });
-
-    objectEntries[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-    objectEntries[2] = `<< /Type /Pages /Count ${pageObjectIds.length} /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] >>`;
-    objectEntries[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
-    objectEntries[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>';
-
-    const normalizedObjects = objectEntries
-        .map((entry, index) => (entry ? `${index} 0 obj\n${entry}\nendobj\n` : null))
-        .filter(Boolean);
-    let pdf = '%PDF-1.4\n';
-    const offsets = [0];
-
-    normalizedObjects.forEach((entry) => {
-        offsets.push(Buffer.byteLength(pdf, 'utf8'));
-        pdf += entry;
-    });
-
-    const xrefOffset = Buffer.byteLength(pdf, 'utf8');
-    pdf += `xref\n0 ${normalizedObjects.length + 1}\n`;
-    pdf += '0000000000 65535 f \n';
-    offsets.slice(1).forEach((offset) => {
-        pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
-    });
-    pdf += `trailer\n<< /Size ${normalizedObjects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-    return Buffer.from(pdf, 'utf8');
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
 };
 
 module.exports = {
