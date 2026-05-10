@@ -309,11 +309,11 @@ const drawLogTitle = ({ page, fonts, y, colorize }) => {
     return y - 22;
 };
 
-const drawTableHeader = ({ page, fonts, columns, y, colorize }) => {
+const drawTableHeader = ({ page, fonts, columns, y, colorize, x = PAGE.marginX }) => {
     const totalWidth = columns.reduce((sum, column) => sum + column.width, 0);
 
     page.drawRectangle({
-        x: PAGE.marginX,
+        x,
         y: y - 34,
         width: totalWidth,
         height: 34,
@@ -323,6 +323,7 @@ const drawTableHeader = ({ page, fonts, columns, y, colorize }) => {
     });
 
     let cursorX = PAGE.marginX;
+    cursorX = x;
     columns.forEach((column, index) => {
         page.drawText(column.label, {
             x: cursorX + 10,
@@ -671,13 +672,14 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     const reportTitle = 'Movement Logs Preview';
     const reportSubtitle = `Displaying data for ${filters.dateRangeLabel || '--'}`;
     const columns = [
-        { key: 'occurredDateTimeLabel', label: 'VALIDATED AT', width: 120 },
-        { key: 'facultyName', label: 'FACULTY MEMBER', width: 118 },
-        { key: 'details', label: 'DETAILS', width: 176 },
-        { key: 'movementStatusLabel', label: 'STATUS', width: 78 },
-        { key: 'place', label: 'LOCATION', width: 90 },
+        { key: 'occurredDateTimeLabel', label: 'VALIDATED AT', width: 112 },
+        { key: 'facultyName', label: 'FACULTY MEMBER', width: 110 },
+        { key: 'details', label: 'DETAILS', width: 145 },
+        { key: 'movementStatusLabel', label: 'STATUS', width: 72 },
+        { key: 'place', label: 'LOCATION', width: 72 },
     ];
     const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
+    const tableX = PAGE.marginX + ((PAGE.width - PAGE.marginX * 2 - tableWidth) / 2);
     const bodyFontSize = 8.3;
     const bodyLineGap = 2;
 
@@ -730,11 +732,12 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
         columns,
         y: cursorY - 16,
         colorize,
+        x: tableX,
     });
 
     if (rows.length === 0) {
         page.drawRectangle({
-            x: PAGE.marginX,
+            x: tableX,
             y: cursorY - 54,
             width: tableWidth,
             height: 54,
@@ -743,7 +746,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
             borderWidth: 1,
         });
         page.drawText('No movement logs found for the selected range.', {
-            x: PAGE.marginX + 14,
+            x: tableX + 14,
             y: cursorY - 32,
             size: 10,
             font: fonts.regular,
@@ -771,11 +774,12 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
                     columns,
                     y: cursorY - 18,
                     colorize,
+                    x: tableX,
                 });
             }
 
             page.drawRectangle({
-                x: PAGE.marginX,
+                x: tableX,
                 y: cursorY - rowHeight,
                 width: tableWidth,
                 height: rowHeight,
@@ -784,7 +788,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
                 borderWidth: 1,
             });
 
-            let cellX = PAGE.marginX;
+            let cellX = tableX;
             const cellTopY = cursorY - 16;
             const rowCells = [timestampLines, facultyLines, detailLines, null, placeLines];
 
