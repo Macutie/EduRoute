@@ -10895,57 +10895,94 @@ const HrmuReportInboxView = ({ setView, profileData, onLogout }) => {
     });
   };
 
+  const unreadCount = items.filter((item) => !item.isRead).length;
+  const latestItem = items[0] || null;
+
   return (
     <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} inboxActive>
-      <section className="hrmu-alerts-page">
-        <div className="hrmu-alerts-hero">
-          <div className="hrmu-alerts-copy">
+      <section className="hrmu-inbox-page">
+        <div className="hrmu-inbox-hero">
+          <div className="hrmu-inbox-copy">
             <span className="hrmu-alerts-kicker">HRMU REPORT HUB</span>
             <h1>Inbox</h1>
             <p>Received CSSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
           </div>
+          <div className="hrmu-inbox-hero-badges">
+            <span className="hrmu-inbox-pill neutral">{items.length} Total Reports</span>
+            <span className="hrmu-inbox-pill active">{unreadCount} Unread</span>
+          </div>
         </div>
 
-        {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
-        {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
-        {!loading && !error && items.length === 0 ? (
-          <div className="hrmu-alert-feed-empty">No CSSU reports have been sent to the HRMU inbox yet.</div>
-        ) : null}
+        <div className="hrmu-inbox-layout">
+          <section className="hrmu-inbox-feed-panel">
+            <div className="hrmu-inbox-feed-head">
+              <div>
+                <h2>Received Attachments</h2>
+                <p>Most recent CSSU submissions are shown first.</p>
+              </div>
+            </div>
 
-        {!loading && !error && items.length > 0 ? (
-          <div className="hrmu-alert-feed-list">
-            {items.map((item) => (
-              <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
-                <div className="hrmu-alert-feed-accent" aria-hidden="true" />
-                <div className="hrmu-alert-feed-body">
-                  <div className="hrmu-alert-feed-icon verified">
-                    <DocumentIcon color="currentColor" width="24" height="24" />
-                  </div>
-                  <div className="hrmu-alert-feed-copy">
-                    <div className="hrmu-alert-feed-head">
-                      <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
-                      <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
+            {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
+            {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
+            {!loading && !error && items.length === 0 ? (
+              <div className="hrmu-alert-feed-empty">No CSSU reports have been sent to the HRMU inbox yet.</div>
+            ) : null}
+
+            {!loading && !error && items.length > 0 ? (
+              <div className="hrmu-alert-feed-list">
+                {items.map((item) => (
+                  <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
+                    <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+                    <div className="hrmu-alert-feed-body">
+                      <div className="hrmu-alert-feed-icon verified">
+                        <DocumentIcon color="currentColor" width="24" height="24" />
+                      </div>
+                      <div className="hrmu-alert-feed-copy">
+                        <div className="hrmu-alert-feed-head">
+                          <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
+                          <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
+                        </div>
+                        <h2>{item.title || 'CSSU Report Attachment'}</h2>
+                        <p>{item.subtitle || 'CSSU sent a movement report PDF to the HRMU inbox.'}</p>
+                        <div className="hrmu-inbox-meta-row">
+                          <span><strong>From:</strong> {item.senderName || 'CSSU Administrator'}</span>
+                          <span><strong>Attachment:</strong> {item.filename}</span>
+                        </div>
+                        <div className="hrmu-alert-feed-actions">
+                          <button type="button" className="hrmu-alert-primary-btn verified" onClick={() => handlePreviewAttachment(item)} disabled={previewLoading}>
+                            {previewLoading ? 'Opening...' : 'View PDF'}
+                          </button>
+                          <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(item)}>
+                            Download PDF
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <h2>{item.title || 'CSSU Report Attachment'}</h2>
-                    <p>{item.subtitle || 'CSSU sent a movement report PDF to the HRMU inbox.'}</p>
-                    <div className="hrmu-inbox-meta-row">
-                      <span><strong>From:</strong> {item.senderName || 'CSSU Administrator'}</span>
-                      <span><strong>Attachment:</strong> {item.filename}</span>
-                    </div>
-                    <div className="hrmu-alert-feed-actions">
-                      <button type="button" className="hrmu-alert-primary-btn verified" onClick={() => handlePreviewAttachment(item)} disabled={previewLoading}>
-                        {previewLoading ? 'Opening...' : 'View PDF'}
-                      </button>
-                      <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(item)}>
-                        Download PDF
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : null}
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          <aside className="hrmu-inbox-side-column">
+            <article className="hrmu-inbox-summary-card primary">
+              <span className="hrmu-inbox-summary-kicker">Inbox Summary</span>
+              <strong>{String(items.length).padStart(2, '0')}</strong>
+              <p>PDF report attachments currently stored in the HRMU inbox.</p>
+            </article>
+
+            <article className="hrmu-inbox-summary-card">
+              <span className="hrmu-inbox-summary-kicker">Latest Sender</span>
+              <h3>{latestItem?.senderName || 'Awaiting CSSU reports'}</h3>
+              <p>{latestItem ? formatInboxDateTime(latestItem.createdAt) : 'No report has been delivered yet.'}</p>
+            </article>
+
+            <article className="hrmu-inbox-summary-card">
+              <span className="hrmu-inbox-summary-kicker">Quick Note</span>
+              <p>Open a report to preview it inside the portal, then download the same PDF if you need an offline copy.</p>
+            </article>
+          </aside>
+        </div>
 
         {previewItem ? (
           <div className="hrmu-inbox-preview-overlay" onClick={closePreview}>
