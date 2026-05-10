@@ -686,16 +686,6 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
     let cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
 
-    page.drawText(`Exported by ${exportedBy}`, {
-        x: 138,
-        y: 300,
-        size: 34,
-        font: fonts.bold,
-        color: colorize(COLORS.border),
-        opacity: 0.22,
-        rotate: { type: 'degrees', angle: 32 },
-    });
-
     page.drawText(reportTitle, {
         x: PAGE.marginX,
         y: cursorY,
@@ -712,19 +702,32 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
         color: colorize(COLORS.muted),
     });
 
-    page.drawText(`Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`, {
-        x: PAGE.width - PAGE.marginX - 108,
+    const sortOrderLabel = `Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`;
+    const exportedByLabel = `Exported by: ${exportedBy || 'CSSU Administrator'}`;
+    const rightMetaWidth = 190;
+    const rightMetaX = PAGE.width - PAGE.marginX - rightMetaWidth;
+
+    page.drawText(sortOrderLabel, {
+        x: rightMetaX,
         y: cursorY - 4,
         size: 8.8,
         font: fonts.bold,
         color: colorize(COLORS.greenText),
     });
 
+    page.drawText(exportedByLabel, {
+        x: rightMetaX,
+        y: cursorY - 18,
+        size: 8.6,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+
     cursorY = drawCssuSummaryCards({
         page,
         fonts,
         summary,
-        y: cursorY - 48,
+        y: cursorY - 54,
         colorize,
     }) - 28;
 
