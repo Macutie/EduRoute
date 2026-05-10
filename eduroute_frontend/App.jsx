@@ -14951,10 +14951,10 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
           <div className="cssu-reports-hero-copy">
             <span className="cssu-desktop-kicker">Internal Logistics</span>
             <h1>Report Generation</h1>
+            <p>Movement data synchronization for Human Resource Management Unit (HRMU).</p>
           </div>
 
           <div className="cssu-reports-toolbar-stack">
-            <p className="cssu-reports-toolbar-note">Movement data synchronization for Human Resource Management Unit (HRMU).</p>
             <div className="cssu-reports-toolbar">
               <button type="button" className="cssu-reports-tool-btn" onClick={handleDownloadPdf} disabled={loading || downloadLoading}>
                 <RegistryDownloadIcon />
