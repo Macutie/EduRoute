@@ -8159,10 +8159,10 @@ const AdminBellIcon = ({ color = "currentColor" }) => (
 
 const InboxArchiveIcon = ({ color = "currentColor" }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <path d="M3 15h4l2 3h6l2-3h4" />
-    <path d="M7 8h10" />
-    <path d="M9 4h6v4H9z" />
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m4 7 8 6 8-6" />
+    <path d="m4 17 6.2-5.2" />
+    <path d="m20 17-6.2-5.2" />
   </svg>
 );
 
