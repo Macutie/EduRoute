@@ -704,8 +704,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
 
     const sortOrderLabel = `Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`;
     const exportedByLabel = `Exported by: ${exportedBy || 'CSSU Administrator'}`;
-    const rightMetaWidth = 190;
-    const rightMetaX = PAGE.width - PAGE.marginX - rightMetaWidth;
+    const rightMetaX = PAGE.width - PAGE.marginX - 150;
 
     page.drawText(sortOrderLabel, {
         x: rightMetaX,
