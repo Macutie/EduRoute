@@ -8158,7 +8158,7 @@ const AdminBellIcon = ({ color = "currentColor" }) => (
 );
 
 const InboxArchiveIcon = ({ color = "currentColor" }) => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="5" width="18" height="14" rx="2" />
     <path d="m4 7 8 6 8-6" />
     <path d="m4 17 6.2-5.2" />
