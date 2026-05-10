@@ -48,7 +48,7 @@ const getReportsOverview = async (req, res, next) => {
 
 const downloadReportsPdf = async (req, res, next) => {
     try {
-        const payload = await cssuDashboardService.getReportsDownload(req.query);
+        const payload = await cssuDashboardService.getReportsDownload(req.user.sub, req.query);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
         return res.send(payload.buffer);

@@ -642,7 +642,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     return Buffer.from(pdfBytes);
 };
 
-const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc' }) => {
+const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc', exportedBy = 'CSSU Administrator' }) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -685,6 +685,16 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
 
     let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
     let cursorY = drawCssuReportHeader({ page, fonts, logoImage, reportMeta, filters, colorize });
+
+    page.drawText(`Exported by ${exportedBy}`, {
+        x: 138,
+        y: 300,
+        size: 34,
+        font: fonts.bold,
+        color: colorize(COLORS.border),
+        opacity: 0.22,
+        rotate: { type: 'degrees', angle: 32 },
+    });
 
     page.drawText(reportTitle, {
         x: PAGE.marginX,

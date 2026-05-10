@@ -276,7 +276,12 @@ const getReportsOverview = async (query = {}) => {
     };
 };
 
-const getReportsDownload = async (query = {}) => {
+const getReportsDownload = async (userId, query = {}) => {
+    const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['cssu', 'admin']);
+    if (!user) {
+        throw new AppError('Only CSSU and admin users can export CSSU reports.', 403);
+    }
+
     const report = await getReportsOverview(query);
     const startSlug = report.filters.startDate.replace(/-/g, '');
     const endSlug = report.filters.endDate.replace(/-/g, '');
@@ -287,6 +292,7 @@ const getReportsDownload = async (query = {}) => {
         movementLogs: report.movementLogs,
         reportMeta: report.reportMeta,
         sortOrder: normalizeSortOrder(query.sortOrder),
+        exportedBy: user.full_name || 'CSSU Administrator',
     });
 
     return {
