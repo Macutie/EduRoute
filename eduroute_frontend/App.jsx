@@ -9408,7 +9408,7 @@ const HrmuAlertTinyIcon = ({ color = '#3B3B3B' }) => (
   </svg>
 );
 
-const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, bellActive = false, inboxActive = false, children }) => {
+const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, bellActive = false, inboxActive = false, forceDesktop = false, children }) => {
   const [inboxCount, setInboxCount] = useState(0);
 
   useEffect(() => {
@@ -9444,7 +9444,7 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
   ];
 
   return (
-    <div className="hrmu-workspace">
+    <div className={`hrmu-workspace ${forceDesktop ? 'force-desktop' : ''}`}>
       <aside className="hrmu-sidebar">
           <div className="hrmu-sidebar-top">
             <div className="hrmu-brand-lockup">
@@ -10899,7 +10899,7 @@ const HrmuReportInboxView = ({ setView, profileData, onLogout }) => {
   const latestItem = items[0] || null;
 
   return (
-    <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} inboxActive>
+    <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} inboxActive forceDesktop>
       <section className="hrmu-inbox-page">
         <div className="hrmu-inbox-hero">
           <div className="hrmu-inbox-copy">
