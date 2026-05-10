@@ -46,6 +46,26 @@ const getLiveTracking = async (req, res, next) => {
     }
 };
 
+const getReportInbox = async (req, res, next) => {
+    try {
+        const inbox = await hrmuDashboardService.getReportInbox(req.user.sub, req.query);
+        return res.json(successResponse('HRMU report inbox fetched successfully.', inbox));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const downloadReportInboxAttachment = async (req, res, next) => {
+    try {
+        const payload = await hrmuDashboardService.downloadReportInboxAttachment(req.user.sub, req.params.id);
+        res.setHeader('Content-Type', payload.mimeType);
+        res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
+        return res.send(payload.buffer);
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const exportRecentActivityCsv = async (req, res, next) => {
     try {
         const placeholder = await hrmuDashboardService.getExportCsvPlaceholder(req.user.sub);
@@ -61,5 +81,7 @@ module.exports = {
     getNotifications,
     getRecentActivity,
     getLiveTracking,
+    getReportInbox,
+    downloadReportInboxAttachment,
     exportRecentActivityCsv
 };

@@ -18,6 +18,8 @@ router.use('/verification', hrmuVerificationRoutes);
 router.get('/dashboard/summary', hrmuDashboardController.getSummary);
 router.get('/live-faculty', hrmuDashboardController.getLiveFaculty);
 router.get('/notifications', hrmuDashboardController.getNotifications);
+router.get('/report-inbox', hrmuDashboardController.getReportInbox);
+router.get('/report-inbox/:id/download', hrmuDashboardController.downloadReportInboxAttachment);
 router.get('/recent-activity', hrmuDashboardController.getRecentActivity);
 router.get('/live-tracking', hrmuDashboardController.getLiveTracking);
 router.get('/recent-activity/export-csv', hrmuDashboardController.exportRecentActivityCsv);

@@ -12,6 +12,7 @@ router.get('/incidents/overview', cssuDashboardController.getIncidentOverview);
 router.get('/notifications/overview', cssuDashboardController.getNotificationsOverview);
 router.get('/reports/overview', cssuDashboardController.getReportsOverview);
 router.get('/reports/download', cssuDashboardController.downloadReportsPdf);
+router.post('/reports/send', cssuDashboardController.sendReportToHrmu);
 router.get('/exit-clearance/lookup', cssuDashboardController.lookupExitCandidate);
 router.patch('/dashboard/locator-slips/:locatorSlipId/exit-status', cssuDashboardController.updateExitLogStatus);
 

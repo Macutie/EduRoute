@@ -1,5 +1,6 @@
 const AppError = require('../utils/appError');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const hrmuReportInboxRepository = require('../repositories/hrmuReportInbox.repository');
 const tripIncidentRepository = require('../repositories/tripIncident.repository');
 const tripIncidentService = require('./tripIncident.service');
 const { computeLocatorSlipDisplayStatus, DISPLAY_STATUSES } = require('./status.service');
@@ -323,6 +324,51 @@ const getRecentActivity = async (userId, query = {}) => {
 
 const getLiveTracking = async (userId) => getLiveFaculty(userId);
 
+const getReportInbox = async (userId, query = {}) => {
+    await assertHrmuUser(userId);
+
+    const rows = await hrmuReportInboxRepository.listInboxAttachments({
+        sentToRole: 'hrmu',
+        limit: query.limit,
+    });
+
+    const items = rows.map((row) => ({
+        id: row.id,
+        senderName: row.sender_name,
+        title: row.report_title,
+        subtitle: row.report_subtitle || null,
+        filename: row.filename,
+        mimeType: row.mime_type,
+        fileSize: Number(row.file_size || 0),
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+        isRead: Boolean(row.is_read),
+        filters: row.filters_json || {},
+    }));
+
+    return {
+        items,
+        unreadCount: items.filter((item) => !item.isRead).length,
+        total: items.length,
+    };
+};
+
+const downloadReportInboxAttachment = async (userId, inboxId) => {
+    await assertHrmuUser(userId);
+
+    const item = await hrmuReportInboxRepository.getInboxAttachmentById(inboxId, { includeFileData: true });
+    if (!item) {
+        throw new AppError('HRMU report attachment not found.', 404);
+    }
+
+    await hrmuReportInboxRepository.markInboxAttachmentRead(inboxId).catch(() => null);
+
+    return {
+        filename: item.filename || 'hrmu-inbox-report.pdf',
+        mimeType: item.mime_type || 'application/pdf',
+        buffer: item.file_data,
+    };
+};
+
 const getExportCsvPlaceholder = async (userId) => {
     await assertHrmuUser(userId);
 
@@ -340,5 +386,7 @@ module.exports = {
     getNotifications,
     getRecentActivity,
     getLiveTracking,
+    getReportInbox,
+    downloadReportInboxAttachment,
     getExportCsvPlaceholder
 };

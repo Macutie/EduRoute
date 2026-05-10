@@ -2,6 +2,7 @@ const AppError = require('../utils/appError');
 const cssuDashboardRepository = require('../repositories/cssuDashboard.repository');
 const { CSSU_FLAG_INCIDENT_NOTE_PREFIX } = require('../repositories/cssuDashboard.repository');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const hrmuReportInboxRepository = require('../repositories/hrmuReportInbox.repository');
 const { buildCssuMovementReportPdf } = require('../utils/simplePdf');
 
 const GATE_OPTIONS = new Set(['main_gate', 'back_gate']);
@@ -301,6 +302,54 @@ const getReportsDownload = async (userId, query = {}) => {
     };
 };
 
+const sendReportToHrmu = async (userId, query = {}) => {
+    const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['cssu', 'admin']);
+    if (!user) {
+        throw new AppError('Only CSSU and admin users can send CSSU reports to HRMU.', 403);
+    }
+
+    const report = await getReportsOverview(query);
+    const startSlug = report.filters.startDate.replace(/-/g, '');
+    const endSlug = report.filters.endDate.replace(/-/g, '');
+    const filename = `eduroute-cssu-movement-${startSlug}-${endSlug}.pdf`;
+    const sortOrder = normalizeSortOrder(query.sortOrder);
+    const buffer = await buildCssuMovementReportPdf({
+        filters: report.filters,
+        summary: report.summary,
+        movementLogs: report.movementLogs,
+        reportMeta: report.reportMeta,
+        sortOrder,
+        exportedBy: user.full_name || 'CSSU Administrator',
+    });
+
+    const inboxItem = await hrmuReportInboxRepository.createInboxAttachment({
+        senderUserId: userId,
+        senderName: user.full_name || 'CSSU Administrator',
+        reportKind: 'cssu_movement',
+        reportTitle: 'CSSU Movement Logs Preview',
+        reportSubtitle: `Coverage: ${report.filters.dateRangeLabel}`,
+        filename,
+        mimeType: 'application/pdf',
+        fileData: buffer,
+        filters: {
+            ...report.filters,
+            reportId: report.reportMeta?.reportId || null,
+            sortOrder,
+            totalMovements: report.summary?.totalMovements || 0,
+            exitClearances: report.summary?.exitClearances || 0,
+            flaggedEvents: report.summary?.flaggedEvents || 0,
+        },
+    });
+
+    return {
+        id: inboxItem?.id || null,
+        filename,
+        sentAt: inboxItem?.created_at ? new Date(inboxItem.created_at).toISOString() : new Date().toISOString(),
+        sentBy: user.full_name || 'CSSU Administrator',
+        reportTitle: 'CSSU Movement Logs Preview',
+    };
+};
+
 const buildValidationLog = ({ lookupMethod, lookupTime, validatedAt, statusLabel }) => {
     const items = [];
 
@@ -523,6 +572,7 @@ module.exports = {
     getNotificationsOverview,
     getReportsOverview,
     getReportsDownload,
+    sendReportToHrmu,
     lookupExitCandidate,
     updateExitLogStatus,
 };

@@ -63,6 +63,26 @@ export const downloadCssuReportsPdf = async (params = {}) => {
   };
 };
 
+export const sendCssuReportToHrmu = async (payload = {}) => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/cssu/reports/send`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'CSSU report send failed');
+  }
+
+  return data.data;
+};
+
 export const lookupCssuExitCandidate = (params = {}) => request('/api/cssu/exit-clearance/lookup', params);
 
 export const updateCssuExitStatus = async (locatorSlipId, payload = {}) => {

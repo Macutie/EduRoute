@@ -41,6 +41,46 @@ export const getHrmuNotifications = (params = {}) => {
   return request(`/api/hrmu/notifications${queryString ? `?${queryString}` : ''}`);
 };
 
+export const getHrmuReportInbox = (params = {}) => {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, value);
+    }
+  });
+
+  const queryString = searchParams.toString();
+  return request(`/api/hrmu/report-inbox${queryString ? `?${queryString}` : ''}`);
+};
+
+export const downloadHrmuReportInboxAttachment = async (inboxId) => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/hrmu/report-inbox/${inboxId}/download`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    let message = 'HRMU inbox report download failed';
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch (error) {
+      // Ignore non-JSON binary failure path.
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename=\"([^\"]+)\"/i);
+
+  return {
+    blob,
+    filename: match?.[1] || 'hrmu-inbox-report.pdf',
+  };
+};
+
 export const getHrmuRecentActivity = (params = {}) => {
   const searchParams = new URLSearchParams();
 

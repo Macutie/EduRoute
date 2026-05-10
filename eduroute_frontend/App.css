@@ -10918,6 +10918,81 @@ label {
   flex-wrap: wrap;
 }
 
+.hrmu-inbox-card.read {
+  opacity: 0.96;
+}
+
+.hrmu-inbox-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 24px;
+  margin-top: 14px;
+  color: #5B655E;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hrmu-inbox-meta-row strong {
+  color: var(--text-dark);
+}
+
+.hrmu-inbox-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.42);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px;
+}
+
+.hrmu-inbox-preview-modal {
+  width: min(100%, 1100px);
+  height: min(100%, 86vh);
+  border-radius: 28px;
+  background: white;
+  box-shadow: 0 28px 56px rgba(17, 24, 39, 0.22);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hrmu-inbox-preview-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid #E7EEE5;
+}
+
+.hrmu-inbox-preview-head h3 {
+  margin: 0 0 6px;
+  color: var(--text-dark);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.hrmu-inbox-preview-head p {
+  margin: 0;
+  color: #5C6470;
+  font-size: 14px;
+}
+
+.hrmu-inbox-preview-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hrmu-inbox-preview-frame {
+  width: 100%;
+  flex: 1;
+  border: none;
+  background: #F8FAF8;
+}
+
 .hrmu-alert-main-card,
 .hrmu-alert-summary-card,
 .hrmu-alert-report-card {
@@ -19000,6 +19075,104 @@ label {
   font-weight: 900;
   letter-spacing: 2px;
   cursor: pointer;
+}
+
+.cssu-send-report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: rgba(15, 23, 42, 0.36);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.cssu-send-report-modal {
+  width: min(100%, 520px);
+  border-radius: 28px;
+  background: white;
+  box-shadow: 0 24px 44px rgba(15, 23, 42, 0.18);
+  padding: 24px;
+}
+
+.cssu-send-report-kicker {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: var(--green);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 1.8px;
+}
+
+.cssu-send-report-modal h3 {
+  margin: 0 0 10px;
+  color: var(--text-dark);
+  font-size: 26px;
+  font-weight: 900;
+}
+
+.cssu-send-report-modal p {
+  margin: 0;
+  color: #5C6470;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.cssu-send-report-attachment {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  background: #F5FAF5;
+  border: 1px solid #DCECDD;
+}
+
+.cssu-send-report-attachment strong,
+.cssu-send-report-attachment span {
+  display: block;
+}
+
+.cssu-send-report-attachment strong {
+  color: var(--text-dark);
+  font-size: 15px;
+}
+
+.cssu-send-report-attachment span {
+  margin-top: 4px;
+  color: #5C6470;
+  font-size: 13px;
+}
+
+.cssu-send-report-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.cssu-send-report-cancel,
+.cssu-send-report-primary {
+  min-height: 48px;
+  border-radius: 999px;
+  padding: 0 20px;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cssu-send-report-cancel {
+  background: #ECEFF2;
+  color: #49545B;
+}
+
+.cssu-send-report-primary {
+  background: var(--green);
+  color: white;
 }
 
 .cssu-reports-side-stack {

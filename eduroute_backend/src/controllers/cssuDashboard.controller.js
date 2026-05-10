@@ -57,6 +57,15 @@ const downloadReportsPdf = async (req, res, next) => {
     }
 };
 
+const sendReportToHrmu = async (req, res, next) => {
+    try {
+        const result = await cssuDashboardService.sendReportToHrmu(req.user.sub, req.body || {});
+        return res.json(successResponse('CSSU report sent to HRMU successfully.', result));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const lookupExitCandidate = async (req, res, next) => {
     try {
         const result = await cssuDashboardService.lookupExitCandidate(req.query);
@@ -82,6 +91,7 @@ module.exports = {
     getNotificationsOverview,
     getReportsOverview,
     downloadReportsPdf,
+    sendReportToHrmu,
     lookupExitCandidate,
     updateExitLogStatus,
 };

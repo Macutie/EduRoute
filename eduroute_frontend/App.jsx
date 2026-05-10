@@ -27,7 +27,9 @@ import {
   getHrmuDashboardSummary,
   getHrmuLiveFaculty,
   getHrmuNotifications,
+  getHrmuReportInbox,
   getHrmuRecentActivity,
+  downloadHrmuReportInboxAttachment,
 } from './services/hrmuApi';
 import {
   getCssuDashboardSummary,
@@ -36,6 +38,7 @@ import {
   getCssuNotificationsOverview,
   getCssuReportsOverview,
   downloadCssuReportsPdf,
+  sendCssuReportToHrmu,
   lookupCssuExitCandidate,
   updateCssuExitStatus,
 } from './services/cssuApi';
@@ -1057,6 +1060,7 @@ function App() {
       {view === 'hrmu-reports' && <HrmuReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
       {view === 'hrmu-live' && <HrmuLiveTrackingView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
       {view === 'hrmu-notifications' && <HrmuNotificationsRealtimeView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
+      {view === 'hrmu-inbox' && <HrmuReportInboxView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('hrmu')} />}
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
       {view === 'cssu-dashboard' && <CSSUDashboardView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-map' && <CSSUMapView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
@@ -8151,6 +8155,15 @@ const AdminBellIcon = ({ color = "currentColor" }) => (
   </svg>
 );
 
+const InboxArchiveIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <path d="M3 15h4l2 3h6l2-3h4" />
+    <path d="M7 8h10" />
+    <path d="M9 4h6v4H9z" />
+  </svg>
+);
+
 const ClipboardClockIcon = ({ color = "currentColor" }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="4" y="4" width="16" height="18" rx="2" />
@@ -9395,7 +9408,33 @@ const HrmuAlertTinyIcon = ({ color = '#3B3B3B' }) => (
   </svg>
 );
 
-const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, bellActive = false, children }) => {
+const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onLogout, bellActive = false, inboxActive = false, children }) => {
+  const [inboxCount, setInboxCount] = useState(0);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInboxCount = async () => {
+      try {
+        const data = await getHrmuReportInbox({ limit: 1 });
+        if (!isMounted) return;
+        setInboxCount(Number(data?.total || 0));
+      } catch (error) {
+        if (isMounted) {
+          setInboxCount(0);
+        }
+      }
+    };
+
+    loadInboxCount();
+    const intervalId = window.setInterval(loadInboxCount, 20000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   const sidebarItems = [
     { key: 'dashboard', label: 'Dashboard', icon: HrmuSidebarGridIcon, target: 'hrmu-dashboard' },
     { key: 'verification', label: 'Verification', icon: HrmuVerificationIcon, target: 'hrmu-verification' },
@@ -9448,6 +9487,10 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
         <header className="hrmu-topbar">
           <span className="hrmu-topbar-logo">EduRoute</span>
           <div className="hrmu-topbar-right">
+            <div className={`admin-bell-wrapper hrmu-bell-wrapper ${inboxActive ? 'active' : ''}`} onClick={() => setView('hrmu-inbox')}>
+              <InboxArchiveIcon color="var(--text-dark)" />
+              {inboxCount > 0 ? <div className="admin-bell-dot" /> : null}
+            </div>
             <div className={`admin-bell-wrapper hrmu-bell-wrapper ${bellActive ? 'active' : ''}`} onClick={() => setView('hrmu-notifications')}>
               <AdminBellIcon color="var(--text-dark)" />
               <div className="admin-bell-dot" />
@@ -10740,6 +10783,191 @@ const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
             </article>
           </aside>
         </section>
+      </section>
+    </HrmuWorkspaceShell>
+  );
+};
+
+const HrmuReportInboxView = ({ setView, profileData, onLogout }) => {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [previewItem, setPreviewItem] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInbox = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const data = await getHrmuReportInbox({ limit: 50 });
+        if (!isMounted) return;
+        setItems(Array.isArray(data?.items) ? data.items : []);
+      } catch (loadError) {
+        if (isMounted) {
+          setItems([]);
+          setError(loadError.message || 'Unable to load the HRMU report inbox.');
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadInbox();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => () => {
+    if (previewItem?.objectUrl) {
+      window.URL.revokeObjectURL(previewItem.objectUrl);
+    }
+  }, [previewItem]);
+
+  const formatInboxDateTime = (value) => {
+    if (!value) return 'Date unavailable';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return 'Date unavailable';
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handlePreviewAttachment = async (item) => {
+    setPreviewLoading(true);
+    try {
+      const { blob, filename } = await downloadHrmuReportInboxAttachment(item.id);
+      const objectUrl = window.URL.createObjectURL(blob);
+      setPreviewItem((current) => {
+        if (current?.objectUrl) {
+          window.URL.revokeObjectURL(current.objectUrl);
+        }
+        return {
+          id: item.id,
+          title: item.title,
+          filename,
+          objectUrl,
+          createdAt: item.createdAt,
+          senderName: item.senderName,
+        };
+      });
+      setItems((current) => current.map((row) => (row.id === item.id ? { ...row, isRead: true } : row)));
+    } catch (previewError) {
+      window.alert(previewError.message || 'Unable to preview the HRMU inbox attachment.');
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const handleDownloadAttachment = async (item) => {
+    try {
+      const { blob, filename } = await downloadHrmuReportInboxAttachment(item.id);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(objectUrl);
+      setItems((current) => current.map((row) => (row.id === item.id ? { ...row, isRead: true } : row)));
+    } catch (downloadError) {
+      window.alert(downloadError.message || 'Unable to download the HRMU inbox attachment.');
+    }
+  };
+
+  const closePreview = () => {
+    setPreviewItem((current) => {
+      if (current?.objectUrl) {
+        window.URL.revokeObjectURL(current.objectUrl);
+      }
+      return null;
+    });
+  };
+
+  return (
+    <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} inboxActive>
+      <section className="hrmu-alerts-page">
+        <div className="hrmu-alerts-hero">
+          <div className="hrmu-alerts-copy">
+            <span className="hrmu-alerts-kicker">HRMU REPORT HUB</span>
+            <h1>Inbox</h1>
+            <p>Received CSSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
+          </div>
+        </div>
+
+        {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
+        {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
+        {!loading && !error && items.length === 0 ? (
+          <div className="hrmu-alert-feed-empty">No CSSU reports have been sent to the HRMU inbox yet.</div>
+        ) : null}
+
+        {!loading && !error && items.length > 0 ? (
+          <div className="hrmu-alert-feed-list">
+            {items.map((item) => (
+              <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
+                <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+                <div className="hrmu-alert-feed-body">
+                  <div className="hrmu-alert-feed-icon verified">
+                    <DocumentIcon color="currentColor" width="24" height="24" />
+                  </div>
+                  <div className="hrmu-alert-feed-copy">
+                    <div className="hrmu-alert-feed-head">
+                      <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
+                      <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
+                    </div>
+                    <h2>{item.title || 'CSSU Report Attachment'}</h2>
+                    <p>{item.subtitle || 'CSSU sent a movement report PDF to the HRMU inbox.'}</p>
+                    <div className="hrmu-inbox-meta-row">
+                      <span><strong>From:</strong> {item.senderName || 'CSSU Administrator'}</span>
+                      <span><strong>Attachment:</strong> {item.filename}</span>
+                    </div>
+                    <div className="hrmu-alert-feed-actions">
+                      <button type="button" className="hrmu-alert-primary-btn verified" onClick={() => handlePreviewAttachment(item)} disabled={previewLoading}>
+                        {previewLoading ? 'Opening...' : 'View PDF'}
+                      </button>
+                      <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(item)}>
+                        Download PDF
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+
+        {previewItem ? (
+          <div className="hrmu-inbox-preview-overlay" onClick={closePreview}>
+            <div className="hrmu-inbox-preview-modal" onClick={(event) => event.stopPropagation()}>
+              <div className="hrmu-inbox-preview-head">
+                <div>
+                  <h3>{previewItem.title}</h3>
+                  <p>{previewItem.filename} • {formatInboxDateTime(previewItem.createdAt)}</p>
+                </div>
+                <div className="hrmu-inbox-preview-tools">
+                  <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(previewItem)}>
+                    Download
+                  </button>
+                  <button type="button" className="hrmu-reports-detail-close" onClick={closePreview} aria-label="Close preview">
+                    <span aria-hidden="true">×</span>
+                  </button>
+                </div>
+              </div>
+              <iframe title={previewItem.filename} src={previewItem.objectUrl} className="hrmu-inbox-preview-frame" />
+            </div>
+          </div>
+        ) : null}
       </section>
     </HrmuWorkspaceShell>
   );
@@ -14813,6 +15041,8 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendModalOpen, setSendModalOpen] = useState(false);
   const [visibleRecordCount, setVisibleRecordCount] = useState(6);
   const [logSortOrder, setLogSortOrder] = useState('desc');
   const startDateInputRef = useRef(null);
@@ -14908,6 +15138,26 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     }
   };
 
+  const handleSendToHrmu = async () => {
+    if (loading || sendLoading) return;
+
+    setSendLoading(true);
+    try {
+      const result = await sendCssuReportToHrmu({
+        startDate,
+        endDate,
+        department: selectedDepartment,
+        sortOrder: logSortOrder,
+      });
+      setSendModalOpen(false);
+      window.alert(`Report sent to HRMU successfully.\nAttachment: ${result?.filename || 'eduroute-cssu-report.pdf'}`);
+    } catch (error) {
+      window.alert(error.message || 'Unable to send the CSSU report to HRMU.');
+    } finally {
+      setSendLoading(false);
+    }
+  };
+
   const previewRows = useMemo(() => {
     if (!Array.isArray(reportData?.movementLogs)) return [];
 
@@ -14959,9 +15209,9 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
               <RegistryDownloadIcon />
               <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
             </button>
-            <button type="button" className="cssu-reports-send-btn">
+            <button type="button" className="cssu-reports-send-btn" onClick={() => setSendModalOpen(true)} disabled={loading || sendLoading}>
               <SendIcon />
-              <span>Send to HRMU</span>
+              <span>{sendLoading ? 'Sending...' : 'Send to HRMU'}</span>
             </button>
           </div>
         </div>
@@ -15141,6 +15391,35 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
             <span>Last Generated: {reportData?.reportMeta?.lastGeneratedLabel || formatReportFooterDate(new Date().toISOString())}</span>
           </div>
         </footer>
+
+        {sendModalOpen ? (
+          <div className="cssu-send-report-overlay" onClick={() => !sendLoading && setSendModalOpen(false)}>
+            <div className="cssu-send-report-modal" onClick={(event) => event.stopPropagation()}>
+              <span className="cssu-send-report-kicker">PDF ATTACHMENT</span>
+              <h3>Send report to HRMU?</h3>
+              <p>
+                This will send the generated movement report PDF for
+                <strong>{` ${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</strong>
+                {' '}to the HRMU inbox.
+              </p>
+              <div className="cssu-send-report-attachment">
+                <DocumentIcon color="var(--green)" width="20" height="20" />
+                <div>
+                  <strong>{`eduroute-cssu-movement-${startDate.replace(/-/g, '')}-${endDate.replace(/-/g, '')}.pdf`}</strong>
+                  <span>{selectedDepartment === 'all' ? 'All Departments' : selectedDepartment}</span>
+                </div>
+              </div>
+              <div className="cssu-send-report-actions">
+                <button type="button" className="cssu-send-report-cancel" onClick={() => setSendModalOpen(false)} disabled={sendLoading}>
+                  Cancel
+                </button>
+                <button type="button" className="cssu-send-report-primary" onClick={handleSendToHrmu} disabled={sendLoading}>
+                  {sendLoading ? 'Sending...' : 'Send PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </CSSUDesktopPage>
     );
   }
