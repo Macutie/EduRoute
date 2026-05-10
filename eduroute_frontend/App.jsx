@@ -14954,17 +14954,15 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
             <p>Movement data synchronization for Human Resource Management Unit (HRMU).</p>
           </div>
 
-          <div className="cssu-reports-toolbar-stack">
-            <div className="cssu-reports-toolbar">
-              <button type="button" className="cssu-reports-tool-btn" onClick={handleDownloadPdf} disabled={loading || downloadLoading}>
-                <RegistryDownloadIcon />
-                <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
-              </button>
-              <button type="button" className="cssu-reports-send-btn">
-                <SendIcon />
-                <span>Send to HRMU</span>
-              </button>
-            </div>
+          <div className="cssu-reports-toolbar">
+            <button type="button" className="cssu-reports-tool-btn" onClick={handleDownloadPdf} disabled={loading || downloadLoading}>
+              <RegistryDownloadIcon />
+              <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
+            </button>
+            <button type="button" className="cssu-reports-send-btn">
+              <SendIcon />
+              <span>Send to HRMU</span>
+            </button>
           </div>
         </div>
 
