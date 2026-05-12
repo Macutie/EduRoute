@@ -19,8 +19,10 @@ import {
   getDeanNotifications,
   getDeanPendingRequestsPage,
   getDeanRegistryPage,
+  getDeanSignatureSettings,
   markDeanNotificationRead,
   rejectDeanLocatorSlipRequest,
+  uploadDeanSignatureFile,
 } from './services/deanApi';
 import {
   exportHrmuRecentActivityCsvPlaceholder,
@@ -123,6 +125,7 @@ const APP_VIEWS = new Set([
   'dean-profile',
   'dean-faculty',
   'dean-registry',
+  'dean-signature',
   'dean-change-password',
   'dean-edit-profile',
   'hrmu-dashboard',
@@ -1039,6 +1042,7 @@ function App() {
       )}
       {view === 'dean-profile' && <DeanProfileView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('dean')} />}
       {view === 'dean-faculty' && <DeanFacultyView setView={setView} profileData={profileData} />}
+      {view === 'dean-signature' && <DeanSignatureView setView={setView} profileData={profileData} />}
       {view === 'dean-registry' && (
         <DeanRegistryView
           setView={setView}
@@ -8225,6 +8229,14 @@ const RegistryNavIcon = ({ color = "currentColor" }) => (
   </svg>
 );
 
+const SignatureNavIcon = ({ color = "currentColor" }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 17c2.3-2.6 4.1-4 6.1-4 1.4 0 2.2.6 3.2 1.5 1 .8 1.7 1.3 2.9 1.3 1.7 0 3.1-1.1 4.8-3" />
+    <path d="M14.5 5.5l4 4" />
+    <path d="M16.2 3.8a1.7 1.7 0 0 1 2.4 0l1.6 1.6a1.7 1.7 0 0 1 0 2.4L11 17H7v-4l9.2-9.2z" />
+  </svg>
+);
+
 const FacultyNavIcon = ({ color = "currentColor" }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -8268,6 +8280,10 @@ const DeanBottomNav = ({ setView, onOpenRequests, active = 'dashboard' }) => (
     <div className={`admin-nav-item ${active === 'registry' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-registry')}>
       <RegistryNavIcon color={active === 'registry' ? 'var(--green)' : '#9CA3AF'} />
       <span>Registry</span>
+    </div>
+    <div className={`admin-nav-item ${active === 'signature' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-signature')}>
+      <SignatureNavIcon color={active === 'signature' ? 'var(--green)' : '#9CA3AF'} />
+      <span>Signature</span>
     </div>
     <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-faculty')}>
       <FacultyNavIcon color={active === 'faculty' ? 'var(--green)' : '#9CA3AF'} />
@@ -9046,6 +9062,194 @@ const DeanRegistryView = ({ setView, profileData }) => {
           onClose={() => setSelectedRegistryItem(null)}
         />
       )}
+    </div>
+  );
+};
+
+const DeanSignatureView = ({ setView, profileData }) => {
+  const fileInputRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [settings, setSettings] = useState(null);
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadSettings = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        const data = await getDeanSignatureSettings();
+        if (!active) return;
+        setSettings(data);
+        setConsentChecked(Boolean(data?.consentAccepted));
+      } catch (requestError) {
+        if (!active) return;
+        setError(requestError.message || 'Failed to load your digital signature settings.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    loadSettings();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const selectedImagePreview = useMemo(() => {
+    if (!selectedFile || !selectedFile.type?.startsWith('image/')) return '';
+    return URL.createObjectURL(selectedFile);
+  }, [selectedFile]);
+
+  useEffect(() => () => {
+    if (selectedImagePreview) {
+      URL.revokeObjectURL(selectedImagePreview);
+    }
+  }, [selectedImagePreview]);
+
+  const currentMimeType = selectedFile?.type || settings?.signatureMimeType || '';
+  const currentFileName = selectedFile?.name || settings?.signatureOriginalFilename || 'No signature uploaded yet';
+  const hasCurrentPdf = currentMimeType === 'application/pdf' && (selectedFile || settings?.signatureUrl);
+  const hasCurrentImage = currentMimeType.startsWith('image/') && (selectedImagePreview || settings?.signatureUrl);
+
+  const handleChooseFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      alert('Please choose a PDF or image signature file first.');
+      return;
+    }
+
+    if (!consentChecked && !settings?.consentAccepted) {
+      alert('Please confirm the permission statement before uploading your digital signature.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError('');
+      const data = await uploadDeanSignatureFile({
+        file: selectedFile,
+        consentAccepted: consentChecked
+      });
+      setSettings(data);
+      setConsentChecked(Boolean(data?.consentAccepted));
+      setSelectedFile(null);
+      alert('Digital signature uploaded successfully. It will now be attached to approved locator slips.');
+    } catch (requestError) {
+      alert(requestError.message || 'Failed to upload the digital signature.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="admin-dash-wrapper dean-signature-wrapper">
+      <div className="admin-dash-scroll">
+        <div className="admin-header dean-requests-header">
+          <div className="anotif-header-left">
+            <div className="anotif-back" onClick={() => setView('dean-dashboard')}>
+              <BackArrowIcon color="var(--text-dark)" />
+            </div>
+            <span className="admin-logo-text">EduRoute</span>
+          </div>
+          <div className="admin-header-right">
+            <div className="admin-bell-wrapper" onClick={() => setView('dean-notifications')}>
+              <AdminBellIcon color="var(--text-dark)" />
+              <div className="admin-bell-dot" />
+            </div>
+            <div className="admin-avatar" onClick={() => setView('dean-profile')}>
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+            </div>
+          </div>
+        </div>
+
+        <div className="dean-signature-hero">
+          <span className="dean-signature-badge">DEAN CONSENT</span>
+          <h1>Digital Signature</h1>
+          <p>Upload the official dean signature that EduRoute will attach to approved locator slips for your faculty members.</p>
+        </div>
+
+        {loading && <p className="dean-empty-text dean-signature-message">Loading your signature settings...</p>}
+        {error && <p className="dean-error-text dean-signature-message">{error}</p>}
+
+        {!loading && (
+          <>
+            <div className="dean-signature-card">
+              <h3>Permission Statement</h3>
+              <p>{settings?.permissionText}</p>
+              <label className={`dean-signature-consent ${consentChecked ? 'checked' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={consentChecked}
+                  onChange={(event) => setConsentChecked(event.target.checked)}
+                />
+                <span>I approve the use of my digital signature for dean-approved locator slips.</span>
+              </label>
+              {settings?.consentedAt && (
+                <p className="dean-signature-meta">
+                  Permission granted on {new Date(settings.consentedAt).toLocaleString()}.
+                </p>
+              )}
+            </div>
+
+            <div className="dean-signature-card">
+              <h3>Upload Signature File</h3>
+              <p>Accepted file types: PDF, JPG, PNG, and WebP.</p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(event) => setSelectedFile(event.target.files?.[0] || null)}
+              />
+
+              <div className="dean-signature-actions">
+                <button type="button" className="dean-signature-secondary-btn" onClick={handleChooseFile}>
+                  {selectedFile ? 'Change File' : 'Choose File'}
+                </button>
+                <button type="button" className="dean-signature-primary-btn" disabled={saving} onClick={handleUpload}>
+                  {saving ? 'Uploading...' : 'Upload Signature'}
+                </button>
+              </div>
+
+              <div className="dean-signature-file-note">
+                <span>Current file:</span>
+                <strong>{currentFileName}</strong>
+              </div>
+
+              {hasCurrentImage && (
+                <div className="dean-signature-preview-card">
+                  <img src={selectedImagePreview || settings?.signatureUrl} alt="Dean signature preview" className="dean-signature-preview-image" />
+                </div>
+              )}
+
+              {hasCurrentPdf && (
+                <div className="dean-signature-pdf-card">
+                  <span>PDF signature on file</span>
+                  <a href={selectedFile ? '#' : settings?.signatureUrl} target="_blank" rel="noreferrer" onClick={(event) => selectedFile && event.preventDefault()}>
+                    {selectedFile ? 'Preview after upload' : 'Open PDF'}
+                  </a>
+                </div>
+              )}
+
+              {!selectedFile && settings?.signatureUrl && (
+                <p className="dean-signature-meta">
+                  Uploaded on {settings.uploadedAt ? new Date(settings.uploadedAt).toLocaleString() : 'recently'}.
+                </p>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      <DeanBottomNav active="signature" setView={setView} onOpenRequests={() => setView('dean-requests')} />
     </div>
   );
 };
@@ -12028,6 +12232,7 @@ const RegistryDetailsModal = ({ item, onClose }) => {
   const returnSchedule = splitDateTime(item.formattedExpectedReturnDatetime, item.expectedReturnDatetime);
   const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Dean';
   const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
+  const signatureAsset = item.digitalSignature?.asset || null;
   const signatureTimestamp = item.digitalSignature?.signedAt
     ? `${new Date(item.digitalSignature.signedAt).toLocaleString('sv-SE', { hour12: false }).replace(' ', 'T')} UTC+8`
     : '';
@@ -12126,6 +12331,20 @@ const RegistryDetailsModal = ({ item, onClose }) => {
         <div className="rmodal-signature">
           <div className="rmodal-sig-divider" />
           <span className="rmodal-sig-label">AUTHORIZED DIGITAL SIGNATURE</span>
+          {signatureAsset && (
+            signatureAsset.mimeType === 'application/pdf' ? (
+              <div className="rmodal-sig-asset-card pdf">
+                <span className="rmodal-sig-asset-title">{signatureAsset.originalFilename || 'Dean signature PDF'}</span>
+                <a className="rmodal-sig-asset-link" href={signatureAsset.url} target="_blank" rel="noreferrer">
+                  Open PDF Signature
+                </a>
+              </div>
+            ) : (
+              <div className="rmodal-sig-asset-card">
+                <img className="rmodal-sig-image" src={signatureAsset.url} alt="Dean digital signature" />
+              </div>
+            )
+          )}
           <h4 className="rmodal-sig-name">{signatureName}</h4>
           <p className="rmodal-sig-role">{signatureRole}</p>
           {item.digitalSignature ? (

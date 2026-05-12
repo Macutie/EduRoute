@@ -4,9 +4,10 @@ const getToken = () => localStorage.getItem('token');
 
 export const deanApiRequest = async (endpoint, options = {}) => {
   const token = getToken();
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {}),
     },
@@ -23,6 +24,18 @@ export const deanApiRequest = async (endpoint, options = {}) => {
 };
 
 export const getDeanSummary = () => deanApiRequest('/api/dean/dashboard/summary');
+export const getDeanSignatureSettings = () => deanApiRequest('/api/dean/signature');
+
+export const uploadDeanSignatureFile = async ({ file, consentAccepted }) => {
+  const formData = new FormData();
+  formData.append('signature_file', file);
+  formData.append('consentAccepted', String(Boolean(consentAccepted)));
+
+  return deanApiRequest('/api/dean/signature', {
+    method: 'POST',
+    body: formData,
+  });
+};
 
 export const getDeanNotifications = ({ page = 1, limit = 10 } = {}) =>
   deanApiRequest(`/api/dean/notifications?page=${page}&limit=${limit}`);

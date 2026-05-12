@@ -1,12 +1,15 @@
 const express = require('express');
 const deanDashboardController = require('../controllers/deanDashboard.controller');
 const { protect, requireRole } = require('../middlewares/auth.middleware');
+const { uploadDeanSignatureAsset } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
 
 router.use(protect, requireRole('assistant_dean', 'college_dean'));
 
 router.get('/dashboard/summary', deanDashboardController.getSummary);
+router.get('/signature', deanDashboardController.getDeanSignatureSettings);
+router.post('/signature', uploadDeanSignatureAsset.single('signature_file'), deanDashboardController.uploadDeanSignatureFile);
 router.get('/notifications', deanDashboardController.getNotifications);
 router.patch('/notifications/:id/read', deanDashboardController.markNotificationRead);
 router.get('/locator-slips', deanDashboardController.getLocatorSlips);

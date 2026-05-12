@@ -5,8 +5,11 @@ const notificationService = require('./notification.service');
 const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const socketBroadcasterService = require('./socketBroadcaster.service');
+const { uploadFileBuffer, destroyUploadedAsset } = require('./upload.service');
 
 const DEAN_ROLES = ['assistant_dean', 'college_dean'];
+const DEAN_SIGNATURE_PERMISSION_TEXT = 'I authorize EduRoute to use my uploaded digital signature for approving locator slips filed by faculty members in my department. I understand that this signature will be attached to approved locator slips and may be viewed by HRMU as proof of dean approval.';
+let deanSignatureTablesReadyPromise = null;
 
 const formatDateOnly = (value) => {
     if (!value) return null;
@@ -27,6 +30,103 @@ const getInitials = (name = '') =>
         .slice(0, 2)
         .map((part) => part[0]?.toUpperCase())
         .join('') || 'FA';
+
+const parseBoolean = (value) => {
+    if (value === true || value === 'true' || value === 1 || value === '1') return true;
+    return false;
+};
+
+const getFileExtension = (file) => {
+    const originalName = String(file?.originalname || '').toLowerCase();
+    if (originalName.endsWith('.pdf')) return 'pdf';
+    if (originalName.endsWith('.png')) return 'png';
+    if (originalName.endsWith('.webp')) return 'webp';
+    if (originalName.endsWith('.jpg') || originalName.endsWith('.jpeg')) return 'jpg';
+    if (file?.mimetype === 'application/pdf') return 'pdf';
+    if (file?.mimetype === 'image/png') return 'png';
+    if (file?.mimetype === 'image/webp') return 'webp';
+    return 'jpg';
+};
+
+const getResourceTypeForMime = (mimeType = '') => (mimeType === 'application/pdf' ? 'raw' : 'image');
+
+const ensureDeanSignatureTables = async () => {
+    if (!deanSignatureTablesReadyPromise) {
+        deanSignatureTablesReadyPromise = pool.query(`
+            CREATE TABLE IF NOT EXISTS dean_signature_settings (
+                dean_user_id UUID PRIMARY KEY REFERENCES faculty_users(id) ON DELETE CASCADE,
+                consent_accepted BOOLEAN NOT NULL DEFAULT FALSE,
+                consented_at TIMESTAMP NULL,
+                signature_url TEXT NULL,
+                signature_public_id TEXT NULL,
+                signature_mime_type TEXT NULL,
+                signature_original_filename TEXT NULL,
+                uploaded_at TIMESTAMP NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS locator_slip_dean_signatures (
+                locator_slip_id UUID PRIMARY KEY REFERENCES locator_slips(id) ON DELETE CASCADE,
+                dean_user_id UUID NOT NULL REFERENCES faculty_users(id) ON DELETE CASCADE,
+                signature_url TEXT NOT NULL,
+                signature_public_id TEXT NULL,
+                signature_mime_type TEXT NOT NULL,
+                signature_original_filename TEXT NULL,
+                consented_at TIMESTAMP NULL,
+                attached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_locator_slip_dean_signatures_dean_user_id
+            ON locator_slip_dean_signatures(dean_user_id);
+        `).catch((error) => {
+            deanSignatureTablesReadyPromise = null;
+            throw error;
+        });
+    }
+
+    return deanSignatureTablesReadyPromise;
+};
+
+const getDeanSignatureRecord = async (deanUserId) => {
+    await ensureDeanSignatureTables();
+
+    const { rows } = await pool.query(
+        `SELECT
+            consent_accepted,
+            consented_at,
+            signature_url,
+            signature_public_id,
+            signature_mime_type,
+            signature_original_filename,
+            uploaded_at
+         FROM dean_signature_settings
+         WHERE dean_user_id = $1
+         LIMIT 1`,
+        [deanUserId]
+    );
+
+    return rows[0] || null;
+};
+
+const serializeDeanSignatureSettings = (dean, record) => ({
+    permissionText: DEAN_SIGNATURE_PERMISSION_TEXT,
+    dean: {
+        id: dean.id,
+        name: dean.full_name,
+        role: dean.account_role,
+        collegeId: dean.college_id,
+        collegeName: dean.college_name
+    },
+    consentAccepted: Boolean(record?.consent_accepted),
+    consentedAt: record?.consented_at || null,
+    hasSignature: Boolean(record?.signature_url),
+    signatureUrl: record?.signature_url || null,
+    signatureMimeType: record?.signature_mime_type || null,
+    signatureOriginalFilename: record?.signature_original_filename || null,
+    uploadedAt: record?.uploaded_at || null
+});
 
 const getDeanContext = async (deanUserId) => {
     const { rows, rowCount } = await pool.query(
@@ -65,6 +165,88 @@ const getLocatorSlipColumnExists = async (columnName) => {
     );
 
     return Boolean(rows[0]?.exists);
+};
+
+const getDeanSignatureSettings = async (deanUserId) => {
+    const dean = await getDeanContext(deanUserId);
+    const record = await getDeanSignatureRecord(dean.id);
+
+    return serializeDeanSignatureSettings(dean, record);
+};
+
+const uploadDeanSignatureFile = async (deanUserId, file, payload = {}) => {
+    if (!file) {
+        throw new AppError('A digital signature file is required.', 422);
+    }
+
+    const dean = await getDeanContext(deanUserId);
+    const existingRecord = await getDeanSignatureRecord(dean.id);
+    const consentAccepted = parseBoolean(payload.consentAccepted) || Boolean(existingRecord?.consent_accepted);
+
+    if (!consentAccepted) {
+        throw new AppError('You must grant permission before uploading your digital signature.', 422);
+    }
+
+    const extension = getFileExtension(file);
+    const uploadResult = await uploadFileBuffer(file.buffer, {
+        folder: 'dean-signatures',
+        publicId: `dean-signature-${dean.id}-${Date.now()}`,
+        extension,
+        format: extension,
+        resourceType: getResourceTypeForMime(file.mimetype)
+    });
+
+    await pool.query(
+        `INSERT INTO dean_signature_settings (
+            dean_user_id,
+            consent_accepted,
+            consented_at,
+            signature_url,
+            signature_public_id,
+            signature_mime_type,
+            signature_original_filename,
+            uploaded_at,
+            updated_at
+        )
+        VALUES (
+            $1,
+            TRUE,
+            COALESCE($2, CURRENT_TIMESTAMP),
+            $3,
+            $4,
+            $5,
+            $6,
+            CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (dean_user_id) DO UPDATE
+        SET consent_accepted = TRUE,
+            consented_at = COALESCE(dean_signature_settings.consented_at, EXCLUDED.consented_at),
+            signature_url = EXCLUDED.signature_url,
+            signature_public_id = EXCLUDED.signature_public_id,
+            signature_mime_type = EXCLUDED.signature_mime_type,
+            signature_original_filename = EXCLUDED.signature_original_filename,
+            uploaded_at = CURRENT_TIMESTAMP,
+            updated_at = CURRENT_TIMESTAMP`,
+        [
+            dean.id,
+            existingRecord?.consented_at || null,
+            uploadResult.url,
+            uploadResult.publicId,
+            file.mimetype,
+            file.originalname || `signature.${extension}`
+        ]
+    );
+
+    if (existingRecord?.signature_public_id) {
+        await destroyUploadedAsset({
+            publicId: existingRecord.signature_public_id,
+            resourceType: getResourceTypeForMime(existingRecord.signature_mime_type)
+        });
+    }
+
+    const updatedRecord = await getDeanSignatureRecord(dean.id);
+    return serializeDeanSignatureSettings(dean, updatedRecord);
 };
 
 const getDashboardSummary = async (deanUserId) => {
@@ -456,6 +638,7 @@ const formatSignatureRoleLabel = (role, collegeName) => {
 
 const getRegistryPage = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
+    await ensureDeanSignatureTables();
     const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
 
     const summaryResult = await pool.query(
@@ -500,11 +683,21 @@ const getRegistryPage = async (deanUserId) => {
             ls.departure_datetime,
             ls.expected_return_datetime,
             reviewer.full_name AS reviewed_by_name,
-            reviewer.account_role AS reviewed_by_role
+            reviewer.account_role AS reviewed_by_role,
+            lsig.signature_url AS snapshot_signature_url,
+            lsig.signature_mime_type AS snapshot_signature_mime_type,
+            lsig.signature_original_filename AS snapshot_signature_original_filename,
+            lsig.attached_at AS snapshot_signature_attached_at,
+            ds.signature_url AS current_signature_url,
+            ds.signature_mime_type AS current_signature_mime_type,
+            ds.signature_original_filename AS current_signature_original_filename,
+            ds.uploaded_at AS current_signature_uploaded_at
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          JOIN departments d ON d.id = fu.department_id
          LEFT JOIN faculty_users reviewer ON reviewer.id = ls.reviewed_by
+         LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = ls.id
+         LEFT JOIN dean_signature_settings ds ON ds.dean_user_id = reviewer.id
          LEFT JOIN LATERAL (
             SELECT n.data ->> 'cancellationReason' AS cancellation_reason
             FROM notifications n
@@ -529,31 +722,53 @@ const getRegistryPage = async (deanUserId) => {
                 name: dean.college_name
             }
         },
-        items: itemsResult.rows.map((row) => ({
-            ...normalizeLocatorSlipRow(row),
-            position: row.department_position || row.department_name || 'Instructor',
-            profileImageUrl: row.profile_image_url,
-            statusLabel: normalizeRegistryStatus(row.status),
-            dateLabel: row.status === 'cancelled' ? 'DATE CANCELLED' : 'DATE SUBMITTED',
-            dateValue: formatDateOnly(row.status === 'cancelled' ? (row.updated_at || row.created_at) : row.created_at),
-            referenceNumber: `LS-${new Date(row.created_at).getFullYear()}-${String(row.id).padStart(3, '0')}`,
-            assignedDean: {
-                name: row.reviewed_by_name || dean.full_name,
-                role: formatSignatureRoleLabel(row.reviewed_by_role || dean.account_role, dean.college_name)
-            },
-            digitalSignature: ['approved', 'completed'].includes(row.status)
-                ? {
-                    name: row.reviewed_by_name || dean.full_name,
-                    role: formatSignatureRoleLabel(row.reviewed_by_role || dean.account_role, dean.college_name),
-                    signedAt: row.approved_at || row.updated_at || row.created_at
-                }
-                : null
-        }))
+        items: itemsResult.rows.map((row) => (
+            (() => {
+                const signatureAsset = row.snapshot_signature_url
+                    ? {
+                        url: row.snapshot_signature_url,
+                        mimeType: row.snapshot_signature_mime_type || null,
+                        originalFilename: row.snapshot_signature_original_filename || null,
+                        attachedAt: row.snapshot_signature_attached_at || null
+                    }
+                    : row.current_signature_url
+                        ? {
+                            url: row.current_signature_url,
+                            mimeType: row.current_signature_mime_type || null,
+                            originalFilename: row.current_signature_original_filename || null,
+                            attachedAt: row.current_signature_uploaded_at || null
+                        }
+                        : null;
+
+                return {
+                    ...normalizeLocatorSlipRow(row),
+                    position: row.department_position || row.department_name || 'Instructor',
+                    profileImageUrl: row.profile_image_url,
+                    statusLabel: normalizeRegistryStatus(row.status),
+                    dateLabel: row.status === 'cancelled' ? 'DATE CANCELLED' : 'DATE SUBMITTED',
+                    dateValue: formatDateOnly(row.status === 'cancelled' ? (row.updated_at || row.created_at) : row.created_at),
+                    referenceNumber: `LS-${new Date(row.created_at).getFullYear()}-${String(row.id).padStart(3, '0')}`,
+                    assignedDean: {
+                        name: row.reviewed_by_name || dean.full_name,
+                        role: formatSignatureRoleLabel(row.reviewed_by_role || dean.account_role, dean.college_name)
+                    },
+                    digitalSignature: ['approved', 'completed'].includes(row.status)
+                        ? {
+                            name: row.reviewed_by_name || dean.full_name,
+                            role: formatSignatureRoleLabel(row.reviewed_by_role || dean.account_role, dean.college_name),
+                            signedAt: row.approved_at || row.updated_at || row.created_at,
+                            asset: signatureAsset
+                        }
+                        : null
+                };
+            })()
+        ))
     };
 };
 
 const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
     const dean = await getDeanContext(deanUserId);
+    const signatureSettings = await getDeanSignatureRecord(dean.id);
     const client = await pool.connect();
 
     try {
@@ -596,6 +811,10 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
             throw new AppError('Only pending locator slips can be approved.', 409);
         }
 
+        if (!signatureSettings?.consent_accepted || !signatureSettings?.signature_url) {
+            throw new AppError('Upload and authorize your digital signature before approving locator slips.', 422);
+        }
+
         const updateResult = await client.query(
             `UPDATE locator_slips
              SET status = 'approved',
@@ -605,6 +824,39 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
              WHERE id = $1
              RETURNING id, status, approved_at, reviewed_by, updated_at`,
             [locatorSlipId, dean.id]
+        );
+
+        await ensureDeanSignatureTables();
+
+        await client.query(
+            `INSERT INTO locator_slip_dean_signatures (
+                locator_slip_id,
+                dean_user_id,
+                signature_url,
+                signature_public_id,
+                signature_mime_type,
+                signature_original_filename,
+                consented_at,
+                attached_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+            ON CONFLICT (locator_slip_id) DO UPDATE
+            SET dean_user_id = EXCLUDED.dean_user_id,
+                signature_url = EXCLUDED.signature_url,
+                signature_public_id = EXCLUDED.signature_public_id,
+                signature_mime_type = EXCLUDED.signature_mime_type,
+                signature_original_filename = EXCLUDED.signature_original_filename,
+                consented_at = EXCLUDED.consented_at,
+                attached_at = CURRENT_TIMESTAMP`,
+            [
+                locatorSlipId,
+                dean.id,
+                signatureSettings.signature_url,
+                signatureSettings.signature_public_id,
+                signatureSettings.signature_mime_type,
+                signatureSettings.signature_original_filename,
+                signatureSettings.consented_at
+            ]
         );
 
         const hrmuNotificationPayload = await hrmuDashboardRepository.createApprovalNotificationsForHrmu(client, locatorSlipId);
@@ -638,6 +890,17 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
                 role: dean.account_role,
                 collegeId: dean.college_id,
                 collegeName: dean.college_name
+            },
+            digitalSignature: {
+                name: dean.full_name,
+                role: formatSignatureRoleLabel(dean.account_role, dean.college_name),
+                signedAt: updateResult.rows[0]?.approved_at || updateResult.rows[0]?.updated_at || slip.created_at,
+                asset: {
+                    url: signatureSettings.signature_url,
+                    mimeType: signatureSettings.signature_mime_type,
+                    originalFilename: signatureSettings.signature_original_filename,
+                    attachedAt: updateResult.rows[0]?.approved_at || updateResult.rows[0]?.updated_at || null
+                }
             }
         };
     } catch (error) {
@@ -737,6 +1000,8 @@ const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '')
 module.exports = {
     DEAN_ROLES,
     getDeanContext,
+    getDeanSignatureSettings,
+    uploadDeanSignatureFile,
     getDashboardSummary,
     getDeanNotifications,
     markNotificationRead,

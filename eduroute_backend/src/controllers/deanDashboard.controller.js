@@ -10,6 +10,24 @@ const getSummary = async (req, res, next) => {
     }
 };
 
+const getDeanSignatureSettings = async (req, res, next) => {
+    try {
+        const settings = await deanDashboardService.getDeanSignatureSettings(req.user.sub);
+        return res.json(successResponse('Dean digital signature settings fetched successfully.', settings));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const uploadDeanSignatureFile = async (req, res, next) => {
+    try {
+        const settings = await deanDashboardService.uploadDeanSignatureFile(req.user.sub, req.file, req.body || {});
+        return res.json(successResponse('Dean digital signature uploaded successfully.', settings));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const getNotifications = async (req, res, next) => {
     try {
         const notifications = await deanDashboardService.getDeanNotifications(req.user.sub, req.query);
@@ -93,6 +111,8 @@ const rejectLocatorSlipRequest = async (req, res, next) => {
 
 module.exports = {
     getSummary,
+    getDeanSignatureSettings,
+    uploadDeanSignatureFile,
     getNotifications,
     markNotificationRead,
     getLocatorSlips,
