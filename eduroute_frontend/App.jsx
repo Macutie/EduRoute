@@ -9074,6 +9074,7 @@ const DeanSignatureView = ({ setView, profileData }) => {
   const [settings, setSettings] = useState(null);
   const [consentChecked, setConsentChecked] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -9086,6 +9087,7 @@ const DeanSignatureView = ({ setView, profileData }) => {
         if (!active) return;
         setSettings(data);
         setConsentChecked(Boolean(data?.consentAccepted));
+        setShowPermissionModal(!data?.consentAccepted);
       } catch (requestError) {
         if (!active) return;
         setError(requestError.message || 'Failed to load your digital signature settings.');
@@ -9117,7 +9119,16 @@ const DeanSignatureView = ({ setView, profileData }) => {
   const hasCurrentImage = currentMimeType.startsWith('image/') && (selectedImagePreview || settings?.signatureUrl);
 
   const handleChooseFile = () => {
+    if (!consentChecked && !settings?.consentAccepted) {
+      setShowPermissionModal(true);
+      return;
+    }
     fileInputRef.current?.click();
+  };
+
+  const handleApprovePermission = () => {
+    setConsentChecked(true);
+    setShowPermissionModal(false);
   };
 
   const handleUpload = async () => {
@@ -9181,25 +9192,49 @@ const DeanSignatureView = ({ setView, profileData }) => {
 
         {!loading && (
           <>
+            {showPermissionModal && (
+              <div className="permission-modal-backdrop" onClick={() => setView('dean-dashboard')}>
+                <div className="permission-modal-card dean-signature-permission-modal" onClick={(event) => event.stopPropagation()}>
+                  <div className="permission-modal-glow" />
+                  <div className="permission-modal-icon">
+                    <SignatureNavIcon color="var(--green)" />
+                  </div>
+                  <span className="permission-modal-kicker">DEAN CONSENT</span>
+                  <h3 className="permission-modal-title">Authorize Your Digital Signature</h3>
+                  <p className="permission-modal-copy">{settings?.permissionText}</p>
+                  <div className="permission-modal-note">
+                    HRMU will be able to see this attached signature as proof that the locator slip was accepted by the respective dean.
+                  </div>
+                  <button type="button" className="permission-primary-btn" onClick={handleApprovePermission}>
+                    Approve and Continue
+                  </button>
+                  <button type="button" className="permission-ghost-btn" onClick={() => setView('dean-dashboard')}>
+                    Back to Dashboard
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="dean-signature-card">
-              <h3>Permission Statement</h3>
-              <p>{settings?.permissionText}</p>
-              <label className={`dean-signature-consent ${consentChecked ? 'checked' : ''}`}>
-                <input
-                  type="checkbox"
-                  checked={consentChecked}
-                  onChange={(event) => setConsentChecked(event.target.checked)}
-                />
-                <span>I approve the use of my digital signature for dean-approved locator slips.</span>
-              </label>
+              <h3>Signature Authorization</h3>
+              <p>
+                {settings?.consentAccepted || consentChecked
+                  ? 'Permission approved. You can now upload the official signature file that will be attached to approved locator slips for your department.'
+                  : 'Please approve the permission statement first. Once approved, you can upload your official digital signature.'}
+              </p>
               {settings?.consentedAt && (
                 <p className="dean-signature-meta">
                   Permission granted on {new Date(settings.consentedAt).toLocaleString()}.
                 </p>
               )}
+              {!settings?.consentAccepted && consentChecked && (
+                <p className="dean-signature-meta">
+                  Permission approved for this upload session. Finish uploading your signature to save it for future approvals.
+                </p>
+              )}
             </div>
 
-            <div className="dean-signature-card">
+            <div className={`dean-signature-card ${!settings?.consentAccepted && !consentChecked ? 'locked' : ''}`}>
               <h3>Upload Signature File</h3>
               <p>Accepted file types: PDF, JPG, PNG, and WebP.</p>
               <input

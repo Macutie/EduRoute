@@ -14446,6 +14446,14 @@ label {
   box-shadow: 0 14px 30px rgba(13, 107, 37, 0.08);
 }
 
+.dean-signature-card.locked {
+  opacity: 0.72;
+}
+
+.dean-signature-permission-modal {
+  max-width: 420px;
+}
+
 .dean-signature-card h3 {
   margin: 0 0 10px;
   font-size: 22px;
