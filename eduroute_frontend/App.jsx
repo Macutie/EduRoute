@@ -8945,6 +8945,7 @@ const DeanRegistryView = ({ setView, profileData }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedRegistryItem, setSelectedRegistryItem] = useState(null);
+  const [registryFilter, setRegistryFilter] = useState('all');
 
   useEffect(() => {
     let active = true;
@@ -8972,6 +8973,18 @@ const DeanRegistryView = ({ setView, profileData }) => {
 
   const summary = registryData.summary || {};
   const items = registryData.items || [];
+  const registryFilterOptions = [
+    { key: 'all', label: 'All' },
+    { key: 'pending', label: 'Pending' },
+    { key: 'verified', label: 'Verified' },
+    { key: 'rejected', label: 'Rejected' },
+    { key: 'cancelled', label: 'Cancelled' },
+  ];
+  const filteredItems = items.filter((item) => {
+    if (registryFilter === 'all') return true;
+    const normalizedStatus = String(item.statusLabel || item.status || '').trim().toLowerCase();
+    return normalizedStatus === registryFilter;
+  });
 
   return (
     <div className="admin-dash-wrapper dean-requests-wrapper">
@@ -9010,14 +9023,27 @@ const DeanRegistryView = ({ setView, profileData }) => {
           </div>
         </div>
 
+        <div className="status-filter-row">
+          {registryFilterOptions.map((option) => (
+            <button
+              key={option.key}
+              type="button"
+              className={`status-filter-chip ${registryFilter === option.key ? 'active' : ''}`}
+              onClick={() => setRegistryFilter(option.key)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
         {error && <p className="dean-error-text dean-requests-message">{error}</p>}
         {loading && <p className="dean-empty-text dean-requests-message">Loading request registry...</p>}
-        {!loading && !error && items.length === 0 && (
+        {!loading && !error && filteredItems.length === 0 && (
           <p className="dean-empty-text dean-requests-message">No locator slips have been filed for this college yet.</p>
         )}
 
         <div className="areg-cards">
-          {items.map((item) => (
+          {filteredItems.map((item) => (
             <div key={item.locatorSlipId} className="areg-card">
               <div className="areg-card-header">
                 <div className="areg-card-name-col">
