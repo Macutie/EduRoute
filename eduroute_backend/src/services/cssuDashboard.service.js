@@ -148,7 +148,7 @@ const getLiveExitMonitoring = async (query = {}) => {
             gate: row.gate || gate,
             gateLabel: formatGateLabel(row.gate || gate),
             validatedAt: row.status_timestamp ? new Date(row.status_timestamp).toISOString() : null,
-            validatedTimeLabel: formatTimeLabel(row.status_timestamp),
+            validatedTimeLabel: formatDateTimeLabel(row.status_timestamp),
         })),
     };
 };
