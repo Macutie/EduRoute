@@ -16102,7 +16102,7 @@ label {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(16px, 3vw, 40px);
+  padding: 0;
   overflow: auto;
   position: relative;
   box-sizing: border-box;
@@ -16115,15 +16115,15 @@ label {
 .dlogin-wrapper {
   display: grid;
   grid-template-columns: minmax(360px, 0.9fr) minmax(480px, 1.3fr);
-  width: min(94vw, 1180px);
-  max-width: 1180px;
+  width: 100vw;
+  max-width: none;
   background: white;
-  border-radius: 28px;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
-  border: 1px solid rgba(182, 206, 176, 0.72);
-  box-shadow: 0 24px 60px rgba(48, 78, 38, 0.08);
-  min-height: min(760px, calc(100vh - 48px));
+  border: 0;
+  box-shadow: none;
+  min-height: 100vh;
   z-index: 1;
   box-sizing: border-box;
 }
@@ -16890,16 +16890,12 @@ label {
 }
 
 @media (max-width: 1440px) {
-  .dlogin-page {
-    padding: 16px;
-  }
-
   .dlogin-wrapper {
     grid-template-columns: minmax(320px, 0.88fr) minmax(420px, 1.12fr);
-    width: min(95vw, 1120px);
-    max-width: 1120px;
-    min-height: min(700px, calc(100vh - 32px));
-    border-radius: 26px;
+    width: 100vw;
+    max-width: none;
+    min-height: 100vh;
+    border-radius: 0;
   }
 
   .dlogin-left,
@@ -17105,9 +17101,9 @@ label {
 @media (max-width: 1279px) {
   .dlogin-wrapper {
     grid-template-columns: minmax(320px, 0.88fr) minmax(400px, 1.12fr);
-    width: min(95vw, 1040px);
-    max-width: 1040px;
-    min-height: min(680px, calc(100vh - 28px));
+    width: 100vw;
+    max-width: none;
+    min-height: 100vh;
   }
 
   .dlogin-left,
@@ -17165,9 +17161,9 @@ label {
 @media (max-width: 1119px) {
   .dlogin-wrapper {
     grid-template-columns: minmax(280px, 0.84fr) minmax(360px, 1.16fr);
-    width: min(96vw, 980px);
-    max-width: 980px;
-    min-height: min(660px, calc(100vh - 24px));
+    width: 100vw;
+    max-width: none;
+    min-height: 100vh;
   }
 
   .dlogin-left,
