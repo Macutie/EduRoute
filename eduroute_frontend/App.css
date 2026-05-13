@@ -16505,10 +16505,10 @@ label {
 }
 
 .dauth-wrapper {
-  grid-template-columns: minmax(340px, 0.86fr) minmax(520px, 1.14fr);
-  width: min(94vw, 1160px);
-  max-width: 1160px;
-  min-height: min(760px, calc(100vh - 48px));
+  grid-template-columns: minmax(360px, 0.88fr) minmax(620px, 1.12fr);
+  width: calc(100vw - 48px);
+  max-width: none;
+  min-height: calc(100vh - 48px);
 }
 
 .dauth-left {
@@ -16518,7 +16518,7 @@ label {
 }
 
 .dauth-left-inner {
-  width: min(100%, 420px);
+  width: min(100%, 520px);
 }
 
 .dauth-logo-section {
@@ -16590,7 +16590,7 @@ label {
 
 .dauth-form-inner {
   width: 100%;
-  max-width: 600px;
+  max-width: 720px;
   align-items: stretch;
 }
 
