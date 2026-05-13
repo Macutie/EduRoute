@@ -12779,9 +12779,6 @@ const AdminFacultyView = ({ setView, profileData }) => {
             <FacultySearchIcon />
             <input type="text" placeholder="Search faculty members..." className="afac-search-input" />
           </div>
-          <button className="afac-filter-btn">
-            <FacultyFilterIcon />
-          </button>
         </div>
 
         {/* Title */}
@@ -12927,9 +12924,6 @@ const DeanFacultyView = ({ setView, profileData }) => {
               className="afac-search-input"
             />
           </div>
-          <button className="afac-filter-btn" type="button" aria-label="Filter faculty">
-            <FacultyFilterIcon />
-          </button>
         </div>
 
         <h2 className="afac-title">Faculty Overview</h2>

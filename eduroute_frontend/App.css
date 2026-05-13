@@ -14685,13 +14685,11 @@ label {
 }
 
 .afac-search-bar {
-  display: flex;
-  gap: 12px;
   padding: 0 24px 20px;
 }
 
 .afac-search-input-wrapper {
-  flex: 1;
+  width: 100%;
   background: white;
   border: 1px solid #E8F0E9;
   border-radius: 12px;
@@ -14710,18 +14708,6 @@ label {
   color: var(--text-dark);
   outline: none;
   padding: 12px 0;
-}
-
-.afac-filter-btn {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  background: white;
-  border: 1px solid #E8F0E9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
 }
 
 .afac-title {
@@ -15126,13 +15112,6 @@ label {
 .dean-faculty-wrapper .afac-search-input {
   font-size: 15px;
   padding: 16px 0;
-}
-
-.dean-faculty-wrapper .afac-filter-btn {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  border-color: #C8D8C4;
 }
 
 .dean-faculty-wrapper .afac-title {
