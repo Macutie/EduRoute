@@ -1,12 +1,10 @@
 import React from 'react';
 
-const RouteGlyph = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M14 5h5v5" />
-    <path d="M10 14 19 5" />
-    <path d="M5 19h14" />
-  </svg>
-);
+const toTitleCase = (value) =>
+  String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export const FacultyDetailCard = ({ faculty, detail, loading = false }) => {
   const displayName = detail?.faculty?.facultyName || faculty?.facultyName || 'No active faculty';
@@ -15,13 +13,16 @@ export const FacultyDetailCard = ({ faculty, detail, loading = false }) => {
   const speedKmh = detail?.latestLocation?.speedKmh ?? faculty?.speedKmh ?? null;
   const lastUpdatedLabel = detail?.latestLocation?.lastUpdatedLabel || faculty?.lastUpdatedLabel || 'Awaiting update';
   const destination = detail?.activeTrip?.destination || faculty?.destination || 'Unknown destination';
+  const rawStatus = detail?.activeTrip?.status || faculty?.markerStatus || 'active';
+  const displayStatus = toTitleCase(rawStatus);
+  const normalizedPosition = toTitleCase(displayPosition);
 
   return (
     <article className="hrmu-live-profile-card">
       <div className="hrmu-live-profile-tag" aria-hidden="true" />
       <h2>{displayName}</h2>
-      <p className="hrmu-live-profile-subline">{displayCollege} · {detail?.activeTrip?.status || faculty?.markerStatus || 'active'}</p>
-      <p>{`SENIOR FACULTY • ${String(displayPosition).toUpperCase()}`}</p>
+      <p className="hrmu-live-profile-subline">{`${displayCollege} • ${displayStatus}`}</p>
+      <p>{normalizedPosition}</p>
       <div className="hrmu-live-profile-meta">
         <div>
           <span>CURRENT SPEED</span>
@@ -34,10 +35,9 @@ export const FacultyDetailCard = ({ faculty, detail, loading = false }) => {
       </div>
       <div className="hrmu-live-destination-card">
         <div>
-          <span>PREDICTED DESTINATION</span>
+          <span>TARGET DESTINATION</span>
           <strong>{loading ? 'Loading...' : destination}</strong>
         </div>
-        <span className="hrmu-live-destination-icon"><RouteGlyph /></span>
       </div>
     </article>
   );
