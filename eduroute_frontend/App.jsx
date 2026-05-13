@@ -5682,27 +5682,69 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
 
         if (slip.currentTrip) {
           setActiveTrip(slip.currentTrip);
-          if (slip.currentTrip.origin) {
-            setOrigin(slip.currentTrip.origin);
+          const recoveredPhase = getTripPhase(slip.currentTrip);
+          const isReturning = recoveredPhase === 'RETURNING';
+
+          // For a RETURNING trip the faculty is heading back from the trip
+          // destination to the original start point, so swap origin/destination.
+          if (isReturning && slip.currentTrip.origin && slip.currentTrip.destination) {
+            const returnOrigin = {
+              latitude: slip.currentTrip.destination.latitude,
+              longitude: slip.currentTrip.destination.longitude,
+              name: slip.currentTrip.destination.name || 'Verified destination',
+            };
+            const returnDestination = {
+              latitude: slip.currentTrip.origin.latitude,
+              longitude: slip.currentTrip.origin.longitude,
+              name: 'Starting location',
+            };
+            setOrigin(returnOrigin);
             setTripStartOrigin(slip.currentTrip.origin);
-            lastAcceptedOriginRef.current = slip.currentTrip.origin;
-            lastRouteOriginRef.current = slip.currentTrip.origin;
-            setOriginMarker(slip.currentTrip.origin);
-          }
+            lastAcceptedOriginRef.current = returnOrigin;
+            lastRouteOriginRef.current = returnOrigin;
+            setOriginMarker(returnOrigin, { recenter: true });
+            setDestination(returnDestination);
+            setDestinationMarker(returnDestination);
 
-          if (slip.currentTrip.destination) {
-            const nextDestination = getTripPhase(slip.currentTrip) === 'RETURNING' && slip.currentTrip.origin
-              ? {
-                latitude: slip.currentTrip.origin.latitude,
-                longitude: slip.currentTrip.origin.longitude,
-                name: 'Starting location',
+            // Fetch a fresh return route instead of reusing the outbound geometry.
+            try {
+              const returnRouteResponse = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                  origin: returnOrigin,
+                  destination: returnDestination,
+                  profile: routeMode,
+                  alternatives: false,
+                }),
+              });
+              const returnRouteData = await returnRouteResponse.json();
+
+              if (mounted && returnRouteResponse.ok && returnRouteData.data?.geometry) {
+                setRouteSummary(returnRouteData.data);
+                drawRoute(returnRouteData.data.geometry);
               }
-              : slip.currentTrip.destination;
-            setDestination(nextDestination);
-            setDestinationMarker(nextDestination);
+            } catch (routeErr) {
+              // Fall through — the stored outbound geometry (if any) will
+              // be used as a fallback below.
+              console.warn('Could not fetch return route on recovery:', routeErr);
+            }
+          } else {
+            if (slip.currentTrip.origin) {
+              setOrigin(slip.currentTrip.origin);
+              setTripStartOrigin(slip.currentTrip.origin);
+              lastAcceptedOriginRef.current = slip.currentTrip.origin;
+              lastRouteOriginRef.current = slip.currentTrip.origin;
+              setOriginMarker(slip.currentTrip.origin);
+            }
+
+            if (slip.currentTrip.destination) {
+              setDestination(slip.currentTrip.destination);
+              setDestinationMarker(slip.currentTrip.destination);
+            }
           }
 
-          if (slip.currentTrip.route_geometry) {
+          if (slip.currentTrip.route_geometry && !isReturning) {
             const nextRouteSummary = {
               distance_meters: slip.currentTrip.total_distance_meters || slip.currentTrip.route_distance_meters,
               duration_seconds: slip.currentTrip.route_duration_seconds,
@@ -5718,35 +5760,48 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
           setTripStartOrigin(null);
         }
 
-        if (slip.destination_lat && slip.destination_lng) {
-          const nextDestination = {
-            latitude: Number(slip.destination_lat),
-            longitude: Number(slip.destination_lng),
-            name: slip.destination,
-          };
-          setDestination(nextDestination);
-          setDestinationMarker(nextDestination);
-          setIsPinMode(false);
-        } else if (slip.destination) {
-          const result = await resolveFacultyLocatorSlipDestination(slip.id, slip.destination);
+        // Only resolve the locator slip destination when there is no active
+        // trip — an in-progress trip (especially RETURNING) has already set
+        // the correct origin/destination pair above and overwriting it here
+        // would reset the view back to "Start Trip".
+        const hasActiveTripLoaded = slip.currentTrip
+          && ['ACTIVE', 'ARRIVED', 'ARRIVAL_VERIFIED', 'RETURNING'].includes(
+            getTripPhase(slip.currentTrip)
+          );
 
-          if (!mounted) return;
-
-          if (result.resolved) {
+        if (!hasActiveTripLoaded) {
+          if (slip.destination_lat && slip.destination_lng) {
             const nextDestination = {
-              latitude: Number(result.destination.lat),
-              longitude: Number(result.destination.lng),
-              name: result.destination.label,
+              latitude: Number(slip.destination_lat),
+              longitude: Number(slip.destination_lng),
+              name: slip.destination,
             };
-            setLocatorSlip(result.locatorSlip || slip);
             setDestination(nextDestination);
             setDestinationMarker(nextDestination);
             setIsPinMode(false);
-          } else {
-            setDestination(null);
-            setIsPinMode(true);
-            setMapError(result.message || 'Destination could not be resolved automatically.');
+          } else if (slip.destination) {
+            const result = await resolveFacultyLocatorSlipDestination(slip.id, slip.destination);
+
+            if (!mounted) return;
+
+            if (result.resolved) {
+              const nextDestination = {
+                latitude: Number(result.destination.lat),
+                longitude: Number(result.destination.lng),
+                name: result.destination.label,
+              };
+              setLocatorSlip(result.locatorSlip || slip);
+              setDestination(nextDestination);
+              setDestinationMarker(nextDestination);
+              setIsPinMode(false);
+            } else {
+              setDestination(null);
+              setIsPinMode(true);
+              setMapError(result.message || 'Destination could not be resolved automatically.');
+            }
           }
+        } else {
+          setIsPinMode(false);
         }
       } catch (error) {
         if (!mounted) return;
