@@ -617,6 +617,10 @@ const startTrip = async (facultyUserId, payload) => {
 
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
         await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
+            facultyUserId,
+            tripId: trip.id
+        }).catch(() => null);
 
         return {
             locatorSlip: {
@@ -664,7 +668,7 @@ const markArrived = async (facultyUserId, tripId) => {
             tripId,
             userId: facultyUserId,
             eventType: 'arrival_marked',
-            title: 'Arrival marked',
+            title: 'Arrived at destination',
             subtitle: `Arrived at ${trip.destination || trip.destination_name}`,
             metadata: {
                 locatorSlipId: trip.locator_slip_id
@@ -682,6 +686,13 @@ const markArrived = async (facultyUserId, tripId) => {
         }
         await client.query('COMMIT');
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
+            tripId
+        }).catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
+            facultyUserId,
+            tripId
+        }).catch(() => null);
         return applyLogicalTripStatus(updatedTrip, 'arrived');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -840,7 +851,7 @@ const startReturn = async (facultyUserId, tripId) => {
             tripId,
             userId: facultyUserId,
             eventType: 'return_started',
-            title: 'Return route started',
+            title: 'Trip returning',
             subtitle: 'Heading back to the original departure point.',
             metadata: {
                 locatorSlipId: trip.locator_slip_id
@@ -848,6 +859,13 @@ const startReturn = async (facultyUserId, tripId) => {
             occurredAt: new Date()
         }).catch(() => null);
         await client.query('COMMIT');
+        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
+            tripId
+        }).catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
+            facultyUserId,
+            tripId
+        }).catch(() => null);
         return applyLogicalTripStatus(updatedTrip, 'returning');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -913,9 +931,9 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         await tripRepository.insertTripEvent(client, {
             tripId,
             userId: facultyUserId,
-            eventType: 'trip_completed',
-            title: 'Trip completed',
-            subtitle: lateReturn.isLateReturn ? 'Trip completed with a late return flag.' : 'Trip returned to the starting location.',
+            eventType: 'trip_returned',
+            title: 'Trip returned',
+            subtitle: lateReturn.isLateReturn ? 'Returned to the starting location with a late return flag.' : 'Returned to the starting location.',
             metadata: {
                 locatorSlipId: trip.locator_slip_id,
                 totalDistanceMeters,
@@ -941,6 +959,10 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
 
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
         await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
+            facultyUserId,
+            tripId
+        }).catch(() => null);
 
         return {
             locatorSlip: {

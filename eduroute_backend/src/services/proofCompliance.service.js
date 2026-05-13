@@ -263,8 +263,8 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             tripId,
             userId: facultyUserId,
             eventType: 'proof_of_compliance_submitted',
-            title: 'Proof of compliance submitted',
-            subtitle: `Confirmed by ${focalPersonName} (${focalPersonPosition})`,
+            title: 'Arrived at destination',
+            subtitle: `Proof of compliance confirmed by ${focalPersonName} (${focalPersonPosition})`,
             metadata: {
                 locatorSlipId: trip.locator_slip_id,
                 focalPersonName,
@@ -285,6 +285,13 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
 
         await client.query('COMMIT');
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
+            tripId
+        }).catch(() => null);
+        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
+            facultyUserId,
+            tripId
+        }).catch(() => null);
 
         return {
             trip: {
