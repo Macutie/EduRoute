@@ -4907,6 +4907,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   const LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS = 28;
   const LIVE_TRACKING_MIN_REROUTE_INTERVAL_MS = 5000;
   const LIVE_TRACKING_STATIONARY_SPEED_MPS = 0.8;
+  const TRIP_PROGRESS_STORAGE_KEY = 'edurouteActiveTripProgress';
 
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
@@ -4966,6 +4967,33 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
   });
+
+  const readStoredTripProgress = () => {
+    try {
+      const raw = localStorage.getItem(TRIP_PROGRESS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeStoredTripProgress = (payload) => {
+    try {
+      localStorage.setItem(
+        TRIP_PROGRESS_STORAGE_KEY,
+        JSON.stringify({
+          ...payload,
+          savedAt: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // Ignore local storage failures and keep backend recovery as fallback.
+    }
+  };
+
+  const clearStoredTripProgress = () => {
+    localStorage.removeItem(TRIP_PROGRESS_STORAGE_KEY);
+  };
 
   const formatDistance = (meters) => {
     const value = Number(meters);
@@ -5040,6 +5068,41 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
 
     return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
   };
+
+  useEffect(() => {
+    const slipId = locatorSlip?.id || selectedSlip?.id || localStorage.getItem('edurouteMapSlipId');
+    if (!slipId) {
+      clearStoredTripProgress();
+      return;
+    }
+
+    if (!activeTrip) {
+      return;
+    }
+
+    if (tripLifecycleState === 'COMPLETED') {
+      clearStoredTripProgress();
+      return;
+    }
+
+    writeStoredTripProgress({
+      slipId,
+      trip: activeTrip,
+      tripStartOrigin,
+      origin,
+      destination,
+      routeSummary,
+    });
+  }, [
+    activeTrip,
+    tripLifecycleState,
+    locatorSlip?.id,
+    selectedSlip?.id,
+    tripStartOrigin,
+    origin,
+    destination,
+    routeSummary,
+  ]);
 
   const drawRoute = (geometry) => {
     const map = mapRef.current;
@@ -5631,6 +5694,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
       stopLiveLocationWatch();
       clearRoute();
       localStorage.removeItem('edurouteMapSlipId');
+      clearStoredTripProgress();
       if (completedTrip) {
         setLocatorSlip((current) => applyCompletedSlipState(current));
         setSelectedSlip?.((current) => applyCompletedSlipState(current));
@@ -5679,6 +5743,8 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
         setSelectedSlip?.(slip);
         setSearchValue(slip.destination || '');
         setTripSummary(null);
+
+        let restoredStoredTrip = null;
 
         if (slip.currentTrip) {
           setActiveTrip(slip.currentTrip);
@@ -5756,17 +5822,50 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
             drawRoute(nextRouteSummary.geometry);
           }
         } else {
-          setActiveTrip(null);
-          setTripStartOrigin(null);
+          const storedProgress = readStoredTripProgress();
+          const hasMatchingStoredTrip =
+            storedProgress
+            && String(storedProgress.slipId || '') === String(slip.id || '')
+            && storedProgress.trip?.id
+            && storedProgress.trip?.status !== 'completed'
+            && storedProgress.trip?.trip_status !== 'completed';
+
+          if (hasMatchingStoredTrip) {
+            restoredStoredTrip = storedProgress.trip;
+            setActiveTrip(storedProgress.trip);
+            setTripStartOrigin(storedProgress.tripStartOrigin || null);
+
+            if (storedProgress.origin) {
+              setOrigin(storedProgress.origin);
+              setOriginMarker(storedProgress.origin, { recenter: true });
+              lastAcceptedOriginRef.current = storedProgress.origin;
+              lastRouteOriginRef.current = storedProgress.origin;
+            }
+
+            if (storedProgress.destination) {
+              setDestination(storedProgress.destination);
+              setDestinationMarker(storedProgress.destination);
+            }
+
+            if (storedProgress.routeSummary?.geometry) {
+              setRouteSummary(storedProgress.routeSummary);
+              drawRoute(storedProgress.routeSummary.geometry);
+              setShowRouteTools(true);
+            }
+          } else {
+            setActiveTrip(null);
+            setTripStartOrigin(null);
+          }
         }
 
         // Only resolve the locator slip destination when there is no active
         // trip — an in-progress trip (especially RETURNING) has already set
         // the correct origin/destination pair above and overwriting it here
         // would reset the view back to "Start Trip".
-        const hasActiveTripLoaded = slip.currentTrip
+        const effectiveRecoveredTrip = slip.currentTrip || restoredStoredTrip;
+        const hasActiveTripLoaded = effectiveRecoveredTrip
           && ['ACTIVE', 'ARRIVED', 'ARRIVAL_VERIFIED', 'RETURNING'].includes(
-            getTripPhase(slip.currentTrip)
+            getTripPhase(effectiveRecoveredTrip)
           );
 
         if (!hasActiveTripLoaded) {
