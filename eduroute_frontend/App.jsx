@@ -2181,115 +2181,115 @@ const ForgotPasswordView = ({ setView, forgotForm, setForgotForm, onForgotPasswo
   const backLabel = isProfileRecovery ? 'Back to Change Password' : 'Back to Login';
 
   return (
-  <>
-    <DesktopAuthShell
-      portalLabel="ACCOUNT RECOVERY PORTAL"
-      sideEyebrow="PASSWORD SUPPORT"
-      sideTitle="Recover Access"
-      sideDescription="Use your registered institutional email to receive a secure reset link and restore access to your account."
-      formTitle="Account Recovery"
-      formDescription="Enter your registered institutional email to receive a secure password reset link."
-    >
-      <form className="card recovery-card dauth-card dauth-recovery-card" onSubmit={onForgotPassword}>
-        <div className="input-group">
-          <label>INSTITUTIONAL EMAIL</label>
-          <div className="input-wrapper tall-input-wrapper">
-            <div className="at-icon-wrapper"><AtSymbolIcon /></div>
-            <textarea
-              placeholder="e.g.&#10;professor.name@eduroute.edu"
-              rows={2}
-              spellCheck="false"
-              value={forgotForm.email}
-              onChange={(e) =>
-                setForgotForm((prev) => ({
-                  ...prev,
-                  email: e.target.value
-                }))
-              }
-            />
+    <>
+      <DesktopAuthShell
+        portalLabel="ACCOUNT RECOVERY PORTAL"
+        sideEyebrow="PASSWORD SUPPORT"
+        sideTitle="Recover Access"
+        sideDescription="Use your registered institutional email to receive a secure reset link and restore access to your account."
+        formTitle="Account Recovery"
+        formDescription="Enter your registered institutional email to receive a secure password reset link."
+      >
+        <form className="card recovery-card dauth-card dauth-recovery-card" onSubmit={onForgotPassword}>
+          <div className="input-group">
+            <label>INSTITUTIONAL EMAIL</label>
+            <div className="input-wrapper tall-input-wrapper">
+              <div className="at-icon-wrapper"><AtSymbolIcon /></div>
+              <textarea
+                placeholder="e.g.&#10;professor.name@eduroute.edu"
+                rows={2}
+                spellCheck="false"
+                value={forgotForm.email}
+                onChange={(e) =>
+                  setForgotForm((prev) => ({
+                    ...prev,
+                    email: e.target.value
+                  }))
+                }
+              />
+            </div>
           </div>
-        </div>
 
-        <button type="submit" className="primary-btn" disabled={loading}>
-          {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
-        </button>
-
-        <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
-          <LoginDoorIcon /> {backLabel}
-        </button>
-      </form>
-
-      <div className="support-badge dauth-support-badge">
-        <div className="support-icon">
-          <HeadsetIcon />
-        </div>
-        <div className="support-text">
-          Issue persists? Contact<br />
-          <span>IT Support Desk</span>
-        </div>
-      </div>
-    </DesktopAuthShell>
-
-    <div className="auth-mobile-view content fade-in forgot-pw-content">
-      <div className="recovery-header">
-        {isProfileRecovery && (
-          <button type="button" className="recovery-back-btn" onClick={() => setView(backView)} aria-label={backLabel}>
-            <BackArrowIcon color="var(--green)" />
+          <button type="submit" className="primary-btn" disabled={loading}>
+            {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
           </button>
-        )}
-        <CapIcon />
-        <span>EduRoute Portal</span>
-      </div>
 
-      <div className="recovery-title-box">
-        <div className="yellow-bar"></div>
-        <h1>Account<br />Recovery</h1>
-      </div>
+          <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
+            <LoginDoorIcon /> {backLabel}
+          </button>
+        </form>
 
-      <p className="recovery-desc">
-        Enter your registered institutional email to receive a secure password reset link.
-      </p>
-
-      <form className="card recovery-card" onSubmit={onForgotPassword}>
-        <div className="input-group">
-          <label>INSTITUTIONAL EMAIL</label>
-          <div className="input-wrapper tall-input-wrapper">
-            <div className="at-icon-wrapper"><AtSymbolIcon /></div>
-            <textarea
-              placeholder="e.g.&#10;professor.name@eduroute.edu"
-              rows={2}
-              spellCheck="false"
-              value={forgotForm.email}
-              onChange={(e) =>
-                setForgotForm((prev) => ({
-                  ...prev,
-                  email: e.target.value
-                }))
-              }
-            />
+        <div className="support-badge dauth-support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
           </div>
         </div>
+      </DesktopAuthShell>
 
-        <button type="submit" className="primary-btn" disabled={loading}>
-          {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
-        </button>
-
-        <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
-          <LoginDoorIcon /> {backLabel}
-        </button>
-      </form>
-
-      <div className="support-badge">
-        <div className="support-icon">
-          <HeadsetIcon />
+      <div className="auth-mobile-view content fade-in forgot-pw-content">
+        <div className="recovery-header">
+          {isProfileRecovery && (
+            <button type="button" className="recovery-back-btn" onClick={() => setView(backView)} aria-label={backLabel}>
+              <BackArrowIcon color="var(--green)" />
+            </button>
+          )}
+          <CapIcon />
+          <span>EduRoute Portal</span>
         </div>
-        <div className="support-text">
-          Issue persists? Contact<br />
-          <span>IT Support Desk</span>
+
+        <div className="recovery-title-box">
+          <div className="yellow-bar"></div>
+          <h1>Account<br />Recovery</h1>
+        </div>
+
+        <p className="recovery-desc">
+          Enter your registered institutional email to receive a secure password reset link.
+        </p>
+
+        <form className="card recovery-card" onSubmit={onForgotPassword}>
+          <div className="input-group">
+            <label>INSTITUTIONAL EMAIL</label>
+            <div className="input-wrapper tall-input-wrapper">
+              <div className="at-icon-wrapper"><AtSymbolIcon /></div>
+              <textarea
+                placeholder="e.g.&#10;professor.name@eduroute.edu"
+                rows={2}
+                spellCheck="false"
+                value={forgotForm.email}
+                onChange={(e) =>
+                  setForgotForm((prev) => ({
+                    ...prev,
+                    email: e.target.value
+                  }))
+                }
+              />
+            </div>
+          </div>
+
+          <button type="submit" className="primary-btn" disabled={loading}>
+            {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
+          </button>
+
+          <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
+            <LoginDoorIcon /> {backLabel}
+          </button>
+        </form>
+
+        <div className="support-badge">
+          <div className="support-icon">
+            <HeadsetIcon />
+          </div>
+          <div className="support-text">
+            Issue persists? Contact<br />
+            <span>IT Support Desk</span>
+          </div>
         </div>
       </div>
-    </div>
-  </>
+    </>
   );
 };
 
@@ -4404,7 +4404,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
                     ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.'
                     : isCancelled
                       ? 'This locator slip was cancelled by the faculty user before approval.'
-                    : `This locator slip request is currently marked as ${slip.status}.`}
+                      : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
           {isRejected && slip.additional_remarks && (
             <div className="submitted-reason-card">
@@ -7197,18 +7197,18 @@ const SlipSubmittedView = ({ setView, profileData }) => (
 );
 
 const PolicyCheckIcon = ({ met, unmetTone = 'neutral' }) => (
-    met ? (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="11" fill="var(--green)" />
-        <path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    ) : (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="11" fill={unmetTone === 'danger' ? '#FEE2E2' : '#E5E7EB'} />
-        <path d="M8 8L16 16M16 8L8 16" stroke={unmetTone === 'danger' ? '#EF4444' : '#9CA3AF'} strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    )
-  );
+  met ? (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill="var(--green)" />
+      <path d="M7 12L10.5 15L17 8.5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill={unmetTone === 'danger' ? '#FEE2E2' : '#E5E7EB'} />
+      <path d="M8 8L16 16M16 8L8 16" stroke={unmetTone === 'danger' ? '#EF4444' : '#9CA3AF'} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+);
 
 const LinkIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -7693,11 +7693,11 @@ const NotificationSettingsView = ({ setView, profileData, mode = 'faculty', back
     <div className="dashboard-wrapper">
       <div className="content fade-in dash-content notif-content">
 
-          <div className="slip-top-nav chpw-top-nav">
-            <div className="slip-nav-left" onClick={() => setView(backView)}>
-              <BackArrowIcon color="var(--green)" />
-              <span className="dash-logo-text chpw-nav-title">Account Settings</span>
-            </div>
+        <div className="slip-top-nav chpw-top-nav">
+          <div className="slip-nav-left" onClick={() => setView(backView)}>
+            <BackArrowIcon color="var(--green)" />
+            <span className="dash-logo-text chpw-nav-title">Account Settings</span>
+          </div>
           <div className="dash-avatar">
             <img src={profileData.image} alt="Faculty Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
@@ -7752,15 +7752,15 @@ const NotificationSettingsView = ({ setView, profileData, mode = 'faculty', back
         </div>
 
         {/* Save Changes Button */}
-          <button type="button" className="notif-save-btn" onClick={() => setView(backView)}>
-            <SaveIcon /> SAVE CHANGES
-          </button>
+        <button type="button" className="notif-save-btn" onClick={() => setView(backView)}>
+          <SaveIcon /> SAVE CHANGES
+        </button>
 
-        </div>
-        {isDeanMode ? <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} /> : <BottomNav active="profile" setView={setView} />}
       </div>
-    );
-  };
+      {isDeanMode ? <DeanBottomNav setView={setView} onOpenRequests={() => setView('dean-dashboard')} /> : <BottomNav active="profile" setView={setView} />}
+    </div>
+  );
+};
 
 const CameraIcon = ({ color = "white" }) => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -9951,14 +9951,14 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
   return (
     <div className={`hrmu-workspace ${forceDesktop ? 'force-desktop' : ''}`}>
       <aside className="hrmu-sidebar">
-          <div className="hrmu-sidebar-top">
-            <div className="hrmu-brand-lockup">
-              <div className="hrmu-brand-badge" />
-              <div className="hrmu-brand-text">
-                <strong>EduRoute</strong>
-                <span>HRMU ADMIN</span>
-              </div>
+        <div className="hrmu-sidebar-top">
+          <div className="hrmu-brand-lockup">
+            <div className="hrmu-brand-badge" />
+            <div className="hrmu-brand-text">
+              <strong>EduRoute</strong>
+              <span>HRMU ADMIN</span>
             </div>
+          </div>
 
           <nav className="hrmu-sidebar-nav">
             {sidebarItems.map((item) => {
@@ -16884,36 +16884,36 @@ const AdminEditProfileView = ({ setView, profileData, setProfileData }) => {
             <span>Keep your display name and portal email current for all system records.</span>
           </div>
 
-            <div className="portal-settings-desktop-fields">
-              <div className="portal-settings-desktop-field">
-                <label>Full Name</label>
-                <div className="aedit-input-wrapper portal-settings-input-wrapper">
-                  <input type="text" value={fullName} onChange={(event) => setFullName(event.target.value)} />
-                  <AdminUserOutlineIcon />
-                </div>
-              </div>
-
-              <div className="portal-settings-desktop-field">
-                <label>Academic Email</label>
-                <div className="aedit-input-wrapper portal-settings-input-wrapper portal-settings-readonly-email">
-                  <input type="email" value={email} disabled readOnly />
-                  <AdminEmailOutlineIcon />
-                </div>
+          <div className="portal-settings-desktop-fields">
+            <div className="portal-settings-desktop-field">
+              <label>Full Name</label>
+              <div className="aedit-input-wrapper portal-settings-input-wrapper">
+                <input type="text" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+                <AdminUserOutlineIcon />
               </div>
             </div>
 
-            <div className="portal-settings-desktop-actions">
-              <button
-                type="button"
-                className="aedit-save-btn portal-settings-save-btn"
-                onClick={handlePortalProfileSave}
-                disabled={editProfileLoading || !fullName.trim()}
-              >
-                {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'}
-                <AdminSaveCheckIcon />
-              </button>
+            <div className="portal-settings-desktop-field">
+              <label>Academic Email</label>
+              <div className="aedit-input-wrapper portal-settings-input-wrapper portal-settings-readonly-email">
+                <input type="email" value={email} disabled readOnly />
+                <AdminEmailOutlineIcon />
+              </div>
             </div>
           </div>
+
+          <div className="portal-settings-desktop-actions">
+            <button
+              type="button"
+              className="aedit-save-btn portal-settings-save-btn"
+              onClick={handlePortalProfileSave}
+              disabled={editProfileLoading || !fullName.trim()}
+            >
+              {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'}
+              <AdminSaveCheckIcon />
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   );

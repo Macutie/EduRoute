@@ -400,8 +400,8 @@ const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
             if (!shouldAdopt) {
                 const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
                 shouldAdopt =
-                    approvedLocatorSlips.length === 1
-                    && String(approvedLocatorSlips[0]?.id || '') === String(locatorSlipId);
+                    (approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === String(locatorSlipId))
+                    || existingOpenTrip.locator_slip_id == null;
             }
 
             if (shouldAdopt) {
@@ -564,7 +564,7 @@ const startTrip = async (facultyUserId, payload) => {
 
         if (!shouldAdopt) {
             const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
-            shouldAdopt = approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === locatorSlipId && isTripOpen(existingTrip);
+            shouldAdopt = ((approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === locatorSlipId) || existingTrip.locator_slip_id == null) && isTripOpen(existingTrip);
         }
 
         if (shouldAdopt) {
