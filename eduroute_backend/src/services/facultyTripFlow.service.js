@@ -385,6 +385,24 @@ const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
         currentTrip = await facultyTripRepository.getBlockingTripForLocatorSlip(locatorSlipId, facultyUserId);
     }
 
+    if (!currentTrip) {
+        const existingOpenTrip = await facultyTripRepository.getOpenTripForUser(facultyUserId);
+        if (existingOpenTrip && isTripOpen(existingOpenTrip)) {
+            const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
+            const onlyCurrentSlipAvailable =
+                approvedLocatorSlips.length === 1
+                && String(approvedLocatorSlips[0]?.id || '') === String(locatorSlipId);
+
+            if (onlyCurrentSlipAvailable) {
+                const adoptedTrip = await facultyTripRepository.updateTripLifecycle(existingOpenTrip.id, facultyUserId, {
+                    locator_slip_id: locatorSlipId,
+                });
+                currentTrip = adoptedTrip || existingOpenTrip;
+                await facultyTripRepository.updateLocatorSlipTripStatus(locatorSlipId, currentTrip.status || 'active');
+            }
+        }
+    }
+
     const latestArrivalVerification = currentTrip
         ? await facultyTripRepository.getLatestArrivalVerification(currentTrip.id)
         : null;
