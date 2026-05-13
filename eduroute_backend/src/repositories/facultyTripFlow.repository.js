@@ -13,6 +13,7 @@ let tripsLocatorSlipIdColumnExistsCache = null;
 let arrivalVerificationsTableExistsCache = null;
 let locatorSlipLocationVerificationsTableExistsCache = null;
 let cssuExitLogsTableExistsCache = null;
+let tripLocationLogsTableExistsCache = null;
 const tripsColumnExistsCache = {};
 let tripsStatusConstraintDefinitionCache = null;
 
@@ -72,6 +73,16 @@ const getCssuExitLogsTableExists = async (client = pool) => {
     const { rows } = await client.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
     cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
     return cssuExitLogsTableExistsCache;
+};
+
+const getTripLocationLogsTableExists = async (client = pool) => {
+    if (tripLocationLogsTableExistsCache !== null) {
+        return tripLocationLogsTableExistsCache;
+    }
+
+    const { rows } = await client.query(`SELECT to_regclass('public.trip_location_logs') AS table_name`);
+    tripLocationLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return tripLocationLogsTableExistsCache;
 };
 
 const getTripsLocatorSlipIdColumnExists = async (client = pool) => {
@@ -991,6 +1002,29 @@ const getTripSummaryRow = async (tripId, facultyUserId) => {
     return rows[0] || null;
 };
 
+const getTripLocationLogs = async (tripId, facultyUserId, client = pool) => {
+    const hasTripLocationLogsTable = await getTripLocationLogsTableExists(client);
+
+    if (!hasTripLocationLogsTable) {
+        return [];
+    }
+
+    const { rows } = await client.query(
+        `SELECT lat, lng, recorded_at
+         FROM trip_location_logs
+         WHERE trip_id = $1
+           AND user_id = $2
+         ORDER BY recorded_at ASC, created_at ASC`,
+        [tripId, facultyUserId]
+    );
+
+    return rows.map((row) => ({
+        latitude: row.lat === null ? null : Number(row.lat),
+        longitude: row.lng === null ? null : Number(row.lng),
+        recorded_at: row.recorded_at || null
+    }));
+};
+
 module.exports = {
     APPROVED_SLIP_STATUSES,
     OPEN_TRIP_STATUSES,
@@ -1010,5 +1044,6 @@ module.exports = {
     updateTripLifecycle,
     insertArrivalVerification,
     mirrorLocatorSlipLocationVerification,
-    getTripSummaryRow
+    getTripSummaryRow,
+    getTripLocationLogs
 };

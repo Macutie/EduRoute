@@ -3626,6 +3626,22 @@ const formatDistanceLabel = (meters) => {
   return value >= 1000 ? `${(value / 1000).toFixed(1)} km` : `${Math.round(value)} m`;
 };
 
+const formatTripDurationLabel = (minutesValue) => {
+  const totalMinutes = Math.max(Math.round(Number(minutesValue) || 0), 0);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) {
+    return `${minutes} ${minutes === 1 ? 'min' : 'mins'}`;
+  }
+
+  if (minutes <= 0) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'} and ${minutes} ${minutes === 1 ? 'min' : 'mins'}`;
+};
+
 const formatActivityFiledTime = (value) => {
   if (!value) return 'No time';
 
@@ -4579,7 +4595,7 @@ const LocatorSlipDetailView = ({ setView, profileData, selectedSlip }) => {
               <div><span>Estimated Return</span><strong>{formatStatusDateTime(completedTripSummary.summary.estimatedReturnTime)}</strong></div>
               <div><span>Actual Return</span><strong>{formatStatusDateTime(completedTripSummary.summary.actualReturnTime)}</strong></div>
               <div><span>Total Distance</span><strong>{formatDistanceLabel(completedTripSummary.summary.totalDistanceMeters)}</strong></div>
-              <div><span>Total Hours</span><strong>{Number(completedTripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</strong></div>
+              <div><span>Trip Duration</span><strong>{formatTripDurationLabel(completedTripSummary.summary.totalTripMinutes)}</strong></div>
             </div>
             <p>
               {completedTripSummary.summary.isLateReturn
@@ -5585,7 +5601,6 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
 
     try {
       const data = await markFacultyTripReturned(activeTrip.id, {
-        returnDistanceMeters: routeSummary?.distance_meters || null,
         profile: routeMode,
       });
       const summaryPayload = await getFacultyTripSummary(activeTrip.id).catch(() => data);
@@ -6103,7 +6118,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
             <div className="trip-summary-card">
               <strong>Trip Summary Ready</strong>
               <span>Total distance: {formatDistance(tripSummary.summary.totalDistanceMeters)}</span>
-              <span>Total hours: {Number(tripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</span>
+              <span>Trip duration: {formatTripDurationLabel(tripSummary.summary.totalTripMinutes)}</span>
               <span>{tripSummary.summary.isLateReturn ? `Late return: ${tripSummary.summary.minutesLate} mins late` : 'Returned within the expected window'}</span>
             </div>
           )}
@@ -6158,7 +6173,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
             <div><span>Estimated return</span><strong>{formatStatusDateTime(tripSummary.summary.estimatedReturnTime)}</strong></div>
             <div><span>Actual return</span><strong>{formatStatusDateTime(tripSummary.summary.actualReturnTime)}</strong></div>
             <div><span>Total distance</span><strong>{formatDistance(tripSummary.summary.totalDistanceMeters)}</strong></div>
-            <div><span>Total hours</span><strong>{Number(tripSummary.summary.totalTripHours || 0).toFixed(2)} hrs</strong></div>
+            <div><span>Trip duration</span><strong>{formatTripDurationLabel(tripSummary.summary.totalTripMinutes)}</strong></div>
           </div>
           <p className={`trip-summary-late ${tripSummary.summary.isLateReturn ? 'late' : ''}`}>
             {tripSummary.summary.isLateReturn

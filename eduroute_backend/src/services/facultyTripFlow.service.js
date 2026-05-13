@@ -168,52 +168,94 @@ const getTripCoordinatePair = (trip) => {
     };
 };
 
+const MIN_DISTANCE_SEGMENT_METERS = 5;
+
+const toRadians = (degrees) => (Number(degrees) * Math.PI) / 180;
+
+const getDistanceBetweenPointsMeters = (first, second) => {
+    if (!first || !second) return 0;
+
+    const firstLat = Number(first.latitude ?? first.lat);
+    const firstLng = Number(first.longitude ?? first.lng);
+    const secondLat = Number(second.latitude ?? second.lat);
+    const secondLng = Number(second.longitude ?? second.lng);
+
+    if (
+        !isFiniteCoordinate(firstLat)
+        || !isFiniteCoordinate(firstLng)
+        || !isFiniteCoordinate(secondLat)
+        || !isFiniteCoordinate(secondLng)
+    ) {
+        return 0;
+    }
+
+    const earthRadiusMeters = 6371000;
+    const deltaLatitude = toRadians(secondLat - firstLat);
+    const deltaLongitude = toRadians(secondLng - firstLng);
+    const startLatitude = toRadians(firstLat);
+    const endLatitude = toRadians(secondLat);
+
+    const haversine =
+        Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) +
+        Math.cos(startLatitude) *
+        Math.cos(endLatitude) *
+        Math.sin(deltaLongitude / 2) *
+        Math.sin(deltaLongitude / 2);
+
+    return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+};
+
+const getTrackedTripDistanceMeters = async (trip, facultyUserId) => {
+    if (!trip?.id) return 0;
+
+    const locationLogs = await facultyTripRepository.getTripLocationLogs(trip.id, facultyUserId).catch(() => []);
+    const origin = trip?.origin
+        ? {
+            latitude: trip.origin.latitude ?? trip.origin.lat,
+            longitude: trip.origin.longitude ?? trip.origin.lng
+        }
+        : null;
+
+    const points = [];
+    if (origin) {
+        points.push(origin);
+    }
+
+    for (const log of locationLogs) {
+        if (!isFiniteCoordinate(log?.latitude) || !isFiniteCoordinate(log?.longitude)) continue;
+        points.push({
+            latitude: Number(log.latitude),
+            longitude: Number(log.longitude)
+        });
+    }
+
+    if (points.length < 2) {
+        return 0;
+    }
+
+    let totalDistanceMeters = 0;
+    for (let index = 1; index < points.length; index += 1) {
+        const segmentDistance = getDistanceBetweenPointsMeters(points[index - 1], points[index]);
+        if (Number.isFinite(segmentDistance) && segmentDistance >= MIN_DISTANCE_SEGMENT_METERS) {
+            totalDistanceMeters += segmentDistance;
+        }
+    }
+
+    return totalDistanceMeters;
+};
+
 const getComputedTripTotals = async (trip) => {
-    const tripCoordinates = getTripCoordinatePair(trip);
-    let outboundDistanceMeters = Number(trip?.outbound_distance_meters ?? trip?.route_distance_meters ?? 0);
+    const trackedDistanceMeters = await getTrackedTripDistanceMeters(trip, trip?.user_id || trip?.faculty_user_id);
+    const hasTrackedDistance = Number.isFinite(trackedDistanceMeters) && trackedDistanceMeters > 0;
+    let outboundDistanceMeters = Number(trip?.outbound_distance_meters ?? 0);
     let returnDistanceMeters = Number(trip?.return_distance_meters ?? 0);
-    let totalDistanceMeters = Number(trip?.total_distance_meters ?? 0);
+    let totalDistanceMeters = hasTrackedDistance ? trackedDistanceMeters : 0;
     let totalDistanceKm = Number(trip?.total_distance_km ?? 0);
     let totalTripMinutes = Number(trip?.total_trip_minutes ?? 0);
     let totalTripHours = Number(trip?.total_trip_hours ?? 0);
     const actualReturnTime = trip?.ended_at || trip?.returned_at || null;
-    const logicalStatus = getLogicalTripStatus(trip);
 
-    if ((!Number.isFinite(outboundDistanceMeters) || outboundDistanceMeters <= 0) && tripCoordinates) {
-        try {
-            const outboundRoute = await mapboxService.getDirections({
-                origin: tripCoordinates.origin,
-                destination: tripCoordinates.destination
-            });
-            outboundDistanceMeters = Number(outboundRoute?.distance_meters || 0);
-        } catch (_) {
-            outboundDistanceMeters = 0;
-        }
-    }
-
-    if ((!Number.isFinite(returnDistanceMeters) || returnDistanceMeters <= 0) && logicalStatus === 'completed') {
-        if (Number.isFinite(outboundDistanceMeters) && outboundDistanceMeters > 0) {
-            returnDistanceMeters = outboundDistanceMeters;
-        } else if (tripCoordinates) {
-            try {
-                const returnRoute = await mapboxService.getDirections({
-                    origin: tripCoordinates.destination,
-                    destination: tripCoordinates.origin
-                });
-                returnDistanceMeters = Number(returnRoute?.distance_meters || 0);
-            } catch (_) {
-                returnDistanceMeters = 0;
-            }
-        }
-    }
-
-    if (!Number.isFinite(totalDistanceMeters) || totalDistanceMeters <= 0) {
-        totalDistanceMeters = Math.max(Number(outboundDistanceMeters || 0), 0) + Math.max(Number(returnDistanceMeters || 0), 0);
-    }
-
-    if (!Number.isFinite(totalDistanceKm) || totalDistanceKm <= 0) {
-        totalDistanceKm = totalDistanceMeters > 0 ? totalDistanceMeters / 1000 : 0;
-    }
+    totalDistanceKm = totalDistanceMeters > 0 ? totalDistanceMeters / 1000 : 0;
 
     if ((!Number.isFinite(totalTripMinutes) || totalTripMinutes <= 0 || !Number.isFinite(totalTripHours) || totalTripHours <= 0)
         && trip?.started_at && actualReturnTime) {
@@ -836,23 +878,12 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         throw new AppError('Arrival verification must be completed before ending the trip.', 409);
     }
 
-    const origin = { lat: Number(trip.origin_lat), lng: Number(trip.origin_lng) };
-    const destination = { lat: Number(trip.destination_lat), lng: Number(trip.destination_lng) };
     const endedAt = new Date();
-    let returnDistanceMeters = Number(payload.returnDistanceMeters);
-
-    if (!Number.isFinite(returnDistanceMeters) && Number.isFinite(origin.lat) && Number.isFinite(origin.lng) && Number.isFinite(destination.lat) && Number.isFinite(destination.lng)) {
-        const returnRoute = await mapboxService.getDirections({
-            origin: destination,
-            destination: origin,
-            profile: payload.profile
-        });
-        returnDistanceMeters = returnRoute.distance_meters;
-    }
-
-    const outboundDistanceMeters = Number(trip.outbound_distance_meters || trip.route_distance_meters || 0);
-    const safeReturnDistanceMeters = Number.isFinite(returnDistanceMeters) ? returnDistanceMeters : 0;
-    const totalDistanceMeters = outboundDistanceMeters + safeReturnDistanceMeters;
+    const totalDistanceMeters = await getTrackedTripDistanceMeters(trip, facultyUserId);
+    const outboundDistanceMeters = Number.isFinite(Number(trip.outbound_distance_meters))
+        ? Number(trip.outbound_distance_meters)
+        : 0;
+    const safeReturnDistanceMeters = 0;
     const totalDistanceKm = totalDistanceMeters / 1000;
     const startedAt = trip.started_at ? new Date(trip.started_at) : null;
     const totalTripMinutes = startedAt ? Math.max(Math.round((endedAt.getTime() - startedAt.getTime()) / 60000), 0) : 0;
