@@ -17,6 +17,17 @@ const formatProofStatus = (status) => {
   return 'SUBMITTED';
 };
 
+const formatRoleLabel = (value, fallback = 'Dean') => {
+  const normalized = String(value || '').trim();
+  if (!normalized) return fallback;
+  if (normalized === 'college_dean') return 'College Dean';
+  if (normalized === 'assistant_dean') return 'Assistant Dean';
+  return normalized
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
 const buildStatusCopy = (proof) => {
   const normalized = String(proof?.verificationStatus || 'submitted').toLowerCase();
   if (normalized === 'verified') {
@@ -138,7 +149,7 @@ const ProofComplianceDetails = ({
                     </div>
                     <div className="hrmu-verify-signature-copy">
                       <strong>{deanSignature.name || 'Assigned Dean'}</strong>
-                      <span>{deanSignature.role || 'Dean'}</span>
+                      <span>{formatRoleLabel(deanSignature.role, 'Dean')}</span>
                       <span>{deanSignature.signedAt ? formatDateTime(deanSignature.signedAt) : 'Approval time unavailable.'}</span>
                     </div>
                   </div>
