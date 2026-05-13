@@ -14,6 +14,7 @@ const startServer = async () => {
         try {
             console.log('Running auto-migrations...');
             await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS expected_return_datetime TIMESTAMP;');
+            await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;');
             console.log('Auto-migrations completed successfully.');
         } catch (migrationError) {
             console.error('Auto-migration failed, but continuing:', migrationError);

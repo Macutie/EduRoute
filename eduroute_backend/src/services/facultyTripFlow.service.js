@@ -388,12 +388,23 @@ const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
     if (!currentTrip) {
         const existingOpenTrip = await facultyTripRepository.getOpenTripForUser(facultyUserId);
         if (existingOpenTrip && isTripOpen(existingOpenTrip)) {
-            const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
-            const onlyCurrentSlipAvailable =
-                approvedLocatorSlips.length === 1
-                && String(approvedLocatorSlips[0]?.id || '') === String(locatorSlipId);
+            const slipTripStatus = String(locatorSlip.trip_status || '').toLowerCase();
+            const slipIndicatesActiveTrip = ACTIVE_TRIP_STATUSES.has(slipTripStatus);
 
-            if (onlyCurrentSlipAvailable) {
+            // If this slip's own trip_status indicates it had an active trip (active/arrived/returning),
+            // adopt the orphaned open trip unconditionally — the slip already knows it owns a trip.
+            // Otherwise, only adopt when this is the sole approved locator slip to avoid
+            // incorrectly attaching unrelated trips.
+            let shouldAdopt = slipIndicatesActiveTrip;
+
+            if (!shouldAdopt) {
+                const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
+                shouldAdopt =
+                    approvedLocatorSlips.length === 1
+                    && String(approvedLocatorSlips[0]?.id || '') === String(locatorSlipId);
+            }
+
+            if (shouldAdopt) {
                 const adoptedTrip = await facultyTripRepository.updateTripLifecycle(existingOpenTrip.id, facultyUserId, {
                     locator_slip_id: locatorSlipId,
                 });
@@ -546,10 +557,17 @@ const startTrip = async (facultyUserId, payload) => {
     }
 
     if (existingTrip && !existingTripForSlip) {
-        const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
-        const onlyCurrentSlipAvailable = approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === locatorSlipId;
+        const slipTripStatus = String(locatorSlip.trip_status || '').toLowerCase();
+        const slipIndicatesActiveTrip = ACTIVE_TRIP_STATUSES.has(slipTripStatus);
 
-        if (onlyCurrentSlipAvailable && isTripOpen(existingTrip)) {
+        let shouldAdopt = slipIndicatesActiveTrip && isTripOpen(existingTrip);
+
+        if (!shouldAdopt) {
+            const approvedLocatorSlips = await facultyTripRepository.getApprovedLocatorSlips(facultyUserId);
+            shouldAdopt = approvedLocatorSlips.length === 1 && String(approvedLocatorSlips[0]?.id || '') === locatorSlipId && isTripOpen(existingTrip);
+        }
+
+        if (shouldAdopt) {
             const adoptedTrip = await facultyTripRepository.updateTripLifecycle(existingTrip.id, facultyUserId, {
                 locator_slip_id: locatorSlipId,
             });

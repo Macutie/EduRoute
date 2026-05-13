@@ -5555,6 +5555,75 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
       lastRerouteAtRef.current = Date.now();
       setActiveRoutePanel('summary');
     } catch (error) {
+      const errorMessage = String(error.message || '').toLowerCase();
+      const isTripConflict =
+        errorMessage.includes('complete the current trip')
+        || errorMessage.includes('trip already exists')
+        || errorMessage.includes('already been completed');
+
+      // If the backend says a trip is already in progress, re-fetch slip details
+      // to recover that trip so the user can continue instead of being stuck.
+      if (isTripConflict && locatorSlip?.id) {
+        try {
+          const recoveredSlip = await getFacultyLocatorSlipDetails(locatorSlip.id);
+          if (recoveredSlip?.currentTrip) {
+            setLocatorSlip(recoveredSlip);
+            setActiveTrip(recoveredSlip.currentTrip);
+            setMapError('');
+
+            if (recoveredSlip.currentTrip.origin) {
+              setTripStartOrigin(recoveredSlip.currentTrip.origin);
+            }
+
+            const recoveredPhase = getTripPhase(recoveredSlip.currentTrip);
+            if (recoveredPhase === 'RETURNING' && recoveredSlip.currentTrip.origin && recoveredSlip.currentTrip.destination) {
+              const returnOrigin = {
+                latitude: recoveredSlip.currentTrip.destination.latitude,
+                longitude: recoveredSlip.currentTrip.destination.longitude,
+                name: recoveredSlip.currentTrip.destination.name || 'Verified destination',
+              };
+              const returnDestination = {
+                latitude: recoveredSlip.currentTrip.origin.latitude,
+                longitude: recoveredSlip.currentTrip.origin.longitude,
+                name: 'Starting location',
+              };
+              setOrigin(returnOrigin);
+              setDestination(returnDestination);
+              setOriginMarker(returnOrigin, { recenter: true });
+              setDestinationMarker(returnDestination);
+              lastAcceptedOriginRef.current = returnOrigin;
+              lastRouteOriginRef.current = returnOrigin;
+            } else {
+              if (recoveredSlip.currentTrip.origin) {
+                setOrigin(recoveredSlip.currentTrip.origin);
+                setOriginMarker(recoveredSlip.currentTrip.origin);
+                lastAcceptedOriginRef.current = recoveredSlip.currentTrip.origin;
+                lastRouteOriginRef.current = recoveredSlip.currentTrip.origin;
+              }
+              if (recoveredSlip.currentTrip.destination) {
+                setDestination(recoveredSlip.currentTrip.destination);
+                setDestinationMarker(recoveredSlip.currentTrip.destination);
+              }
+            }
+
+            if (recoveredSlip.currentTrip.route_geometry) {
+              const nextRouteSummary = {
+                distance_meters: recoveredSlip.currentTrip.total_distance_meters || recoveredSlip.currentTrip.route_distance_meters,
+                duration_seconds: recoveredSlip.currentTrip.route_duration_seconds,
+                geometry: recoveredSlip.currentTrip.route_geometry,
+                steps: [],
+                alternatives: [],
+              };
+              setRouteSummary(nextRouteSummary);
+              drawRoute(nextRouteSummary.geometry);
+            }
+            return;
+          }
+        } catch (recoveryError) {
+          console.error('Trip recovery attempt failed:', recoveryError);
+        }
+      }
+
       setMapError(error.message);
     } finally {
       setMapLoading(false);
