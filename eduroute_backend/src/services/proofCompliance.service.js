@@ -83,7 +83,8 @@ const normalizeProofResponse = (proof, context = {}) => ({
     reviewedByName: context.reviewedByName || null,
     actualReturnTime: context.actualReturnTime || null,
     expectedReturnTime: context.expectedReturnTime || null,
-    tripStartedAt: context.tripStartedAt || null
+    tripStartedAt: context.tripStartedAt || null,
+    digitalSignature: context.digitalSignature || null
 });
 
 const buildLocatorSlipCode = (locatorSlipId) => {
@@ -318,11 +319,22 @@ const listHrmuProofs = async (userId) => {
             destination: proof.destination,
             purpose: proof.purpose,
             locatorSlipCode: buildLocatorSlipCode(proof.locatorSlipId),
-            reviewedByName: proof.reviewedByName,
-            actualReturnTime: proof.actualReturnTime,
-            expectedReturnTime: proof.expectedReturnTime,
-            tripStartedAt: proof.tripStartedAt
-        }))
+        reviewedByName: proof.reviewedByName,
+        actualReturnTime: proof.actualReturnTime,
+        expectedReturnTime: proof.expectedReturnTime,
+        tripStartedAt: proof.tripStartedAt,
+        digitalSignature: proof.deanSignatureUrl ? {
+            name: proof.deanName || 'Assigned Dean',
+            role: proof.deanRole || 'Dean',
+            signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
+            asset: {
+                url: proof.deanSignatureUrl,
+                mimeType: proof.deanSignatureMimeType || 'image/png',
+                originalFilename: proof.deanSignatureOriginalFilename || null,
+                attachedAt: proof.deanSignatureAttachedAt || null
+            }
+        } : null
+    }))
     };
 };
 
@@ -343,7 +355,18 @@ const getHrmuProofDetails = async (proofId, userId) => {
         reviewedByName: proof.reviewedByName,
         actualReturnTime: proof.actualReturnTime,
         expectedReturnTime: proof.expectedReturnTime,
-        tripStartedAt: proof.tripStartedAt
+        tripStartedAt: proof.tripStartedAt,
+        digitalSignature: proof.deanSignatureUrl ? {
+            name: proof.deanName || 'Assigned Dean',
+            role: proof.deanRole || 'Dean',
+            signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
+            asset: {
+                url: proof.deanSignatureUrl,
+                mimeType: proof.deanSignatureMimeType || 'image/png',
+                originalFilename: proof.deanSignatureOriginalFilename || null,
+                attachedAt: proof.deanSignatureAttachedAt || null
+            }
+        } : null
     });
 };
 
@@ -411,7 +434,18 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
             reviewedByName: existingProof.reviewedByName,
             actualReturnTime: existingProof.actualReturnTime,
             expectedReturnTime: existingProof.expectedReturnTime,
-            tripStartedAt: existingProof.tripStartedAt
+            tripStartedAt: existingProof.tripStartedAt,
+            digitalSignature: existingProof.deanSignatureUrl ? {
+                name: existingProof.deanName || 'Assigned Dean',
+                role: existingProof.deanRole || 'Dean',
+                signedAt: existingProof.deanApprovedAt || existingProof.deanSignatureAttachedAt || null,
+                asset: {
+                    url: existingProof.deanSignatureUrl,
+                    mimeType: existingProof.deanSignatureMimeType || 'image/png',
+                    originalFilename: existingProof.deanSignatureOriginalFilename || null,
+                    attachedAt: existingProof.deanSignatureAttachedAt || null
+                }
+            } : null
         });
     } catch (error) {
         await client.query('ROLLBACK');

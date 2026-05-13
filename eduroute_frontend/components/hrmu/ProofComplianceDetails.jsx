@@ -50,6 +50,7 @@ const ProofComplianceDetails = ({
     : 'hrmu-verify-status-bar';
   const focalPersonName = activeProof.focalPersonName || 'N/A';
   const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
+  const deanSignature = activeProof.digitalSignature || null;
 
   return (
     <div className="hrmu-verify-modal-overlay" role="presentation" onClick={onClose}>
@@ -113,6 +114,36 @@ const ProofComplianceDetails = ({
                   </div>
                 </div>
               </div>
+
+              {deanSignature && (
+                <div className="hrmu-verify-modal-signature-block">
+                  <span>AUTHORIZED DIGITAL SIGNATURE</span>
+                  <div className="hrmu-verify-signature-card">
+                    <div className="hrmu-verify-signature-art">
+                      {deanSignature.asset?.mimeType === 'application/pdf' ? (
+                        <div className="hrmu-verify-signature-empty">
+                          <a href={deanSignature.asset?.url} target="_blank" rel="noreferrer">
+                            Open Dean Signature PDF
+                          </a>
+                        </div>
+                      ) : deanSignature.asset?.url ? (
+                        <img
+                          className="hrmu-verify-signature-image"
+                          src={deanSignature.asset.url}
+                          alt={`${deanSignature.name || 'Dean'} digital signature`}
+                        />
+                      ) : (
+                        <div className="hrmu-verify-signature-empty">No dean signature uploaded.</div>
+                      )}
+                    </div>
+                    <div className="hrmu-verify-signature-copy">
+                      <strong>{deanSignature.name || 'Assigned Dean'}</strong>
+                      <span>{deanSignature.role || 'Dean'}</span>
+                      <span>{deanSignature.signedAt ? formatDateTime(deanSignature.signedAt) : 'Approval time unavailable.'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="hrmu-verify-modal-label">PROOF VERIFICATION CHECKS</div>

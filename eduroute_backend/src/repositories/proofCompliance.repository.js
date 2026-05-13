@@ -98,6 +98,14 @@ const mapProofRow = (row) => {
         reviewedBy: row.reviewed_by || null,
         reviewedAt: row.reviewed_at || null,
         reviewRemarks: row.review_remarks || null,
+        deanApprovedAt: row.dean_approved_at || null,
+        deanReviewedBy: row.dean_reviewed_by || null,
+        deanName: row.dean_name || null,
+        deanRole: row.dean_role || null,
+        deanSignatureUrl: row.dean_signature_url || null,
+        deanSignatureMimeType: row.dean_signature_mime_type || null,
+        deanSignatureOriginalFilename: row.dean_signature_original_filename || null,
+        deanSignatureAttachedAt: row.dean_signature_attached_at || null,
         createdAt: row.created_at || null,
         updatedAt: row.updated_at || null
     };
@@ -192,16 +200,26 @@ const getHrmuProofList = async (client = pool) => {
             COALESCE(locator.custom_purpose, locator.purpose_of_travel) AS purpose,
             locator.destination,
             locator.status AS locator_slip_status,
+            locator.approved_at AS dean_approved_at,
+            locator.reviewed_by AS dean_reviewed_by,
             trip.status AS trip_status,
             trip.ended_at,
             locator.expected_return_datetime,
-            reviewer.full_name AS reviewed_by_name
+            reviewer.full_name AS reviewed_by_name,
+            dean_reviewer.full_name AS dean_name,
+            dean_reviewer.account_role AS dean_role,
+            lsig.signature_url AS dean_signature_url,
+            lsig.signature_mime_type AS dean_signature_mime_type,
+            lsig.signature_original_filename AS dean_signature_original_filename,
+            lsig.attached_at AS dean_signature_attached_at
          FROM arrival_verifications verification
          JOIN faculty_users faculty ON faculty.id = verification.faculty_user_id
          JOIN locator_slips locator ON locator.id = verification.locator_slip_id
          LEFT JOIN trips trip ON trip.id = verification.trip_id
          LEFT JOIN departments department ON department.id = COALESCE(locator.college_id, faculty.department_id)
          ${reviewedByJoin}
+         LEFT JOIN faculty_users dean_reviewer ON dean_reviewer.id = locator.reviewed_by
+         LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = verification.locator_slip_id
          ORDER BY ${orderByExpression} DESC, verification.created_at DESC`
     );
 
@@ -216,7 +234,15 @@ const getHrmuProofList = async (client = pool) => {
         tripStatus: row.trip_status || null,
         actualReturnTime: row.ended_at || null,
         expectedReturnTime: row.expected_return_datetime || null,
-        reviewedByName: row.reviewed_by_name || null
+        reviewedByName: row.reviewed_by_name || null,
+        deanApprovedAt: row.dean_approved_at || null,
+        deanReviewedBy: row.dean_reviewed_by || null,
+        deanName: row.dean_name || null,
+        deanRole: row.dean_role || null,
+        deanSignatureUrl: row.dean_signature_url || null,
+        deanSignatureMimeType: row.dean_signature_mime_type || null,
+        deanSignatureOriginalFilename: row.dean_signature_original_filename || null,
+        deanSignatureAttachedAt: row.dean_signature_attached_at || null
     }));
 };
 
@@ -240,17 +266,27 @@ const getHrmuProofById = async (proofId, client = pool) => {
             COALESCE(locator.custom_purpose, locator.purpose_of_travel) AS purpose,
             locator.destination,
             locator.status AS locator_slip_status,
+            locator.approved_at AS dean_approved_at,
+            locator.reviewed_by AS dean_reviewed_by,
             locator.expected_return_datetime,
             trip.status AS trip_status,
             trip.started_at,
             trip.ended_at,
-            reviewer.full_name AS reviewed_by_name
+            reviewer.full_name AS reviewed_by_name,
+            dean_reviewer.full_name AS dean_name,
+            dean_reviewer.account_role AS dean_role,
+            lsig.signature_url AS dean_signature_url,
+            lsig.signature_mime_type AS dean_signature_mime_type,
+            lsig.signature_original_filename AS dean_signature_original_filename,
+            lsig.attached_at AS dean_signature_attached_at
          FROM arrival_verifications verification
          JOIN faculty_users faculty ON faculty.id = verification.faculty_user_id
          JOIN locator_slips locator ON locator.id = verification.locator_slip_id
          LEFT JOIN trips trip ON trip.id = verification.trip_id
          LEFT JOIN departments department ON department.id = COALESCE(locator.college_id, faculty.department_id)
          ${reviewedByJoin}
+         LEFT JOIN faculty_users dean_reviewer ON dean_reviewer.id = locator.reviewed_by
+         LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = verification.locator_slip_id
          WHERE verification.id = $1
          LIMIT 1`,
         [proofId]
@@ -270,7 +306,15 @@ const getHrmuProofById = async (proofId, client = pool) => {
         tripStatus: rows[0].trip_status || null,
         tripStartedAt: rows[0].started_at || null,
         actualReturnTime: rows[0].ended_at || null,
-        reviewedByName: rows[0].reviewed_by_name || null
+        reviewedByName: rows[0].reviewed_by_name || null,
+        deanApprovedAt: rows[0].dean_approved_at || null,
+        deanReviewedBy: rows[0].dean_reviewed_by || null,
+        deanName: rows[0].dean_name || null,
+        deanRole: rows[0].dean_role || null,
+        deanSignatureUrl: rows[0].dean_signature_url || null,
+        deanSignatureMimeType: rows[0].dean_signature_mime_type || null,
+        deanSignatureOriginalFilename: rows[0].dean_signature_original_filename || null,
+        deanSignatureAttachedAt: rows[0].dean_signature_attached_at || null
     };
 };
 
