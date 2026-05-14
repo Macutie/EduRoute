@@ -10046,8 +10046,10 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return '--';
 
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleString('en-US', {
       timeZone: 'Asia/Manila',
+      month: 'short',
+      day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -10331,7 +10333,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
   const stats = [
     {
-      label: 'TOTAL FACULTY OUTSIDE',
+      label: 'TOTAL FACULTY ON TRIP',
       value: String(summary.totalFacultyOutside).padStart(2, '0'),
       accent: 'green',
       meta: 'LIVE UPDATE',
@@ -10371,7 +10373,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
         <article className="hrmu-route-panel">
           <div className="hrmu-panel-heading">
             <h2>Live Faculty Route</h2>
-            <button type="button">↗ View Full Map</button>
+            <button type="button" onClick={() => setView('live-tracking')}>↗ View Full Map</button>
           </div>
           <div className="hrmu-map-card">
             <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
@@ -10437,21 +10439,6 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              className="hrmu-export-btn"
-              onClick={async () => {
-                try {
-                  const result = await exportHrmuRecentActivityCsvPlaceholder();
-                  window.alert(result?.message || 'CSV export is not implemented yet.');
-                } catch (error) {
-                  window.alert(error.message || 'CSV export is not available right now.');
-                }
-              }}
-            >
-              <HrmuExportIcon />
-              <span>Export CSV</span>
-            </button>
           </div>
         </div>
 

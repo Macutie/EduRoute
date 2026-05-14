@@ -93,7 +93,7 @@ const getDashboardSummaryStats = async () => {
         ),
         locator_slip_stats AS (
             SELECT
-                COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified'))::int AS verified_locator_slips,
+                COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed') AND (COALESCE(ls.approved_at, ls.updated_at, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)::int AS verified_locator_slips,
                 COUNT(*) FILTER (WHERE ls.status = 'pending')::int AS unverified_cases
             FROM locator_slips ls
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
@@ -403,6 +403,8 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
     } else if (verification === 'unverified') {
         whereClauses.push(`ls.status = 'pending'`);
     }
+
+    whereClauses.push(`(ls.departure_datetime AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('week', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)`);
 
     const countQuery = `
         SELECT COUNT(*)::int AS total
