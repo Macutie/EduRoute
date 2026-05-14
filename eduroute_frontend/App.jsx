@@ -16356,44 +16356,62 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
         </div>
 
         <section className="hrmu-alerts-grid">
-          <article className={`hrmu-alert-main-card ${featuredTone}`}>
-            <div className="hrmu-alert-main-accent" aria-hidden="true" />
-            <div className="hrmu-alert-main-body">
-              <div className="hrmu-alert-main-icon">
-                {featuredAlert?.type === 'flagged' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+          <div className="hrmu-alert-feed-column">
+            {alertsLoading ? (
+              <div className="hrmu-alert-feed-empty">Loading system alerts...</div>
+            ) : null}
+
+            {!alertsLoading && !alertsError && filteredAlerts.length === 0 ? (
+              <div className="hrmu-alert-feed-empty">
+                No {alertFilter === 'all' ? 'CSSU' : alertFilter} alerts available right now.
               </div>
-              <div className="hrmu-alert-main-copy">
-                <div className="hrmu-alert-main-head">
-                  <div className="hrmu-alert-main-badges">
-                    <span className={`hrmu-alert-critical-pill ${featuredTone}`}>{featuredPillLabel}</span>
-                  </div>
-                  <span className="hrmu-alert-main-time">{featuredAlert?.time || 'Awaiting updates'}</span>
-                </div>
-                <h2>{featuredAlert?.title || 'No CSSU notifications yet'}</h2>
-                <p>
-                  {featuredAlert
-                    ? featuredAlert.body
-                    : `No ${alertFilter === 'all' ? 'CSSU' : alertFilter} alerts available right now.`}
-                </p>
-                <div className="hrmu-alert-main-actions">
-                  <button
-                    type="button"
-                    className={`hrmu-alert-primary-btn ${featuredTone}`}
-                    onClick={() => setView(featuredAlert?.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
-                  >
-                    {featuredAlert?.actionLabelPrimary || 'Open Exit Clearance'}
-                  </button>
-                  <button
-                    type="button"
-                    className="hrmu-alert-text-btn"
-                    onClick={() => setView(featuredAlert?.type === 'flagged' ? 'cssu-reports' : 'cssu-dashboard')}
-                  >
-                    {featuredAlert?.actionLabelSecondary || 'Open Dashboard'}
-                  </button>
-                </div>
+            ) : null}
+
+            {!alertsLoading && filteredAlerts.length > 0 ? (
+              <div className="hrmu-alert-feed-list">
+                {filteredAlerts.map((alert) => {
+                  const tone = alert.type === 'flagged' ? 'incident' : 'verified';
+
+                  return (
+                    <article key={alert.id} className={`hrmu-alert-feed-card ${tone}`}>
+                      <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+                      <div className="hrmu-alert-feed-body">
+                        <div className={`hrmu-alert-feed-icon ${tone}`}>
+                          {alert.type === 'flagged' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+                        </div>
+                        <div className="hrmu-alert-feed-copy">
+                          <div className="hrmu-alert-feed-head">
+                            <span className={`hrmu-alert-critical-pill ${tone}`}>
+                              {alert.type === 'flagged' ? 'FLAGGED' : 'VALIDATED'}
+                            </span>
+                            <span className="hrmu-alert-feed-time">{alert.time}</span>
+                          </div>
+                          <h2>{alert.title}</h2>
+                          <p>{alert.body}</p>
+                          <div className="hrmu-alert-feed-actions">
+                            <button
+                              type="button"
+                              className={`hrmu-alert-primary-btn ${tone}`}
+                              onClick={() => setView(alert.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
+                            >
+                              {alert.actionLabelPrimary || 'Open Exit Clearance'}
+                            </button>
+                            <button
+                              type="button"
+                              className="hrmu-alert-text-btn"
+                              onClick={() => setView(alert.type === 'flagged' ? 'cssu-reports' : 'cssu-dashboard')}
+                            >
+                              {alert.actionLabelSecondary || 'Open Dashboard'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
-            </div>
-          </article>
+            ) : null}
+          </div>
 
           <aside className="hrmu-alerts-side-column">
             <article className="hrmu-alert-summary-card">
