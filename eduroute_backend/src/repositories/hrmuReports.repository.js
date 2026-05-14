@@ -250,34 +250,32 @@ const getMonthlyLogs = async ({ start, endExclusive, page = 1, limit = 20, statu
 
     const reportRowsQuery = `
         report_rows AS (
-            SELECT
+            SELECT DISTINCT ON (et.locator_slip_id)
                 et.locator_slip_id,
                 et.trip_id,
-                COALESCE(etf.latest_detected_at, et.trip_finished_at, et.approved_at, et.locator_updated_at) AS timestamp,
+                (SELECT id FROM arrival_verifications WHERE locator_slip_id = et.locator_slip_id ORDER BY created_at DESC LIMIT 1) AS proof_id,
+                COALESCE(lv.created_at, etf.latest_detected_at, et.trip_finished_at, et.approved_at, et.locator_updated_at) AS timestamp,
                 et.destination AS location,
                 et.faculty_name AS personnel,
                 CASE
-                    WHEN etf.trip_id IS NOT NULL THEN 'FLAGGED'
+                    WHEN etf.trip_id IS NOT NULL OR LOWER(lv.verification_status) = 'rejected' THEN 'FLAGGED'
                     ELSE 'VERIFIED'
                 END AS report_status,
                 CASE
-                    WHEN etf.trip_id IS NOT NULL THEN 'flagged'
-                    ELSE LOWER(COALESCE(et.trip_status, 'verified'))
+                    WHEN etf.trip_id IS NOT NULL OR LOWER(lv.verification_status) = 'rejected' THEN 'flagged'
+                    ELSE 'verified'
                 END AS raw_status,
                 COALESCE(etf.flagged_reasons, '[]'::jsonb) AS flagged_reasons
             FROM ended_trips et
+            JOIN LATERAL (
+                SELECT verification_status, created_at
+                FROM locator_slip_location_verifications
+                WHERE locator_slip_id = et.locator_slip_id
+                ORDER BY created_at DESC
+                LIMIT 1
+            ) lv ON LOWER(lv.verification_status) IN ('verified', 'rejected')
             LEFT JOIN effective_trip_flags etf ON etf.trip_id = et.trip_id
-            UNION ALL
-            SELECT
-                rls.locator_slip_id,
-                rls.trip_id,
-                rls.event_timestamp AS timestamp,
-                rls.destination AS location,
-                rls.faculty_name AS personnel,
-                'REJECTED' AS report_status,
-                'rejected' AS raw_status,
-                '[]'::jsonb AS flagged_reasons
-            FROM rejected_locator_slips rls
+            ORDER BY et.locator_slip_id, et.trip_finished_at DESC
         )
     `;
 
@@ -343,6 +341,7 @@ const getMonthlyDetails = async (locatorSlipId) => {
         SELECT
             ls.id AS locator_slip_id,
             t.id AS trip_id,
+            (SELECT id FROM arrival_verifications WHERE locator_slip_id = ls.id ORDER BY created_at DESC LIMIT 1) AS proof_id,
             fu.full_name AS faculty_name,
             ac.department_name AS college_name,
             COALESCE(ls.custom_purpose, ls.purpose_of_travel) AS purpose,

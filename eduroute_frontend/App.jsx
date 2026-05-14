@@ -11146,14 +11146,14 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
                 <span className="hrmu-reports-log-icon">
                   <DocumentIcon color="currentColor" width="24" height="24" />
                 </span>
-                <h2>Key Incident Log</h2>
+                <h2>Monthly Faculty Movement Log</h2>
               </div>
             </div>
 
             <div className="hrmu-reports-table-wrap">
               <div className="hrmu-reports-table-head">
                 <span>TIMESTAMP</span>
-                <span>LOCATION</span>
+                <span>DESTINATION</span>
                 <span>PERSONNEL</span>
                 <span>STATUS</span>
                 <span>ACTION</span>
