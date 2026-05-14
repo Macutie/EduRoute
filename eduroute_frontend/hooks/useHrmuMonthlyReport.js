@@ -3,6 +3,7 @@ import {
   getHrmuMonthlyReport,
   getHrmuMonthlyReportDetails,
 } from '../services/hrmuReportsApi';
+import { getHrmuProofComplianceDetails } from '../services/proofComplianceApi';
 
 const getCurrentReportMonthDefaults = () => {
   const now = new Date();
@@ -54,13 +55,19 @@ export const useHrmuMonthlyReport = ({
     setMonthIndex((current) => Math.min(current + 1, 12));
   }, []);
 
-  const openDetails = useCallback(async (locatorSlipId) => {
-    if (!locatorSlipId) return;
+  const openDetails = useCallback(async (row) => {
+    if (!row || !row.locatorSlipId) return;
 
     setDetailLoading(true);
+    setSelectedDetail(null);
     try {
-      const detail = await getHrmuMonthlyReportDetails(locatorSlipId);
-      setSelectedDetail(detail);
+      if (row.proofId) {
+        const detail = await getHrmuProofComplianceDetails(row.proofId);
+        setSelectedDetail({ ...detail, isProof: true });
+      } else {
+        const detail = await getHrmuMonthlyReportDetails(row.locatorSlipId);
+        setSelectedDetail({ ...detail, isProof: false });
+      }
     } catch (requestError) {
       setError(requestError.message);
       setSelectedDetail(null);

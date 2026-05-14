@@ -227,6 +227,16 @@ const ProofComplianceDetails = ({
             </div>
 
             <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
+            {(activeProof.proofComplianceImageUrl || activeProof.imageUrl) && (
+              <button 
+                type="button" 
+                className="hrmu-verify-return-btn" 
+                onClick={() => window.open(activeProof.proofComplianceImageUrl || activeProof.imageUrl, '_blank')}
+                style={{ marginTop: '12px', background: 'var(--green)', color: '#fff', border: 'none' }}
+              >
+                Export Image Card
+              </button>
+            )}
           </div>
         </div>
       </div>

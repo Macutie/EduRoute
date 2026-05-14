@@ -11166,7 +11166,7 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
                   <span>{row.location}</span>
                   <span>{row.personnel}</span>
                   <span><em className={`hrmu-reports-status-pill ${mapStatusTone(row.status)}`}>{row.status}</em></span>
-                  <button type="button" className="hrmu-reports-detail-link" onClick={() => openDetails(row.locatorSlipId)}>Details</button>
+                  <button type="button" className="hrmu-reports-detail-link" onClick={() => openDetails(row)}>Details</button>
                 </div>
               ))}
             </div>
@@ -11174,7 +11174,22 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
           </article>
         </div>
 
-        {selectedDetail && (
+        {selectedDetail && selectedDetail.isProof && !detailLoading && (
+          <ProofComplianceDetails
+            row={{
+              name: selectedDetail.facultyName,
+              roleLine: selectedDetail.collegeName ? `Faculty - ${selectedDetail.collegeName}` : 'Faculty',
+              slipNumber: selectedDetail.locatorSlipId?.slice(0, 8).toUpperCase(),
+              actualReturnTime: selectedDetail.endedAt,
+              expectedReturnTime: selectedDetail.expectedReturnTime,
+            }}
+            details={selectedDetail}
+            reviewLocked={true}
+            onClose={() => setSelectedDetail(null)}
+          />
+        )}
+
+        {selectedDetail && !selectedDetail.isProof && (
           <div className="hrmu-reports-detail-overlay" role="presentation" onClick={() => setSelectedDetail(null)}>
             <div className="hrmu-reports-detail-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
               <div className="hrmu-reports-detail-head">
