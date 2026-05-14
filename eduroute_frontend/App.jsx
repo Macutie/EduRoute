@@ -3597,6 +3597,7 @@ const formatStatusDate = (value) => {
   if (Number.isNaN(date.getTime())) return 'No date set';
 
   return date.toLocaleDateString('en-US', {
+    timeZone: 'Asia/Manila',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -3611,6 +3612,7 @@ const formatStatusDateTime = (value) => {
   if (Number.isNaN(date.getTime())) return 'No date set';
 
   return date.toLocaleString('en-US', {
+    timeZone: 'Asia/Manila',
     month: 'long',
     day: 'numeric',
     year: 'numeric',
@@ -3650,6 +3652,7 @@ const formatActivityFiledTime = (value) => {
   if (Number.isNaN(date.getTime())) return 'No time';
 
   return date.toLocaleString('en-US', {
+    timeZone: 'Asia/Manila',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -8679,7 +8682,7 @@ const formatNotificationRelativeTime = (value) => {
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric' });
 };
 
 const getNotificationGroupLabel = (value) => {
@@ -8693,7 +8696,7 @@ const getNotificationGroupLabel = (value) => {
   if (date.toDateString() === today.toDateString()) return 'Today';
   if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
 
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' });
 };
 
 const DeanNotificationsView = ({ setView, profileData }) => {
@@ -9488,7 +9491,7 @@ const DeanSignatureView = ({ setView, profileData }) => {
               </p>
               {settings?.consentedAt && (
                 <p className="dean-signature-meta">
-                  Permission granted on {new Date(settings.consentedAt).toLocaleString()}.
+                  Permission granted on {new Date(settings.consentedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' })}.
                 </p>
               )}
               {!settings?.consentAccepted && consentChecked && (
@@ -9540,7 +9543,7 @@ const DeanSignatureView = ({ setView, profileData }) => {
 
               {!selectedFile && settings?.signatureUrl && (
                 <p className="dean-signature-meta">
-                  Uploaded on {settings.uploadedAt ? new Date(settings.uploadedAt).toLocaleString() : 'recently'}.
+                  Uploaded on {settings.uploadedAt ? new Date(settings.uploadedAt).toLocaleString('en-US', { timeZone: 'Asia/Manila' }) : 'recently'}.
                 </p>
               )}
             </div>
@@ -10044,6 +10047,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     if (Number.isNaN(date.getTime())) return '--';
 
     return date.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Manila',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -10060,6 +10064,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     const sameDay = now.toDateString() === date.toDateString();
 
     const timePart = date.toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Manila',
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -10070,6 +10075,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     }
 
     const datePart = date.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -10552,7 +10558,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           actualReturnTime: row.actualReturnTime || null,
           purpose: row.purpose || 'Official travel',
           timeOut: row.actualReturnTime
-            ? new Date(row.actualReturnTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            ? new Date(row.actualReturnTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' })
             : 'N/A',
         };
       });
@@ -11336,6 +11342,7 @@ const HrmuReportInboxView = ({ setView, profileData, onLogout }) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return 'Date unavailable';
     return date.toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
       month: 'short',
       day: 'numeric',
       year: 'numeric',
@@ -11541,6 +11548,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
       if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
 
       return date.toLocaleDateString('en-US', {
+        timeZone: 'Asia/Manila',
         month: 'short',
         day: 'numeric',
       });
@@ -12512,8 +12520,8 @@ const RegistryDetailsModal = ({ item, onClose }) => {
     if (rawValue) {
       const parsedDate = new Date(rawValue);
       return {
-        date: parsedDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        time: parsedDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        date: parsedDate.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }),
+        time: parsedDate.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' })
       };
     }
 
@@ -12529,7 +12537,7 @@ const RegistryDetailsModal = ({ item, onClose }) => {
   const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
   const signatureAsset = item.digitalSignature?.asset || null;
   const signatureTimestamp = item.digitalSignature?.signedAt
-    ? `${new Date(item.digitalSignature.signedAt).toLocaleString('sv-SE', { hour12: false }).replace(' ', 'T')} UTC+8`
+    ? `${new Date(item.digitalSignature.signedAt).toLocaleString('sv-SE', { timeZone: 'Asia/Manila', hour12: false }).replace(' ', 'T')} UTC+8`
     : '';
 
   return (
@@ -14833,6 +14841,7 @@ const CSSUScanViewLegacy = ({ setView, profileData, onLogout }) => {
   if (isDesktopViewport) {
     const [serverTime, setServerTime] = useState(() =>
       new Date().toLocaleTimeString('en-US', {
+        timeZone: 'Asia/Manila',
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit',
@@ -14844,6 +14853,7 @@ const CSSUScanViewLegacy = ({ setView, profileData, onLogout }) => {
       const timer = window.setInterval(() => {
         setServerTime(
           new Date().toLocaleTimeString('en-US', {
+            timeZone: 'Asia/Manila',
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
@@ -14996,6 +15006,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
   const qrDetectorRef = useRef(null);
   const [serverTime, setServerTime] = useState(() =>
     new Date().toLocaleTimeString('en-US', {
+      timeZone: 'Asia/Manila',
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -15018,6 +15029,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
     const timer = window.setInterval(() => {
       setServerTime(
         new Date().toLocaleTimeString('en-US', {
+          timeZone: 'Asia/Manila',
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
@@ -15607,6 +15619,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     if (Number.isNaN(date.getTime())) return 'mm/dd/yyyy';
 
     return date.toLocaleDateString('en-US', {
+      timeZone: 'Asia/Manila',
       month: '2-digit',
       day: '2-digit',
       year: 'numeric',
@@ -15723,6 +15736,7 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
     if (Number.isNaN(date.getTime())) return '--';
 
     return date.toLocaleString('en-US', {
+      timeZone: 'Asia/Manila',
       month: 'short',
       day: '2-digit',
       year: 'numeric',
@@ -16142,6 +16156,7 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
       if (diffHours < 24) return `${diffHours} hour${diffHours === 1 ? '' : 's'} ago`;
 
       return date.toLocaleDateString('en-US', {
+        timeZone: 'Asia/Manila',
         month: 'short',
         day: 'numeric',
       });
