@@ -227,14 +227,6 @@ const ProofComplianceDetails = ({
             </div>
 
             <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
-            <button 
-              type="button" 
-              className="hrmu-verify-return-btn" 
-              onClick={() => window.print()}
-              style={{ marginTop: '12px', background: 'var(--green)', color: '#fff', border: 'none' }}
-            >
-              Export Copy
-            </button>
           </div>
         </div>
       </div>
