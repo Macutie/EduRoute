@@ -1,3 +1,7 @@
+import React, { useRef, useState } from 'react';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+
 const formatDateTime = (value) => {
   if (!value) return 'N/A';
   return new Date(value).toLocaleString();
@@ -63,9 +67,50 @@ const ProofComplianceDetails = ({
   const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
   const deanSignature = activeProof.digitalSignature || null;
 
+  const modalRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportPdf = async () => {
+    if (!modalRef.current) return;
+    setIsExporting(true);
+    
+    try {
+      // Temporarily hide close button and export button to avoid capturing them
+      const closeBtn = modalRef.current.querySelector('.hrmu-verify-modal-close');
+      const actionArea = modalRef.current.querySelector('.hrmu-verify-action-buttons');
+      
+      if (closeBtn) closeBtn.style.display = 'none';
+      if (actionArea) actionArea.style.display = 'none';
+
+      const canvas = await html2canvas(modalRef.current, {
+        scale: 2, // Higher resolution
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+
+      if (closeBtn) closeBtn.style.display = '';
+      if (actionArea) actionArea.style.display = '';
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        unit: 'px',
+        format: [canvas.width, canvas.height]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      const filename = `proof-of-compliance-${row.slipNumber || 'export'}.pdf`;
+      pdf.save(filename);
+    } catch (err) {
+      console.error('Failed to export PDF', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="hrmu-verify-modal-overlay" role="presentation" onClick={onClose}>
-      <div className="hrmu-verify-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-verify-modal-title" onClick={(event) => event.stopPropagation()}>
+      <div className="hrmu-verify-modal" role="dialog" aria-modal="true" aria-labelledby="hrmu-verify-modal-title" onClick={(event) => event.stopPropagation()} ref={modalRef}>
         <div className="hrmu-verify-modal-header">
           <div className="hrmu-verify-modal-person">
             <div className="hrmu-verify-modal-avatar">
@@ -226,17 +271,18 @@ const ProofComplianceDetails = ({
               </button>
             </div>
 
-            <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
-            {(activeProof.proofComplianceImageUrl || activeProof.imageUrl) && (
+            <div className="hrmu-verify-action-buttons" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
               <button 
                 type="button" 
                 className="hrmu-verify-return-btn" 
-                onClick={() => window.open(activeProof.proofComplianceImageUrl || activeProof.imageUrl, '_blank')}
-                style={{ marginTop: '12px', background: 'var(--green)', color: '#fff', border: 'none' }}
+                onClick={handleExportPdf}
+                disabled={isExporting}
+                style={{ background: 'var(--green)', color: '#fff', border: 'none', opacity: isExporting ? 0.7 : 1 }}
               >
-                Export Image Card
+                {isExporting ? 'Exporting...' : 'Export to PDF'}
               </button>
-            )}
+            </div>
           </div>
         </div>
       </div>
