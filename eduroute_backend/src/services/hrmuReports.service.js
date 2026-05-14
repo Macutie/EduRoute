@@ -1,6 +1,7 @@
 const AppError = require('../utils/appError');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuReportsRepository = require('../repositories/hrmuReports.repository');
+const proofComplianceRepository = require('../repositories/proofCompliance.repository');
 const tripIncidentRepository = require('../repositories/tripIncident.repository');
 const tripIncidentService = require('./tripIncident.service');
 const { formatTimestampLabel } = require('../utils/formatDate');
@@ -23,9 +24,110 @@ const mapFlaggedReason = (reason) => ({
     severity: reason.severity
 });
 
+const getReportTimestamp = (row) => {
+    if (!row) return null;
+    return row.actualReturnTime || row.reviewedAt || row.submittedAt || null;
+};
+
+const toDateValue = (value) => {
+    if (!value) return null;
+    const parsed = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getProofDeduplicationKey = (row) => row.tripId || row.locatorSlipId || row.id;
+
+const normalizeProofStatus = (status) => String(status || 'submitted').trim().toLowerCase();
+
+const filterProofsByMonthRange = (proofs, monthRange) =>
+    proofs.filter((row) => {
+        const timestamp = toDateValue(getReportTimestamp(row));
+        if (!timestamp) return false;
+        return timestamp >= monthRange.start && timestamp < monthRange.endExclusive;
+    });
+
+const dedupeProofRows = (proofs) => {
+    const deduped = new Map();
+
+    proofs.forEach((row) => {
+        const key = getProofDeduplicationKey(row);
+        if (!key || deduped.has(key)) return;
+        deduped.set(key, row);
+    });
+
+    return Array.from(deduped.values());
+};
+
+const sortProofRowsNewestFirst = (proofs) =>
+    [...proofs].sort((left, right) => {
+        const leftTime = toDateValue(getReportTimestamp(left))?.getTime() || 0;
+        const rightTime = toDateValue(getReportTimestamp(right))?.getTime() || 0;
+        return rightTime - leftTime;
+    });
+
+const mapProofToReportLogRow = (row) => {
+    const normalizedStatus = normalizeProofStatus(row.verificationStatus);
+    const flaggedReasons = normalizedStatus === 'rejected'
+        ? [{ type: 'unverified_location', label: 'Unverified location', severity: 'medium' }]
+        : [];
+
+    return {
+        locatorSlipId: row.locatorSlipId,
+        tripId: row.tripId,
+        proofId: row.id,
+        timestamp: getReportTimestamp(row),
+        timestampLabel: formatTimestampLabel(getReportTimestamp(row)),
+        location: row.destination || 'Unknown destination',
+        personnel: row.facultyName || 'Unknown faculty',
+        status: normalizedStatus === 'verified'
+            ? 'VERIFIED'
+            : normalizedStatus === 'rejected'
+                ? 'REJECTED'
+                : 'PENDING',
+        rawStatus: normalizedStatus,
+        flaggedReasons
+    };
+};
+
+const buildReportFromVerificationRows = (proofs, monthRange, limit = 20) => {
+    const filteredProofs = filterProofsByMonthRange(proofs, monthRange);
+    const sortedProofs = sortProofRowsNewestFirst(filteredProofs);
+    const dedupedProofs = dedupeProofRows(sortedProofs);
+    const logRows = dedupedProofs.slice(0, limit).map(mapProofToReportLogRow);
+
+    const totalMovements = dedupedProofs.length;
+    const successfulTrips = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'verified').length;
+    const flaggedIncidents = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'rejected').length;
+    const pendingReviews = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'submitted').length;
+
+    const summary = {
+        totalMovements,
+        flaggedIncidents,
+        successfulTrips,
+        complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
+        lateReturns: 0,
+        unverifiedLocations: flaggedIncidents,
+        disconnectedLocations: 0,
+        pendingReviews,
+        incidentSummary: {
+            lateReturn: 0,
+            unverifiedLocation: flaggedIncidents,
+            locationDisconnected: 0
+        }
+    };
+
+    return {
+        summary,
+        locatorSlipLogs: logRows,
+        keyIncidentLog: logRows,
+        totalAvailableLogs: dedupedProofs.length
+    };
+};
+
 const mapReportLogRow = (row) => ({
     locatorSlipId: row.locator_slip_id,
     tripId: row.trip_id,
+    proofId: row.proof_id,
     timestamp: row.timestamp ? new Date(row.timestamp).toISOString() : null,
     timestampLabel: formatTimestampLabel(row.timestamp),
     location: row.location || 'Unknown destination',
@@ -35,35 +137,11 @@ const mapReportLogRow = (row) => ({
     flaggedReasons: Array.isArray(row.flagged_reasons) ? row.flagged_reasons.map(mapFlaggedReason) : []
 });
 
-const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 1), year } = {}) => {
+const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 1), year, limit = 20 } = {}) => {
     await assertHrmuUser(userId);
-    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
-    await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
-
     const monthRange = getMonthDateRange(monthIndex, year);
-    const [summaryRows, logsResult] = await Promise.all([
-        hrmuReportsRepository.getMonthlySummary({
-            start: monthRange.start,
-            endExclusive: monthRange.endExclusive
-        }),
-        hrmuReportsRepository.getMonthlyLogs({
-            start: monthRange.start,
-            endExclusive: monthRange.endExclusive,
-            page: 1,
-            limit: 20,
-            status: 'all'
-        })
-    ]);
-
-    const totalMovements = Number(summaryRows.total_movements || 0);
-    const successfulTrips = Number(summaryRows.successful_trips || 0);
-    const flaggedIncidents = Number(summaryRows.flagged_incidents || 0);
-
-    const incidentSummary = {
-        lateReturn: Number(summaryRows.late_returns || 0),
-        unverifiedLocation: Number(summaryRows.unverified_locations || 0),
-        locationDisconnected: Number(summaryRows.disconnected_locations || 0)
-    };
+    const proofs = await proofComplianceRepository.getHrmuProofList();
+    const reportData = buildReportFromVerificationRows(proofs, monthRange, limit);
 
     return {
         reportMeta: {
@@ -75,33 +153,26 @@ const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 
             isFirst: monthRange.isFirst,
             isLast: monthRange.isLast
         },
-        summary: {
-            totalMovements,
-            flaggedIncidents,
-            successfulTrips,
-            complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
-            lateReturns: Number(summaryRows.late_returns || 0),
-            unverifiedLocations: Number(summaryRows.unverified_locations || 0),
-            disconnectedLocations: Number(summaryRows.disconnected_locations || 0),
-            incidentSummary
-        },
-        locatorSlipLogs: logsResult.rows.map(mapReportLogRow),
-        keyIncidentLog: logsResult.rows.map(mapReportLogRow)
+        summary: reportData.summary,
+        locatorSlipLogs: reportData.locatorSlipLogs,
+        keyIncidentLog: reportData.keyIncidentLog
     };
 };
 
 const getMonthlyReportLogs = async (userId, query = {}) => {
     await assertHrmuUser(userId);
-    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
-    await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
     const monthRange = getMonthDateRange(query.monthIndex, query.year);
-    const result = await hrmuReportsRepository.getMonthlyLogs({
-        start: monthRange.start,
-        endExclusive: monthRange.endExclusive,
-        page: query.page,
-        limit: query.limit,
-        status: query.status || 'all'
+    const proofs = await proofComplianceRepository.getHrmuProofList();
+    const page = Number(query.page || 1);
+    const limit = Number(query.limit || 20);
+    const statusFilter = String(query.status || 'all').toLowerCase();
+    const built = buildReportFromVerificationRows(proofs, monthRange, Number.MAX_SAFE_INTEGER);
+    const filteredLogs = built.locatorSlipLogs.filter((row) => {
+        if (statusFilter === 'all') return true;
+        return String(row.rawStatus || '').toLowerCase() === statusFilter;
     });
+    const offset = Math.max(page - 1, 0) * limit;
+    const pagedLogs = filteredLogs.slice(offset, offset + limit);
 
     return {
         reportMeta: {
@@ -113,29 +184,21 @@ const getMonthlyReportLogs = async (userId, query = {}) => {
             isFirst: monthRange.isFirst,
             isLast: monthRange.isLast
         },
-        logs: result.rows.map(mapReportLogRow),
-        pagination: result.pagination
+        logs: pagedLogs,
+        pagination: {
+            page,
+            limit,
+            total: filteredLogs.length,
+            totalPages: limit > 0 ? Math.max(Math.ceil(filteredLogs.length / limit), 1) : 1
+        }
     };
 };
 
 const getMonthlyReportSummary = async (userId, query = {}) => {
     await assertHrmuUser(userId);
-    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
-    await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
     const monthRange = getMonthDateRange(query.monthIndex, query.year);
-    const summary = await hrmuReportsRepository.getMonthlySummary({
-        start: monthRange.start,
-        endExclusive: monthRange.endExclusive
-    });
-
-    const totalMovements = Number(summary.total_movements || 0);
-    const successfulTrips = Number(summary.successful_trips || 0);
-
-    const incidentSummary = {
-        lateReturn: Number(summary.late_returns || 0),
-        unverifiedLocation: Number(summary.unverified_locations || 0),
-        locationDisconnected: Number(summary.disconnected_locations || 0)
-    };
+    const proofs = await proofComplianceRepository.getHrmuProofList();
+    const built = buildReportFromVerificationRows(proofs, monthRange, 20);
 
     return {
         reportMeta: {
@@ -147,16 +210,7 @@ const getMonthlyReportSummary = async (userId, query = {}) => {
             isFirst: monthRange.isFirst,
             isLast: monthRange.isLast
         },
-        summary: {
-            totalMovements,
-            flaggedIncidents: Number(summary.flagged_incidents || 0),
-            successfulTrips,
-            complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
-            lateReturns: Number(summary.late_returns || 0),
-            unverifiedLocations: Number(summary.unverified_locations || 0),
-            disconnectedLocations: Number(summary.disconnected_locations || 0),
-            incidentSummary
-        }
+        summary: built.summary
     };
 };
 
@@ -171,6 +225,7 @@ const getMonthlyReportDetails = async (userId, locatorSlipId) => {
     return {
         locatorSlipId: detail.locator_slip_id,
         tripId: detail.trip_id,
+        proofId: detail.proof_id,
         facultyName: detail.faculty_name,
         collegeName: detail.college_name,
         purpose: detail.purpose,
@@ -233,12 +288,49 @@ const getMonthlyReportDownload = async (userId, query = {}) => {
     const baseYear = query.baseYear || query.year;
     const report = await getMonthlyReport(userId, {
         monthIndex: query.monthIndex,
-        year: baseYear
+        year: baseYear,
+        limit: 5000
     });
+
+    // Fetch the proof images for verified trips to attach to the PDF
+    const verifiedSlipIds = report.locatorSlipLogs
+        .filter(log => log.status === 'VERIFIED')
+        .map(log => log.locatorSlipId);
+
+    let proofImages = [];
+    if (verifiedSlipIds.length > 0) {
+        const pool = require('../db/pool');
+        const { rows } = await pool.query(`
+            SELECT locator_slip_id, COALESCE(proof_compliance_image_url, image_url) AS image_url
+            FROM arrival_verifications
+            WHERE locator_slip_id = ANY($1::uuid[])
+              AND COALESCE(proof_compliance_image_url, image_url) IS NOT NULL
+            ORDER BY created_at ASC
+        `, [verifiedSlipIds]);
+
+        const fetchPromises = rows.map(async (row) => {
+            try {
+                const response = await fetch(row.image_url);
+                if (response.ok) {
+                    const arrayBuffer = await response.arrayBuffer();
+                    return {
+                        locatorSlipId: row.locator_slip_id,
+                        buffer: Buffer.from(arrayBuffer)
+                    };
+                }
+            } catch (err) {
+                // Ignore failed fetches to not break the whole report
+            }
+            return null;
+        });
+
+        const fetchedImages = await Promise.all(fetchPromises);
+        proofImages = fetchedImages.filter(img => img !== null);
+    }
 
     const monthSlug = String(report.reportMeta.monthName || 'report').toLowerCase().replace(/\s+/g, '-');
     const filename = `eduroute-hrmu-report-${monthSlug}-${report.reportMeta.year}.pdf`;
-    const buffer = await buildHrmuMonthlyReportPdf(report);
+    const buffer = await buildHrmuMonthlyReportPdf(report, proofImages);
 
     return {
         buffer,
