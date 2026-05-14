@@ -82,11 +82,33 @@ const ProofComplianceDetails = ({
       if (closeBtn) closeBtn.style.display = 'none';
       if (actionArea) actionArea.style.display = 'none';
 
+      // Temporarily expand modal to capture full content without scrolling issues
+      const originalMaxHeight = modalRef.current.style.maxHeight;
+      const originalOverflow = modalRef.current.style.overflow;
+      const originalTransform = modalRef.current.style.transform;
+      const originalPosition = modalRef.current.style.position;
+      
+      modalRef.current.style.maxHeight = 'none';
+      modalRef.current.style.overflow = 'visible';
+      modalRef.current.style.transform = 'none';
+      modalRef.current.style.position = 'relative';
+
       const canvas = await html2canvas(modalRef.current, {
         scale: 2, // Higher resolution
         useCORS: true,
-        backgroundColor: '#ffffff'
+        backgroundColor: '#ffffff',
+        scrollY: -window.scrollY, // Avoid scroll offset cropping
+        windowWidth: document.documentElement.scrollWidth,
+        windowHeight: document.documentElement.scrollHeight,
+        width: modalRef.current.scrollWidth,
+        height: modalRef.current.scrollHeight
       });
+
+      // Restore original styles
+      modalRef.current.style.maxHeight = originalMaxHeight;
+      modalRef.current.style.overflow = originalOverflow;
+      modalRef.current.style.transform = originalTransform;
+      modalRef.current.style.position = originalPosition;
 
       if (closeBtn) closeBtn.style.display = '';
       if (actionArea) actionArea.style.display = '';
