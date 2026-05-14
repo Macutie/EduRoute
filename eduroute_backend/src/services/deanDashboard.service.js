@@ -256,8 +256,8 @@ const getDashboardSummary = async (deanUserId) => {
         `SELECT
             COUNT(*) FILTER (WHERE ls.status = 'pending')::int AS pending_requests,
             COUNT(*) FILTER (
-                WHERE ls.status = 'approved'
-                  AND COALESCE(ls.approved_at, ls.updated_at, ls.created_at)::date = CURRENT_DATE
+                WHERE ls.status IN ('approved', 'verified', 'completed')
+                  AND (COALESCE(ls.approved_at, ls.updated_at, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
             )::int AS approved_today,
             COUNT(*) FILTER (WHERE ls.status = 'rejected')::int AS rejected_requests,
             (
@@ -644,8 +644,8 @@ const getRegistryPage = async (deanUserId) => {
     const summaryResult = await pool.query(
         `SELECT
             COUNT(*) FILTER (
-                WHERE ls.created_at >= date_trunc('month', CURRENT_DATE)
-                  AND ls.created_at < date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+                WHERE (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)
+                  AND (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') < date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date) + INTERVAL '1 month'
             )::int AS monthly_total,
             COUNT(*)::int AS registry_size
          FROM locator_slips ls
