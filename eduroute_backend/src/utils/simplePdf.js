@@ -488,7 +488,7 @@ const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
     return y - cardHeight;
 };
 
-const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }, proofImages = []) => {
+const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -636,28 +636,6 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
 
             cursorY -= rowHeight;
         });
-    }
-
-    if (proofImages && proofImages.length > 0) {
-        for (const proofImage of proofImages) {
-            try {
-                const isPng = proofImage.buffer[0] === 0x89 && proofImage.buffer[1] === 0x50;
-                const embeddedImage = isPng 
-                    ? await pdfDoc.embedPng(proofImage.buffer) 
-                    : await pdfDoc.embedJpg(proofImage.buffer);
-                
-                const dims = embeddedImage.scale(1);
-                const proofPage = pdfDoc.addPage([dims.width, dims.height]);
-                proofPage.drawImage(embeddedImage, {
-                    x: 0,
-                    y: 0,
-                    width: dims.width,
-                    height: dims.height,
-                });
-            } catch (err) {
-                // Ignore embedding errors
-            }
-        }
     }
 
     const pdfBytes = await pdfDoc.save();

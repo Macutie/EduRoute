@@ -35,7 +35,7 @@ const mapReportLogRow = (row) => ({
     flaggedReasons: Array.isArray(row.flagged_reasons) ? row.flagged_reasons.map(mapFlaggedReason) : []
 });
 
-const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 1), year, limit = 20 } = {}) => {
+const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 1), year } = {}) => {
     await assertHrmuUser(userId);
     await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
@@ -50,7 +50,7 @@ const getMonthlyReport = async (userId, { monthIndex = (new Date().getMonth() + 
             start: monthRange.start,
             endExclusive: monthRange.endExclusive,
             page: 1,
-            limit: limit,
+            limit: 20,
             status: 'all'
         })
     ]);
@@ -233,49 +233,12 @@ const getMonthlyReportDownload = async (userId, query = {}) => {
     const baseYear = query.baseYear || query.year;
     const report = await getMonthlyReport(userId, {
         monthIndex: query.monthIndex,
-        year: baseYear,
-        limit: 5000
+        year: baseYear
     });
-
-    // Fetch the proof images for verified trips to attach to the PDF
-    const verifiedSlipIds = report.locatorSlipLogs
-        .filter(log => log.status === 'VERIFIED')
-        .map(log => log.locatorSlipId);
-
-    let proofImages = [];
-    if (verifiedSlipIds.length > 0) {
-        const pool = require('../db/pool');
-        const { rows } = await pool.query(`
-            SELECT locator_slip_id, COALESCE(proof_compliance_image_url, image_url) AS image_url
-            FROM arrival_verifications
-            WHERE locator_slip_id = ANY($1::uuid[])
-              AND COALESCE(proof_compliance_image_url, image_url) IS NOT NULL
-            ORDER BY created_at ASC
-        `, [verifiedSlipIds]);
-
-        const fetchPromises = rows.map(async (row) => {
-            try {
-                const response = await fetch(row.image_url);
-                if (response.ok) {
-                    const arrayBuffer = await response.arrayBuffer();
-                    return {
-                        locatorSlipId: row.locator_slip_id,
-                        buffer: Buffer.from(arrayBuffer)
-                    };
-                }
-            } catch (err) {
-                // Ignore failed fetches to not break the whole report
-            }
-            return null;
-        });
-
-        const fetchedImages = await Promise.all(fetchPromises);
-        proofImages = fetchedImages.filter(img => img !== null);
-    }
 
     const monthSlug = String(report.reportMeta.monthName || 'report').toLowerCase().replace(/\s+/g, '-');
     const filename = `eduroute-hrmu-report-${monthSlug}-${report.reportMeta.year}.pdf`;
-    const buffer = await buildHrmuMonthlyReportPdf(report, proofImages);
+    const buffer = await buildHrmuMonthlyReportPdf(report);
 
     return {
         buffer,
