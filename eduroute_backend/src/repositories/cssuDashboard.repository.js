@@ -43,13 +43,21 @@ const getLocatorSlipColumnExists = async (columnName) => {
 };
 
 const getDashboardSummary = async () => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    
+    const logJoin = hasCssuExitLogsTable
+        ? `LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id`
+        : `LEFT JOIN LATERAL (SELECT NULL::text AS status) log ON TRUE`;
+
     const { rows } = await pool.query(
         `SELECT
-            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed', 'rejected'))::int AS total_faculty_exiting,
-            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed'))::int AS approved_locator_slips,
-            COUNT(*) FILTER (WHERE ls.status = 'rejected')::int AS rejected_locator_slips
+            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed'))::int AS total_faculty_exiting,
+            COUNT(*) FILTER (WHERE log.status = 'validated')::int AS approved_locator_slips,
+            COUNT(*) FILTER (WHERE ls.status = 'rejected' OR log.status = 'denied')::int AS rejected_locator_slips
          FROM locator_slips ls
-         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date`
+         ${logJoin}
+         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+            OR (log.validated_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date`
     );
 
     return rows[0] || {
@@ -506,40 +514,28 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
 
     if (hasCssuExitLogsTable) {
         const { rows } = await pool.query(
-            `WITH approved_slips AS (
-                SELECT
-                    ls.id AS locator_slip_id,
-                    ls.faculty_user_id,
-                    fu.full_name AS faculty_name,
-                    fu.employee_id,
-                    d.department_name,
-                    ls.destination,
-                    ls.purpose_of_travel,
-                    ls.departure_datetime,
-                    ls.expected_return_datetime,
-                    ls.approved_at,
-                    ls.updated_at,
-                    ls.created_at
-                FROM locator_slips ls
-                JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-                LEFT JOIN departments d ON d.id = fu.department_id
-                WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-                  AND ls.status IN ('approved', 'verified', 'completed')
-            )
-            SELECT
-                slip.locator_slip_id,
-                slip.faculty_user_id,
-                slip.faculty_name,
-                slip.employee_id,
-                slip.department_name,
-                slip.destination,
-                slip.purpose_of_travel,
+            `SELECT
+                ls.id AS locator_slip_id,
+                ls.faculty_user_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                d.department_name,
+                ls.destination,
+                ls.purpose_of_travel,
                 COALESCE(log.gate, 'main_gate') AS gate,
                 COALESCE(log.status, 'approved') AS monitoring_status,
-                COALESCE(log.validated_at, slip.approved_at, slip.updated_at, slip.created_at) AS status_timestamp
-            FROM approved_slips slip
-            LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = slip.locator_slip_id
-            WHERE COALESCE(log.gate, 'main_gate') = $1
+                COALESCE(log.validated_at, ls.approved_at, ls.updated_at, ls.created_at) AS status_timestamp
+            FROM locator_slips ls
+            JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+            LEFT JOIN departments d ON d.id = fu.department_id
+            LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
+            WHERE ls.status IN ('approved', 'verified', 'completed')
+              AND (
+                  (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  OR
+                  (log.validated_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+              )
+              AND COALESCE(log.gate, 'main_gate') = $1
             ORDER BY
                 CASE COALESCE(log.status, 'approved')
                     WHEN 'validated' THEN 0
@@ -547,7 +543,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
                     WHEN 'denied' THEN 2
                     ELSE 3
                 END,
-                COALESCE(log.validated_at, slip.approved_at, slip.updated_at, slip.created_at) DESC
+                COALESCE(log.validated_at, ls.approved_at, ls.updated_at, ls.created_at) DESC
             LIMIT $2`,
             [gate, limit]
         );
