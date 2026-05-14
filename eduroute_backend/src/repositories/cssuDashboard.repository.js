@@ -56,8 +56,8 @@ const getDashboardSummary = async () => {
             COUNT(*) FILTER (WHERE ls.status = 'rejected' OR log.status = 'denied')::int AS rejected_locator_slips
          FROM locator_slips ls
          ${logJoin}
-         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-            OR (log.validated_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date`
+         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+            OR (log.validated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date`
     );
 
     return rows[0] || {
@@ -342,7 +342,7 @@ const getIncidentOverview = async () => {
                 LEFT JOIN departments d ON d.id = fu.department_id
                 WHERE log.status = 'denied'
                   AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
-                  AND (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  AND (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
             ),`
         : `flagged_logs AS (
                 SELECT
@@ -364,7 +364,7 @@ const getIncidentOverview = async () => {
             ),`;
 
     const validatedTodaySql = hasCssuExitLogsTable
-        ? `(SELECT COUNT(*)::int FROM cssu_exit_logs WHERE status = 'validated' AND (COALESCE(validated_at, created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)`
+        ? `(SELECT COUNT(*)::int FROM cssu_exit_logs WHERE status = 'validated' AND (COALESCE(validated_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)`
         : `0`;
 
     const { rows } = await pool.query(
@@ -463,16 +463,16 @@ const getNotificationsOverview = async (limit = 8) => {
             SELECT
                 COUNT(*) FILTER (
                     WHERE notification_type = 'validated'
-                      AND (occurred_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                      AND (occurred_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                 )::int AS validated_clearances,
                 COUNT(*) FILTER (
                     WHERE notification_type = 'flagged'
-                      AND (occurred_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                      AND (occurred_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                 )::int AS flagged_exits,
                 COUNT(*) FILTER (
                     WHERE notification_type = 'flagged'
                       AND locator_slip_status = 'pending'
-                      AND (occurred_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                      AND (occurred_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                 )::int AS unauthorized_exit
             FROM notification_rows
         )
@@ -531,9 +531,9 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
             LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
             WHERE ls.status IN ('approved', 'verified', 'completed')
               AND (
-                  (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                   OR
-                  (log.validated_at AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  (log.validated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
               )
               AND COALESCE(log.gate, 'main_gate') = $1
             ORDER BY
@@ -566,7 +566,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          LEFT JOIN departments d ON d.id = fu.department_id
-         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
            AND ls.status IN ('approved', 'verified', 'completed')
            AND $1 = 'main_gate'
          ORDER BY COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC
