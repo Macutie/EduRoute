@@ -9981,10 +9981,6 @@ const HrmuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
 
         <div className="hrmu-sidebar-bottom">
           <button type="button" className="hrmu-logout-btn" onClick={onLogout}>Log Out</button>
-          <button type="button" className="hrmu-support-link">
-            <HeadsetIcon />
-            <span>Support</span>
-          </button>
         </div>
       </aside>
 
@@ -13644,10 +13640,6 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
 
         <div className="cssu-sidebar-bottom">
           <button type="button" className="cssu-logout-btn" onClick={onLogout}>Log Out</button>
-          <button type="button" className="cssu-support-link">
-            <HeadsetIcon />
-            <span>Support</span>
-          </button>
         </div>
       </aside>
 
