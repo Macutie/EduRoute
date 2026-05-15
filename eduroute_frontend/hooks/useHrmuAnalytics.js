@@ -133,8 +133,7 @@ const drawFilters = (pdf, { dateRangeLabel, departmentLabel }) => {
 const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
   const x = PDF_PAGE.margin;
   const y = 96;
-  const w = PDF_PAGE.width - (PDF_PAGE.margin * 2);
-  const cardY = y + 16;
+  const cardY = y + 8;
   const cardGap = 4;
   const cardW = 40.5;
   const cardH = 28;
@@ -177,7 +176,7 @@ const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
 };
 
 const drawDailyMovementSection = (pdf, reportData) => {
-  const sectionY = 145;
+  const sectionY = 138;
   const leftX = PDF_PAGE.margin;
   const sectionW = 132;
   const rows = (reportData.dailyRows || []).slice(0, 7);
@@ -231,7 +230,7 @@ const drawDailyMovementSection = (pdf, reportData) => {
 
 const drawApprovalRateSection = (pdf, reportData) => {
   const x = 152;
-  const y = 145;
+  const y = 138;
   const w = 44;
   const h = 88;
 
