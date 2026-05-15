@@ -177,10 +177,10 @@ const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
 };
 
 const drawDailyMovementSection = (pdf, reportData) => {
-  const sectionY = 58;
+  const sectionY = 145;
   const leftX = PDF_PAGE.margin;
   const sectionW = 132;
-  const sectionH = 84;
+  const sectionH = 76;
   const rowH = 7.5;
   const headerH = 10;
   const dayColW = 24;
@@ -230,9 +230,9 @@ const drawDailyMovementSection = (pdf, reportData) => {
 
 const drawApprovalRateSection = (pdf, reportData) => {
   const x = 152;
-  const y = 58;
+  const y = 145;
   const w = 44;
-  const h = 84;
+  const h = 76;
 
   pdf.setFillColor(11, 163, 31);
   pdf.roundedRect(x, y, w, h, 2, 2, 'F');
@@ -247,31 +247,31 @@ const drawApprovalRateSection = (pdf, reportData) => {
 
   pdf.setDrawColor(255, 204, 51);
   pdf.setFillColor(255, 204, 51);
-  pdf.circle(x + 22, y + 36, 11, 'S');
+  pdf.circle(x + 22, y + 32, 11, 'S');
   pdf.setFillColor(11, 163, 31);
-  pdf.circle(x + 22, y + 36, 7.5, 'F');
+  pdf.circle(x + 22, y + 32, 7.5, 'F');
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(10);
-  pdf.text(reportData.approvalRate || '0%', x + 22, y + 37.5, { align: 'center' });
+  pdf.text(reportData.approvalRate || '0%', x + 22, y + 33.5, { align: 'center' });
 
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(6);
-  pdf.text((reportData.approvalStatusLabel || 'IN REVIEW'), x + 22, y + 44.5, { align: 'center' });
+  pdf.text((reportData.approvalStatusLabel || 'IN REVIEW'), x + 22, y + 40.5, { align: 'center' });
 
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(6.4);
   const approvalNoteLines = pdf.splitTextToSize(reportData.approvalNote || '', w - 12);
   const approvalTrendLines = pdf.splitTextToSize(reportData.approvalTrend || '', w - 12);
-  pdf.text(approvalNoteLines.slice(0, 2), x + 6, y + 57);
-  pdf.text(approvalTrendLines.slice(0, 3), x + 6, y + 67);
+  pdf.text(approvalNoteLines.slice(0, 2), x + 6, y + 51);
+  pdf.text(approvalTrendLines.slice(0, 3), x + 6, y + 61);
 };
 
 const drawFrequentDestinationsSection = (pdf, reportData) => {
   const x = PDF_PAGE.margin;
   const y = 58;
-  const w = 80;
-  const h = 118;
+  const w = PDF_PAGE.width - (PDF_PAGE.margin * 2);
+  const h = 150;
 
   pdf.setDrawColor(226, 233, 223);
   pdf.setFillColor(255, 255, 255);
@@ -286,7 +286,7 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
   const maxCount = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
 
   rows.forEach((row, index) => {
-    const rowY = y + 22 + (index * 19);
+    const rowY = y + 26 + (index * 24);
     pdf.setFillColor(240, 248, 237);
     pdf.circle(x + 10, rowY, 5.5, 'F');
     pdf.setFont('helvetica', 'bold');
@@ -296,43 +296,18 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
 
     pdf.setTextColor(28, 39, 64);
     pdf.setFontSize(7.8);
-    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 50);
+    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 118);
     pdf.text(destinationLines.slice(0, 2), x + 18, rowY - 1);
 
     pdf.setDrawColor(222, 228, 220);
     pdf.setLineWidth(2.5);
-    pdf.line(x + 18, rowY + 6, x + 64, rowY + 6);
+    pdf.line(x + 18, rowY + 6, x + w - 22, rowY + 6);
     pdf.setDrawColor(14, 168, 37);
-    pdf.line(x + 18, rowY + 6, x + 18 + ((Number(row.count || 0) / maxCount) * 46), rowY + 6);
+    pdf.line(x + 18, rowY + 6, x + 18 + ((Number(row.count || 0) / maxCount) * (w - 40)), rowY + 6);
 
     pdf.setFont('helvetica', 'bold');
-    pdf.text(String(row.count || 0), x + 70, rowY - 1, { align: 'right' });
+    pdf.text(String(row.count || 0), x + w - 10, rowY - 1, { align: 'right' });
   });
-};
-
-const drawMonthlyPerformanceSection = (pdf, reportData) => {
-  const x = 98;
-  const y = 58;
-  const w = 98;
-  const h = 40;
-
-  pdf.setDrawColor(226, 233, 223);
-  pdf.setFillColor(255, 255, 255);
-  pdf.roundedRect(x, y, w, h, 2, 2, 'FD');
-
-  pdf.setFont('helvetica', 'bold');
-  pdf.setFontSize(11);
-  pdf.setTextColor(14, 168, 37);
-  pdf.text('Frequent Destination Notes', x + 6, y + 12);
-
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(7.4);
-  pdf.setTextColor(94, 111, 142);
-  const noteLines = pdf.splitTextToSize(
-    'Frequent destinations reflect the most visited approved locations within the selected analytics period.',
-    w - 12,
-  );
-  pdf.text(noteLines.slice(0, 3), x + 6, y + 22);
 };
 
 export const useHrmuAnalytics = () => {
@@ -409,13 +384,12 @@ export const useHrmuAnalytics = () => {
     drawOverviewIntro(pdf);
     drawFilters(pdf, reportData);
     drawMonthlyPerformanceTopSection(pdf, reportData);
+    drawDailyMovementSection(pdf, reportData);
+    drawApprovalRateSection(pdf, reportData);
 
     pdf.addPage();
     await drawHeader(pdf, reportData);
-    drawDailyMovementSection(pdf, reportData);
-    drawApprovalRateSection(pdf, reportData);
     drawFrequentDestinationsSection(pdf, reportData);
-    drawMonthlyPerformanceSection(pdf, reportData);
 
     const monthLabel = monthOptions.find((option) => option.value === appliedFilters.month)?.label || 'analytics';
     const safeMonthLabel = monthLabel.replace(/[^\w-]+/g, '-');
