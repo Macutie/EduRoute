@@ -134,7 +134,7 @@ const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
   const x = PDF_PAGE.margin;
   const y = 96;
   const w = PDF_PAGE.width - (PDF_PAGE.margin * 2);
-  const cardY = y + 12;
+  const cardY = y + 16;
   const cardGap = 4;
   const cardW = 40.5;
   const cardH = 28;
@@ -180,9 +180,12 @@ const drawDailyMovementSection = (pdf, reportData) => {
   const sectionY = 145;
   const leftX = PDF_PAGE.margin;
   const sectionW = 132;
-  const sectionH = 76;
+  const rows = (reportData.dailyRows || []).slice(0, 7);
   const rowH = 7.5;
   const headerH = 10;
+  const contentBottomPadding = 8;
+  const tableY = sectionY + 22;
+  const sectionH = (tableY - sectionY) + headerH + (rows.length * rowH) + contentBottomPadding;
   const dayColW = 24;
 
   pdf.setDrawColor(226, 233, 223);
@@ -203,7 +206,6 @@ const drawDailyMovementSection = (pdf, reportData) => {
     sectionY + 16,
   );
 
-  const tableY = sectionY + 22;
   const countColW = sectionW - dayColW - 12;
   pdf.setFillColor(247, 248, 247);
   pdf.rect(leftX + 6, tableY, dayColW, headerH, 'F');
@@ -215,7 +217,6 @@ const drawDailyMovementSection = (pdf, reportData) => {
   pdf.text('DAY', leftX + 10, tableY + 6.5);
   pdf.text('LOCATOR SLIPS', leftX + 6 + dayColW + 4, tableY + 6.5);
 
-  const rows = (reportData.dailyRows || []).slice(0, 7);
   rows.forEach((row, index) => {
     const y = tableY + headerH + (index * rowH);
     pdf.setDrawColor(234, 239, 229);
@@ -232,7 +233,7 @@ const drawApprovalRateSection = (pdf, reportData) => {
   const x = 152;
   const y = 145;
   const w = 44;
-  const h = 76;
+  const h = 88;
 
   pdf.setFillColor(11, 163, 31);
   pdf.roundedRect(x, y, w, h, 2, 2, 'F');
@@ -268,10 +269,10 @@ const drawApprovalRateSection = (pdf, reportData) => {
 };
 
 const drawFrequentDestinationsSection = (pdf, reportData) => {
-  const x = PDF_PAGE.margin;
+  const w = 128;
+  const x = (PDF_PAGE.width - w) / 2;
   const y = 58;
-  const w = PDF_PAGE.width - (PDF_PAGE.margin * 2);
-  const h = 150;
+  const h = 132;
 
   pdf.setDrawColor(226, 233, 223);
   pdf.setFillColor(255, 255, 255);
@@ -286,27 +287,27 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
   const maxCount = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
 
   rows.forEach((row, index) => {
-    const rowY = y + 26 + (index * 24);
+    const rowY = y + 23 + (index * 21);
     pdf.setFillColor(240, 248, 237);
-    pdf.circle(x + 10, rowY, 5.5, 'F');
+    pdf.circle(x + 10, rowY, 5, 'F');
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(7.5);
+    pdf.setFontSize(7);
     pdf.setTextColor(14, 168, 37);
     pdf.text(String(row.rank || index + 1), x + 10, rowY + 1.5, { align: 'center' });
 
     pdf.setTextColor(28, 39, 64);
-    pdf.setFontSize(7.8);
-    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 118);
-    pdf.text(destinationLines.slice(0, 2), x + 18, rowY - 1);
+    pdf.setFontSize(7.4);
+    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 84);
+    pdf.text(destinationLines.slice(0, 2), x + 17, rowY - 1);
 
     pdf.setDrawColor(222, 228, 220);
     pdf.setLineWidth(2.5);
-    pdf.line(x + 18, rowY + 6, x + w - 22, rowY + 6);
+    pdf.line(x + 17, rowY + 6, x + w - 22, rowY + 6);
     pdf.setDrawColor(14, 168, 37);
-    pdf.line(x + 18, rowY + 6, x + 18 + ((Number(row.count || 0) / maxCount) * (w - 40)), rowY + 6);
+    pdf.line(x + 17, rowY + 6, x + 17 + ((Number(row.count || 0) / maxCount) * (w - 39)), rowY + 6);
 
     pdf.setFont('helvetica', 'bold');
-    pdf.text(String(row.count || 0), x + w - 10, rowY - 1, { align: 'right' });
+    pdf.text(String(row.count || 0), x + w - 9, rowY - 1, { align: 'right' });
   });
 };
 
