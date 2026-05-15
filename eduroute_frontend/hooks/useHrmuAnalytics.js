@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  exportHrmuAnalyticsCsvPlaceholder,
   downloadHrmuAnalyticsPdf,
   getHrmuAnalyticsApprovalRate,
   getHrmuAnalyticsDailyMovement,
@@ -96,12 +95,6 @@ export const useHrmuAnalytics = () => {
     }));
   }, []);
 
-  const exportCsv = useCallback(async () => {
-    const response = await exportHrmuAnalyticsCsvPlaceholder(appliedFilters);
-    setExportMessage(response.message || 'CSV export is not implemented yet.');
-    return response;
-  }, [appliedFilters]);
-
   const exportPdf = useCallback(async () => {
     const response = await downloadHrmuAnalyticsPdf(appliedFilters);
     const objectUrl = window.URL.createObjectURL(response.blob);
@@ -138,7 +131,6 @@ export const useHrmuAnalytics = () => {
     updateFilter,
     applyFilters,
     reload: loadAnalytics,
-    exportCsv,
     exportPdf,
   };
 };
