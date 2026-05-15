@@ -10705,9 +10705,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
-  const analyticsExportRef = useRef(null);
+  const topGridExportRef = useRef(null);
+  const bottomGridExportRef = useRef(null);
   const {
     filters,
+    appliedFilters,
     analytics,
     loading,
     error,
@@ -10782,7 +10784,19 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
   const handleExportPdf = async () => {
     try {
-      await exportPdf(analyticsExportRef.current);
+      await exportPdf({
+        topGridElement: topGridExportRef.current,
+        bottomGridElement: bottomGridExportRef.current,
+        reportData: {
+          dateRangeLabel: analytics?.dateRange?.label || monthOptions.find((option) => option.value === appliedFilters.month)?.label || 'Current Month',
+          departmentLabel: selectedCollegeLabel,
+          totalTrips: numberFormatter.format(monthlySummary.totalTripsCompleted || 0),
+          approvalRate: `${percentFormatter.format(approvalRate.percentage || 0)}%`,
+          approvalNote: `${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`,
+          users: numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0),
+          usersNote: `${percentFormatter.format(monthlySummary.engagementRatePercent || 0)}% engaged`,
+        },
+      });
     } catch (requestError) {
       console.error('PDF export failed:', requestError);
     }
@@ -10790,7 +10804,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
   return (
     <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
-      <div ref={analyticsExportRef} className="hrmu-analytics-export-surface">
+      <div className="hrmu-analytics-export-surface">
         <section className="hrmu-analytics-hero">
           <div className="hrmu-analytics-copy">
             <span className="hrmu-analytics-tag">RECEIVED FROM CSSU</span>
@@ -10846,7 +10860,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           </div>
         )}
 
-        <section className="hrmu-analytics-top-grid">
+        <section ref={topGridExportRef} className="hrmu-analytics-top-grid">
           <article className="hrmu-analytics-chart-card">
             <div className="hrmu-analytics-panel-head">
               <div>
@@ -10899,7 +10913,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           </article>
         </section>
 
-        <section className="hrmu-analytics-bottom-grid">
+        <section ref={bottomGridExportRef} className="hrmu-analytics-bottom-grid">
           <article className="hrmu-analytics-destinations-card">
             <h2>Frequent Destinations</h2>
             <div className="hrmu-analytics-destination-list">
