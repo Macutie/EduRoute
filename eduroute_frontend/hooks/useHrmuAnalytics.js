@@ -165,6 +165,52 @@ const drawSummaryCards = (pdf, { totalTrips, approvalRate, approvalNote, users, 
   });
 };
 
+const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
+  const x = PDF_PAGE.margin;
+  const y = 126;
+  const w = PDF_PAGE.width - (PDF_PAGE.margin * 2);
+  const cardY = y + 12;
+  const cardGap = 4;
+  const cardW = 40.5;
+  const cardH = 28;
+
+  pdf.setFont('helvetica', 'bold');
+  pdf.setFontSize(11);
+  pdf.setTextColor(14, 168, 37);
+  pdf.text('Monthly Performance Summary', x, y);
+
+  (reportData.summaryCards || []).slice(0, 4).forEach((card, index) => {
+    const cardX = x + (index * (cardW + cardGap));
+    const accentMap = {
+      green: [14, 168, 37],
+      yellow: [255, 204, 51],
+      dark: [109, 117, 130],
+    };
+    const accent = accentMap[card.tone] || accentMap.green;
+
+    pdf.setFillColor(247, 248, 247);
+    pdf.roundedRect(cardX, cardY, cardW, cardH, 1.5, 1.5, 'F');
+    pdf.setFillColor(...accent);
+    pdf.rect(cardX, cardY, 1.2, cardH, 'F');
+
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(5.8);
+    pdf.setTextColor(125, 137, 156);
+    pdf.text(String(card.label || ''), cardX + 3.5, cardY + 6, { maxWidth: cardW - 5 });
+
+    pdf.setFontSize(9.5);
+    pdf.setTextColor(28, 39, 64);
+    const valueLines = pdf.splitTextToSize(String(card.value || '--'), cardW - 5);
+    pdf.text(valueLines.slice(0, 2), cardX + 3.5, cardY + 14);
+
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(5.8);
+    pdf.setTextColor(94, 111, 142);
+    const noteLines = pdf.splitTextToSize(String(card.note || ''), cardW - 5);
+    pdf.text(noteLines.slice(0, 2), cardX + 3.5, cardY + 23);
+  });
+};
+
 const drawDailyMovementSection = (pdf, reportData) => {
   const sectionY = 126;
   const leftX = PDF_PAGE.margin;
@@ -260,7 +306,7 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
   const x = PDF_PAGE.margin;
   const y = 58;
   const w = 80;
-  const h = 126;
+  const h = 118;
 
   pdf.setDrawColor(226, 233, 223);
   pdf.setFillColor(255, 255, 255);
@@ -303,10 +349,7 @@ const drawMonthlyPerformanceSection = (pdf, reportData) => {
   const x = 98;
   const y = 58;
   const w = 98;
-  const h = 126;
-  const cardW = 21;
-  const cardH = 34;
-  const cardGap = 3;
+  const h = 118;
 
   pdf.setDrawColor(226, 233, 223);
   pdf.setFillColor(255, 255, 255);
@@ -315,44 +358,12 @@ const drawMonthlyPerformanceSection = (pdf, reportData) => {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(11);
   pdf.setTextColor(14, 168, 37);
-  pdf.text('Monthly Performance Summary', x + 6, y + 12);
-
-  (reportData.summaryCards || []).slice(0, 4).forEach((card, index) => {
-    const cardX = x + 6 + (index * (cardW + cardGap));
-    const cardY = y + 18;
-    const accentMap = {
-      green: [14, 168, 37],
-      yellow: [255, 204, 51],
-      dark: [109, 117, 130],
-    };
-    const accent = accentMap[card.tone] || accentMap.green;
-
-    pdf.setFillColor(247, 248, 247);
-    pdf.roundedRect(cardX, cardY, cardW, cardH, 1.5, 1.5, 'F');
-    pdf.setFillColor(...accent);
-    pdf.rect(cardX, cardY, 1.2, cardH, 'F');
-
-    pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(5.6);
-    pdf.setTextColor(125, 137, 156);
-    pdf.text(String(card.label || ''), cardX + 3.5, cardY + 6, { maxWidth: cardW - 5 });
-
-    pdf.setFontSize(7.8);
-    pdf.setTextColor(28, 39, 64);
-    const valueLines = pdf.splitTextToSize(String(card.value || '--'), cardW - 5);
-    pdf.text(valueLines.slice(0, 3), cardX + 3.5, cardY + 14);
-
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(5.4);
-    pdf.setTextColor(94, 111, 142);
-    const noteLines = pdf.splitTextToSize(String(card.note || ''), cardW - 5);
-    pdf.text(noteLines.slice(0, 3), cardX + 3.5, cardY + 25);
-  });
+  pdf.text('Current Milestone', x + 6, y + 12);
 
   pdf.setDrawColor(234, 239, 229);
-  pdf.line(x + 6, y + 65, x + w - 6, y + 65);
+  pdf.line(x + 6, y + 28, x + w - 6, y + 28);
 
-  const milestoneY = y + 86;
+  const milestoneY = y + 56;
   const milestoneStartX = x + 10;
   const currentStep = Number(reportData.currentMilestoneStep || 3);
   for (let index = 0; index < 5; index += 1) {
@@ -386,12 +397,12 @@ const drawMonthlyPerformanceSection = (pdf, reportData) => {
   pdf.setFont('helvetica', 'bold');
   pdf.setFontSize(7);
   pdf.setTextColor(14, 168, 37);
-  pdf.text('CURRENT MILESTONE', x + 60, y + 83);
+  pdf.text('CURRENT MILESTONE', x + 60, y + 50);
 
   pdf.setFontSize(8.5);
   pdf.setTextColor(28, 39, 64);
   const milestoneLines = pdf.splitTextToSize(String(reportData.currentMilestoneLabel || 'HRMU Verification Finalized'), 32);
-  pdf.text(milestoneLines, x + 60, y + 91);
+  pdf.text(milestoneLines, x + 60, y + 58);
 };
 
 export const useHrmuAnalytics = () => {
@@ -468,11 +479,12 @@ export const useHrmuAnalytics = () => {
     drawOverviewIntro(pdf);
     drawFilters(pdf, reportData);
     drawSummaryCards(pdf, reportData);
-    drawDailyMovementSection(pdf, reportData);
-    drawApprovalRateSection(pdf, reportData);
+    drawMonthlyPerformanceTopSection(pdf, reportData);
 
     pdf.addPage();
     await drawHeader(pdf, reportData);
+    drawDailyMovementSection(pdf, reportData);
+    drawApprovalRateSection(pdf, reportData);
     drawFrequentDestinationsSection(pdf, reportData);
     drawMonthlyPerformanceSection(pdf, reportData);
 
