@@ -10705,8 +10705,6 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
-  const topGridExportRef = useRef(null);
-  const bottomGridExportRef = useRef(null);
   const {
     filters,
     appliedFilters,
@@ -10785,16 +10783,27 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
   const handleExportPdf = async () => {
     try {
       await exportPdf({
-        topGridElement: topGridExportRef.current,
-        bottomGridElement: bottomGridExportRef.current,
         reportData: {
           dateRangeLabel: analytics?.dateRange?.label || monthOptions.find((option) => option.value === appliedFilters.month)?.label || 'Current Month',
           departmentLabel: selectedCollegeLabel,
           totalTrips: numberFormatter.format(monthlySummary.totalTripsCompleted || 0),
           approvalRate: `${percentFormatter.format(approvalRate.percentage || 0)}%`,
           approvalNote: `${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`,
+          approvalTrend: `${weeklyDirectionSymbol} ${percentFormatter.format(approvalRate.weeklyChangePercent || 0)}% ${weeklyDirectionLabel} from last period`,
+          approvalStatusLabel: (approvalRate.percentage || 0) >= 50 ? 'SUCCESS' : 'IN REVIEW',
           users: numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0),
           usersNote: `${percentFormatter.format(monthlySummary.engagementRatePercent || 0)}% engaged`,
+          dailyMovementSubtitle: selectedCollegeLabel === 'All Departments'
+            ? 'Tracking locator slip volume across the five HRMU colleges'
+            : `Tracking locator slip volume for ${selectedCollegeLabel}`,
+          dailyRows: chartLabels.map((label, index) => ({
+            label,
+            value: Number(chartValues[index] || 0),
+          })),
+          frequentDestinations,
+          summaryCards,
+          currentMilestoneStep: 3,
+          currentMilestoneLabel: 'HRMU Verification Finalized',
         },
       });
     } catch (requestError) {
@@ -10860,7 +10869,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           </div>
         )}
 
-        <section ref={topGridExportRef} className="hrmu-analytics-top-grid">
+        <section className="hrmu-analytics-top-grid">
           <article className="hrmu-analytics-chart-card">
             <div className="hrmu-analytics-panel-head">
               <div>
@@ -10913,7 +10922,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           </article>
         </section>
 
-        <section ref={bottomGridExportRef} className="hrmu-analytics-bottom-grid">
+        <section className="hrmu-analytics-bottom-grid">
           <article className="hrmu-analytics-destinations-card">
             <h2>Frequent Destinations</h2>
             <div className="hrmu-analytics-destination-list">
