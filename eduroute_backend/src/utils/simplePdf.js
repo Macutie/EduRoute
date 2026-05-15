@@ -1080,8 +1080,8 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
 
     const drawFrequentDestinationsCard = (page, y) => {
         const cardX = PAGE.marginX;
-        const cardWidth = 230;
-        const cardHeight = 308;
+        const cardWidth = PAGE.width - PAGE.marginX * 2;
+        const cardHeight = 286;
         const topCount = destinations[0]?.count || 1;
 
         page.drawRectangle({
@@ -1115,7 +1115,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
         }
 
         destinations.forEach((row, index) => {
-            const rowY = y - 74 - index * 46;
+            const rowY = y - 74 - index * 42;
             const badgeX = cardX + 18;
 
             page.drawCircle({
@@ -1134,7 +1134,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
             drawWrappedText(page, fonts.bold, row.label, {
                 x: cardX + 48,
                 y: rowY + 10,
-                width: cardWidth - 86,
+                width: cardWidth - 110,
                 size: 9.5,
                 color: colorize(COLORS.ink),
                 lineGap: 1,
@@ -1142,7 +1142,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
 
             const trackX = cardX + 48;
             const trackY = rowY - 10;
-            const trackWidth = cardWidth - 92;
+            const trackWidth = cardWidth - 110;
             const fillWidth = Math.max((Number(row.count || 0) / topCount) * trackWidth, 12);
 
             page.drawRectangle({
@@ -1173,7 +1173,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
 
     const drawMonthlySummaryCard = (page, x, y) => {
         const cardWidth = PAGE.width - PAGE.marginX - x;
-        const cardHeight = 308;
+        const cardHeight = 146;
 
         page.drawRectangle({
             x,
@@ -1220,24 +1220,24 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
             },
         ];
 
-        const gridGap = 12;
+        const gridGap = 10;
         const miniWidth = (cardWidth - 36 - gridGap * 3) / 4;
-        const gridY = y - 54;
+        const gridY = y - 40;
 
         cards.forEach((card, index) => {
             const cardX = x + 18 + index * (miniWidth + gridGap);
             page.drawRectangle({
                 x: cardX,
-                y: gridY - 102,
+                y: gridY - 82,
                 width: miniWidth,
-                height: 102,
+                height: 82,
                 color: colorize(COLORS.cardFill),
             });
             page.drawRectangle({
                 x: cardX,
-                y: gridY - 102,
+                y: gridY - 82,
                 width: 4,
-                height: 102,
+                height: 82,
                 color: colorize(card.accent),
             });
             page.drawText(card.label, {
@@ -1249,63 +1249,20 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
             });
             drawWrappedText(page, fonts.bold, card.value, {
                 x: cardX + 10,
-                y: gridY - 42,
+                y: gridY - 38,
                 width: miniWidth - 20,
-                size: 15,
+                size: 14,
                 color: colorize(COLORS.ink),
                 lineGap: 1,
             });
             drawWrappedText(page, fonts.regular, card.note, {
                 x: cardX + 10,
-                y: gridY - 74,
+                y: gridY - 62,
                 width: miniWidth - 20,
-                size: 8.5,
+                size: 8,
                 color: colorize(COLORS.ink),
                 lineGap: 2,
             });
-        });
-
-        const milestoneY = y - 190;
-        page.drawLine({
-            start: { x: x + 42, y: milestoneY },
-            end: { x: x + 210, y: milestoneY },
-            thickness: 3,
-            color: colorize(COLORS.border),
-        });
-        [1, 2, 3, 4, 5].forEach((step, index) => {
-            const cx = x + 42 + index * 42;
-            const filled = step < 4;
-            const current = step === 3;
-            page.drawCircle({
-                x: cx,
-                y: milestoneY,
-                size: 14,
-                color: colorize(filled ? COLORS.green : COLORS.border),
-                borderColor: colorize(current ? COLORS.green : filled ? COLORS.green : COLORS.border),
-                borderWidth: current ? 2 : 1,
-            });
-            page.drawText(String(step), {
-                x: cx - 3,
-                y: milestoneY - 4,
-                size: 9,
-                font: fonts.bold,
-                color: colorize(current ? COLORS.greenText : filled ? COLORS.white : COLORS.ink),
-            });
-        });
-
-        page.drawText('CURRENT MILESTONE', {
-            x: x + 240,
-            y: milestoneY + 10,
-            size: 8.5,
-            font: fonts.bold,
-            color: colorize(COLORS.green),
-        });
-        page.drawText('HRMU Verification Finalized', {
-            x: x + 240,
-            y: milestoneY - 10,
-            size: 11,
-            font: fonts.bold,
-            color: colorize(COLORS.ink),
         });
 
         return cardHeight;
@@ -1332,16 +1289,14 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
     });
 
     y = drawFilterCard(page, y - 58);
-    y = drawTopSummaryCards(page, y);
-
-    const topChartY = y;
+    const monthlySummaryHeight = drawMonthlySummaryCard(page, PAGE.marginX, y);
+    const topChartY = y - monthlySummaryHeight - 22;
     const chartMetrics = drawDailyMovementCard(page, topChartY);
     drawApprovalRateCard(page, PAGE.marginX + chartMetrics.cardWidth + 20, topChartY);
 
     page = pdfDoc.addPage([PAGE.width, PAGE.height]);
     y = drawAnalyticsHeader(page);
-    const destinationMetrics = drawFrequentDestinationsCard(page, y);
-    drawMonthlySummaryCard(page, PAGE.marginX + destinationMetrics.cardWidth + 20, y);
+    drawFrequentDestinationsCard(page, y);
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
