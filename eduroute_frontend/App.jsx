@@ -10715,7 +10715,6 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
     monthOptions,
     updateFilter,
     applyFilters,
-    exportCsv,
     exportPdf,
   } = useHrmuAnalytics();
 
@@ -10780,19 +10779,11 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
     },
   ];
 
-  const handleExportCsv = async () => {
-    try {
-      await exportCsv();
-    } catch (requestError) {
-      console.error('CSV export placeholder failed:', requestError);
-    }
-  };
-
   const handleExportPdf = async () => {
     try {
       await exportPdf();
     } catch (requestError) {
-      console.error('PDF export placeholder failed:', requestError);
+      console.error('PDF export failed:', requestError);
     }
   };
 
@@ -10805,10 +10796,6 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
           <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
         </div>
         <div className="hrmu-analytics-actions">
-          <button type="button" className="hrmu-analytics-export ghost" onClick={handleExportCsv}>
-            <HrmuExportIcon color="#5F645F" />
-            <span>CSV</span>
-          </button>
           <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf}>
             <HrmuReportIcon color="white" />
             <span>Export PDF</span>

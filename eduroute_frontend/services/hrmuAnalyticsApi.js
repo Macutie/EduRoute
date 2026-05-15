@@ -47,5 +47,37 @@ export const getHrmuAnalyticsMonthlySummary = (params = {}) =>
 export const exportHrmuAnalyticsCsvPlaceholder = (params = {}) =>
   request('/api/hrmu/analytics/export-csv', params);
 
-export const exportHrmuAnalyticsPdfPlaceholder = (params = {}) =>
-  request('/api/hrmu/analytics/export-pdf', params);
+export const downloadHrmuAnalyticsPdf = async (params = {}) => {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, value);
+    }
+  });
+
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/hrmu/analytics/export-pdf?${searchParams.toString()}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    let message = 'HRMU analytics PDF export failed';
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch (error) {
+      // ignore JSON parsing failure for binary responses
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename=\"([^\"]+)\"/i);
+
+  return {
+    blob,
+    filename: match?.[1] || 'eduroute-hrmu-analytics.pdf',
+  };
+};

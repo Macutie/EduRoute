@@ -62,8 +62,11 @@ const exportCsv = async (req, res, next) => {
 
 const exportPdf = async (req, res, next) => {
     try {
-        const placeholder = await hrmuAnalyticsService.getExportPlaceholder(req.user.sub, 'pdf');
-        return res.json(successResponse('HRMU analytics PDF placeholder returned successfully.', placeholder));
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const result = await hrmuAnalyticsService.getAnalyticsExportPdf(req.user.sub, req.query);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+        return res.send(result.buffer);
     } catch (error) {
         return next(error);
     }

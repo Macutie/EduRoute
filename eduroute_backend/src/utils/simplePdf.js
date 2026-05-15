@@ -488,7 +488,7 @@ const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
     return y - cardHeight;
 };
 
-const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
+const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }, proofImages = []) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -637,6 +637,379 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
             cursorY -= rowHeight;
         });
     }
+
+    if (proofImages && proofImages.length > 0) {
+        for (const proofImage of proofImages) {
+            try {
+                const isPng = proofImage.buffer[0] === 0x89 && proofImage.buffer[1] === 0x50;
+                const embeddedImage = isPng 
+                    ? await pdfDoc.embedPng(proofImage.buffer) 
+                    : await pdfDoc.embedJpg(proofImage.buffer);
+                
+                const dims = embeddedImage.scale(1);
+                const proofPage = pdfDoc.addPage([dims.width, dims.height]);
+                proofPage.drawImage(embeddedImage, {
+                    x: 0,
+                    y: 0,
+                    width: dims.width,
+                    height: dims.height,
+                });
+            } catch (err) {
+                // Ignore embedding errors
+            }
+        }
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+};
+
+const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
+    let PDFDocument;
+    let StandardFonts;
+    let rgb;
+
+    try {
+        ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+    } catch (error) {
+        error.message = 'HRMU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        throw error;
+    }
+
+    const colorize = (tuple) => rgb(tuple[0], tuple[1], tuple[2]);
+    const pdfDoc = await PDFDocument.create();
+    const fonts = {
+        regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+        bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+    };
+
+    const logoBytes = loadLogoBytes();
+    let logoImage = null;
+    if (logoBytes) {
+        const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
+        logoImage = isPng ? await pdfDoc.embedPng(logoBytes) : await pdfDoc.embedJpg(logoBytes);
+    }
+
+    const page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+    const topY = PAGE.height - PAGE.marginTop;
+    const brandBoxSize = 48;
+    const brandBoxX = PAGE.marginX;
+    const brandBoxY = topY - brandBoxSize;
+    const textX = brandBoxX + brandBoxSize + 14;
+
+    page.drawRectangle({
+        x: brandBoxX,
+        y: brandBoxY,
+        width: brandBoxSize,
+        height: brandBoxSize,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+    });
+
+    if (logoImage) {
+        page.drawImage(logoImage, {
+            x: brandBoxX + 4,
+            y: brandBoxY + 4,
+            width: brandBoxSize - 8,
+            height: brandBoxSize - 8,
+        });
+    }
+
+    page.drawText('EduRoute HRMU', {
+        x: textX,
+        y: topY - 14,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.green),
+    });
+    page.drawText('ANALYTICS & REPORTING', {
+        x: textX,
+        y: topY - 34,
+        size: 15,
+        font: fonts.regular,
+        color: colorize(COLORS.ink),
+    });
+
+    const rightMetaX = PAGE.width - PAGE.marginX - 152;
+    page.drawText('OFFICIAL DOCUMENT', {
+        x: rightMetaX,
+        y: topY - 10,
+        size: 10,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+    page.drawText(`Coverage: ${analytics?.dateRange?.label || 'Current Month'}`, {
+        x: rightMetaX,
+        y: topY - 26,
+        size: 8.5,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+    page.drawText(`Department: ${filters.collegeName || analytics?.selectedCollege || 'All Departments'}`, {
+        x: rightMetaX,
+        y: topY - 40,
+        size: 8.5,
+        font: fonts.regular,
+        color: colorize(COLORS.muted),
+    });
+
+    page.drawLine({
+        start: { x: PAGE.marginX, y: topY - 62 },
+        end: { x: PAGE.width - PAGE.marginX, y: topY - 62 },
+        thickness: 3,
+        color: colorize(COLORS.green),
+    });
+
+    let y = topY - 96;
+    page.drawText('Analytics & Reporting Overview', {
+        x: PAGE.marginX,
+        y,
+        size: 17,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+    y -= 22;
+    drawWrappedText(page, fonts.regular, 'Advanced insights into faculty movement and departmental flow across campus transit routes.', {
+        x: PAGE.marginX,
+        y,
+        width: PAGE.width - PAGE.marginX * 2,
+        size: 10,
+        color: colorize(COLORS.muted),
+        lineGap: 3,
+    });
+
+    y -= 44;
+    const summaryCards = [
+        {
+            label: 'TOTAL TRIPS',
+            value: String(analytics?.monthlyPerformanceSummary?.totalTripsCompleted || 0),
+            note: `${analytics?.monthlyPerformanceSummary?.tripsMonthOverMonthDirection === 'decrease' ? 'v' : analytics?.monthlyPerformanceSummary?.tripsMonthOverMonthDirection === 'increase' ? '^' : '-'} ${Number(analytics?.monthlyPerformanceSummary?.tripsMonthOverMonthPercent || 0).toFixed(1)}% MoM`,
+            accent: COLORS.green,
+        },
+        {
+            label: 'APPROVAL RATE',
+            value: `${Number(analytics?.approvalRate?.percentage || 0).toFixed(1)}%`,
+            note: `${analytics?.approvalRate?.approvedCount || 0} approved / ${analytics?.approvalRate?.totalFiledCount || 0} filed`,
+            accent: COLORS.yellow,
+        },
+        {
+            label: 'USERS',
+            value: String(analytics?.monthlyPerformanceSummary?.uniqueUsersCompletedTrips || 0),
+            note: `${Number(analytics?.monthlyPerformanceSummary?.engagementRatePercent || 0).toFixed(1)}% engaged`,
+            accent: COLORS.green,
+        },
+    ];
+
+    const cardGap = 18;
+    const cardWidth = (PAGE.width - PAGE.marginX * 2 - cardGap * 2) / 3;
+    summaryCards.forEach((card, index) => {
+        const x = PAGE.marginX + index * (cardWidth + cardGap);
+        page.drawRectangle({
+            x,
+            y: y - 78,
+            width: cardWidth,
+            height: 78,
+            color: colorize(COLORS.cardFill),
+        });
+        page.drawRectangle({
+            x,
+            y: y - 78,
+            width: 4,
+            height: 78,
+            color: colorize(card.accent),
+        });
+        page.drawText(card.label, {
+            x: x + 12,
+            y: y - 18,
+            size: 9,
+            font: fonts.bold,
+            color: colorize(COLORS.muted),
+        });
+        page.drawText(card.value, {
+            x: x + 12,
+            y: y - 42,
+            size: 15,
+            font: fonts.bold,
+            color: colorize(COLORS.ink),
+        });
+        drawWrappedText(page, fonts.regular, card.note, {
+            x: x + 12,
+            y: y - 58,
+            width: cardWidth - 24,
+            size: 8.5,
+            color: colorize(COLORS.muted),
+            lineGap: 2,
+        });
+    });
+
+    y -= 108;
+    page.drawText('Daily Faculty Movement', {
+        x: PAGE.marginX,
+        y,
+        size: 14,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+    page.drawText('Frequent Destinations', {
+        x: PAGE.marginX + 300,
+        y,
+        size: 14,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+
+    y -= 14;
+    const chartX = PAGE.marginX;
+    const chartY = y - 145;
+    const chartWidth = 250;
+    const chartHeight = 130;
+    page.drawRectangle({
+        x: chartX,
+        y: chartY,
+        width: chartWidth,
+        height: chartHeight,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+    });
+
+    const labels = analytics?.dailyFacultyMovement?.labels || [];
+    const values = analytics?.dailyFacultyMovement?.values || [];
+    const maxValue = values.length ? Math.max(...values, 1) : 1;
+    const barAreaHeight = 86;
+    const barWidth = labels.length ? Math.min(20, (chartWidth - 30) / labels.length - 10) : 20;
+    labels.forEach((label, index) => {
+        const value = Number(values[index] || 0);
+        const height = maxValue ? Math.max((value / maxValue) * barAreaHeight, value > 0 ? 10 : 2) : 2;
+        const x = chartX + 16 + index * ((chartWidth - 30) / Math.max(labels.length, 1));
+        page.drawRectangle({
+            x,
+            y: chartY + 26,
+            width: barWidth,
+            height,
+            color: colorize(COLORS.green),
+        });
+        page.drawText(label, {
+            x: x - 2,
+            y: chartY + 10,
+            size: 7,
+            font: fonts.bold,
+            color: colorize(COLORS.muted),
+        });
+    });
+
+    const destinationsX = PAGE.marginX + 300;
+    const destinationsWidth = PAGE.width - PAGE.marginX - destinationsX;
+    page.drawRectangle({
+        x: destinationsX,
+        y: chartY,
+        width: destinationsWidth,
+        height: chartHeight,
+        color: colorize(COLORS.white),
+        borderColor: colorize(COLORS.border),
+        borderWidth: 1,
+    });
+
+    const destinationRows = Array.isArray(analytics?.frequentDestinations) ? analytics.frequentDestinations.slice(0, 5) : [];
+    const topCount = destinationRows[0]?.count || 1;
+    destinationRows.forEach((row, index) => {
+        const rowY = chartY + chartHeight - 26 - index * 22;
+        const barWidthValue = Math.max(((Number(row.count || 0) / topCount) * (destinationsWidth - 120)), 10);
+        page.drawText(`${row.rank}. ${row.label}`, {
+            x: destinationsX + 12,
+            y: rowY,
+            size: 8.5,
+            font: fonts.regular,
+            color: colorize(COLORS.ink),
+        });
+        page.drawRectangle({
+            x: destinationsX + 90,
+            y: rowY - 2,
+            width: barWidthValue,
+            height: 8,
+            color: colorize(COLORS.greenSoft),
+        });
+        page.drawRectangle({
+            x: destinationsX + 90,
+            y: rowY - 2,
+            width: Math.max(barWidthValue - 2, 2),
+            height: 8,
+            color: colorize(COLORS.green),
+        });
+        page.drawText(String(row.count || 0), {
+            x: destinationsX + destinationsWidth - 24,
+            y: rowY,
+            size: 8.5,
+            font: fonts.bold,
+            color: colorize(COLORS.greenText),
+        });
+    });
+
+    y = chartY - 28;
+    page.drawText('Monthly Performance Summary', {
+        x: PAGE.marginX,
+        y,
+        size: 14,
+        font: fonts.bold,
+        color: colorize(COLORS.ink),
+    });
+    y -= 18;
+
+    const bottomCards = [
+        {
+            label: 'AVG. DISTANCE',
+            value: `${Number(analytics?.monthlyPerformanceSummary?.averageDistanceKm || 0).toFixed(1)} km`,
+            note: analytics?.monthlyPerformanceSummary?.averageDistanceLabel || 'Optimized',
+            accent: COLORS.yellow,
+        },
+        {
+            label: 'PEAK HOUR',
+            value: analytics?.monthlyPerformanceSummary?.peakHour || '--',
+            note: analytics?.monthlyPerformanceSummary?.peakHourLabel || 'No peak hour',
+            accent: COLORS.green,
+        },
+    ];
+
+    bottomCards.forEach((card, index) => {
+        const x = PAGE.marginX + index * ((PAGE.width - PAGE.marginX * 2 - 16) / 2 + 16);
+        const width = (PAGE.width - PAGE.marginX * 2 - 16) / 2;
+        page.drawRectangle({
+            x,
+            y: y - 64,
+            width,
+            height: 64,
+            color: colorize(COLORS.cardFill),
+        });
+        page.drawRectangle({
+            x,
+            y: y - 64,
+            width: 4,
+            height: 64,
+            color: colorize(card.accent),
+        });
+        page.drawText(card.label, {
+            x: x + 12,
+            y: y - 18,
+            size: 9,
+            font: fonts.bold,
+            color: colorize(COLORS.muted),
+        });
+        page.drawText(card.value, {
+            x: x + 12,
+            y: y - 40,
+            size: 14,
+            font: fonts.bold,
+            color: colorize(COLORS.ink),
+        });
+        page.drawText(card.note, {
+            x: x + 12,
+            y: y - 54,
+            size: 8,
+            font: fonts.regular,
+            color: colorize(COLORS.muted),
+        });
+    });
 
     const pdfBytes = await pdfDoc.save();
     return Buffer.from(pdfBytes);
@@ -863,5 +1236,6 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
 
 module.exports = {
     buildHrmuMonthlyReportPdf,
+    buildHrmuAnalyticsReportPdf,
     buildCssuMovementReportPdf,
 };

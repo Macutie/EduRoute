@@ -3,6 +3,7 @@ const { getMonthDateRange } = require('../utils/dateRange');
 const { groupFrequentDestinations } = require('../utils/destinationNormalizer');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuAnalyticsRepository = require('../repositories/hrmuAnalytics.repository');
+const { buildHrmuAnalyticsReportPdf } = require('../utils/simplePdf');
 
 const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
@@ -319,6 +320,19 @@ const getExportPlaceholder = async (userId, format) => {
     };
 };
 
+const getAnalyticsExportPdf = async (userId, query = {}) => {
+    await assertAnalyticsAccess(userId);
+    const analytics = await getOverview(query);
+    const monthValue = String(query.month || '').padStart(2, '0') || '00';
+    const yearValue = String(query.year || new Date().getUTCFullYear());
+    const buffer = await buildHrmuAnalyticsReportPdf(analytics, query);
+
+    return {
+        buffer,
+        filename: `eduroute-hrmu-analytics-${yearValue}-${monthValue}.pdf`,
+    };
+};
+
 module.exports = {
     assertAnalyticsAccess,
     buildAnalyticsContext,
@@ -327,5 +341,6 @@ module.exports = {
     getApprovalRate,
     getFrequentDestinations,
     getMonthlySummary,
-    getExportPlaceholder
+    getExportPlaceholder,
+    getAnalyticsExportPdf
 };

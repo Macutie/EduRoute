@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   exportHrmuAnalyticsCsvPlaceholder,
-  exportHrmuAnalyticsPdfPlaceholder,
+  downloadHrmuAnalyticsPdf,
   getHrmuAnalyticsApprovalRate,
   getHrmuAnalyticsDailyMovement,
   getHrmuAnalyticsOverview,
@@ -103,8 +103,16 @@ export const useHrmuAnalytics = () => {
   }, [appliedFilters]);
 
   const exportPdf = useCallback(async () => {
-    const response = await exportHrmuAnalyticsPdfPlaceholder(appliedFilters);
-    setExportMessage(response.message || 'PDF export is not implemented yet.');
+    const response = await downloadHrmuAnalyticsPdf(appliedFilters);
+    const objectUrl = window.URL.createObjectURL(response.blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = response.filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(objectUrl);
+    setExportMessage('Analytics PDF downloaded successfully.');
     return response;
   }, [appliedFilters]);
 
