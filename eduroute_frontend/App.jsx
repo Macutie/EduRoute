@@ -10705,6 +10705,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
+  const analyticsExportRef = useRef(null);
   const {
     filters,
     analytics,
@@ -10781,7 +10782,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
   const handleExportPdf = async () => {
     try {
-      await exportPdf();
+      await exportPdf(analyticsExportRef.current);
     } catch (requestError) {
       console.error('PDF export failed:', requestError);
     }
@@ -10789,168 +10790,170 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
   return (
     <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-analytics-hero">
-        <div className="hrmu-analytics-copy">
-          <span className="hrmu-analytics-tag">RECEIVED FROM CSSU</span>
-          <h1>Analytics &amp; Reporting</h1>
-          <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
-        </div>
-        <div className="hrmu-analytics-actions">
-          <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf}>
-            <HrmuReportIcon color="white" />
-            <span>Export PDF</span>
+      <div ref={analyticsExportRef} className="hrmu-analytics-export-surface">
+        <section className="hrmu-analytics-hero">
+          <div className="hrmu-analytics-copy">
+            <span className="hrmu-analytics-tag">RECEIVED FROM CSSU</span>
+            <h1>Analytics &amp; Reporting</h1>
+            <p>Advanced insights into faculty movement and departmental flow across campus transit routes.</p>
+          </div>
+          <div className="hrmu-analytics-actions" data-html2canvas-ignore="true">
+            <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf}>
+              <HrmuReportIcon color="white" />
+              <span>Export PDF</span>
+            </button>
+          </div>
+        </section>
+
+        <section className="hrmu-analytics-filter-card">
+          <div className="hrmu-analytics-filter-group">
+            <span>DATE RANGE</span>
+            <select
+              className="hrmu-analytics-select hrmu-analytics-select-input"
+              value={filters.month}
+              onChange={(event) => updateFilter('month', event.target.value)}
+            >
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="hrmu-analytics-filter-group">
+            <span>DEPARTMENT</span>
+            <select
+              className="hrmu-analytics-select hrmu-analytics-select-input"
+              value={filters.collegeName}
+              onChange={(event) => updateFilter('collegeName', event.target.value)}
+            >
+              {departmentOptions.map((option) => (
+                <option key={option.value || 'all'} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters}>
+            Apply Filters
           </button>
-        </div>
-      </section>
+        </section>
 
-      <section className="hrmu-analytics-filter-card">
-        <div className="hrmu-analytics-filter-group">
-          <span>DATE RANGE</span>
-          <select
-            className="hrmu-analytics-select hrmu-analytics-select-input"
-            value={filters.month}
-            onChange={(event) => updateFilter('month', event.target.value)}
-          >
-            {monthOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="hrmu-analytics-filter-group">
-          <span>DEPARTMENT</span>
-          <select
-            className="hrmu-analytics-select hrmu-analytics-select-input"
-            value={filters.collegeName}
-            onChange={(event) => updateFilter('collegeName', event.target.value)}
-          >
-            {departmentOptions.map((option) => (
-              <option key={option.value || 'all'} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters}>
-          Apply Filters
-        </button>
-      </section>
-
-      {(error || exportMessage) && (
-        <div className="hrmu-analytics-feedback">
-          {error ? <span>{error}</span> : null}
-          {exportMessage ? <span>{exportMessage}</span> : null}
-        </div>
-      )}
-
-      <section className="hrmu-analytics-top-grid">
-        <article className="hrmu-analytics-chart-card">
-          <div className="hrmu-analytics-panel-head">
-            <div>
-              <h2>Daily Faculty Movement</h2>
-              <p>
-                {selectedCollegeLabel === 'All Departments'
-                  ? 'Tracking locator slip volume across the five HRMU colleges'
-                  : `Tracking locator slip volume for ${selectedCollegeLabel}`}
-              </p>
-            </div>
-            <div className="hrmu-analytics-legend">
-              <span className="departures">Locator Slips</span>
-              <span className="arrivals">{analytics?.dateRange?.label || 'Current Month'}</span>
-            </div>
+        {(error || exportMessage) && (
+          <div className="hrmu-analytics-feedback" data-html2canvas-ignore="true">
+            {error ? <span>{error}</span> : null}
+            {exportMessage ? <span>{exportMessage}</span> : null}
           </div>
-          {loading ? (
-            <div className="hrmu-analytics-loading">Loading analytics...</div>
-          ) : (
-            <div className="hrmu-analytics-chart">
-              {chartLabels.map((label, index) => {
-                const currentValue = Number(chartValues[index] || 0);
-                const height = maxChartValue > 0 ? Math.max((currentValue / maxChartValue) * 100, 12) : 12;
+        )}
 
-                return (
-                  <div key={label} className="hrmu-analytics-chart-col">
-                    <div className="hrmu-analytics-bar" style={{ height: `${height}%` }} title={`${label}: ${currentValue}`} />
-                    <span>{label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </article>
-
-        <article className="hrmu-analytics-rate-card">
-          <h2>Approval Rate</h2>
-          <p>Request vs Approval efficiency</p>
-          <div className="hrmu-analytics-ring">
-            <div>
-              <strong>{percentFormatter.format(approvalRate.percentage || 0)}%</strong>
-              <span>{(approvalRate.percentage || 0) >= 50 ? 'SUCCESS' : 'IN REVIEW'}</span>
-            </div>
-          </div>
-          <div className="hrmu-analytics-growth">
-            {`${weeklyDirectionSymbol} ${percentFormatter.format(approvalRate.weeklyChangePercent || 0)}% ${weeklyDirectionLabel} from last period`}
-          </div>
-          <small className="hrmu-analytics-rate-meta">
-            {`${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`}
-          </small>
-        </article>
-      </section>
-
-      <section className="hrmu-analytics-bottom-grid">
-        <article className="hrmu-analytics-destinations-card">
-          <h2>Frequent Destinations</h2>
-          <div className="hrmu-analytics-destination-list">
-            {frequentDestinations.length ? (
-              frequentDestinations.slice(0, 5).map((row) => {
-                const topCount = frequentDestinations[0]?.count || 1;
-                const width = `${Math.max((Number(row.count || 0) / topCount) * 100, 10)}%`;
-
-                return (
-                  <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item">
-                    <div className="hrmu-analytics-rank">{row.rank}</div>
-                    <div className="hrmu-analytics-destination-copy">
-                      <strong title={row.label}>{row.label}</strong>
-                      <div className="hrmu-analytics-destination-bar-track">
-                        <div className="hrmu-analytics-destination-bar-fill" style={{ width }} />
-                      </div>
-                    </div>
-                    <span>{numberFormatter.format(row.count || 0)}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="hrmu-analytics-empty">No destination history found for this month.</div>
-            )}
-          </div>
-        </article>
-
-        <article className="hrmu-analytics-summary-card">
-          <h2>Monthly Performance Summary</h2>
-          <div className="hrmu-analytics-summary-grid">
-            {summaryCards.map((card) => (
-              <div key={card.label} className={`hrmu-analytics-mini-card ${card.tone}`}>
-                <span>{card.label}</span>
-                <strong>{card.value}</strong>
-                <small>{card.note}</small>
+        <section className="hrmu-analytics-top-grid">
+          <article className="hrmu-analytics-chart-card">
+            <div className="hrmu-analytics-panel-head">
+              <div>
+                <h2>Daily Faculty Movement</h2>
+                <p>
+                  {selectedCollegeLabel === 'All Departments'
+                    ? 'Tracking locator slip volume across the five HRMU colleges'
+                    : `Tracking locator slip volume for ${selectedCollegeLabel}`}
+                </p>
               </div>
-            ))}
-          </div>
-          <div className="hrmu-analytics-milestone">
-            <div className="hrmu-analytics-milestone-track">
-              <span className="done">1</span>
-              <span className="done">2</span>
-              <span className="current">3</span>
-              <span>4</span>
-              <span>5</span>
+              <div className="hrmu-analytics-legend">
+                <span className="departures">Locator Slips</span>
+                <span className="arrivals">{analytics?.dateRange?.label || 'Current Month'}</span>
+              </div>
             </div>
-            <div className="hrmu-analytics-milestone-copy">
-              <small>CURRENT MILESTONE</small>
-              <strong>HRMU Verification Finalized</strong>
+            {loading ? (
+              <div className="hrmu-analytics-loading">Loading analytics...</div>
+            ) : (
+              <div className="hrmu-analytics-chart">
+                {chartLabels.map((label, index) => {
+                  const currentValue = Number(chartValues[index] || 0);
+                  const height = maxChartValue > 0 ? Math.max((currentValue / maxChartValue) * 100, 12) : 12;
+
+                  return (
+                    <div key={label} className="hrmu-analytics-chart-col">
+                      <div className="hrmu-analytics-bar" style={{ height: `${height}%` }} title={`${label}: ${currentValue}`} />
+                      <span>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </article>
+
+          <article className="hrmu-analytics-rate-card">
+            <h2>Approval Rate</h2>
+            <p>Request vs Approval efficiency</p>
+            <div className="hrmu-analytics-ring">
+              <div>
+                <strong>{percentFormatter.format(approvalRate.percentage || 0)}%</strong>
+                <span>{(approvalRate.percentage || 0) >= 50 ? 'SUCCESS' : 'IN REVIEW'}</span>
+              </div>
             </div>
-          </div>
-        </article>
-      </section>
+            <div className="hrmu-analytics-growth">
+              {`${weeklyDirectionSymbol} ${percentFormatter.format(approvalRate.weeklyChangePercent || 0)}% ${weeklyDirectionLabel} from last period`}
+            </div>
+            <small className="hrmu-analytics-rate-meta">
+              {`${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`}
+            </small>
+          </article>
+        </section>
+
+        <section className="hrmu-analytics-bottom-grid">
+          <article className="hrmu-analytics-destinations-card">
+            <h2>Frequent Destinations</h2>
+            <div className="hrmu-analytics-destination-list">
+              {frequentDestinations.length ? (
+                frequentDestinations.slice(0, 5).map((row) => {
+                  const topCount = frequentDestinations[0]?.count || 1;
+                  const width = `${Math.max((Number(row.count || 0) / topCount) * 100, 10)}%`;
+
+                  return (
+                    <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item">
+                      <div className="hrmu-analytics-rank">{row.rank}</div>
+                      <div className="hrmu-analytics-destination-copy">
+                        <strong title={row.label}>{row.label}</strong>
+                        <div className="hrmu-analytics-destination-bar-track">
+                          <div className="hrmu-analytics-destination-bar-fill" style={{ width }} />
+                        </div>
+                      </div>
+                      <span>{numberFormatter.format(row.count || 0)}</span>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="hrmu-analytics-empty">No destination history found for this month.</div>
+              )}
+            </div>
+          </article>
+
+          <article className="hrmu-analytics-summary-card">
+            <h2>Monthly Performance Summary</h2>
+            <div className="hrmu-analytics-summary-grid">
+              {summaryCards.map((card) => (
+                <div key={card.label} className={`hrmu-analytics-mini-card ${card.tone}`}>
+                  <span>{card.label}</span>
+                  <strong>{card.value}</strong>
+                  <small>{card.note}</small>
+                </div>
+              ))}
+            </div>
+            <div className="hrmu-analytics-milestone">
+              <div className="hrmu-analytics-milestone-track">
+                <span className="done">1</span>
+                <span className="done">2</span>
+                <span className="current">3</span>
+                <span>4</span>
+                <span>5</span>
+              </div>
+              <div className="hrmu-analytics-milestone-copy">
+                <small>CURRENT MILESTONE</small>
+                <strong>HRMU Verification Finalized</strong>
+              </div>
+            </div>
+          </article>
+        </section>
+      </div>
     </HrmuWorkspaceShell>
   );
 };

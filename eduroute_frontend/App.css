@@ -9385,9 +9385,16 @@ label {
 
 /* HRMU ANALYTICS & REPORTS */
 
-.hrmu-analytics-hero {
+.hrmu-analytics-export-surface {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
+  gap: 0;
+  background: transparent;
+}
+
+.hrmu-analytics-hero {
+    display: flex;
+    align-items: flex-end;
   justify-content: space-between;
   gap: 20px;
   margin-bottom: 18px;

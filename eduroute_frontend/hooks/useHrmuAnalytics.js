@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
-  downloadHrmuAnalyticsPdf,
   getHrmuAnalyticsApprovalRate,
   getHrmuAnalyticsDailyMovement,
   getHrmuAnalyticsOverview,
@@ -51,6 +52,8 @@ export const useHrmuAnalytics = () => {
   const [error, setError] = useState('');
   const [exportMessage, setExportMessage] = useState('');
 
+  const monthOptions = useMemo(() => createMonthRangeOptions(Number(filters.year || defaultYear)), [defaultYear, filters.year]);
+
   const loadAnalytics = useCallback(async (nextFilters = appliedFilters, { keepLoading = false } = {}) => {
     if (!keepLoading) {
       setLoading(true);
@@ -95,19 +98,51 @@ export const useHrmuAnalytics = () => {
     }));
   }, []);
 
-  const exportPdf = useCallback(async () => {
-    const response = await downloadHrmuAnalyticsPdf(appliedFilters);
-    const objectUrl = window.URL.createObjectURL(response.blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = response.filename;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    window.URL.revokeObjectURL(objectUrl);
+  const exportPdf = useCallback(async (targetElement) => {
+    if (!targetElement) {
+      throw new Error('Analytics export target was not found.');
+    }
+
+    const canvas = await html2canvas(targetElement, {
+      backgroundColor: '#F4F8F0',
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      scrollX: 0,
+      scrollY: -window.scrollY,
+      width: targetElement.scrollWidth,
+      height: targetElement.scrollHeight,
+      windowWidth: Math.max(targetElement.scrollWidth, targetElement.clientWidth),
+      windowHeight: Math.max(targetElement.scrollHeight, targetElement.clientHeight),
+    });
+
+    const imageData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 10;
+    const usableWidth = pageWidth - margin * 2;
+    const scaledHeight = (canvas.height * usableWidth) / canvas.width;
+
+    let remainingHeight = scaledHeight;
+    let offsetY = margin;
+
+    pdf.addImage(imageData, 'PNG', margin, offsetY, usableWidth, scaledHeight, undefined, 'FAST');
+    remainingHeight -= (pageHeight - margin * 2);
+
+    while (remainingHeight > 0) {
+      offsetY = remainingHeight - scaledHeight + margin;
+      pdf.addPage();
+      pdf.addImage(imageData, 'PNG', margin, offsetY, usableWidth, scaledHeight, undefined, 'FAST');
+      remainingHeight -= (pageHeight - margin * 2);
+    }
+
+    const monthLabel = monthOptions.find((option) => option.value === appliedFilters.month)?.label || 'analytics';
+    const safeMonthLabel = monthLabel.replace(/[^\w-]+/g, '-');
+    pdf.save(`eduroute-hrmu-analytics-${safeMonthLabel}.pdf`);
+
     setExportMessage('Analytics PDF downloaded successfully.');
-    return response;
-  }, [appliedFilters]);
+  }, [appliedFilters, monthOptions]);
 
   const departmentOptions = useMemo(() => [
     { value: '', label: 'All Departments' },
@@ -116,8 +151,6 @@ export const useHrmuAnalytics = () => {
       label: collegeName,
     })),
   ], []);
-
-  const monthOptions = useMemo(() => createMonthRangeOptions(Number(filters.year || defaultYear)), [defaultYear, filters.year]);
 
   return {
     filters,
