@@ -207,9 +207,11 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
                         ELSE 'Main Gate'
                     END AS location_label,
                     'Exit Clearance'::text AS event_label,
-                    NULL::text AS investigation_label
+                    NULL::text AS investigation_label,
+                    validator.full_name AS validated_by_name
                 FROM cssu_exit_logs log
                 JOIN filtered_locator_slips slip ON slip.locator_slip_id = log.locator_slip_id
+                LEFT JOIN faculty_users validator ON validator.id = log.validated_by
                 WHERE log.status = 'validated'
                   AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
             ),`
@@ -226,7 +228,8 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
                     NULL::text AS movement_status,
                     NULL::text AS location_label,
                     NULL::text AS event_label,
-                    NULL::text AS investigation_label
+                    NULL::text AS investigation_label,
+                    NULL::text AS validated_by_name
                 WHERE FALSE
             ),`;
 
@@ -273,9 +276,11 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
                     WHEN slip.status = 'pending' THEN 'Pending Locator Slip'
                     ELSE 'Rejected Locator Slip'
                 END AS event_label,
-                'Investigation Req.'::text AS investigation_label
+                'Investigation Req.'::text AS investigation_label,
+                validator.full_name AS validated_by_name
             FROM filtered_locator_slips slip
             JOIN cssu_exit_logs log ON log.locator_slip_id = slip.locator_slip_id
+            LEFT JOIN faculty_users validator ON validator.id = log.validated_by
             WHERE log.status = 'denied'
               AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
               AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
@@ -297,7 +302,8 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
             movement_status,
             location_label,
             event_label,
-            investigation_label
+            investigation_label,
+            validated_by_name
         FROM movement_rows
         ORDER BY occurred_at DESC, movement_id ASC`,
         values

@@ -1333,10 +1333,10 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     const reportSubtitle = `Displaying data for ${filters.dateRangeLabel || '--'}`;
     const columns = [
         { key: 'occurredDateTimeLabel', label: 'VALIDATED AT', width: 112 },
-        { key: 'facultyName', label: 'FACULTY MEMBER', width: 110 },
-        { key: 'details', label: 'DETAILS', width: 145 },
-        { key: 'movementStatusLabel', label: 'STATUS', width: 72 },
-        { key: 'place', label: 'LOCATION', width: 72 },
+        { key: 'facultyName', label: 'FACULTY MEMBER', width: 104 },
+        { key: 'details', label: 'DETAILS', width: 172 },
+        { key: 'movementStatusLabel', label: 'STATUS', width: 70 },
+        { key: 'validatedByName', label: 'VALIDATED BY', width: 90 },
     ];
     const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
     const tableX = PAGE.marginX + ((PAGE.width - PAGE.marginX * 2 - tableWidth) / 2);
@@ -1426,15 +1426,16 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
         });
     } else {
         rows.forEach((row) => {
-            const detailsText = `${row.departmentName || '--'} • ${row.eventLabel || 'Movement'}`;
-            const placeText = row.movementStatus === 'flagged'
+            const locationDetail = row.movementStatus === 'flagged'
                 ? (row.investigationLabel || row.locationLabel || '--')
                 : (row.locationLabel || '--');
+            const detailsText = `${row.departmentName || '--'} • ${row.eventLabel || 'Movement'} • ${locationDetail}`;
+            const validatedByText = row.validatedByName || '--';
             const timestampLines = wrapTextByWidth(fonts.regular, row.occurredDateTimeLabel || row.occurredTimeLabel || '--', bodyFontSize, columns[0].width - 18);
             const facultyLines = wrapTextByWidth(fonts.regular, row.facultyName || 'Unknown faculty', bodyFontSize, columns[1].width - 18);
             const detailLines = wrapTextByWidth(fonts.regular, detailsText, bodyFontSize, columns[2].width - 18);
-            const placeLines = wrapTextByWidth(fonts.regular, placeText, bodyFontSize, columns[4].width - 18);
-            const maxLines = Math.max(timestampLines.length, facultyLines.length, detailLines.length, placeLines.length, 1);
+            const validatedByLines = wrapTextByWidth(fonts.regular, validatedByText, bodyFontSize, columns[4].width - 18);
+            const maxLines = Math.max(timestampLines.length, facultyLines.length, detailLines.length, validatedByLines.length, 1);
             const rowHeight = Math.max(34, 12 + maxLines * (bodyFontSize + bodyLineGap));
 
             if (cursorY - rowHeight < PAGE.marginBottom) {
@@ -1462,7 +1463,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
 
             let cellX = tableX;
             const cellTopY = cursorY - 16;
-            const rowCells = [timestampLines, facultyLines, detailLines, null, placeLines];
+            const rowCells = [timestampLines, facultyLines, detailLines, null, validatedByLines];
 
             columns.forEach((column, index) => {
                 if (index > 0) {

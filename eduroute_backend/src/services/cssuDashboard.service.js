@@ -229,6 +229,7 @@ const buildMovementLogs = (rows, sortOrder = 'desc') => {
         locationLabel: row.location_label || row.destination || 'Unknown destination',
         eventLabel: row.event_label || 'Movement',
         investigationLabel: row.investigation_label || '',
+        validatedByName: row.validated_by_name || '',
     }));
 
     return movementLogs.sort((left, right) => {
