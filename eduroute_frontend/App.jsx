@@ -14088,6 +14088,7 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
     approvalRate: 0,
   });
   const [mobileLiveRows, setMobileLiveRows] = useState([]);
+  const [showAllMobileLiveRows, setShowAllMobileLiveRows] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
 
@@ -14129,6 +14130,7 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
           approvalRate: 0,
         });
         setMobileLiveRows(combinedRows);
+        setShowAllMobileLiveRows(false);
       } catch (error) {
         if (!isMounted) return;
         setLoadError(error.message || 'Unable to load the CSSU dashboard right now.');
@@ -14155,6 +14157,8 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
     : 'No tracked exits yet';
   const commandStatusPercent = Math.max(0, Math.min(100, Number(summary.approvalRate || 0)));
   const gateSummaryLabel = 'Main Gate & Back Gate';
+  const visibleMobileLiveRows = showAllMobileLiveRows ? mobileLiveRows : mobileLiveRows.slice(0, 3);
+  const hasMoreMobileLiveRows = mobileLiveRows.length > 3;
 
   return (
     <div className="admin-dash-wrapper cssu-wrapper">
@@ -14237,7 +14241,15 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
           <div className="cssu-live-section">
             <div className="cssu-live-header">
               <h3>Live Exit Monitoring</h3>
-              <span className="cssu-live-view-all" onClick={() => setView('cssu-exit-clearance')}>View All</span>
+              <span
+                className="cssu-live-view-all"
+                onClick={() => {
+                  if (!hasMoreMobileLiveRows) return;
+                  setShowAllMobileLiveRows((current) => !current);
+                }}
+              >
+                {hasMoreMobileLiveRows ? (showAllMobileLiveRows ? 'Show Less' : 'View All') : 'View All'}
+              </span>
             </div>
             <div className="cssu-live-list">
               {loading && (
@@ -14272,7 +14284,7 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
                 </div>
               )}
 
-              {!loading && !loadError && mobileLiveRows.map((row) => {
+              {!loading && !loadError && visibleMobileLiveRows.map((row) => {
                 const isFlagged = row.status === 'denied';
                 const badgeClass = isFlagged ? 'flagged' : 'verified';
                 const badgeLabel = isFlagged ? 'FLAGGED' : row.statusLabel?.toUpperCase?.() || 'VERIFIED';
