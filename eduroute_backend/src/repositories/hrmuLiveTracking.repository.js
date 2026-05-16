@@ -23,6 +23,7 @@ const LIVE_TRACKING_BASE_QUERY = `
         t.destination_name,
         t.destination_lat::float8 AS destination_lat,
         t.destination_lng::float8 AS destination_lng,
+        t.route_geometry,
         COALESCE(ll.lat, t.origin_lat)::float8 AS lat,
         COALESCE(ll.lng, t.origin_lng)::float8 AS lng,
         ll.speed::float8 AS speed,

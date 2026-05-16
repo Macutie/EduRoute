@@ -49,6 +49,18 @@ const normalizeSpeedKmh = (speed) => {
     return Number(Number(speed).toFixed(1));
 };
 
+const normalizeRouteGeometry = (value) => {
+    if (!value) return null;
+    if (typeof value === 'string') {
+        try {
+            return JSON.parse(value);
+        } catch {
+            return null;
+        }
+    }
+    return value;
+};
+
 const assertHrmuUser = async (userId) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['hrmu', 'admin', 'cssu']);
 
@@ -138,6 +150,7 @@ const getFacultyDetails = async (userId, facultyUserId) => {
                         latitude: Number(row.destination_lat),
                         longitude: Number(row.destination_lng),
                     },
+            routeGeometry: normalizeRouteGeometry(row.route_geometry),
             status: row.trip_status,
             startedAt: row.started_at ? new Date(row.started_at).toISOString() : null,
             expectedReturnTime: row.expected_return_datetime ? new Date(row.expected_return_datetime).toISOString() : null

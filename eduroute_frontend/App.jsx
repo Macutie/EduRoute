@@ -9864,6 +9864,7 @@ const HrmuLiveMapPanel = ({
 
     const current = selectedFacultyDetail?.latestLocation;
     const target = selectedFacultyDetail?.activeTrip?.destinationCoordinates;
+    const savedRouteGeometry = selectedFacultyDetail?.activeTrip?.routeGeometry;
     const hasCurrentPoint = Number.isFinite(current?.lng) && Number.isFinite(current?.lat);
     const hasTargetPoint = Number.isFinite(target?.lng) && Number.isFinite(target?.lat);
 
@@ -9900,6 +9901,18 @@ const HrmuLiveMapPanel = ({
       }
     };
 
+    const normalizeRouteGeometry = (value) => {
+      if (!value) return null;
+      if (typeof value === 'string') {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return null;
+        }
+      }
+      return value;
+    };
+
     const fallbackStraightGeometry = {
       type: 'LineString',
       coordinates: [
@@ -9907,6 +9920,15 @@ const HrmuLiveMapPanel = ({
         [Number(target.lng), Number(target.lat)],
       ],
     };
+
+    const normalizedSavedRoute = normalizeRouteGeometry(savedRouteGeometry);
+    if (normalizedSavedRoute?.coordinates?.length) {
+      setRouteGeometry(normalizedSavedRoute);
+      return () => {
+        cancelled = true;
+        clearSelectedRoute();
+      };
+    }
 
     const loadRoadRoute = async () => {
       try {
