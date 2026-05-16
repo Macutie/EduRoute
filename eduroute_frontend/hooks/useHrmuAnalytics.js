@@ -132,8 +132,8 @@ const drawFilters = (pdf, { dateRangeLabel, departmentLabel }) => {
 
 const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
   const x = PDF_PAGE.margin;
-  const y = 96;
-  const cardY = y + 8;
+  const y = 94;
+  const cardY = y + 4;
   const cardGap = 4;
   const cardW = 40.5;
   const cardH = 28;
@@ -173,10 +173,14 @@ const drawMonthlyPerformanceTopSection = (pdf, reportData) => {
     const noteLines = pdf.splitTextToSize(String(card.note || ''), cardW - 5);
     pdf.text(noteLines.slice(0, 2), cardX + 3.5, cardY + 23);
   });
+
+  return {
+    topY: y,
+    bottomY: cardY + cardH,
+  };
 };
 
-const drawDailyMovementSection = (pdf, reportData) => {
-  const sectionY = 138;
+const drawDailyMovementSection = (pdf, reportData, sectionY) => {
   const leftX = PDF_PAGE.margin;
   const sectionW = 132;
   const rows = (reportData.dailyRows || []).slice(0, 7);
@@ -217,20 +221,24 @@ const drawDailyMovementSection = (pdf, reportData) => {
   pdf.text('LOCATOR SLIPS', leftX + 6 + dayColW + 4, tableY + 6.5);
 
   rows.forEach((row, index) => {
-    const y = tableY + headerH + (index * rowH);
+    const rowY = tableY + headerH + (index * rowH);
     pdf.setDrawColor(234, 239, 229);
-    pdf.line(leftX + 6, y, leftX + sectionW - 6, y);
+    pdf.line(leftX + 6, rowY, leftX + sectionW - 6, rowY);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(7.5);
     pdf.setTextColor(28, 39, 64);
-    pdf.text(String(row.label || '--'), leftX + 10, y + 5.5);
-    pdf.text(String(row.value ?? 0), leftX + 6 + dayColW + 4, y + 5.5);
+    pdf.text(String(row.label || '--'), leftX + 10, rowY + 5.5);
+    pdf.text(String(row.value ?? 0), leftX + 6 + dayColW + 4, rowY + 5.5);
   });
+
+  return {
+    width: sectionW,
+    height: sectionH,
+    bottomY: sectionY + sectionH,
+  };
 };
 
-const drawApprovalRateSection = (pdf, reportData) => {
-  const x = 152;
-  const y = 138;
+const drawApprovalRateSection = (pdf, reportData, x, y) => {
   const w = 44;
   const h = 88;
 
@@ -265,13 +273,20 @@ const drawApprovalRateSection = (pdf, reportData) => {
   const approvalTrendLines = pdf.splitTextToSize(reportData.approvalTrend || '', w - 12);
   pdf.text(approvalNoteLines.slice(0, 2), x + 6, y + 51);
   pdf.text(approvalTrendLines.slice(0, 3), x + 6, y + 61);
+
+  return {
+    width: w,
+    height: h,
+    bottomY: y + h,
+  };
 };
 
 const drawFrequentDestinationsSection = (pdf, reportData) => {
-  const w = 128;
+  const w = 118;
   const x = (PDF_PAGE.width - w) / 2;
   const y = 58;
-  const h = 132;
+  const rows = (reportData.frequentDestinations || []).slice(0, 5);
+  const h = Math.max(122, 28 + (rows.length * 21));
 
   pdf.setDrawColor(226, 233, 223);
   pdf.setFillColor(255, 255, 255);
@@ -282,7 +297,6 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
   pdf.setTextColor(14, 168, 37);
   pdf.text('Frequent Destinations', x + 6, y + 12);
 
-  const rows = (reportData.frequentDestinations || []).slice(0, 5);
   const maxCount = Math.max(...rows.map((row) => Number(row.count || 0)), 1);
 
   rows.forEach((row, index) => {
@@ -296,7 +310,7 @@ const drawFrequentDestinationsSection = (pdf, reportData) => {
 
     pdf.setTextColor(28, 39, 64);
     pdf.setFontSize(7.4);
-    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 84);
+    const destinationLines = pdf.splitTextToSize(String(row.label || '--'), 74);
     pdf.text(destinationLines.slice(0, 2), x + 17, rowY - 1);
 
     pdf.setDrawColor(222, 228, 220);
@@ -383,9 +397,10 @@ export const useHrmuAnalytics = () => {
     await drawHeader(pdf, reportData);
     drawOverviewIntro(pdf);
     drawFilters(pdf, reportData);
-    drawMonthlyPerformanceTopSection(pdf, reportData);
-    drawDailyMovementSection(pdf, reportData);
-    drawApprovalRateSection(pdf, reportData);
+    const monthlySection = drawMonthlyPerformanceTopSection(pdf, reportData);
+    const lowerSectionY = monthlySection.bottomY + 6;
+    drawDailyMovementSection(pdf, reportData, lowerSectionY);
+    drawApprovalRateSection(pdf, reportData, 152, lowerSectionY);
 
     pdf.addPage();
     await drawHeader(pdf, reportData);
