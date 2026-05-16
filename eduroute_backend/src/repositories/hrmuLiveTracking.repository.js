@@ -21,6 +21,8 @@ const LIVE_TRACKING_BASE_QUERY = `
         t.started_at,
         t.ended_at,
         t.destination_name,
+        t.destination_lat::float8 AS destination_lat,
+        t.destination_lng::float8 AS destination_lng,
         COALESCE(ll.lat, t.origin_lat)::float8 AS lat,
         COALESCE(ll.lng, t.origin_lng)::float8 AS lng,
         ll.speed::float8 AS speed,
@@ -46,7 +48,7 @@ const LIVE_TRACKING_BASE_QUERY = `
         FROM locator_slips ls
         WHERE ls.faculty_user_id = fu.id
           AND COALESCE(ls.college_id, fu.department_id) = ac.id
-          AND ls.status IN ('approved', 'completed')
+          AND ls.status IN ('approved', 'verified', 'completed')
         ORDER BY
             CASE
                 WHEN LOWER(COALESCE(ls.destination, '')) = LOWER(COALESCE(t.destination_name, '')) THEN 0
@@ -56,7 +58,7 @@ const LIVE_TRACKING_BASE_QUERY = `
             COALESCE(ls.departure_datetime, ls.created_at) DESC
         LIMIT 1
     ) slip ON TRUE
-    WHERE t.status = 'active'
+    WHERE t.status IN ('active', 'arrived', 'returning')
       AND fu.account_role = 'faculty'
       AND fu.status = 'active'
 `;

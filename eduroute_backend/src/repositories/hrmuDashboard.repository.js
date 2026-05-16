@@ -169,7 +169,7 @@ const LIVE_FACULTY_BASE_QUERY = `
         LEFT JOIN faculty_users reviewer ON reviewer.id = ls.reviewed_by
         WHERE ls.faculty_user_id = fu.id
           AND COALESCE(ls.college_id, fu.department_id) = ac.id
-          AND ls.status IN ('approved', 'completed')
+          AND ls.status IN ('approved', 'verified', 'completed')
         ORDER BY
             CASE
                 WHEN LOWER(COALESCE(ls.destination, '')) = LOWER(COALESCE(t.destination_name, '')) THEN 0

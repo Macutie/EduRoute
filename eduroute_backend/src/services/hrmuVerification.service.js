@@ -119,10 +119,10 @@ const reviewArrivalVerification = async (reviewerId, verificationId, payload = {
     await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
         locatorSlipId: verification.locator_slip_id,
         type: nextStatus === 'verified' ? HRMU_REVIEW_SUCCESS_TYPE : HRMU_REVIEW_FLAGGED_TYPE,
-        title: nextStatus === 'verified' ? 'Successful trip review' : 'Trip flagged as unverified location',
+        title: nextStatus === 'verified' ? 'Successful trip review' : 'Trip flagged as unverified location/signature',
         message: nextStatus === 'verified'
             ? `${verification.faculty_name || 'The faculty user'} completed the trip successfully after HRMU proof review.`
-            : `${verification.faculty_name || 'The faculty user'} was flagged by HRMU for unverified location review.`
+            : `${verification.faculty_name || 'The faculty user'} was flagged by HRMU for unverified location/signature review.`
     }).catch(() => []);
 
     const flaggedTrips = await tripIncidentRepository.getFlaggedTrips().catch(() => []);
@@ -194,7 +194,7 @@ const flagTripWithoutProof = async (reviewerId, tripId, locatorSlipId = null) =>
                 locatorSlipId: matchedTrip.locator_slip_id,
                 facultyUserId: matchedTrip.faculty_user_id,
                 incidentType: tripIncidentRepository.INCIDENT_TYPES.UNVERIFIED_LOCATION,
-                incidentLabel: 'Unverified Location',
+                incidentLabel: 'Unverified Location/Signature',
                 severity: 'high',
                 detectedAt: reviewTimestamp,
                 metadata: {
@@ -212,26 +212,26 @@ const flagTripWithoutProof = async (reviewerId, tripId, locatorSlipId = null) =>
             await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
                 locatorSlipId,
                 type: HRMU_REVIEW_FLAGGED_TYPE,
-                title: 'Trip flagged as unverified location',
-                message: 'A completed trip without uploaded arrival proof was flagged by HRMU for unverified location review.'
+                title: 'Trip flagged as unverified location/signature',
+                message: 'A completed trip without uploaded arrival proof was flagged by HRMU for unverified location/signature review.'
             }).catch(() => []);
             return {
                 tripId: targetTripId,
                 status: 'unverified',
                 displayStatus: 'FLAGGED',
-                flaggedReasons: ['Unverified Location'],
+                flaggedReasons: ['Unverified Location/Signature'],
                 reviewedAt: reviewTimestamp.toISOString()
             };
         }
 
-        throw new AppError('Trip could not be flagged as unverified location.', 409);
+        throw new AppError('Trip could not be flagged as unverified location/signature.', 409);
     }
 
     await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
         locatorSlipId,
         type: HRMU_REVIEW_FLAGGED_TYPE,
-        title: 'Trip flagged as unverified location',
-        message: 'A completed trip was flagged by HRMU for unverified location review.'
+        title: 'Trip flagged as unverified location/signature',
+        message: 'A completed trip was flagged by HRMU for unverified location/signature review.'
     }).catch(() => []);
 
     const flaggedTrips = await tripIncidentRepository.getFlaggedTrips().catch(() => []);
@@ -243,7 +243,7 @@ const flagTripWithoutProof = async (reviewerId, tripId, locatorSlipId = null) =>
         tripId: targetTripId,
         status: 'unverified',
         displayStatus: 'FLAGGED',
-        flaggedReasons: flaggedTrip?.incident_labels || ['Unverified Location'],
+        flaggedReasons: flaggedTrip?.incident_labels || ['Unverified Location/Signature'],
         reviewedAt: incident.detected_at ? new Date(incident.detected_at).toISOString() : new Date().toISOString()
     };
 };

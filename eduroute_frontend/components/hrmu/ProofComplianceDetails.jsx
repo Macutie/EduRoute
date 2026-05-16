@@ -10,7 +10,7 @@ const formatDateTime = (value) => {
 const formatStatusText = (status) => {
   const normalized = String(status || 'submitted').toLowerCase();
   if (normalized === 'verified') return 'SUCCESSFUL TRIP';
-  if (normalized === 'rejected') return 'UNVERIFIED LOCATION';
+  if (normalized === 'rejected') return 'UNVERIFIED LOCATION/SIGNATURE';
   return 'PENDING PROOF REVIEW';
 };
 
@@ -39,10 +39,10 @@ const buildStatusCopy = (proof) => {
   }
 
   if (normalized === 'rejected') {
-    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU flagged this trip as an unverified location.`;
+    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU flagged this trip as an unverified location/signature.`;
   }
 
-  return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location.`;
+  return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location/signature.`;
 };
 
 const ProofComplianceDetails = ({
@@ -281,7 +281,7 @@ const ProofComplianceDetails = ({
                 onClick={() => onReview('rejected')}
                 disabled={reviewing || reviewLocked}
               >
-                {reviewing ? 'Saving...' : 'Flag as Unverified Location'}
+                {reviewing ? 'Saving...' : 'Flag as Unverified Location/Signature'}
               </button>
               <button
                 type="button"

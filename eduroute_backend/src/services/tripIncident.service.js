@@ -5,7 +5,7 @@ const socketBroadcasterService = require('./socketBroadcaster.service');
 
 const INCIDENT_LABELS = {
     LATE_RETURN: 'Late Return',
-    UNVERIFIED_LOCATION: 'Unverified Location',
+    UNVERIFIED_LOCATION: 'Unverified Location/Signature',
     LOCATION_DISCONNECTED: 'Location Disconnected'
 };
 
@@ -79,7 +79,7 @@ const getNotificationConfig = (incidentType, context, metadata = {}) => {
         return {
             type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
             title: 'Arrival verification failed review',
-            message: `${context.faculty_name || 'A faculty member'} has an arrival verification that HRMU marked as unverified for ${context.destination || 'the approved destination'}.`
+            message: `${context.faculty_name || 'A faculty member'} has an arrival verification/signature that HRMU marked as unverified for ${context.destination || 'the approved destination'}.`
         };
     case tripIncidentRepository.INCIDENT_TYPES.LOCATION_DISCONNECTED:
         return {

@@ -49,7 +49,7 @@ const flagTripWithoutProof = async (req, res, next) => {
             req.params.tripId,
             req.body?.locatorSlipId || null
         );
-        return res.json(successResponse('Completed trip flagged as unverified location.', payload));
+        return res.json(successResponse('Completed trip flagged as unverified location/signature.', payload));
     } catch (error) {
         return next(error);
     }

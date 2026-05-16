@@ -277,7 +277,7 @@ const getFlaggedTrips = async () => {
                 t.user_id AS faculty_user_id,
                 COALESCE(lv.created_at, t.ended_at, t.updated_at) AS detected_at,
                 'UNVERIFIED_LOCATION'::text AS incident_type,
-                'Unverified Location'::text AS incident_label,
+                'Unverified Location/Signature'::text AS incident_label,
                 'high'::text AS severity
             FROM trips t
             JOIN faculty_users fu ON fu.id = t.user_id

@@ -49,6 +49,11 @@ import {
   getCssuFacultyActivity,
   getCssuFacultyLiveDetail,
 } from './services/cssuLiveTrackingApi';
+import {
+  getHrmuActiveFaculty,
+  getHrmuFacultyActivity,
+  getHrmuFacultyLiveDetail,
+} from './services/hrmuLiveTrackingApi';
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
 import { useProofOfCompliance } from './hooks/useProofOfCompliance';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
@@ -9731,6 +9736,7 @@ const HrmuLiveMapPanel = ({
   className = '',
   center = OLONGAPO_CENTER,
   selectedFacultyUserId = null,
+  selectedFacultyDetail = null,
   onMarkerSelect = null,
   focusOnOlongapo = false,
 }) => {
@@ -9846,6 +9852,57 @@ const HrmuLiveMapPanel = ({
       maxZoom: compact ? 12.8 : 13.4,
     });
   }, [center, faculty, compact, focusOnOlongapo, onMarkerSelect, selectedFacultyUserId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const clearSelectedRoute = () => {
+      if (map.getLayer('hrmu-live-selected-route-line')) map.removeLayer('hrmu-live-selected-route-line');
+      if (map.getSource('hrmu-live-selected-route')) map.removeSource('hrmu-live-selected-route');
+    };
+
+    const current = selectedFacultyDetail?.latestLocation;
+    const target = selectedFacultyDetail?.activeTrip?.destinationCoordinates;
+    const hasCurrentPoint = Number.isFinite(current?.lng) && Number.isFinite(current?.lat);
+    const hasTargetPoint = Number.isFinite(target?.lng) && Number.isFinite(target?.lat);
+
+    if (!hasCurrentPoint || !hasTargetPoint) {
+      clearSelectedRoute();
+      return;
+    }
+
+    const routeFeature = {
+      type: 'Feature',
+      properties: {},
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [Number(current.lng), Number(current.lat)],
+          [Number(target.lng), Number(target.lat)],
+        ],
+      },
+    };
+
+    if (map.getSource('hrmu-live-selected-route')) {
+      map.getSource('hrmu-live-selected-route').setData(routeFeature);
+    } else {
+      map.addSource('hrmu-live-selected-route', { type: 'geojson', data: routeFeature });
+      map.addLayer({
+        id: 'hrmu-live-selected-route-line',
+        type: 'line',
+        source: 'hrmu-live-selected-route',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#049516',
+          'line-width': compact ? 4 : 5,
+          'line-opacity': 0.85,
+        },
+      });
+    }
+
+    return clearSelectedRoute;
+  }, [compact, selectedFacultyDetail]);
 
   return (
     <div className={`hrmu-live-map-frame ${className}`.trim()}>
@@ -10618,7 +10675,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       });
       setReviewMessage(nextStatus === 'verified'
         ? 'Trip marked as successful.'
-        : 'Trip flagged as unverified location.');
+        : 'Trip flagged as unverified location/signature.');
       setReviewLocked(true);
       setSelectedProofDetails(result);
       await loadVerificationPage({ silent: true });
@@ -10654,7 +10711,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       <section className="hrmu-verification-hero">
         <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
         <h1>External Faculty Verification</h1>
-        <p>Review completed trips, inspect the submitted proof of compliance, and decide whether each trip remains successful or should be flagged as an unverified location.</p>
+        <p>Review completed trips, inspect the submitted proof of compliance, and decide whether each trip remains successful or should be flagged as an unverified location/signature.</p>
       </section>
 
       <section className="hrmu-verification-stats">
@@ -11762,7 +11819,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
                 <strong>{String(incidentSummary.lateReturns || 0).padStart(2, '0')}</strong>
               </div>
               <div className="hrmu-alert-summary-row">
-                <span>Unverified Location</span>
+                <span>Unverified Location/Signature</span>
                 <strong>{String(incidentSummary.unverifiedLocations || 0).padStart(2, '0')}</strong>
               </div>
               <div className="hrmu-alert-summary-row">
@@ -11803,9 +11860,9 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
     reload,
     loadMoreActivity,
   } = useHrmuLiveTracking({
-    getActiveFacultyFn: getCssuActiveFaculty,
-    getFacultyActivityFn: getCssuFacultyActivity,
-    getFacultyLiveDetailFn: getCssuFacultyLiveDetail,
+    getActiveFacultyFn: getHrmuActiveFaculty,
+    getFacultyActivityFn: getHrmuFacultyActivity,
+    getFacultyLiveDetailFn: getHrmuFacultyLiveDetail,
   });
 
   const mapCenter = useMemo(() => [
@@ -11821,6 +11878,7 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
             faculty={facultyLocations}
             center={mapCenter}
             selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+            selectedFacultyDetail={selectedFacultyDetail}
             onMarkerSelect={selectFaculty}
             focusOnOlongapo
             className="hrmu-live-stage-map"
@@ -14352,7 +14410,11 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
     selectFaculty,
     reload,
     loadMoreActivity,
-  } = useHrmuLiveTracking();
+  } = useHrmuLiveTracking({
+    getActiveFacultyFn: getCssuActiveFaculty,
+    getFacultyActivityFn: getCssuFacultyActivity,
+    getFacultyLiveDetailFn: getCssuFacultyLiveDetail,
+  });
 
   const mapCenter = useMemo(() => [
     Number(center?.lng || OLONGAPO_CENTER[0]),
@@ -14435,6 +14497,7 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
               faculty={facultyLocations}
               center={mapCenter}
               selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+              selectedFacultyDetail={selectedFacultyDetail}
               onMarkerSelect={selectFaculty}
               focusOnOlongapo
               className="hrmu-live-stage-map"
@@ -14491,6 +14554,7 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
               faculty={facultyLocations}
               center={mapCenter}
               selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
+              selectedFacultyDetail={selectedFacultyDetail}
               onMarkerSelect={selectFaculty}
               focusOnOlongapo
               className="cssu-mobile-live-map-canvas"

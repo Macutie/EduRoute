@@ -117,7 +117,7 @@ const buildReportScopeCte = ({ includeIncidents }) => `
             COALESCE(lv.created_at, et.trip_finished_at, et.locator_updated_at) AS latest_detected_at,
             JSONB_BUILD_OBJECT(
                 'type', 'UNVERIFIED_LOCATION',
-                'label', 'Unverified Location',
+                'label', 'Unverified Location/Signature',
                 'severity', 'high'
             ) AS flagged_reason
         FROM ended_trips et

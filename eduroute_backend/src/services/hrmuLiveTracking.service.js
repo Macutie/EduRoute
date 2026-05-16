@@ -129,6 +129,15 @@ const getFacultyDetails = async (userId, facultyUserId) => {
             locatorSlipId: row.locator_slip_id,
             purpose: row.purpose || 'Official trip',
             destination: row.destination || row.destination_name || 'Unknown destination',
+            destinationCoordinates:
+                row.destination_lat === null || row.destination_lng === null
+                    ? null
+                    : {
+                        lat: Number(row.destination_lat),
+                        lng: Number(row.destination_lng),
+                        latitude: Number(row.destination_lat),
+                        longitude: Number(row.destination_lng),
+                    },
             status: row.trip_status,
             startedAt: row.started_at ? new Date(row.started_at).toISOString() : null,
             expectedReturnTime: row.expected_return_datetime ? new Date(row.expected_return_datetime).toISOString() : null
