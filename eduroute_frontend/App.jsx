@@ -10373,7 +10373,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
         <article className="hrmu-route-panel">
           <div className="hrmu-panel-heading">
             <h2>Live Faculty Route</h2>
-            <button type="button" onClick={() => setView('live-tracking')}>↗ View Full Map</button>
+            <button type="button" onClick={() => setView('hrmu-live')}>↗ View Full Map</button>
           </div>
           <div className="hrmu-map-card">
             <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
