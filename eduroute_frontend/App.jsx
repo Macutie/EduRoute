@@ -9872,36 +9872,81 @@ const HrmuLiveMapPanel = ({
       return;
     }
 
-    const routeFeature = {
-      type: 'Feature',
-      properties: {},
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [Number(current.lng), Number(current.lat)],
-          [Number(target.lng), Number(target.lat)],
-        ],
-      },
+    let cancelled = false;
+
+    const setRouteGeometry = (geometry) => {
+      if (!geometry || cancelled) return;
+      const routeFeature = {
+        type: 'Feature',
+        properties: {},
+        geometry,
+      };
+
+      if (map.getSource('hrmu-live-selected-route')) {
+        map.getSource('hrmu-live-selected-route').setData(routeFeature);
+      } else {
+        map.addSource('hrmu-live-selected-route', { type: 'geojson', data: routeFeature });
+        map.addLayer({
+          id: 'hrmu-live-selected-route-line',
+          type: 'line',
+          source: 'hrmu-live-selected-route',
+          layout: { 'line-cap': 'round', 'line-join': 'round' },
+          paint: {
+            'line-color': '#049516',
+            'line-width': compact ? 4 : 5,
+            'line-opacity': 0.85,
+          },
+        });
+      }
     };
 
-    if (map.getSource('hrmu-live-selected-route')) {
-      map.getSource('hrmu-live-selected-route').setData(routeFeature);
-    } else {
-      map.addSource('hrmu-live-selected-route', { type: 'geojson', data: routeFeature });
-      map.addLayer({
-        id: 'hrmu-live-selected-route-line',
-        type: 'line',
-        source: 'hrmu-live-selected-route',
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: {
-          'line-color': '#049516',
-          'line-width': compact ? 4 : 5,
-          'line-opacity': 0.85,
-        },
-      });
-    }
+    const fallbackStraightGeometry = {
+      type: 'LineString',
+      coordinates: [
+        [Number(current.lng), Number(current.lat)],
+        [Number(target.lng), Number(target.lat)],
+      ],
+    };
 
-    return clearSelectedRoute;
+    const loadRoadRoute = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            origin: {
+              latitude: Number(current.lat),
+              longitude: Number(current.lng),
+            },
+            destination: {
+              latitude: Number(target.lat),
+              longitude: Number(target.lng),
+            },
+            profile: 'mapbox/driving-traffic',
+            alternatives: false,
+            steps: false,
+          }),
+        });
+
+        const payload = await response.json();
+        const geometry = payload?.data?.geometry;
+        if (!response.ok || !geometry?.coordinates?.length) {
+          setRouteGeometry(fallbackStraightGeometry);
+          return;
+        }
+
+        setRouteGeometry(geometry);
+      } catch {
+        setRouteGeometry(fallbackStraightGeometry);
+      }
+    };
+
+    loadRoadRoute();
+
+    return () => {
+      cancelled = true;
+      clearSelectedRoute();
+    };
   }, [compact, selectedFacultyDetail]);
 
   return (
