@@ -28,7 +28,11 @@ const mergeFacultyLocation = (currentRows, incomingRow) => {
   });
 };
 
-export const useHrmuLiveTracking = () => {
+export const useHrmuLiveTracking = ({
+  getActiveFacultyFn = getHrmuActiveFaculty,
+  getFacultyActivityFn = getHrmuFacultyActivity,
+  getFacultyLiveDetailFn = getHrmuFacultyLiveDetail,
+} = {}) => {
   const socketRef = useRef(null);
   const selectedFacultyIdRef = useRef(null);
   const [center, setCenter] = useState({
@@ -50,7 +54,7 @@ export const useHrmuLiveTracking = () => {
     setError('');
 
     try {
-      const data = await getHrmuActiveFaculty();
+      const data = await getActiveFacultyFn();
       setCenter(data?.center || { lat: 14.8386, lng: 120.2828, label: 'Olongapo City' });
 
       const rows = Array.isArray(data?.faculty) ? data.faculty : [];
@@ -69,7 +73,7 @@ export const useHrmuLiveTracking = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getActiveFacultyFn]);
 
   const selectedFaculty = useMemo(() => (
     facultyLocations.find((item) => item.facultyUserId === selectedFacultyId) || null
@@ -93,7 +97,7 @@ export const useHrmuLiveTracking = () => {
     setDetailLoading(true);
 
     try {
-      const detail = await getHrmuFacultyLiveDetail(facultyUserId);
+      const detail = await getFacultyLiveDetailFn(facultyUserId);
       setSelectedFacultyDetail(detail);
     } catch (requestError) {
       setError(requestError.message);
@@ -101,7 +105,7 @@ export const useHrmuLiveTracking = () => {
     } finally {
       setDetailLoading(false);
     }
-  }, []);
+  }, [getFacultyLiveDetailFn]);
 
   const loadSelectedFacultyActivity = useCallback(async (facultyUserId, tripId, limit = 6) => {
     if (!facultyUserId) {
@@ -112,7 +116,7 @@ export const useHrmuLiveTracking = () => {
     setActivityLoading(true);
 
     try {
-      const activity = await getHrmuFacultyActivity(facultyUserId, {
+      const activity = await getFacultyActivityFn(facultyUserId, {
         tripId,
         limit,
       });
@@ -123,7 +127,7 @@ export const useHrmuLiveTracking = () => {
     } finally {
       setActivityLoading(false);
     }
-  }, []);
+  }, [getFacultyActivityFn]);
 
   useEffect(() => {
     loadActiveFaculty();

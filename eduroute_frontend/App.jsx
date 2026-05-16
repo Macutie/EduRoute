@@ -44,6 +44,11 @@ import {
   lookupCssuExitCandidate,
   updateCssuExitStatus,
 } from './services/cssuApi';
+import {
+  getCssuActiveFaculty,
+  getCssuFacultyActivity,
+  getCssuFacultyLiveDetail,
+} from './services/cssuLiveTrackingApi';
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
 import { useProofOfCompliance } from './hooks/useProofOfCompliance';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
@@ -11797,7 +11802,11 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
     selectFaculty,
     reload,
     loadMoreActivity,
-  } = useHrmuLiveTracking();
+  } = useHrmuLiveTracking({
+    getActiveFacultyFn: getCssuActiveFaculty,
+    getFacultyActivityFn: getCssuFacultyActivity,
+    getFacultyLiveDetailFn: getCssuFacultyLiveDetail,
+  });
 
   const mapCenter = useMemo(() => [
     Number(center?.lng || OLONGAPO_CENTER[0]),
