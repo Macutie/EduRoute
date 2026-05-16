@@ -20999,20 +20999,56 @@ label {
 
 .cssu-mobile-reports-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-top: 18px;
 }
 
 .cssu-mobile-reports-action-btn {
-  min-height: 58px;
-  border-radius: 18px;
+  width: 100%;
+  min-height: 64px;
+  border-radius: 22px;
   border: 2px solid #B6C6B0;
   background: #FFFFFF;
   color: #3E4B3D;
   font-family: inherit;
   font-size: 18px;
-  font-weight: 500;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.cssu-mobile-reports-action-btn.pdf {
+  box-shadow: 0 10px 24px rgba(56, 80, 56, 0.08);
+}
+
+.cssu-mobile-reports-action-btn svg {
+  flex-shrink: 0;
+}
+
+.cssu-mobile-reports-send-btn {
+  width: 100%;
+  min-height: 64px;
+  border: none;
+  border-radius: 22px;
+  background: var(--green);
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 12px 26px rgba(4, 149, 31, 0.18);
+  cursor: pointer;
+}
+
+.cssu-mobile-reports-send-btn svg {
+  flex-shrink: 0;
 }
 
 .cssu-mobile-reports-preview {
@@ -21131,6 +21167,21 @@ label {
   color: #556255;
   font-size: 16px;
   line-height: 1.5;
+}
+
+.cssu-mobile-reports-load-more {
+  width: 100%;
+  margin-top: 18px;
+  min-height: 62px;
+  border: none;
+  border-radius: 24px;
+  background: #FFFFFF;
+  color: var(--green);
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgba(56, 80, 56, 0.08);
+  cursor: pointer;
 }
 
 .cssu-mobile-notif-content {

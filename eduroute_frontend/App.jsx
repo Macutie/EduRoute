@@ -16076,8 +16076,24 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
             </button>
 
             <div className="cssu-mobile-reports-actions">
-              <button type="button" className="cssu-mobile-reports-action-btn">PDF</button>
-              <button type="button" className="cssu-mobile-reports-action-btn">CSV</button>
+              <button
+                type="button"
+                className="cssu-mobile-reports-action-btn pdf"
+                onClick={handleDownloadPdf}
+                disabled={loading || downloadLoading}
+              >
+                <RegistryDownloadIcon />
+                <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
+              </button>
+              <button
+                type="button"
+                className="cssu-mobile-reports-send-btn"
+                onClick={() => setSendModalOpen(true)}
+                disabled={loading || sendLoading}
+              >
+                <SendIcon />
+                <span>{sendLoading ? 'Sending...' : 'Send to HRMU'}</span>
+              </button>
             </div>
           </section>
 
@@ -16131,8 +16147,47 @@ const CSSUReportsView = ({ setView, profileData, onLogout }) => {
                 </article>
               ))}
             </div>
+
+            {hasMoreRecords ? (
+              <button
+                type="button"
+                className="cssu-mobile-reports-load-more"
+                onClick={() => setVisibleRecordCount((current) => current + 6)}
+              >
+                Load More Records
+              </button>
+            ) : null}
           </section>
         </div>
+
+        {sendModalOpen ? (
+          <div className="cssu-send-report-overlay" onClick={() => !sendLoading && setSendModalOpen(false)}>
+            <div className="cssu-send-report-modal" onClick={(event) => event.stopPropagation()}>
+              <span className="cssu-send-report-kicker">PDF ATTACHMENT</span>
+              <h3>Send report to HRMU?</h3>
+              <p>
+                This will send the generated movement report PDF for
+                <strong>{` ${formatCssuDate(startDate)} - ${formatCssuDate(endDate)}`}</strong>
+                {' '}to the HRMU inbox.
+              </p>
+              <div className="cssu-send-report-attachment">
+                <DocumentIcon color="var(--green)" width="20" height="20" />
+                <div>
+                  <strong>{`eduroute-cssu-movement-${startDate.replace(/-/g, '')}-${endDate.replace(/-/g, '')}.pdf`}</strong>
+                  <span>{selectedDepartment === 'all' ? 'All Departments' : selectedDepartment}</span>
+                </div>
+              </div>
+              <div className="cssu-send-report-actions">
+                <button type="button" className="cssu-send-report-cancel" onClick={() => setSendModalOpen(false)} disabled={sendLoading}>
+                  Cancel
+                </button>
+                <button type="button" className="cssu-send-report-primary" onClick={handleSendToHrmu} disabled={sendLoading}>
+                  {sendLoading ? 'Sending...' : 'Send PDF'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <CSSUBottomNav active="reports" setView={setView} />
       </div>
