@@ -711,6 +711,12 @@ label {
   backdrop-filter: blur(10px);
 }
 
+.locator-purpose-backdrop {
+  align-items: center;
+  padding-top: 24px;
+  padding-bottom: 140px;
+}
+
 .permission-modal-card {
   width: 100%;
   position: relative;

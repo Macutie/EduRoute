@@ -3941,7 +3941,7 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
         </div>
 
         {showPurposeTypeModal && (
-          <div className="permission-modal-backdrop" onClick={closePurposeModal}>
+          <div className="permission-modal-backdrop locator-purpose-backdrop" onClick={closePurposeModal}>
             <div className="permission-modal-card dean-signature-permission-modal locator-purpose-modal" onClick={(e) => e.stopPropagation()}>
               <div className="permission-modal-glow" />
               <div className="permission-modal-icon">
