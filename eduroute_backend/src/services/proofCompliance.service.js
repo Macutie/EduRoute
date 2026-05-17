@@ -10,6 +10,7 @@ const tripRepository = require('../repositories/tripTracking.repository');
 const { optimizeImage, ALLOWED_IMAGE_MIME_TYPES } = require('./imageOptimization.service');
 const { uploadImageBuffer } = require('./upload.service');
 const { generateProofComplianceImage } = require('./proofComplianceImage.service');
+const { isLateReturn: detectLateReturnStatus } = require('./status.service');
 
 const PROOF_NOTIFICATION_TYPE = hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED;
 const HRMU_REVIEW_FLAGGED_TYPE = 'hrmu_verification_review_flagged';
@@ -59,38 +60,50 @@ const parseSignatureDataUrl = (signatureDataUrl) => {
     };
 };
 
-const normalizeProofResponse = (proof, context = {}) => ({
-    id: proof.id,
-    tripId: proof.tripId,
-    locatorSlipId: proof.locatorSlipId,
-    facultyUserId: proof.facultyUserId,
-    facultyId: context.facultyId || null,
-    focalPersonName: proof.focalPersonName,
-    focalPersonPosition: proof.focalPersonPosition,
-    focalPersonSignatureUrl: proof.focalPersonSignatureUrl,
-    arrivalPhotoUrl: proof.arrivalPhotoUrl,
-    proofComplianceImageUrl: proof.proofComplianceImageUrl || proof.imageUrl,
-    verificationStatus: String(proof.verificationStatus || 'submitted').toLowerCase(),
-    submittedAt: proof.submittedAt,
-    reviewedAt: proof.reviewedAt,
-    reviewedBy: proof.reviewedBy,
-    reviewRemarks: proof.reviewRemarks,
-    facultyName: context.facultyName || null,
-    collegeName: context.collegeName || null,
-    destination: context.destination || null,
-    purpose: context.purpose || null,
-    locatorSlipCode: context.locatorSlipCode || null,
-    reviewedByName: context.reviewedByName || null,
-    actualReturnTime: context.actualReturnTime || null,
-    expectedReturnTime: context.expectedReturnTime || null,
-    tripStartedAt: context.tripStartedAt || null,
-    digitalSignature: context.digitalSignature || null,
-    flaggedReasons: Array.isArray(context.flaggedReasons) ? context.flaggedReasons : [],
-    flaggedIncidentTypes: Array.isArray(context.flaggedIncidentTypes) ? context.flaggedIncidentTypes : [],
-    isLateReturn: Array.isArray(context.flaggedReasons)
-        ? context.flaggedReasons.includes(tripIncidentService.INCIDENT_LABELS.LATE_RETURN)
-        : false
-});
+const normalizeProofResponse = (proof, context = {}) => {
+    const baseFlaggedReasons = Array.isArray(context.flaggedReasons) ? context.flaggedReasons : [];
+    const baseFlaggedIncidentTypes = Array.isArray(context.flaggedIncidentTypes) ? context.flaggedIncidentTypes : [];
+    const expectedReturnTime = context.expectedReturnTime || null;
+    const actualReturnTime = context.actualReturnTime || null;
+    const autoLateReturn = detectLateReturnStatus(expectedReturnTime, actualReturnTime);
+    const flaggedReasons = autoLateReturn && !baseFlaggedReasons.includes(tripIncidentService.INCIDENT_LABELS.LATE_RETURN)
+        ? [...baseFlaggedReasons, tripIncidentService.INCIDENT_LABELS.LATE_RETURN]
+        : baseFlaggedReasons;
+    const flaggedIncidentTypes = autoLateReturn && !baseFlaggedIncidentTypes.includes('LATE_RETURN')
+        ? [...baseFlaggedIncidentTypes, 'LATE_RETURN']
+        : baseFlaggedIncidentTypes;
+
+    return {
+        id: proof.id,
+        tripId: proof.tripId,
+        locatorSlipId: proof.locatorSlipId,
+        facultyUserId: proof.facultyUserId,
+        facultyId: context.facultyId || null,
+        focalPersonName: proof.focalPersonName,
+        focalPersonPosition: proof.focalPersonPosition,
+        focalPersonSignatureUrl: proof.focalPersonSignatureUrl,
+        arrivalPhotoUrl: proof.arrivalPhotoUrl,
+        proofComplianceImageUrl: proof.proofComplianceImageUrl || proof.imageUrl,
+        verificationStatus: String(proof.verificationStatus || 'submitted').toLowerCase(),
+        submittedAt: proof.submittedAt,
+        reviewedAt: proof.reviewedAt,
+        reviewedBy: proof.reviewedBy,
+        reviewRemarks: proof.reviewRemarks,
+        facultyName: context.facultyName || null,
+        collegeName: context.collegeName || null,
+        destination: context.destination || null,
+        purpose: context.purpose || null,
+        locatorSlipCode: context.locatorSlipCode || null,
+        reviewedByName: context.reviewedByName || null,
+        actualReturnTime,
+        expectedReturnTime,
+        tripStartedAt: context.tripStartedAt || null,
+        digitalSignature: context.digitalSignature || null,
+        flaggedReasons,
+        flaggedIncidentTypes,
+        isLateReturn: flaggedReasons.includes(tripIncidentService.INCIDENT_LABELS.LATE_RETURN)
+    };
+};
 
 const buildLocatorSlipCode = (locatorSlipId) => {
     const normalized = String(locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
