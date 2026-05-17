@@ -293,7 +293,8 @@ function App() {
     email: '',
     password: '',
     confirm_password: '',
-    terms_accepted: false
+    terms_accepted: false,
+    privacy_accepted: false
   });
   const [showPermissionSetup, setShowPermissionSetup] = useState(false);
   const [permissionSetupStep, setPermissionSetupStep] = useState('intro');
@@ -1606,7 +1607,7 @@ const LEGAL_DOCUMENTS = {
       },
       {
         heading: '10. Contact for Privacy Concerns',
-        body: 'For privacy concerns, correction requests, or data-related inquiries, contact: John Doe | DPO | johndoe@gmail.com'
+        body: 'For privacy concerns, correction requests, or data-related inquiries, contact: Mr. Neil Marc Biron | DPO | biron.neilmarc@gordoncollege.edu.ph'
       }
     ]
   },
@@ -2858,6 +2859,7 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
     signupPolicyComplete &&
     signupPasswordsMatch &&
     registerForm.terms_accepted &&
+    registerForm.privacy_accepted &&
     (!signupNeedsDepartment || registerForm.department_id) &&
     !loading;
 
@@ -3055,8 +3057,21 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
               I agree to the{' '}
               <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
                 Terms of Service
-              </button>{' '}
-              and{' '}
+              </button>.
+            </span>
+          </label>
+
+          <label className="checkbox-container">
+            <input
+              type="checkbox"
+              checked={registerForm.privacy_accepted}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, privacy_accepted: e.target.checked }))
+              }
+            />
+            <span className="checkmark"></span>
+            <span className="checkbox-label">
+              I agree to the{' '}
               <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
                 Privacy Policy
               </button>.
@@ -3249,8 +3264,21 @@ const SignUpView = ({ setView, registerForm, setRegisterForm, departments, onReg
               I agree to the{' '}
               <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('terms')}>
                 Terms of Service
-              </button>{' '}
-              and{' '}
+              </button>.
+            </span>
+          </label>
+
+          <label className="checkbox-container">
+            <input
+              type="checkbox"
+              checked={registerForm.privacy_accepted}
+              onChange={(e) =>
+                setRegisterForm((prev) => ({ ...prev, privacy_accepted: e.target.checked }))
+              }
+            />
+            <span className="checkmark"></span>
+            <span className="checkbox-label">
+              I agree to the{' '}
               <button type="button" className="legal-inline-link" onClick={() => setActiveLegalDoc('privacy')}>
                 Privacy Policy
               </button>.
@@ -4129,9 +4157,9 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                       value={purposeModalCustomReason}
                       onChange={(e) => setPurposeModalCustomReason(e.target.value)}
                     />
-                      <button
-                        type="button"
-                        className="sig-setting-primary"
+                    <button
+                      type="button"
+                      className="sig-setting-primary"
                       onClick={() => {
                         updateLocatorSlipField('custom_purpose', purposeModalCustomReason);
                         closePurposeModal();
