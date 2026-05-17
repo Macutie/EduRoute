@@ -1,1 +1,0 @@
-const pool = require('./src/db/pool'); pool.query("SELECT * FROM locator_slips WHERE locator_slip_code = 'LS-KZHLCU'").then(res => { console.log(res.rows); process.exit(0); }).catch(err => { console.error(err); process.exit(1); });
