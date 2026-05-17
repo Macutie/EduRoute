@@ -13420,16 +13420,28 @@ const AdminProfileChevronIcon = () => (
 const getDeanRoleLabel = (accountRole) =>
   accountRole === 'assistant_dean' ? 'Assistant Dean' : 'Dean';
 
-const getDeanBadgeLabel = (department = '', accountRole = '') => {
-  const acronym = department
-    .replace(/^College of\s+/i, '')
-    .split(/\s+|,/)
-    .filter(Boolean)
-    .map((word) => word[0]?.toUpperCase())
-    .join('')
-    .slice(0, 4) || 'DEAN';
+const DEAN_DEPARTMENT_ABBREVIATIONS = {
+  'College of Computer Studies': 'CCS',
+  'College of Hospitality and Tourism Management': 'CHTM',
+  'College of Education, Arts and Sciences': 'CEAS',
+  'College of Allied Health Studies': 'CAHS',
+  'College of Business and Accountancy': 'CBA',
+};
 
-  return `${acronym} ${accountRole === 'assistant_dean' ? 'ASST' : 'DEAN'}`;
+const getDeanBadgeLabel = (department = '', accountRole = '') => {
+  const normalizedDepartment = String(department || '').trim();
+  const acronym =
+    DEAN_DEPARTMENT_ABBREVIATIONS[normalizedDepartment] ||
+    normalizedDepartment
+      .replace(/^College of\s+/i, '')
+      .split(/\s+|,/)
+      .filter(Boolean)
+      .map((word) => word[0]?.toUpperCase())
+      .join('')
+      .slice(0, 4) ||
+    'DEAN';
+
+  return `${acronym} ${accountRole === 'assistant_dean' ? 'ASST' : 'Dean'}`;
 };
 
 const DeanProfileView = ({ setView, profileData, onLogout }) => {
