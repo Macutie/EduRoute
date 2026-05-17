@@ -3944,6 +3944,9 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
           <div className="permission-modal-backdrop locator-purpose-backdrop" onClick={closePurposeModal}>
             <div className="permission-modal-card dean-signature-permission-modal locator-purpose-modal" onClick={(e) => e.stopPropagation()}>
               <div className="permission-modal-glow" />
+              <button type="button" className="locator-purpose-modal-close" onClick={closePurposeModal} aria-label="Close purpose selector">
+                <ModalCloseIcon />
+              </button>
               <div className="permission-modal-icon">
                 <DocumentIcon color="var(--green)" width="28" height="28" />
               </div>
@@ -3957,7 +3960,7 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                   <div className="locator-purpose-modal-actions">
                     <button
                       type="button"
-                      className="sig-setting-primary"
+                      className="locator-purpose-pill"
                       onClick={() => {
                         updateLocatorSlipField('purpose_type', 'official');
                         setPurposeModalStep('official');
@@ -3967,7 +3970,7 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                     </button>
                     <button
                       type="button"
-                      className="sig-setting-primary"
+                      className="locator-purpose-pill"
                       onClick={() => {
                         updateLocatorSlipField('purpose_type', 'personal');
                         setPurposeModalStep('personal');
@@ -3989,7 +3992,7 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                       <button
                         key={option}
                         type="button"
-                        className="locator-purpose-option"
+                        className="locator-purpose-pill"
                         onClick={() => {
                           updateLocatorSlipField('purpose_of_travel', option);
                           if (option !== 'Others') {
@@ -4037,9 +4040,9 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                       value={purposeModalCustomReason}
                       onChange={(e) => setPurposeModalCustomReason(e.target.value)}
                     />
-                    <button
-                      type="button"
-                      className="sig-setting-primary"
+                      <button
+                        type="button"
+                        className="sig-setting-primary"
                       onClick={() => {
                         updateLocatorSlipField('custom_purpose', purposeModalCustomReason);
                         closePurposeModal();
@@ -4051,18 +4054,20 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                   </div>
                 </>
               )}
-              <button
-                type="button"
-                className="sig-setting-secondary"
-                onClick={purposeModalStep === 'type' ? closePurposeModal : () => {
-                  setPurposeModalStep('type');
-                  setPurposeModalCustomReason('');
-                  updateLocatorSlipField('purpose_type', '');
-                  updateLocatorSlipField('purpose_of_travel', '');
-                }}
-              >
-                {purposeModalStep === 'type' ? 'Cancel' : 'Back'}
-              </button>
+              {purposeModalStep !== 'type' && (
+                <button
+                  type="button"
+                  className="sig-setting-secondary"
+                  onClick={() => {
+                    setPurposeModalStep('type');
+                    setPurposeModalCustomReason('');
+                    updateLocatorSlipField('purpose_type', '');
+                    updateLocatorSlipField('purpose_of_travel', '');
+                  }}
+                >
+                  Back
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -10176,6 +10181,13 @@ const HrmuViewRouteIcon = ({ color = 'currentColor' }) => (
     <path d="M14 5h5v5" />
     <path d="M10 14 19 5" />
     <path d="M5 19h14" />
+  </svg>
+);
+
+const ModalCloseIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+    <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </svg>
 );
 
