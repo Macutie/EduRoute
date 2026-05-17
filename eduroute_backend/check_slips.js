@@ -1,1 +1,0 @@
-const pool = require('./src/db/pool'); pool.query("SELECT id, locator_slip_code FROM locator_slips ORDER BY created_at DESC LIMIT 10").then(res => { console.log(res.rows); process.exit(0); }).catch(err => { console.error(err); process.exit(1); });
