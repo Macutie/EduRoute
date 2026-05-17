@@ -1524,7 +1524,45 @@ const QuestionCircleIcon = ({ color = "currentColor" }) => (
 const LEGAL_DOCUMENTS = {
   terms: {
     title: 'Terms and Conditions',
-    body: 'EduRoute is intended for official faculty routing, locator slip submission, and school-approved coordination. Faculty users are responsible for keeping account credentials private and submitting accurate travel information.'
+    body: 'By using EduRoute, you agree to use the system only for official faculty locator slip processing, trip validation, monitoring, and reporting.',
+    sections: [
+      {
+        heading: '1. Authorized Use',
+        body: 'EduRoute is intended for authorized users only, including Faculty, Deans, CSSU, HRMU, and approved system administrators.'
+      },
+      {
+        heading: '2. User Responsibility',
+        body: 'Users must provide accurate locator slip details, follow institutional policies, and use their own account only. Sharing login credentials or submitting false information is prohibited.'
+      },
+      {
+        heading: '3. Role-Based Access',
+        body: 'Each user can only access features and records allowed for their role. Faculty may access their own locator slips and trips. Deans may review requests from their assigned college. CSSU may validate exits. HRMU may monitor, verify, and generate reports.'
+      },
+      {
+        heading: '4. Location and Trip Monitoring',
+        body: 'Location tracking is used only for approved official trips and monitoring purposes. Users must allow location access when starting and completing trips.'
+      },
+      {
+        heading: '5. Proof of Compliance',
+        body: 'Uploaded signatures, photos, focal person details, and related records must be truthful and submitted only for official verification.'
+      },
+      {
+        heading: '6. System Availability',
+        body: 'EduRoute may be affected by internet connection, device settings, server maintenance, or third-party services such as maps, notifications, and storage providers.'
+      },
+      {
+        heading: '7. Data Privacy',
+        body: 'Personal and trip-related information will be processed according to the EduRoute Privacy Policy and applicable data privacy laws.'
+      },
+      {
+        heading: '8. Misuse of the System',
+        body: 'The institution may review, restrict, or suspend access if a user misuses EduRoute, tampers with records, submits false data, or violates institutional rules.'
+      },
+      {
+        heading: '9. Acceptance',
+        body: 'By continuing to use EduRoute, you confirm that you have read, understood, and agreed to these Terms and Conditions.'
+      }
+    ]
   },
   privacy: {
     title: 'Privacy Policy',
@@ -1552,12 +1590,21 @@ const LegalDocumentModal = ({ activeLegalDoc, onClose }) => {
         <h2>{legalDoc.title}</h2>
         <div className="priv-legal-modal-scroll">
           <p>{legalDoc.body}</p>
-          <p>
-            Authorized access is limited to registered Gordon College faculty users. Keep your password secure, submit accurate account and locator slip information, and use EduRoute only for official school-related coordination.
-          </p>
-          <p>
-            EduRoute may update these guidelines as the academic portal grows. Continued use of the portal means you agree to follow current faculty data, security, and acceptable-use rules.
-          </p>
+          {Array.isArray(legalDoc.sections) ? legalDoc.sections.map((section) => (
+            <div key={section.heading}>
+              <p><strong>{section.heading}</strong></p>
+              <p>{section.body}</p>
+            </div>
+          )) : (
+            <>
+              <p>
+                Authorized access is limited to registered Gordon College faculty users. Keep your password secure, submit accurate account and locator slip information, and use EduRoute only for official school-related coordination.
+              </p>
+              <p>
+                EduRoute may update these guidelines as the academic portal grows. Continued use of the portal means you agree to follow current faculty data, security, and acceptable-use rules.
+              </p>
+            </>
+          )}
         </div>
         <button type="button" className="priv-legal-modal-btn" onClick={onClose}>
           Go Back <ArrowRightIcon />
