@@ -3460,6 +3460,11 @@ const LOCATOR_PURPOSE_OPTIONS = [
   'Others',
 ];
 
+const TRAVEL_PURPOSE_TYPES = [
+  { value: 'official', label: 'Official Business' },
+  { value: 'personal', label: 'Personal' },
+];
+
 const STATUS_FILTERS = [
   { key: 'all', label: 'All' },
   { key: 'approved', label: 'Approved' },
@@ -3672,9 +3677,16 @@ const formatActivityFiledTime = (value) => {
 };
 
 const getSlipTitle = (slip) => {
-  if (slip.custom_purpose) return slip.custom_purpose;
-  if (slip.purpose_of_travel === 'Others') return 'Other Official Travel';
-  return slip.purpose_of_travel || 'Locator Slip';
+  if (slip?.purpose_display) return slip.purpose_display;
+  if (slip?.purpose_of_travel === 'Personal') {
+    return slip?.custom_purpose ? `Personal - ${slip.custom_purpose}` : 'Personal';
+  }
+  if (slip?.purpose_of_travel === 'Others') {
+    return slip?.custom_purpose ? `Official Business - ${slip.custom_purpose}` : 'Official Business - Other Official Travel';
+  }
+  if (slip?.purpose_of_travel) return `Official Business - ${slip.purpose_of_travel}`;
+  if (slip?.custom_purpose) return slip.custom_purpose;
+  return 'Locator Slip';
 };
 
 const toDateTimeLocalValue = (date) => {
@@ -3686,8 +3698,10 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [locatorSlipLoading, setLocatorSlipLoading] = useState(false);
   const [locatorSlipErrors, setLocatorSlipErrors] = useState({});
+  const [showPurposeTypeModal, setShowPurposeTypeModal] = useState(false);
   const [currentDateTimeLocal, setCurrentDateTimeLocal] = useState(() => toDateTimeLocalValue(new Date()));
   const [locatorSlipForm, setLocatorSlipForm] = useState({
+    purpose_type: '',
     destination: '',
     purpose_of_travel: '',
     custom_purpose: '',
@@ -3711,11 +3725,16 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
       errors.destination = 'Destination is required.';
     }
 
-    if (!locatorSlipForm.purpose_of_travel) {
+    if (!locatorSlipForm.purpose_type) {
+      errors.purpose_of_travel = 'Please choose whether this trip is for official business or personal travel.';
+    } else if (!locatorSlipForm.purpose_of_travel) {
       errors.purpose_of_travel = 'Purpose of travel is required.';
     }
 
-    if (locatorSlipForm.purpose_of_travel === 'Others' && !locatorSlipForm.custom_purpose.trim()) {
+    if (
+      (locatorSlipForm.purpose_of_travel === 'Others' || locatorSlipForm.purpose_of_travel === 'Personal') &&
+      !locatorSlipForm.custom_purpose.trim()
+    ) {
       errors.custom_purpose = 'Please specify your purpose.';
     }
 
@@ -3813,7 +3832,12 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
     setLocatorSlipForm((prev) => ({
       ...prev,
       [field]: value,
-      ...(field === 'purpose_of_travel' && value !== 'Others' ? { custom_purpose: '' } : {}),
+      ...(field === 'purpose_type'
+        ? value === 'official'
+          ? { purpose_of_travel: '', custom_purpose: '' }
+          : { purpose_of_travel: 'Personal', custom_purpose: '' }
+        : {}),
+      ...(field === 'purpose_of_travel' && value !== 'Others' && value !== 'Personal' ? { custom_purpose: '' } : {}),
     }));
     setLocatorSlipErrors((prev) => ({
       ...prev,
@@ -3900,6 +3924,38 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
           <p>Please document your destination and expected return for institutional coordination.</p>
         </div>
 
+        {showPurposeTypeModal && (
+          <div className="permission-modal-overlay dean-signature-modal-overlay" onClick={() => setShowPurposeTypeModal(false)}>
+            <div className="permission-modal-content" onClick={(e) => e.stopPropagation()}>
+              <span className="permission-modal-kicker">TRAVEL PURPOSE</span>
+              <h3>Select Purpose Type</h3>
+              <p>Choose whether this locator slip is for official business or personal travel before setting the specific purpose.</p>
+              <div className="dean-signature-permission-actions">
+                {TRAVEL_PURPOSE_TYPES.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    className="sig-setting-primary"
+                    onClick={() => {
+                      updateLocatorSlipField('purpose_type', option.value);
+                      setShowPurposeTypeModal(false);
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="sig-setting-secondary"
+                onClick={() => setShowPurposeTypeModal(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="slip-section-card credentials-card">
           <div className="section-title-row">
             <div className="section-icon green-circle-icon">
@@ -3945,6 +4001,24 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
 
           <div className="trip-field">
             <label>Purpose of Travel</label>
+            <button
+              type="button"
+              className="trip-input-wrapper trip-select-wrapper trip-purpose-trigger"
+              onClick={() => setShowPurposeTypeModal(true)}
+            >
+              <DocumentIcon color="var(--text-light)" width="18" height="18" />
+              <span className={locatorSlipForm.purpose_type ? 'trip-purpose-value' : 'trip-purpose-placeholder'}>
+                {locatorSlipForm.purpose_type
+                  ? locatorSlipForm.purpose_type === 'official'
+                    ? 'Official Business'
+                    : 'Personal'
+                  : 'Choose purpose type...'}
+              </span>
+              <div className="select-icon trip-chevron">
+                <ChevronDownIcon />
+              </div>
+            </button>
+            {locatorSlipForm.purpose_type === 'official' && (
             <div className="trip-input-wrapper trip-select-wrapper">
               <DocumentIcon color="var(--text-light)" width="18" height="18" />
               <select
@@ -3960,13 +4034,25 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
                 <ChevronDownIcon />
               </div>
             </div>
-            {renderLocatorSlipMessage('purpose_of_travel')}
-            {locatorSlipForm.purpose_of_travel === 'Others' && (
+            )}
+            {locatorSlipForm.purpose_type === 'personal' && (
               <div className="trip-input-wrapper others-input" style={{ marginTop: '12px' }}>
                 <DocumentIcon color="var(--text-light)" width="18" height="18" />
                 <input
                   type="text"
-                  placeholder="Please specify your purpose..."
+                  placeholder="Type your personal reason..."
+                  value={locatorSlipForm.custom_purpose}
+                  onChange={(e) => updateLocatorSlipField('custom_purpose', e.target.value)}
+                />
+              </div>
+            )}
+            {renderLocatorSlipMessage('purpose_of_travel')}
+            {locatorSlipForm.purpose_type === 'official' && locatorSlipForm.purpose_of_travel === 'Others' && (
+              <div className="trip-input-wrapper others-input" style={{ marginTop: '12px' }}>
+                <DocumentIcon color="var(--text-light)" width="18" height="18" />
+                <input
+                  type="text"
+                  placeholder="Please specify your official business..."
                   value={locatorSlipForm.custom_purpose}
                   onChange={(e) => updateLocatorSlipField('custom_purpose', e.target.value)}
                 />

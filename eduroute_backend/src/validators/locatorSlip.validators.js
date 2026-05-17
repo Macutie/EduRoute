@@ -6,7 +6,8 @@ const PURPOSE_OPTIONS = [
     'Submission/Retrieval of Documents',
     'Coordination/Consultation',
     'Field Inspection/Monitoring',
-    'Others'
+    'Others',
+    'Personal'
 ];
 
 const CANCELLATION_REASON_OPTIONS = [
@@ -47,8 +48,8 @@ const createLocatorSlipValidator = [
     body('custom_purpose')
         .customSanitizer((value) => (typeof value === 'string' ? value.trim() : ''))
         .custom((value, { req }) => {
-            if (req.body.purpose_of_travel === 'Others' && !value) {
-                throw new Error('Custom purpose is required when purpose of travel is Others.');
+            if ((req.body.purpose_of_travel === 'Others' || req.body.purpose_of_travel === 'Personal') && !value) {
+                throw new Error('Please specify your purpose.');
             }
 
             if (value && value.length > 255) {

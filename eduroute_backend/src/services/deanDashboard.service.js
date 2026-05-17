@@ -32,6 +32,25 @@ const getInitials = (name = '') =>
         .map((part) => part[0]?.toUpperCase())
         .join('') || 'FA';
 
+const formatPurposeDisplay = (purposeOfTravel, customPurpose) => {
+    const normalizedPurpose = String(purposeOfTravel || '').trim();
+    const normalizedCustom = String(customPurpose || '').trim();
+
+    if (normalizedPurpose === 'Personal') {
+        return normalizedCustom ? `Personal - ${normalizedCustom}` : 'Personal';
+    }
+
+    if (normalizedPurpose === 'Others') {
+        return normalizedCustom ? `Official Business - ${normalizedCustom}` : 'Official Business - Other Official Travel';
+    }
+
+    if (normalizedPurpose) {
+        return `Official Business - ${normalizedPurpose}`;
+    }
+
+    return normalizedCustom || 'Locator Slip';
+};
+
 const parseBoolean = (value) => {
     if (value === true || value === 'true' || value === 1 || value === '1') return true;
     return false;
@@ -336,7 +355,7 @@ const normalizeLocatorSlipRow = (row) => ({
     employeeId: row.employee_id,
     position: row.department_position || 'Instructor',
     collegeName: row.department_name,
-    purpose: row.custom_purpose || row.purpose_of_travel,
+    purpose: formatPurposeDisplay(row.purpose_of_travel, row.custom_purpose),
     purposeOfTravel: row.purpose_of_travel,
     destination: row.destination,
     isUrgent: row.is_urgent === true,

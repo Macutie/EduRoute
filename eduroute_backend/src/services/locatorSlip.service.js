@@ -19,6 +19,25 @@ let cssuExitLogsTableExistsCache = null;
 
 const LOCATOR_SLIP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
+const formatPurposeDisplay = (purposeOfTravel, customPurpose) => {
+    const normalizedPurpose = String(purposeOfTravel || '').trim();
+    const normalizedCustom = String(customPurpose || '').trim();
+
+    if (normalizedPurpose === 'Personal') {
+        return normalizedCustom ? `Personal - ${normalizedCustom}` : 'Personal';
+    }
+
+    if (normalizedPurpose === 'Others') {
+        return normalizedCustom ? `Official Business - ${normalizedCustom}` : 'Official Business - Other Official Travel';
+    }
+
+    if (normalizedPurpose) {
+        return `Official Business - ${normalizedPurpose}`;
+    }
+
+    return normalizedCustom || 'Locator Slip';
+};
+
 const getLocatorSlipTripStatusColumnExists = async () => {
     if (locatorSlipTripStatusColumnExistsCache !== null) {
         return locatorSlipTripStatusColumnExistsCache;
@@ -217,6 +236,7 @@ const formatLocatorSlip = (row) => ({
     destination: row.destination,
     purpose_of_travel: row.purpose_of_travel,
     custom_purpose: row.custom_purpose,
+    purpose_display: formatPurposeDisplay(row.purpose_of_travel, row.custom_purpose),
     departure_datetime: row.departure_datetime,
     expected_return_datetime: row.expected_return_datetime,
     formatted_departure_datetime: formatDateTime(row.departure_datetime),
@@ -321,7 +341,9 @@ const getFacultyProfile = async (facultyUserId) => {
 const createLocatorSlip = async (facultyUserId, payload) => {
     const destination = payload.destination.trim();
     const purposeOfTravel = payload.purpose_of_travel.trim();
-    const customPurpose = purposeOfTravel === 'Others' ? payload.custom_purpose?.trim() : null;
+    const customPurpose = (purposeOfTravel === 'Others' || purposeOfTravel === 'Personal')
+        ? payload.custom_purpose?.trim()
+        : null;
     const additionalRemarks = payload.additional_remarks?.trim() || null;
     const isUrgent = payload.is_urgent === true;
     const client = await pool.connect();

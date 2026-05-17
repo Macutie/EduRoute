@@ -2537,6 +2537,13 @@ label {
   padding: 14px 16px;
 }
 
+.trip-purpose-trigger {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
 .trip-input-wrapper.has-warning {
   background: #fff7ed;
   box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.38);
@@ -2554,6 +2561,21 @@ label {
 }
 
 .trip-input-wrapper input::placeholder {
+  color: var(--text-light);
+}
+
+.trip-purpose-value,
+.trip-purpose-placeholder {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.trip-purpose-value {
+  color: var(--text-dark);
+}
+
+.trip-purpose-placeholder {
   color: var(--text-light);
 }
 
