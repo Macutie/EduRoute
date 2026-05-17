@@ -4,11 +4,11 @@ const { protect, requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
-router.use(protect, requireRole('faculty'));
+router.use(protect);
 
-router.post('/directions', mapController.getDirections);
-router.get('/trips/active', mapController.getActiveTrip);
-router.post('/trips/start', mapController.startTrip);
-router.post('/trips/:id/end', mapController.endTrip);
+router.post('/directions', requireRole('faculty', 'hrmu', 'cssu', 'admin'), mapController.getDirections);
+router.get('/trips/active', requireRole('faculty'), mapController.getActiveTrip);
+router.post('/trips/start', requireRole('faculty'), mapController.startTrip);
+router.post('/trips/:id/end', requireRole('faculty'), mapController.endTrip);
 
 module.exports = router;
