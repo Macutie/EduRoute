@@ -2579,6 +2579,60 @@ label {
   color: var(--text-light);
 }
 
+.locator-purpose-modal {
+  max-width: 420px;
+}
+
+.locator-purpose-modal-actions,
+.locator-purpose-option-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  width: 100%;
+}
+
+.locator-purpose-option {
+  border: 1px solid rgba(4, 149, 22, 0.16);
+  background: #f7fbf4;
+  border-radius: 16px;
+  padding: 14px 16px;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.locator-purpose-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(4, 149, 22, 0.35);
+  box-shadow: 0 10px 24px rgba(4, 149, 22, 0.08);
+}
+
+.locator-purpose-modal-input {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.locator-purpose-modal-input input {
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  background: #f7fbf4;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-dark);
+  outline: none;
+}
+
+.locator-purpose-modal-input input:focus {
+  border-color: rgba(4, 149, 22, 0.4);
+  box-shadow: 0 0 0 4px rgba(4, 149, 22, 0.08);
+}
+
 .datetime-input {
   flex: 1;
   border: none;
