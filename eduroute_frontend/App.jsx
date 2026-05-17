@@ -10031,14 +10031,12 @@ const HrmuLiveMapPanel = ({
 
     const current = selectedFacultyDetail?.latestLocation;
     const target = selectedFacultyDetail?.activeTrip?.destinationCoordinates;
-    const savedRouteGeometry = selectedFacultyDetail?.activeTrip?.routeGeometry;
+    const savedRouteGeometry =
+      selectedFacultyDetail?.activeTrip?.routeGeometry
+      || selectedFacultyDetail?.routeGeometry
+      || selectedFaculty?.routeGeometry;
     const hasCurrentPoint = Number.isFinite(current?.lng) && Number.isFinite(current?.lat);
     const hasTargetPoint = Number.isFinite(target?.lng) && Number.isFinite(target?.lat);
-
-    if (!hasCurrentPoint || !hasTargetPoint) {
-      clearSelectedRoute();
-      return;
-    }
 
     let cancelled = false;
 
@@ -10068,24 +10066,67 @@ const HrmuLiveMapPanel = ({
       }
     };
 
+    const normalizeCoordinate = (coordinate) => {
+      if (!coordinate) return null;
+      if (Array.isArray(coordinate) && coordinate.length >= 2) {
+        const lng = Number(coordinate[0]);
+        const lat = Number(coordinate[1]);
+        return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+      }
+
+      const lng = Number(
+        coordinate.lng
+        ?? coordinate.longitude
+        ?? coordinate.lon
+        ?? coordinate[0]
+      );
+      const lat = Number(
+        coordinate.lat
+        ?? coordinate.latitude
+        ?? coordinate[1]
+      );
+
+      return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+    };
+
     const normalizeRouteGeometry = (value) => {
       if (!value) return null;
+      let parsedValue = value;
       if (typeof value === 'string') {
         try {
-          return JSON.parse(value);
+          parsedValue = JSON.parse(value);
         } catch {
           return null;
         }
       }
-      return value;
-    };
 
-    const fallbackStraightGeometry = {
-      type: 'LineString',
-      coordinates: [
-        [Number(current.lng), Number(current.lat)],
-        [Number(target.lng), Number(target.lat)],
-      ],
+      if (parsedValue?.type === 'FeatureCollection' && Array.isArray(parsedValue.features)) {
+        return normalizeRouteGeometry(parsedValue.features[0]?.geometry || null);
+      }
+
+      if (parsedValue?.type === 'Feature' && parsedValue.geometry) {
+        return normalizeRouteGeometry(parsedValue.geometry);
+      }
+
+      if (Array.isArray(parsedValue)) {
+        const coordinates = parsedValue
+          .map(normalizeCoordinate)
+          .filter(Boolean);
+        return coordinates.length > 1
+          ? { type: 'LineString', coordinates }
+          : null;
+      }
+
+      if (parsedValue?.type === 'LineString' && Array.isArray(parsedValue.coordinates)) {
+        const coordinates = parsedValue.coordinates
+          .map(normalizeCoordinate)
+          .filter(Boolean);
+        return coordinates.length > 1
+          ? { type: 'LineString', coordinates }
+          : null;
+      }
+
+      return null;
     };
 
     const normalizedSavedRoute = normalizeRouteGeometry(savedRouteGeometry);
@@ -10096,6 +10137,19 @@ const HrmuLiveMapPanel = ({
         clearSelectedRoute();
       };
     }
+
+    if (!hasCurrentPoint || !hasTargetPoint) {
+      clearSelectedRoute();
+      return;
+    }
+
+    const fallbackStraightGeometry = {
+      type: 'LineString',
+      coordinates: [
+        [Number(current.lng), Number(current.lat)],
+        [Number(target.lng), Number(target.lat)],
+      ],
+    };
 
     const loadRoadRoute = async () => {
       try {
@@ -10816,6 +10870,9 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
       const proofs = Array.isArray(proofData?.proofs) ? proofData.proofs : [];
       const mappedRows = proofs.map((row) => {
         const normalizedStatus = String(row.verificationStatus || 'submitted').toLowerCase();
+        const flaggedReasons = Array.isArray(row.flaggedReasons) ? row.flaggedReasons : [];
+        const isLateReturn = flaggedReasons.includes('Late Return');
+        const isUnverified = flaggedReasons.includes('Unverified Location/Signature') || normalizedStatus === 'rejected';
         const collegeName = row.collegeName || 'Unknown college';
         const facultyName = row.facultyName || 'Faculty member';
         return {
@@ -10828,12 +10885,14 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           department: collegeName,
           roleLine: `Faculty - ${collegeName}`,
           destination: row.destination || 'No destination provided.',
-          status: normalizedStatus === 'verified'
-            ? 'SUCCESSFUL'
-            : normalizedStatus === 'rejected'
-              ? 'FLAGGED'
-              : 'PENDING',
-          statusTone: normalizedStatus === 'verified' ? 'green' : normalizedStatus === 'rejected' ? 'red' : 'yellow',
+          status: isLateReturn
+            ? 'LATE RETURN'
+            : isUnverified
+              ? 'UNVERIFIED LOCATION/SIGNATURE'
+              : normalizedStatus === 'verified'
+                ? 'SUCCESSFUL'
+                : 'PENDING',
+          statusTone: isLateReturn || isUnverified ? 'red' : normalizedStatus === 'verified' ? 'green' : 'yellow',
           actionTone: 'ghost',
           actionIcon: <HrmuEyeMiniIcon color="#3B3B3B" />,
           slipNumber: buildSlipReference(row.locatorSlipId),
@@ -10846,6 +10905,9 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           reviewedAt: row.reviewedAt || null,
           expectedReturnTime: row.expectedReturnTime || null,
           actualReturnTime: row.actualReturnTime || null,
+          flaggedReasons,
+          flaggedIncidentTypes: Array.isArray(row.flaggedIncidentTypes) ? row.flaggedIncidentTypes : [],
+          isLateReturn,
           purpose: row.purpose || 'Official travel',
           timeOut: row.actualReturnTime
             ? new Date(row.actualReturnTime).toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit' })
@@ -10853,8 +10915,8 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
         };
       });
 
-      const successfulTrips = mappedRows.filter((row) => row.verificationStatus === 'verified').length;
-      const pendingReviews = mappedRows.filter((row) => row.verificationStatus === 'submitted').length;
+      const successfulTrips = mappedRows.filter((row) => row.status === 'SUCCESSFUL').length;
+      const pendingReviews = mappedRows.filter((row) => row.status === 'PENDING').length;
 
       setRegistryRows(mappedRows);
       setSummary({
@@ -10998,7 +11060,11 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           details={selectedProofDetails}
           reviewMessage={reviewMessage}
           reviewing={reviewing}
-          reviewLocked={reviewLocked || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'}
+          reviewLocked={
+            reviewLocked
+            || Boolean(selectedProofDetails?.isLateReturn || selectedRegistryRow?.isLateReturn)
+            || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'
+          }
           onClose={closeRegistryRow}
           onReview={handleProofReview}
         />

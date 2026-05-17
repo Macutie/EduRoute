@@ -9,6 +9,7 @@ const formatDateTime = (value) => {
 
 const formatStatusText = (status) => {
   const normalized = String(status || 'submitted').toLowerCase();
+  if (normalized === 'late_return') return 'LATE RETURN';
   if (normalized === 'verified') return 'SUCCESSFUL TRIP';
   if (normalized === 'rejected') return 'UNVERIFIED LOCATION/SIGNATURE';
   return 'PENDING PROOF REVIEW';
@@ -16,6 +17,7 @@ const formatStatusText = (status) => {
 
 const formatProofStatus = (status) => {
   const normalized = String(status || 'submitted').toLowerCase();
+  if (normalized === 'late_return') return 'FLAGGED';
   if (normalized === 'verified') return 'SUCCESSFUL';
   if (normalized === 'rejected') return 'FLAGGED';
   return 'SUBMITTED';
@@ -33,6 +35,10 @@ const formatRoleLabel = (value, fallback = 'Dean') => {
 };
 
 const buildStatusCopy = (proof) => {
+  if (proof?.isLateReturn) {
+    return 'The system automatically identified this trip as late return.';
+  }
+
   const normalized = String(proof?.verificationStatus || 'submitted').toLowerCase();
   if (normalized === 'verified') {
     return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU marked this as a successful trip.`;
@@ -57,15 +63,28 @@ const ProofComplianceDetails = ({
   if (!row) return null;
 
   const activeProof = details || row;
-  const normalizedStatus = String(activeProof.verificationStatus || row.verificationStatus || 'submitted').toLowerCase();
+  const flaggedReasons = Array.isArray(activeProof.flaggedReasons) ? activeProof.flaggedReasons : Array.isArray(row.flaggedReasons) ? row.flaggedReasons : [];
+  const isLateReturn = Boolean(activeProof.isLateReturn || row.isLateReturn || flaggedReasons.includes('Late Return'));
+  const isUnverified = flaggedReasons.includes('Unverified Location/Signature')
+    || String(activeProof.verificationStatus || row.verificationStatus || '').toLowerCase() === 'rejected';
+  const normalizedStatus = isLateReturn
+    ? 'late_return'
+    : isUnverified
+      ? 'rejected'
+      : String(activeProof.verificationStatus || row.verificationStatus || 'submitted').toLowerCase();
   const displayStatus = formatStatusText(normalizedStatus);
   const proofStatus = formatProofStatus(normalizedStatus);
-  const statusBarClassName = normalizedStatus === 'rejected'
+  const statusBarClassName = normalizedStatus === 'rejected' || normalizedStatus === 'late_return'
     ? 'hrmu-verify-status-bar review'
     : 'hrmu-verify-status-bar';
+  const statusRowClassName = normalizedStatus === 'rejected' || normalizedStatus === 'late_return'
+    ? 'hrmu-verify-current-status-row review'
+    : 'hrmu-verify-current-status-row';
   const focalPersonName = activeProof.focalPersonName || 'N/A';
   const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
   const deanSignature = activeProof.digitalSignature || null;
+  const isAutoLateReturn = isLateReturn;
+  const effectiveReviewLocked = reviewLocked || isAutoLateReturn;
 
   const modalRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
@@ -145,7 +164,7 @@ const ProofComplianceDetails = ({
               </div>
               <p>{row.roleLine}</p>
               <div className="hrmu-verify-modal-times">
-                <span>Returned: {formatDateTime(activeProof.actualReturnTime || row.actualReturnTime)}</span>
+                <span className={isLateReturn ? 'hrmu-verify-modal-time-late' : ''}>Returned: {formatDateTime(activeProof.actualReturnTime || row.actualReturnTime)}</span>
                 <span>Est. Return: {formatDateTime(activeProof.expectedReturnTime || row.expectedReturnTime)}</span>
               </div>
             </div>
@@ -235,10 +254,10 @@ const ProofComplianceDetails = ({
                 <strong>{formatProofStatus('submitted')}</strong>
                 <small>{formatDateTime(activeProof.submittedAt || row.submittedAt)}</small>
               </div>
-              <div className={`hrmu-verify-check-card ${normalizedStatus === 'rejected' ? 'negative' : 'positive'}`}>
+              <div className={`hrmu-verify-check-card ${normalizedStatus === 'rejected' || normalizedStatus === 'late_return' ? 'negative' : 'positive'}`}>
                 <span>HRMU REVIEW</span>
-                <strong>{normalizedStatus === 'verified' ? 'SUCCESSFUL' : normalizedStatus === 'rejected' ? 'FLAGGED' : 'PENDING'}</strong>
-                <small>{activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.'}</small>
+                <strong>{normalizedStatus === 'verified' ? 'SUCCESSFUL' : normalizedStatus === 'rejected' || normalizedStatus === 'late_return' ? 'FLAGGED' : 'PENDING'}</strong>
+                <small>{isLateReturn ? formatDateTime(activeProof.actualReturnTime || row.actualReturnTime) : activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.'}</small>
               </div>
               <div className="hrmu-verify-check-card positive">
                 <span>FOCAL PERSON</span>
@@ -260,7 +279,7 @@ const ProofComplianceDetails = ({
 
           <div className="hrmu-verify-modal-right">
             <div className="hrmu-verify-current-status">
-              <div className="hrmu-verify-current-status-row">
+              <div className={statusRowClassName}>
                 <span>CURRENT STATUS</span>
                 <strong>{displayStatus}</strong>
               </div>
@@ -279,7 +298,7 @@ const ProofComplianceDetails = ({
                 type="button"
                 className="hrmu-verify-request-btn"
                 onClick={() => onReview('rejected')}
-                disabled={reviewing || reviewLocked}
+                disabled={reviewing || effectiveReviewLocked}
               >
                 {reviewing ? 'Saving...' : 'Flag as Unverified Location/Signature'}
               </button>
@@ -287,7 +306,7 @@ const ProofComplianceDetails = ({
                 type="button"
                 className="hrmu-verify-clear-btn"
                 onClick={() => onReview('verified')}
-                disabled={reviewing || reviewLocked}
+                disabled={reviewing || effectiveReviewLocked}
               >
                 {reviewing ? 'Saving...' : 'Successful Trip'}
               </button>

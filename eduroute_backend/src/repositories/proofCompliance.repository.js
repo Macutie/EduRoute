@@ -2,6 +2,7 @@ const pool = require('../db/pool');
 
 let arrivalVerificationColumnsCache = null;
 let arrivalVerificationsTableExistsCache = null;
+let tripIncidentsTableExistsCache = null;
 
 const getArrivalVerificationsTableExists = async (client = pool) => {
     if (arrivalVerificationsTableExistsCache !== null) {
@@ -33,6 +34,16 @@ const getArrivalVerificationColumns = async (client = pool) => {
 
     arrivalVerificationColumnsCache = new Set(rows.map((row) => row.column_name));
     return arrivalVerificationColumnsCache;
+};
+
+const getTripIncidentsTableExists = async (client = pool) => {
+    if (tripIncidentsTableExistsCache !== null) {
+        return tripIncidentsTableExistsCache;
+    }
+
+    const { rows } = await client.query(`SELECT to_regclass('public.trip_incidents') AS table_name`);
+    tripIncidentsTableExistsCache = Boolean(rows[0]?.table_name);
+    return tripIncidentsTableExistsCache;
 };
 
 const hasArrivalVerificationColumn = async (columnName, client = pool) => {
@@ -106,6 +117,8 @@ const mapProofRow = (row) => {
         deanSignatureMimeType: row.dean_signature_mime_type || null,
         deanSignatureOriginalFilename: row.dean_signature_original_filename || null,
         deanSignatureAttachedAt: row.dean_signature_attached_at || null,
+        flaggedReasons: Array.isArray(row.incident_labels) ? row.incident_labels : [],
+        flaggedIncidentTypes: Array.isArray(row.incident_types) ? row.incident_types : [],
         createdAt: row.created_at || null,
         updatedAt: row.updated_at || null
     };
@@ -182,6 +195,7 @@ const getHrmuProofList = async (client = pool) => {
         return [];
     }
 
+    const hasTripIncidentsTable = await getTripIncidentsTableExists(client);
     const proofSelect = await buildProofSelect(client);
     const hasReviewedByColumn = await hasArrivalVerificationColumn('reviewed_by', client);
     const hasSubmittedAtColumn = await hasArrivalVerificationColumn('submitted_at', client);
@@ -191,6 +205,19 @@ const getHrmuProofList = async (client = pool) => {
     const orderByExpression = hasSubmittedAtColumn
         ? 'COALESCE(verification.submitted_at, verification.verified_at, verification.created_at)'
         : 'COALESCE(verification.verified_at, verification.created_at)';
+    const tripIncidentJoin = hasTripIncidentsTable
+        ? `LEFT JOIN LATERAL (
+            SELECT
+                ARRAY_AGG(DISTINCT ti.incident_label ORDER BY ti.incident_label) AS incident_labels,
+                ARRAY_AGG(DISTINCT ti.incident_type ORDER BY ti.incident_type) AS incident_types
+            FROM trip_incidents ti
+            WHERE ti.trip_id = verification.trip_id
+         ) incidents ON TRUE`
+        : `LEFT JOIN LATERAL (
+            SELECT
+                ARRAY[]::text[] AS incident_labels,
+                ARRAY[]::text[] AS incident_types
+         ) incidents ON TRUE`;
     const { rows } = await client.query(
         `SELECT
             ${proofSelect},
@@ -211,7 +238,9 @@ const getHrmuProofList = async (client = pool) => {
             lsig.signature_url AS dean_signature_url,
             lsig.signature_mime_type AS dean_signature_mime_type,
             lsig.signature_original_filename AS dean_signature_original_filename,
-            lsig.attached_at AS dean_signature_attached_at
+            lsig.attached_at AS dean_signature_attached_at,
+            incidents.incident_labels,
+            incidents.incident_types
          FROM arrival_verifications verification
          JOIN faculty_users faculty ON faculty.id = verification.faculty_user_id
          JOIN locator_slips locator ON locator.id = verification.locator_slip_id
@@ -220,6 +249,7 @@ const getHrmuProofList = async (client = pool) => {
          ${reviewedByJoin}
          LEFT JOIN faculty_users dean_reviewer ON dean_reviewer.id = locator.reviewed_by
          LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = verification.locator_slip_id
+         ${tripIncidentJoin}
          ORDER BY ${orderByExpression} DESC, verification.created_at DESC`
     );
 
@@ -242,7 +272,9 @@ const getHrmuProofList = async (client = pool) => {
         deanSignatureUrl: row.dean_signature_url || null,
         deanSignatureMimeType: row.dean_signature_mime_type || null,
         deanSignatureOriginalFilename: row.dean_signature_original_filename || null,
-        deanSignatureAttachedAt: row.dean_signature_attached_at || null
+        deanSignatureAttachedAt: row.dean_signature_attached_at || null,
+        flaggedReasons: Array.isArray(row.incident_labels) ? row.incident_labels : [],
+        flaggedIncidentTypes: Array.isArray(row.incident_types) ? row.incident_types : []
     }));
 };
 
@@ -252,11 +284,25 @@ const getHrmuProofById = async (proofId, client = pool) => {
         return null;
     }
 
+    const hasTripIncidentsTable = await getTripIncidentsTableExists(client);
     const proofSelect = await buildProofSelect(client);
     const hasReviewedByColumn = await hasArrivalVerificationColumn('reviewed_by', client);
     const reviewedByJoin = hasReviewedByColumn
         ? 'LEFT JOIN faculty_users reviewer ON reviewer.id = verification.reviewed_by'
         : 'LEFT JOIN LATERAL (SELECT NULL::text AS full_name) reviewer ON TRUE';
+    const tripIncidentJoin = hasTripIncidentsTable
+        ? `LEFT JOIN LATERAL (
+            SELECT
+                ARRAY_AGG(DISTINCT ti.incident_label ORDER BY ti.incident_label) AS incident_labels,
+                ARRAY_AGG(DISTINCT ti.incident_type ORDER BY ti.incident_type) AS incident_types
+            FROM trip_incidents ti
+            WHERE ti.trip_id = verification.trip_id
+         ) incidents ON TRUE`
+        : `LEFT JOIN LATERAL (
+            SELECT
+                ARRAY[]::text[] AS incident_labels,
+                ARRAY[]::text[] AS incident_types
+         ) incidents ON TRUE`;
     const { rows } = await client.query(
         `SELECT
             ${proofSelect},
@@ -278,7 +324,9 @@ const getHrmuProofById = async (proofId, client = pool) => {
             lsig.signature_url AS dean_signature_url,
             lsig.signature_mime_type AS dean_signature_mime_type,
             lsig.signature_original_filename AS dean_signature_original_filename,
-            lsig.attached_at AS dean_signature_attached_at
+            lsig.attached_at AS dean_signature_attached_at,
+            incidents.incident_labels,
+            incidents.incident_types
          FROM arrival_verifications verification
          JOIN faculty_users faculty ON faculty.id = verification.faculty_user_id
          JOIN locator_slips locator ON locator.id = verification.locator_slip_id
@@ -287,6 +335,7 @@ const getHrmuProofById = async (proofId, client = pool) => {
          ${reviewedByJoin}
          LEFT JOIN faculty_users dean_reviewer ON dean_reviewer.id = locator.reviewed_by
          LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = verification.locator_slip_id
+         ${tripIncidentJoin}
          WHERE verification.id = $1
          LIMIT 1`,
         [proofId]
@@ -314,7 +363,9 @@ const getHrmuProofById = async (proofId, client = pool) => {
         deanSignatureUrl: rows[0].dean_signature_url || null,
         deanSignatureMimeType: rows[0].dean_signature_mime_type || null,
         deanSignatureOriginalFilename: rows[0].dean_signature_original_filename || null,
-        deanSignatureAttachedAt: rows[0].dean_signature_attached_at || null
+        deanSignatureAttachedAt: rows[0].dean_signature_attached_at || null,
+        flaggedReasons: Array.isArray(rows[0].incident_labels) ? rows[0].incident_labels : [],
+        flaggedIncidentTypes: Array.isArray(rows[0].incident_types) ? rows[0].incident_types : []
     };
 };
 

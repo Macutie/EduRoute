@@ -84,7 +84,12 @@ const normalizeProofResponse = (proof, context = {}) => ({
     actualReturnTime: context.actualReturnTime || null,
     expectedReturnTime: context.expectedReturnTime || null,
     tripStartedAt: context.tripStartedAt || null,
-    digitalSignature: context.digitalSignature || null
+    digitalSignature: context.digitalSignature || null,
+    flaggedReasons: Array.isArray(context.flaggedReasons) ? context.flaggedReasons : [],
+    flaggedIncidentTypes: Array.isArray(context.flaggedIncidentTypes) ? context.flaggedIncidentTypes : [],
+    isLateReturn: Array.isArray(context.flaggedReasons)
+        ? context.flaggedReasons.includes(tripIncidentService.INCIDENT_LABELS.LATE_RETURN)
+        : false
 });
 
 const buildLocatorSlipCode = (locatorSlipId) => {
@@ -317,6 +322,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
 
 const listHrmuProofs = async (userId) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     const proofs = await proofComplianceRepository.getHrmuProofList();
     return {
         proofs: proofs.map((proof) => normalizeProofResponse(proof, {
@@ -330,6 +336,8 @@ const listHrmuProofs = async (userId) => {
         actualReturnTime: proof.actualReturnTime,
         expectedReturnTime: proof.expectedReturnTime,
         tripStartedAt: proof.tripStartedAt,
+        flaggedReasons: proof.flaggedReasons,
+        flaggedIncidentTypes: proof.flaggedIncidentTypes,
         digitalSignature: proof.deanSignatureUrl ? {
             name: proof.deanName || 'Assigned Dean',
             role: proof.deanRole || 'Dean',
@@ -347,6 +355,7 @@ const listHrmuProofs = async (userId) => {
 
 const getHrmuProofDetails = async (proofId, userId) => {
     await assertHrmuUser(userId);
+    await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
     const proof = await proofComplianceRepository.getHrmuProofById(proofId);
     if (!proof) {
         throw new AppError('Proof of compliance not found.', 404);
@@ -363,6 +372,8 @@ const getHrmuProofDetails = async (proofId, userId) => {
         actualReturnTime: proof.actualReturnTime,
         expectedReturnTime: proof.expectedReturnTime,
         tripStartedAt: proof.tripStartedAt,
+        flaggedReasons: proof.flaggedReasons,
+        flaggedIncidentTypes: proof.flaggedIncidentTypes,
         digitalSignature: proof.deanSignatureUrl ? {
             name: proof.deanName || 'Assigned Dean',
             role: proof.deanRole || 'Dean',

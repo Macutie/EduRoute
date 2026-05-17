@@ -8950,6 +8950,11 @@ label {
   font-weight: 800;
 }
 
+.hrmu-verify-modal-time-late {
+  color: #D92D20;
+  font-weight: 900;
+}
+
 .hrmu-verify-modal-close {
   border: none;
   background: transparent;
