@@ -1566,7 +1566,49 @@ const LEGAL_DOCUMENTS = {
   },
   privacy: {
     title: 'Privacy Policy',
-    body: 'EduRoute stores registered faculty details, permission preferences, profile updates, and locator slip records only for school portal operations. Sensitive permissions are requested only when a feature needs them.'
+    body: 'EduRoute processes personal and trip-related information only for official locator slip management, trip monitoring, reporting, and institutional compliance.',
+    sections: [
+      {
+        heading: '1. Information We Collect',
+        body: 'EduRoute may collect account information such as the user’s name, email address, role, college, department, and position. It may also collect locator slip details, including the purpose of travel, destination, departure time, expected return time, locator slip code, and approval status. During official trips, EduRoute may process trip and location data such as current location, route records, trip start time, arrival time, return time, and completion timestamps. The system may also collect validation records, including QR or manual validation status, CSSU validation time, and validator details. For proof of compliance, EduRoute may collect the focal person’s name, position, signature, arrival photo, proof image, and verification remarks. It may also process notification data such as in-app alerts, push notification tokens, and device or browser information, as well as system logs related to login activity, record updates, approvals, rejections, and audit trail actions.'
+      },
+      {
+        heading: '2. Purpose of Collection',
+        body: 'The information is used to: process locator slip requests; approve or reject official trips; validate campus exit; monitor active faculty trips; verify arrival and proof of compliance; detect late return, disconnected location, or unverified proof; generate reports, analytics, and audit trails; and send system notifications.'
+      },
+      {
+        heading: '3. Location Data Use',
+        body: 'EduRoute uses location data only for official trip monitoring, route tracking, arrival verification, return confirmation, and HRMU reporting. Location access is required during active trip functions.'
+      },
+      {
+        heading: '4. Who Can Access the Data',
+        body: 'Access to EduRoute data is limited according to user roles. Faculty members may access only their own locator slips, QR codes, trip records, and proof of compliance records. Deans may access locator slips submitted by faculty members under their assigned college. CSSU users may access locator slip validation records needed for exit checking. HRMU users may access monitoring records, proof verification records, reports, analytics, and incident records. System administrators may access necessary records only for technical maintenance and authorized account management.'
+      },
+      {
+        heading: '5. Data Sharing',
+        body: 'EduRoute does not sell personal information. Data may be processed through authorized service providers used for hosting, database, maps, notifications, and file storage, only for system operation and maintenance.'
+      },
+      {
+        heading: '6. Data Protection',
+        body: 'EduRoute applies role-based access, password protection, secure database storage, HTTPS deployment, protected credentials, and audit logs to help safeguard user information.'
+      },
+      {
+        heading: '7. Data Retention',
+        body: 'Records are kept only as long as needed for official monitoring, reporting, audit, legal, or institutional purposes. Older records may be archived or deleted according to school policy.'
+      },
+      {
+        heading: '8. User Rights',
+        body: 'Under the Data Privacy Act of 2012, data subjects have privacy rights over their personal information, including rights related to access, correction, objection, and other lawful requests.'
+      },
+      {
+        heading: '9. Consent',
+        body: 'By using EduRoute, you consent to the collection and processing of your information for official locator slip management, trip monitoring, reporting, and institutional compliance.'
+      },
+      {
+        heading: '10. Contact for Privacy Concerns',
+        body: 'For privacy concerns, correction requests, or data-related inquiries, contact: John Doe | DPO | johndoe@gmail.com'
+      }
+    ]
   },
   dataFaq: {
     title: 'Data Usage FAQ',
