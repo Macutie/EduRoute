@@ -10021,6 +10021,7 @@ const HrmuLiveMapPanel = ({
   center = OLONGAPO_CENTER,
   selectedFacultyUserId = null,
   selectedFacultyDetail = null,
+  selectedFaculty = null,
   onMarkerSelect = null,
   focusOnOlongapo = false,
 }) => {
@@ -12303,6 +12304,7 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
             center={mapCenter}
             selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
             selectedFacultyDetail={selectedFacultyDetail}
+            selectedFaculty={selectedFaculty}
             onMarkerSelect={selectFaculty}
             focusOnOlongapo
             className="hrmu-live-stage-map"
@@ -14934,6 +14936,7 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
               center={mapCenter}
               selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
               selectedFacultyDetail={selectedFacultyDetail}
+              selectedFaculty={selectedFaculty}
               onMarkerSelect={selectFaculty}
               focusOnOlongapo
               className="hrmu-live-stage-map"
@@ -14991,6 +14994,7 @@ const CSSUMapView = ({ setView, profileData, onLogout }) => {
               center={mapCenter}
               selectedFacultyUserId={selectedFaculty?.facultyUserId || null}
               selectedFacultyDetail={selectedFacultyDetail}
+              selectedFaculty={selectedFaculty}
               onMarkerSelect={selectFaculty}
               focusOnOlongapo
               className="cssu-mobile-live-map-canvas"
