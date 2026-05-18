@@ -1607,7 +1607,7 @@ const LEGAL_DOCUMENTS = {
       },
       {
         heading: '10. Contact for Privacy Concerns',
-        body: 'For privacy concerns, correction requests, or data-related inquiries, contact: Mr. Neil Marc Biron | DPO | biron.neilmarc@gordoncollege.edu.ph'
+        body: 'For privacy concerns, correction requests, or data-related inquiries, contact: Mr. Neil Marc Biron | DPO (Room 415 - Gordon College Main Building) | biron.neilmarc@gordoncollege.edu.ph'
       }
     ]
   },
