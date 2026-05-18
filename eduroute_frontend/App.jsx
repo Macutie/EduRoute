@@ -150,7 +150,6 @@ const APP_VIEWS = new Set([
   'admin-dashboard',
   'cssu-dashboard',
   'cssu-map',
-  'cssu-incidents',
   'cssu-scan',
   'cssu-reports',
   'cssu-notifications',
@@ -285,6 +284,12 @@ function App() {
   const [forgotForm, setForgotForm] = useState({
     email: ''
   });
+
+  useEffect(() => {
+    if (view === 'cssu-incidents') {
+      setView('cssu-dashboard');
+    }
+  }, [view]);
   const [forgotPasswordBackView, setForgotPasswordBackView] = useState('login');
   const [resetCode, setResetCode] = useState('');
   const [resetToken, setResetToken] = useState('');
@@ -1136,7 +1141,6 @@ function App() {
       {view === 'admin-dashboard' && <AdminDashboardView setView={setView} profileData={profileData} />}
       {view === 'cssu-dashboard' && <CSSUDashboardView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-map' && <CSSUMapView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
-      {view === 'cssu-incidents' && <CSSUIncidentsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-scan' && <CSSUScanView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-reports' && <CSSUReportsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
       {view === 'cssu-notifications' && <CSSUNotificationsView setView={setView} profileData={profileData} onLogout={() => requestPortalLogout('cssu')} />}
@@ -14271,10 +14275,6 @@ const CSSUBottomNav = ({ active = 'dashboard', setView }) => (
       <CssuMapNavIcon color={active === 'map' ? 'var(--green)' : '#9CA3AF'} />
       <span>MAP</span>
     </div>
-    <div className={`admin-nav-item ${active === 'incidents' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-incidents')}>
-      <CssuIncidentsNavIcon color={active === 'incidents' ? 'var(--green)' : '#9CA3AF'} />
-      <span>INCIDENTS</span>
-    </div>
     <div className={`admin-nav-item ${active === 'scan' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('cssu-scan')}>
       <CssuScanNavIcon color={active === 'scan' ? 'var(--green)' : '#9CA3AF'} />
       <span>SCAN</span>
@@ -14309,7 +14309,6 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
     { key: 'dashboard', label: 'Dashboard', icon: DashboardNavIcon, target: 'cssu-dashboard' },
     { key: 'scan', label: 'Exit Clearance', icon: CssuScanNavIcon, target: 'cssu-scan' },
     { key: 'map', label: 'Live Tracking', icon: CssuMapNavIcon, target: 'cssu-map' },
-    { key: 'incidents', label: 'Incidents', icon: CssuIncidentsNavIcon, target: 'cssu-incidents' },
     { key: 'reports', label: 'Reports', icon: CssuReportsNavIcon, target: 'cssu-reports' },
   ];
 
@@ -14662,7 +14661,7 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
           <span className="cssu-desktop-mini-label">Rejected Locator Slips</span>
           <strong>{summary.rejectedLocatorSlips}</strong>
           <small>{summary.rejectedLocatorSlips > 0 ? 'Requires intervention' : 'No rejected slips today'}</small>
-          <button type="button" className="cssu-desktop-inline-btn" onClick={() => setView('cssu-incidents')}>Review</button>
+          <button type="button" className="cssu-desktop-inline-btn" onClick={() => setView('cssu-scan')}>Review</button>
         </article>
       </div>
 
@@ -17086,7 +17085,7 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
                   <button
                     type="button"
                     className="cssu-mobile-notif-action primary"
-                    onClick={() => setView(alert.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
+                    onClick={() => setView('cssu-scan')}
                   >
                     {alert.actionLabelPrimary}
                   </button>
@@ -17172,7 +17171,7 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
                             <button
                               type="button"
                               className={`hrmu-alert-primary-btn ${tone}`}
-                              onClick={() => setView(alert.type === 'flagged' ? 'cssu-incidents' : 'cssu-scan')}
+                              onClick={() => setView('cssu-scan')}
                             >
                               {alert.actionLabelPrimary || 'Open Exit Clearance'}
                             </button>
