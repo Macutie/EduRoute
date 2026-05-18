@@ -1,7 +1,7 @@
 const pool = require('../db/pool');
 const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
 
-const APPROVED_ANALYTICS_STATUSES = ['approved', 'verified'];
+const APPROVED_ANALYTICS_STATUSES = ['approved', 'verified', 'completed'];
 let tripColumnCache = null;
 
 const getTripsColumnSet = async () => {
