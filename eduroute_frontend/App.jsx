@@ -492,6 +492,16 @@ function App() {
       body: JSON.stringify(payload),
     });
 
+  const markPermissionSetupSeen = () => {
+    permissionSetupSeenRef.current = true;
+    localStorage.setItem(getPermissionSetupStorageKey(), '1');
+  };
+
+  const clearPermissionSetupSeen = () => {
+    permissionSetupSeenRef.current = false;
+    localStorage.removeItem(getPermissionSetupStorageKey());
+  };
+
   useEffect(() => {
     if (isAuthView(view)) return;
     localStorage.setItem('edurouteLastView', view);
@@ -645,9 +655,14 @@ function App() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+    const alreadyHandled = localStorage.getItem(getPermissionSetupStorageKey()) === '1';
 
     if (!token) return;
-    if (permissionSetupSeenRef.current) return;
+    if (permissionSetupSeenRef.current || alreadyHandled) {
+      permissionSetupSeenRef.current = true;
+      setShowPermissionSetup(false);
+      return;
+    }
 
     const role = String(profileData?.accountRole || '').toLowerCase();
     const currentView = String(view || '').toLowerCase();
@@ -667,6 +682,7 @@ function App() {
           setPermissionSetupMessage('');
           setShowPermissionSetup(true);
         } else {
+          markPermissionSetupSeen();
           setShowPermissionSetup(false);
         }
       } catch (error) {
@@ -820,13 +836,13 @@ function App() {
 
   const finishPermissionSetup = async (notificationsStatus) => {
     setPermissionSetupLoading(true);
+    markPermissionSetupSeen();
 
     try {
       await updatePermissionPreferencesApi({
         notifications_status: notificationsStatus,
         first_login_setup_completed: true,
       });
-      permissionSetupSeenRef.current = true;
       setShowPermissionSetup(false);
       setPermissionSetupStep('intro');
       setPermissionSetupMessage('');
@@ -843,6 +859,7 @@ function App() {
 
   const handleEnableNotificationPermission = async () => {
     setPermissionSetupLoading(true);
+    markPermissionSetupSeen();
 
     try {
       let notificationStatus = 'unsupported';
@@ -862,7 +879,6 @@ function App() {
         notifications_status: notificationStatus,
         first_login_setup_completed: true,
       });
-      permissionSetupSeenRef.current = true;
 
       if (notificationStatus === 'granted') {
         await registerPushNotificationsForCurrentBrowser();
@@ -877,6 +893,7 @@ function App() {
 
       setPermissionSetupStep('result');
     } catch (error) {
+      clearPermissionSetupSeen();
       alert(error.message);
     } finally {
       setPermissionSetupLoading(false);
@@ -1288,7 +1305,10 @@ function App() {
           step={permissionSetupStep}
           message={permissionSetupMessage}
           loading={permissionSetupLoading}
-          onShowExplainer={() => setPermissionSetupStep('notifications')}
+          onShowExplainer={() => {
+            markPermissionSetupSeen();
+            setPermissionSetupStep('notifications');
+          }}
           onEnableNotifications={handleEnableNotificationPermission}
           onMaybeLater={handleMaybeLaterPermissions}
           onClose={() => setShowPermissionSetup(false)}
@@ -1781,6 +1801,12 @@ const LEGAL_DOCUMENTS = {
       }
     ]
   }
+};
+
+const getPermissionSetupStorageKey = () => {
+  const token = localStorage.getItem('token') || '';
+  const payload = decodeJwtPayload(token);
+  return payload?.sub ? `eduroutePermissionSetupSeen:${payload.sub}` : 'eduroutePermissionSetupSeen';
 };
 
 const LegalDocumentModal = ({ activeLegalDoc, onClose }) => {
