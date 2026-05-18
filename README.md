@@ -337,4 +337,4 @@ Before pushing to GitHub:
 
 ## License
 
-This project is intended for institutional academic and operational use. Add your official license terms here if the repository will be shared externally.
+This project is intended for institutional academic and operational use.
