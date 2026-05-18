@@ -53,12 +53,55 @@ const normalizeRouteGeometry = (value) => {
     if (!value) return null;
     if (typeof value === 'string') {
         try {
-            return JSON.parse(value);
+            value = JSON.parse(value);
         } catch {
             return null;
         }
     }
-    return value;
+
+    if (value?.type === 'FeatureCollection' && Array.isArray(value.features)) {
+        return normalizeRouteGeometry(value.features[0]?.geometry || null);
+    }
+
+    if (value?.type === 'Feature' && value.geometry) {
+        return normalizeRouteGeometry(value.geometry);
+    }
+
+    if (Array.isArray(value)) {
+        const coordinates = value
+            .map((coordinate) => {
+                if (Array.isArray(coordinate) && coordinate.length >= 2) {
+                    const lng = Number(coordinate[0]);
+                    const lat = Number(coordinate[1]);
+                    return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+                }
+                return null;
+            })
+            .filter(Boolean);
+
+        return coordinates.length > 1
+            ? { type: 'LineString', coordinates }
+            : null;
+    }
+
+    if (value?.type === 'LineString' && Array.isArray(value.coordinates)) {
+        const coordinates = value.coordinates
+            .map((coordinate) => {
+                if (Array.isArray(coordinate) && coordinate.length >= 2) {
+                    const lng = Number(coordinate[0]);
+                    const lat = Number(coordinate[1]);
+                    return Number.isFinite(lng) && Number.isFinite(lat) ? [lng, lat] : null;
+                }
+                return null;
+            })
+            .filter(Boolean);
+
+        return coordinates.length > 1
+            ? { type: 'LineString', coordinates }
+            : null;
+    }
+
+    return null;
 };
 
 const assertHrmuUser = async (userId) => {
@@ -89,6 +132,7 @@ const mapFacultyMarkerRow = (row) => {
         speedKmh: normalizeSpeedKmh(row.speed),
         heading: row.heading === null ? null : Number(row.heading),
         destination: row.destination || row.destination_name || 'Unknown destination',
+        routeGeometry: normalizeRouteGeometry(row.route_geometry),
         lastUpdatedAt: row.recorded_at ? new Date(row.recorded_at).toISOString() : null,
         lastUpdatedLabel: formatRelativeTime(row.recorded_at),
         markerStatus,
