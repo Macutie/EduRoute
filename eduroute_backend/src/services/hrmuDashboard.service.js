@@ -91,6 +91,7 @@ const mapRecentActivityRow = (row) => {
     const flaggedReasons = Array.isArray(row.incident_labels) ? row.incident_labels : [];
     const normalizedVerificationStatus = String(row.verification_status || '').toLowerCase();
     const normalizedTripStatus = String(row.trip_status || '').toLowerCase();
+    const normalizedCssuExitStatus = String(row.cssu_exit_status || '').toLowerCase();
     const isFlagged = Boolean(row.is_flagged) && flaggedReasons.length > 0;
     let displayStatus = computeLocatorSlipDisplayStatus({
         locatorSlip: {
@@ -106,6 +107,8 @@ const mapRecentActivityRow = (row) => {
 
     if (isFlagged) {
         displayStatus = DISPLAY_STATUSES.FLAGGED;
+    } else if (normalizedCssuExitStatus === 'denied') {
+        displayStatus = DISPLAY_STATUSES.REJECTED;
     } else if (normalizedVerificationStatus === 'rejected') {
         displayStatus = DISPLAY_STATUSES.REJECTED;
     } else if (normalizedVerificationStatus === 'pending' || normalizedVerificationStatus === 'unverified') {
@@ -135,6 +138,9 @@ const mapRecentActivityRow = (row) => {
         latestLocationAt: row.latest_location_at ? new Date(row.latest_location_at).toISOString() : null,
         purpose: row.purpose,
         verificationStatus: row.verification_status,
+        cssuExitStatus: row.cssu_exit_status || null,
+        cssuValidationMethod: row.cssu_validation_method || null,
+        cssuValidatedAt: row.cssu_validated_at ? new Date(row.cssu_validated_at).toISOString() : null,
         locationVerificationStatus: row.location_verification_status || null,
         verificationImageUrl: row.location_verification_image_url || null,
         tripStatus: row.trip_status,

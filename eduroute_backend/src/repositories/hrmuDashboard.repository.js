@@ -33,6 +33,17 @@ const HRMU_NOTIFICATION_TYPES = [
     HRMU_NOTIFICATION_TYPE_LATE_RETURN
 ];
 const HRMU_ALLOWED_ROLES = ['hrmu', 'admin'];
+let cssuExitLogsTableExistsCache = null;
+
+const getCssuExitLogsTableExists = async () => {
+    if (cssuExitLogsTableExistsCache !== null) {
+        return cssuExitLogsTableExistsCache;
+    }
+
+    const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
+    cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return cssuExitLogsTableExistsCache;
+};
 
 const buildCollegeFilter = (filters = {}, startingIndex = 2) => {
     const values = [];
@@ -374,6 +385,7 @@ const createHrmuTripEventNotifications = async (client = pool, { locatorSlipId, 
 };
 
 const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, collegeName = null, status = null, verification = null } = {}) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const offset = (safePage - 1) * safeLimit;
@@ -415,6 +427,21 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
 
     const countResult = await pool.query(countQuery, [ALLOWED_COLLEGE_NAMES, ...filterValues]);
 
+    const cssuExitJoin = hasCssuExitLogsTable
+        ? `LEFT JOIN LATERAL (
+            SELECT log.status, log.validation_method, log.validated_at
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = ls.id
+            ORDER BY COALESCE(log.validated_at, log.created_at) DESC
+            LIMIT 1
+        ) cssu_exit ON TRUE`
+        : `LEFT JOIN LATERAL (
+            SELECT
+                NULL::text AS status,
+                NULL::text AS validation_method,
+                NULL::timestamp AS validated_at
+        ) cssu_exit ON TRUE`;
+
     const rowsQuery = `
         SELECT
             ls.id AS locator_slip_id,
@@ -433,7 +460,10 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             location_verification.image_url AS location_verification_image_url,
             COALESCE(t.status, 'not_started') AS trip_status,
             COALESCE(t.ended_at, t.updated_at) AS actual_return_time,
-            latest_location.recorded_at AS latest_location_at
+            latest_location.recorded_at AS latest_location_at,
+            cssu_exit.status AS cssu_exit_status,
+            cssu_exit.validation_method AS cssu_validation_method,
+            cssu_exit.validated_at AS cssu_validated_at
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = COALESCE(ls.college_id, fu.department_id)
@@ -461,6 +491,7 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             ORDER BY verification.created_at DESC
             LIMIT 1
         ) location_verification ON TRUE
+        ${cssuExitJoin}
         WHERE ${whereClauses.join(' AND ')}
         ORDER BY ls.departure_datetime DESC, ls.created_at DESC
         LIMIT $${parameterIndex} OFFSET $${parameterIndex + 1}

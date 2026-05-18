@@ -10859,9 +10859,19 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
   const mapTripStatus = (row) => {
     const normalizedDisplayStatus = String(row.displayStatus || '').toUpperCase();
+    const normalizedCssuExitStatus = String(row.cssuExitStatus || '').toLowerCase();
 
     if (normalizedDisplayStatus === 'FLAGGED' || row.isFlagged || row.currentStatusLabel === 'flagged') {
       return { label: 'FLAGGED', tone: 'red' };
+    }
+
+    if (
+      normalizedCssuExitStatus === 'denied'
+      || normalizedDisplayStatus === 'REJECTED'
+      || row.currentStatusLabel === 'rejected'
+      || String(row.verificationStatus || '').toLowerCase() === 'rejected'
+    ) {
+      return { label: 'REJECTED', tone: 'red' };
     }
 
     if (
@@ -10897,14 +10907,6 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
       || row.tripStatus === 'completed'
     ) {
       return { label: 'COMPLETED', tone: 'green' };
-    }
-
-    if (
-      normalizedDisplayStatus === 'REJECTED'
-      || row.currentStatusLabel === 'rejected'
-      || String(row.verificationStatus || '').toLowerCase() === 'rejected'
-    ) {
-      return { label: 'REJECTED', tone: 'red' };
     }
 
     return { label: 'UNKNOWN', tone: 'yellow' };
@@ -11091,7 +11093,8 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
         const rows = Array.isArray(data.activities) ? data.activities : [];
         setRecentActivityRows(rows.map((row) => {
-          const verificationIsVerified = ['approved', 'completed'].includes(row.verificationStatus);
+          const cssuDenied = String(row.cssuExitStatus || '').toLowerCase() === 'denied';
+          const verificationIsVerified = !cssuDenied && ['approved', 'completed'].includes(row.verificationStatus);
           const mappedTripStatus = mapTripStatus(row);
 
           return {
@@ -11103,8 +11106,8 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             departure: formatActivityTime(row.departureTime),
             returnTime: formatActivityTime(row.expectedReturnTime),
             purpose: row.purpose || 'No purpose provided',
-            verification: verificationIsVerified ? 'VERIFIED' : 'UNVERIFIED',
-            verificationTone: verificationIsVerified ? 'green' : 'red',
+            verification: cssuDenied ? 'DENIED' : verificationIsVerified ? 'VERIFIED' : 'UNVERIFIED',
+            verificationTone: verificationIsVerified && !cssuDenied ? 'green' : 'red',
             isFlagged: Boolean(row.isFlagged),
             incidentLabels: Array.isArray(row.incidentLabels) ? row.incidentLabels : [],
             status: mappedTripStatus.label,
