@@ -11866,16 +11866,13 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
                 </span>
               </button>
             </div>
-            <div className="hrmu-reports-zoom">
-              <button type="button" aria-label="Zoom out">-</button>
-              <strong>100%</strong>
-              <button type="button" aria-label="Zoom in">+</button>
-            </div>
-            <button type="button" className="hrmu-reports-icon-btn" aria-label="Download report" onClick={handleDownloadReport} disabled={downloadLoading || loading}>
+            <button type="button" className="hrmu-reports-action-btn primary" aria-label="Download report as PDF" onClick={handleDownloadReport} disabled={downloadLoading || loading}>
               <RegistryDownloadIcon />
+              <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
             </button>
-            <button type="button" className="hrmu-reports-icon-btn" aria-label="Print report" onClick={handlePrintReport} disabled={loading}>
+            <button type="button" className="hrmu-reports-action-btn" aria-label="Print report" onClick={handlePrintReport} disabled={loading}>
               <ReportPrintIcon />
+              <span>Print</span>
             </button>
           </div>
         </div>

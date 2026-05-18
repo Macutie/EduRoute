@@ -10171,8 +10171,7 @@ label {
   flex-wrap: nowrap;
 }
 
-.hrmu-reports-pager,
-.hrmu-reports-zoom {
+.hrmu-reports-pager {
   min-height: 44px;
   border: 1px solid #DDE5DD;
   border-radius: 14px;
@@ -10184,8 +10183,7 @@ label {
   box-shadow: 0 8px 18px rgba(30, 47, 28, 0.05);
 }
 
-.hrmu-reports-pager button,
-.hrmu-reports-zoom button {
+.hrmu-reports-pager button {
   border: none;
   background: transparent;
   color: #4D5751;
@@ -10197,8 +10195,7 @@ label {
   justify-content: center;
 }
 
-.hrmu-reports-pager strong,
-.hrmu-reports-zoom strong {
+.hrmu-reports-pager strong {
   color: var(--text-dark);
   font-size: 16px;
   font-weight: 900;
@@ -10210,17 +10207,41 @@ label {
   font-weight: 700;
 }
 
-.hrmu-reports-icon-btn {
-  width: 44px;
-  height: 44px;
+.hrmu-reports-action-btn {
+  min-height: 44px;
+  padding: 0 16px;
   border-radius: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   line-height: 1;
+  border: 1px solid #DDE5DD;
+  background: white;
+  color: var(--text-dark);
+  box-shadow: 0 8px 18px rgba(30, 47, 28, 0.05);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
-.hrmu-reports-icon-btn:disabled,
+.hrmu-reports-action-btn.primary {
+  background: linear-gradient(180deg, #0B9617 0%, #0EA11A 100%);
+  border-color: #0B9617;
+  color: white;
+}
+
+.hrmu-reports-action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(30, 47, 28, 0.1);
+}
+
+.hrmu-reports-action-btn span {
+  white-space: nowrap;
+}
+
+.hrmu-reports-action-btn:disabled,
 .hrmu-reports-back-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -12980,7 +13001,7 @@ label {
   }
 
   .hrmu-reports-pager,
-  .hrmu-reports-zoom {
+  .hrmu-reports-action-btn {
     min-height: 40px;
   }
 
