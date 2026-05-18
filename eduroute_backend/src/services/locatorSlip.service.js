@@ -203,6 +203,41 @@ const getCssuValidationStatusSelect = ({
     return `NULL::text AS cssu_validation_status`;
 };
 
+const reconcileDeniedCssuExitStatuses = async (facultyUserId, locatorSlipId = null) => {
+    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    if (!hasCssuExitLogsTable) return;
+
+    const params = [facultyUserId];
+    let locatorSlipClause = '';
+
+    if (locatorSlipId) {
+        params.push(locatorSlipId);
+        locatorSlipClause = `AND ls.id = $2`;
+    }
+
+    await pool.query(
+        `WITH latest_cssu_log AS (
+            SELECT DISTINCT ON (log.locator_slip_id)
+                log.locator_slip_id,
+                log.status,
+                COALESCE(log.notes, '') AS notes
+            FROM cssu_exit_logs log
+            ORDER BY log.locator_slip_id, COALESCE(log.validated_at, log.created_at) DESC, log.id DESC
+        )
+        UPDATE locator_slips ls
+        SET status = 'rejected',
+            updated_at = CURRENT_TIMESTAMP
+        FROM latest_cssu_log latest
+        WHERE ls.id = latest.locator_slip_id
+          AND ls.faculty_user_id = $1
+          ${locatorSlipClause}
+          AND latest.status = 'denied'
+          AND latest.notes NOT LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+          AND ls.status <> 'rejected'`,
+        params
+    );
+};
+
 const locatorSlipColumns = `
     ls.id,
     ls.faculty_user_id,
@@ -472,6 +507,8 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
         throw new AppError('Locator slip status filter is invalid.', 400);
     }
 
+    await reconcileDeniedCssuExitStatuses(facultyUserId);
+
     const hasLocatorSlipTripStatusColumn = await getLocatorSlipTripStatusColumnExists();
     const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
     const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
@@ -559,6 +596,8 @@ const getMyLocatorSlips = async (facultyUserId, status = null) => {
 };
 
 const getLocatorSlipById = async (facultyUserId, locatorSlipId) => {
+    await reconcileDeniedCssuExitStatuses(facultyUserId, locatorSlipId);
+
     const hasLocatorSlipTripStatusColumn = await getLocatorSlipTripStatusColumnExists();
     const hasTripsLocatorSlipIdColumn = await getTripsLocatorSlipIdColumnExists();
     const hasReturnedAtColumn = await getTripsColumnExists('returned_at');
