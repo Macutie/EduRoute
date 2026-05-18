@@ -474,42 +474,68 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
     const search = query.search?.trim();
     const values = [dean.college_id];
     const facultyClauses = [
-        "fu.account_role = 'faculty'",
-        "fu.status = 'active'",
-        'fu.department_id = $1'
+        "sf.account_role = 'faculty'",
+        "sf.status = 'active'"
     ];
 
     if (search) {
         values.push(`%${search}%`);
         facultyClauses.push(`(
-            fu.full_name ILIKE $${values.length}
-            OR fu.employee_id ILIKE $${values.length}
-            OR COALESCE(fu.department_position, '') ILIKE $${values.length}
+            sf.full_name ILIKE $${values.length}
+            OR sf.employee_id ILIKE $${values.length}
+            OR COALESCE(sf.department_position, '') ILIKE $${values.length}
         )`);
     }
 
     const whereClause = facultyClauses.join(' AND ');
+    const scopedFacultyCte = `
+        WITH scoped_faculty AS (
+            SELECT
+                fu.id,
+                fu.full_name,
+                fu.employee_id,
+                fu.profile_image_url,
+                fu.account_role,
+                fu.status,
+                fu.department_id,
+                fu.department_position,
+                fu.employment_type
+            FROM faculty_users fu
+            LEFT JOIN LATERAL (
+                SELECT ls.college_id
+                FROM locator_slips ls
+                WHERE ls.faculty_user_id = fu.id
+                  AND ls.status <> 'cancelled'
+                ORDER BY COALESCE(ls.updated_at, ls.created_at) DESC, ls.id DESC
+                LIMIT 1
+            ) latest_slip_scope ON TRUE
+            WHERE COALESCE(latest_slip_scope.college_id, fu.department_id) = $1
+        )`;
 
     const summaryResult = await pool.query(
-        `SELECT
-            COUNT(DISTINCT fu.id)::int AS total_faculty,
+        `${scopedFacultyCte}
+         SELECT
+            COUNT(DISTINCT sf.id)::int AS total_faculty,
             COUNT(ls.id) FILTER (WHERE ls.status = 'pending')::int AS active_requests
-         FROM faculty_users fu
-         LEFT JOIN locator_slips ls ON ls.faculty_user_id = fu.id
-         WHERE fu.account_role = 'faculty'
-           AND fu.status = 'active'
-           AND fu.department_id = $1`,
+         FROM scoped_faculty sf
+         LEFT JOIN locator_slips ls
+           ON ls.faculty_user_id = sf.id
+          AND ls.status <> 'cancelled'
+          AND COALESCE(ls.college_id, sf.department_id) = $1
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'`,
         [dean.college_id]
     );
 
     const facultyResult = await pool.query(
-        `SELECT
-            fu.id,
-            fu.full_name,
-            fu.employee_id,
-            fu.profile_image_url,
-            COALESCE(fu.department_position, 'Instructor') AS department_position,
-            COALESCE(fu.employment_type, 'full_time') AS employment_type,
+        `${scopedFacultyCte}
+         SELECT
+            sf.id,
+            sf.full_name,
+            sf.employee_id,
+            sf.profile_image_url,
+            COALESCE(sf.department_position, 'Instructor') AS department_position,
+            COALESCE(sf.employment_type, 'full_time') AS employment_type,
             d.department_name,
             COUNT(ls.id)::int AS total_requests,
             COUNT(ls.id) FILTER (WHERE ls.status IN ('approved', 'completed', 'verified'))::int AS approved_requests,
@@ -519,13 +545,22 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
                 FILTER (WHERE ls.id IS NOT NULL),
                 ARRAY[]::varchar[]
             ) AS recent_statuses
-         FROM faculty_users fu
-         JOIN departments d ON d.id = fu.department_id
-         LEFT JOIN locator_slips ls ON ls.faculty_user_id = fu.id
-            AND ls.status <> 'cancelled'
+         FROM scoped_faculty sf
+         JOIN departments d ON d.id = sf.department_id
+         LEFT JOIN locator_slips ls
+            ON ls.faculty_user_id = sf.id
+           AND ls.status <> 'cancelled'
+           AND COALESCE(ls.college_id, sf.department_id) = $1
          WHERE ${whereClause}
-         GROUP BY fu.id, d.department_name
-         ORDER BY fu.full_name ASC`,
+         GROUP BY
+            sf.id,
+            sf.full_name,
+            sf.employee_id,
+            sf.profile_image_url,
+            sf.department_position,
+            sf.employment_type,
+            d.department_name
+         ORDER BY sf.full_name ASC`,
         values
     );
 
