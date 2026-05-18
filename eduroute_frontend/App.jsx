@@ -11472,6 +11472,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
 };
 
 const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 'analytics' }) => {
+  const analyticsExportRef = useRef(null);
   const {
     filters,
     appliedFilters,
@@ -11550,28 +11551,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
   const handleExportPdf = async () => {
     try {
       await exportPdf({
-        reportData: {
-          dateRangeLabel: analytics?.dateRange?.label || monthOptions.find((option) => option.value === appliedFilters.month)?.label || 'Current Month',
-          departmentLabel: selectedCollegeLabel,
-          totalTrips: numberFormatter.format(monthlySummary.totalTripsCompleted || 0),
-          approvalRate: `${percentFormatter.format(approvalRate.percentage || 0)}%`,
-          approvalNote: `${numberFormatter.format(approvalRate.approvedCount || 0)} approved / ${numberFormatter.format(approvalRate.totalFiledCount || 0)} filed`,
-          approvalTrend: `${weeklyDirectionSymbol} ${percentFormatter.format(approvalRate.weeklyChangePercent || 0)}% ${weeklyDirectionLabel} from last period`,
-          approvalStatusLabel: (approvalRate.percentage || 0) >= 50 ? 'SUCCESS' : 'IN REVIEW',
-          users: numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0),
-          usersNote: `${percentFormatter.format(monthlySummary.engagementRatePercent || 0)}% engaged`,
-          dailyMovementSubtitle: selectedCollegeLabel === 'All Departments'
-            ? 'Tracking locator slip volume across the five HRMU colleges'
-            : `Tracking locator slip volume for ${selectedCollegeLabel}`,
-          dailyRows: chartLabels.map((label, index) => ({
-            label,
-            value: Number(chartValues[index] || 0),
-          })),
-          frequentDestinations,
-          summaryCards,
-          currentMilestoneStep: 3,
-          currentMilestoneLabel: 'HRMU Verification Finalized',
-        },
+        element: analyticsExportRef.current,
       });
     } catch (requestError) {
       console.error('PDF export failed:', requestError);
@@ -11580,7 +11560,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
   return (
     <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
-      <div className="hrmu-analytics-export-surface">
+      <div ref={analyticsExportRef} className="hrmu-analytics-export-surface">
         <section className="hrmu-analytics-hero">
           <div className="hrmu-analytics-copy">
             <span className="hrmu-analytics-tag">RECEIVED FROM CSSU</span>
