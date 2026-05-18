@@ -690,6 +690,20 @@ function App() {
         accountRole: data.data.user?.account_role || '',
       }));
       const accountRole = data.data.user?.account_role;
+
+      if (
+        supportsPortalPushNotifications(accountRole || portalRole)
+        && typeof window !== 'undefined'
+        && 'Notification' in window
+        && Notification.permission === 'granted'
+      ) {
+        try {
+          await registerPushNotificationsForCurrentBrowser();
+        } catch (pushError) {
+          console.error('Failed to register device push token after login:', pushError);
+        }
+      }
+
       alert(formatApiMessage(data.message) || 'Login successful.');
       setView(getDefaultViewForRole(accountRole || portalRole));
     } catch (error) {
