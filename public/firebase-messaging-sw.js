@@ -34,11 +34,19 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
     const title = payload.notification?.title || payload.data?.title || 'EduRoute';
     const body = payload.notification?.body || payload.data?.message || 'You have a new notification.';
     const url = payload.data?.url || '/';
+    const icon = payload.notification?.icon || payload.data?.icon || '/eduroute-logo-192.png';
+    const badge = payload.data?.badge || '/eduroute-logo-192.png';
+    const tag = payload.data?.tag || `eduroute-${Date.now()}`;
 
     self.registration.showNotification(title, {
       body,
+      icon,
+      badge,
+      tag,
+      renotify: true,
+      requireInteraction: false,
+      vibrate: [200, 100, 200],
       data: { url },
-      icon: '/profile_pic.png',
     });
   });
 }

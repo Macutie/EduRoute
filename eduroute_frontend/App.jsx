@@ -212,6 +212,9 @@ const getPortalMetaLabel = (profileData = {}) => {
   return profileData?.department || 'Portal Administration';
 };
 
+const supportsPortalPushNotifications = (accountRole = '') =>
+  ['faculty', 'assistant_dean', 'college_dean'].includes(String(accountRole || '').toLowerCase());
+
 const getPortalAdministrationDescription = (profileData = {}) => {
   if (profileData?.accountRole === 'cssu') {
     return 'Manage your CSSU profile details and credential settings.';
@@ -585,8 +588,15 @@ function App() {
   useEffect(() => {
     const token = localStorage.getItem('token');
 
-    if (!token || view !== 'dashboard') return;
+    if (!token) return;
     if (permissionSetupSeenRef.current) return;
+
+    const role = String(profileData?.accountRole || '').toLowerCase();
+    const currentView = String(view || '').toLowerCase();
+    const isFacultyLanding = role === 'faculty' && currentView === 'dashboard';
+    const isDeanLanding = ['assistant_dean', 'college_dean'].includes(role) && currentView === 'dean-dashboard';
+
+    if (!isFacultyLanding && !isDeanLanding) return;
 
     const loadPermissionSetup = async () => {
       try {
@@ -607,7 +617,34 @@ function App() {
     };
 
     loadPermissionSetup();
-  }, [view]);
+  }, [view, profileData?.accountRole]);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const accountRole = String(profileData?.accountRole || '').toLowerCase();
+
+    if (!token || !supportsPortalPushNotifications(accountRole)) return;
+    if (typeof window === 'undefined' || !('Notification' in window)) return;
+    if (Notification.permission !== 'granted') return;
+
+    let isCancelled = false;
+
+    const syncExistingPushPermission = async () => {
+      try {
+        await registerPushNotificationsForCurrentBrowser();
+      } catch (error) {
+        if (!isCancelled) {
+          console.error('Failed to sync push notifications for current browser:', error);
+        }
+      }
+    };
+
+    syncExistingPushPermission();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [profileData?.accountRole]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
