@@ -1,6 +1,6 @@
 const pool = require('../db/pool');
 
-const DEAN_ROLES = ['assistant_dean', 'college_dean'];
+const DEAN_ROLES = ['assistant_dean', 'college_dean', 'admin'];
 
 const registerDeanNotificationSocketHandlers = (io) => {
     io.on('connection', async (socket) => {

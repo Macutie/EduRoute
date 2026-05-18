@@ -5,7 +5,7 @@ const { uploadDeanSignatureAsset } = require('../middlewares/upload.middleware')
 
 const router = express.Router();
 
-router.use(protect, requireRole('assistant_dean', 'college_dean'));
+router.use(protect, requireRole('assistant_dean', 'college_dean', 'admin'));
 
 router.get('/dashboard/summary', deanDashboardController.getSummary);
 router.get('/signature', deanDashboardController.getDeanSignatureSettings);

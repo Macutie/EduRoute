@@ -7,7 +7,7 @@ const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repositor
 const socketBroadcasterService = require('./socketBroadcaster.service');
 const { uploadFileBuffer, destroyUploadedAsset } = require('./upload.service');
 
-const DEAN_ROLES = ['assistant_dean', 'college_dean'];
+const DEAN_ROLES = ['assistant_dean', 'college_dean', 'admin'];
 const DEAN_SIGNATURE_PERMISSION_TEXT = 'I authorize EduRoute to use my uploaded digital signature for approving locator slips filed by faculty members in my department. I understand that this signature will be attached to approved locator slips and may be viewed by HRMU as proof of dean approval.';
 let deanSignatureTablesReadyPromise = null;
 

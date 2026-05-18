@@ -211,6 +211,13 @@ const getPortalBadgeLabel = (role) => {
   return 'PORTAL';
 };
 
+const isCollegeDeanDepartment = (department = '') =>
+  /^College of\b/i.test(String(department || '').trim());
+
+const isDeanPortalAccount = (profileData = {}) =>
+  ['assistant_dean', 'college_dean'].includes(profileData?.accountRole)
+  || (profileData?.accountRole === 'admin' && isCollegeDeanDepartment(profileData?.department));
+
 const getPortalPositionLabel = (profileData = {}) => {
   if (profileData?.position) return profileData.position;
   if (profileData?.accountRole === 'hrmu') return 'Human Resources Management Unit';
@@ -388,6 +395,27 @@ function App() {
       }
     }
   }, [view]);
+
+  useEffect(() => {
+    if (!isDeanPortalAccount(profileData)) return;
+
+    const legacyDeanViewMap = {
+      'admin-dashboard': 'dean-dashboard',
+      'admin-notifications': 'dean-notifications',
+      'admin-approval-requests': 'dean-requests',
+      'admin-approval-detail': 'dean-request-detail',
+      'admin-registry': 'dean-registry',
+      'admin-faculty': 'dean-faculty',
+      'admin-profile': 'dean-profile',
+      'admin-change-password': 'dean-change-password',
+      'admin-edit-profile': 'dean-edit-profile',
+    };
+
+    const nextView = legacyDeanViewMap[view];
+    if (nextView && nextView !== view) {
+      setView(nextView);
+    }
+  }, [profileData, setView, view]);
 
   const apiRequest = async (endpoint, options = {}) => {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -580,8 +608,11 @@ function App() {
           accountRole: databaseRole,
         }));
 
+        const isDeanLikeAdmin = ['assistant_dean', 'college_dean'].includes(databaseRole)
+          || (databaseRole === 'admin' && isCollegeDeanDepartment(data.data.department_name));
+
         if (
-          ['assistant_dean', 'college_dean'].includes(databaseRole)
+          isDeanLikeAdmin
           && ['dashboard', 'admin-dashboard', 'profile', 'admin-profile'].includes(view)
         ) {
           setView('dean-dashboard');
@@ -12730,7 +12761,7 @@ const HrmuLiveTrackingView = ({ setView, profileData, onLogout }) => {
   );
 };
 const AdminDashboardView = ({ setView, profileData }) => {
-  if (['assistant_dean', 'college_dean'].includes(profileData?.accountRole)) {
+  if (isDeanPortalAccount(profileData)) {
     return <DeanDashboardView setView={setView} profileData={profileData} />;
   }
 
