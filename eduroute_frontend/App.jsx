@@ -2046,7 +2046,7 @@ const AUTH_ACCOUNT_ROLES = [
   { key: 'faculty', label: 'Faculty', title: 'Gordon College Faculty Portal', icon: FacultyRoleIcon },
   { key: 'hrmu', label: 'HRMU', title: 'Gordon College HRMU Portal', icon: HrmuRoleIcon },
   { key: 'cssu', label: 'CSSU', title: 'Gordon College CSSU Portal', icon: CssuRoleIcon },
-  { key: 'admin', label: 'Admin', title: 'Gordon College Admin Portal', icon: AdminRoleIcon },
+  { key: 'admin', label: 'Dean', title: 'Gordon College Dean Portal', icon: AdminRoleIcon },
 ];
 
 const LOGIN_PORTAL_ROLES = [
