@@ -1,4 +1,5 @@
 const AppError = require('../utils/appError');
+const pool = require('../db/pool');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuReportsRepository = require('../repositories/hrmuReports.repository');
 const proofComplianceRepository = require('../repositories/proofCompliance.repository');
@@ -7,6 +8,20 @@ const tripIncidentService = require('./tripIncident.service');
 const { formatTimestampLabel } = require('../utils/formatDate');
 const { getMonthDateRange } = require('../utils/reportMonth');
 const { buildHrmuMonthlyReportPdf, buildHrmuNotificationLogReportPdf } = require('../utils/simplePdf');
+
+const NOTIFICATION_MONTHLY_LOG_TYPES = [
+    'hrmu_locator_slip_approved',
+    'hrmu_locator_slip_rejected',
+    'hrmu_trip_started',
+    'hrmu_trip_arrived',
+    'hrmu_trip_completed',
+    'hrmu_cssu_validated_exit',
+    'hrmu_location_verification_submitted',
+    'hrmu_unverified_location',
+    'hrmu_location_disconnected',
+    'hrmu_trip_flagged',
+    'hrmu_trip_flagged_late_return'
+];
 
 const assertHrmuUser = async (userId) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId);
@@ -68,6 +83,51 @@ const getLastThirtyDaysRange = () => {
         endExclusive: now,
         label: `${formatTimestampLabel(start)} to ${formatTimestampLabel(now)}`
     };
+};
+
+const getNotificationActionLabel = (type) => {
+    switch (String(type || '').trim().toLowerCase()) {
+    case 'hrmu_trip_started':
+        return 'start trip';
+    case 'hrmu_trip_arrived':
+        return 'arrived';
+    case 'hrmu_location_verification_submitted':
+        return 'proof';
+    case 'hrmu_trip_completed':
+    case 'hrmu_cssu_validated_exit':
+        return 'returned';
+    case 'hrmu_trip_flagged_late_return':
+        return 'late';
+    case 'hrmu_locator_slip_approved':
+        return 'approved';
+    case 'hrmu_locator_slip_rejected':
+        return 'rejected';
+    case 'hrmu_unverified_location':
+        return 'unverified';
+    case 'hrmu_location_disconnected':
+        return 'disconnected';
+    case 'hrmu_trip_flagged':
+        return 'flagged';
+    default:
+        return 'update';
+    }
+};
+
+const getNotificationStatusLabel = (type) => {
+    switch (String(type || '').trim().toLowerCase()) {
+    case 'hrmu_locator_slip_approved':
+    case 'hrmu_location_verification_submitted':
+        return 'VERIFIED';
+    case 'hrmu_locator_slip_rejected':
+        return 'REJECTED';
+    case 'hrmu_trip_flagged_late_return':
+    case 'hrmu_unverified_location':
+    case 'hrmu_location_disconnected':
+    case 'hrmu_trip_flagged':
+        return 'FLAGGED';
+    default:
+        return 'ACTIVE';
+    }
 };
 
 const sortProofRowsNewestFirst = (proofs) =>
@@ -354,16 +414,28 @@ const getNotificationMonthlyLogDownload = async (userId) => {
     await assertHrmuUser(userId);
 
     const range = getLastThirtyDaysRange();
-    const proofs = await proofComplianceRepository.getHrmuProofList();
-    const filteredProofs = dedupeProofRows(sortProofRowsNewestFirst(filterProofsByMonthRange(proofs, range)));
-    const rows = filteredProofs.map((row) => ({
-        dateTimeLabel: formatTimestampLabel(getReportTimestamp(row)),
-        facultyName: row.facultyName || 'Unknown faculty',
-        status: normalizeProofStatus(row.verificationStatus) === 'verified'
-            ? 'VERIFIED'
-            : normalizeProofStatus(row.verificationStatus) === 'rejected'
-                ? 'REJECTED'
-                : 'PENDING'
+    const { rows: notificationRows } = await pool.query(
+        `SELECT
+            n.created_at,
+            n.type,
+            n.title,
+            fu.full_name AS faculty_name
+         FROM notifications n
+         LEFT JOIN locator_slips ls ON ls.id = n.locator_slip_id
+         LEFT JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+         WHERE n.recipient_user_id = $1
+           AND n.created_at >= $2
+           AND n.created_at < $3
+           AND n.type = ANY($4::text[])
+         ORDER BY n.created_at DESC`,
+        [userId, range.start, range.endExclusive, NOTIFICATION_MONTHLY_LOG_TYPES]
+    );
+
+    const rows = notificationRows.map((row) => ({
+        dateTimeLabel: formatTimestampLabel(row.created_at),
+        facultyName: row.faculty_name || 'Unknown faculty',
+        actionLabel: getNotificationActionLabel(row.type || row.title),
+        status: getNotificationStatusLabel(row.type)
     }));
 
     const buffer = await buildHrmuNotificationLogReportPdf({

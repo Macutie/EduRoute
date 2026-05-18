@@ -89,6 +89,20 @@ const getStatusTone = (status) => {
         };
     }
 
+    if (normalized === 'ACTIVE' || normalized === 'ARRIVED' || normalized === 'APPROVED' || normalized === 'RETURNED') {
+        return {
+            fill: COLORS.greenSoft,
+            text: COLORS.greenText,
+        };
+    }
+
+    if (normalized === 'FLAGGED' || normalized === 'LATE' || normalized === 'UNVERIFIED' || normalized === 'DISCONNECTED') {
+        return {
+            fill: COLORS.redSoft,
+            text: COLORS.redText,
+        };
+    }
+
     return {
         fill: COLORS.yellowSoft,
         text: COLORS.yellowText,
@@ -151,8 +165,6 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
     const headerHeight = 26;
     const rowHeight = 24;
     const statusPillHeight = 14;
-    const titleY = PAGE.height - PAGE.marginTop;
-
     let page = null;
     let cursorY = 0;
 
@@ -161,32 +173,32 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
         cursorY = PAGE.height - PAGE.marginTop;
 
         if (logoImage) {
-            const logoDims = logoImage.scale(0.14);
+            const logoDims = logoImage.scale(0.09);
             page.drawImage(logoImage, {
                 x: PAGE.marginX,
-                y: cursorY - 24,
+                y: cursorY - 38,
                 width: logoDims.width,
                 height: logoDims.height,
             });
         }
 
         page.drawText('EduRoute HRMU', {
-            x: PAGE.marginX + 48,
-            y: cursorY - 2,
+            x: PAGE.marginX + 42,
+            y: cursorY - 8,
             size: 11,
             font: fonts.regular,
             color: colorize(COLORS.green),
         });
         page.drawText(reportTitle, {
-            x: PAGE.marginX + 48,
-            y: cursorY - 20,
+            x: PAGE.marginX + 42,
+            y: cursorY - 26,
             size: 18,
             font: fonts.bold,
             color: colorize(COLORS.ink),
         });
         page.drawText(`Coverage: ${windowLabel}`, {
-            x: PAGE.marginX + 48,
-            y: cursorY - 36,
+            x: PAGE.marginX + 42,
+            y: cursorY - 42,
             size: 9,
             font: fonts.regular,
             color: colorize(COLORS.muted),
@@ -262,7 +274,7 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
                 color: colorize(COLORS.ink),
             });
 
-            page.drawText(String(row.facultyName || 'Unknown faculty'), {
+            page.drawText(`${String(row.facultyName || 'Unknown faculty')} - ${String(row.actionLabel || 'update')}`, {
                 x: PAGE.marginX + columns[0].width + 10,
                 y: rowY + 8,
                 size: 9,
