@@ -59,25 +59,43 @@ const sendSocketNotification = async (io, recipientUserId, notification) => {
     io.to(`user:${recipientUserId}`).emit('notifications:unread-count', { unreadCount });
 };
 
-const buildPushPayload = (notification) => ({
-    notification: {
-        title: notification.title,
-        body: notification.message
-    },
-    data: {
-        notificationId: String(notification.id),
-        locatorSlipId: notification.locatorSlipId ? String(notification.locatorSlipId) : '',
-        type: notification.type,
-        url: normalizeNotificationUrl(notification.data?.url || '')
-    },
-    webpush: {
-        fcmOptions: {
-            link: notification.data?.url
-                ? `${env.fcmWebPushLink.replace(/\/$/, '')}${normalizeNotificationUrl(notification.data.url)}`
-                : env.fcmWebPushLink
+const buildPushPayload = (notification) => {
+    const normalizedUrl = normalizeNotificationUrl(notification.data?.url || '');
+    const notificationLink = notification.data?.url
+        ? `${env.fcmWebPushLink.replace(/\/$/, '')}${normalizedUrl}`
+        : env.fcmWebPushLink;
+
+    return {
+        notification: {
+            title: notification.title,
+            body: notification.message
+        },
+        data: {
+            notificationId: String(notification.id),
+            locatorSlipId: notification.locatorSlipId ? String(notification.locatorSlipId) : '',
+            type: notification.type,
+            url: normalizedUrl
+        },
+        webpush: {
+            headers: {
+                Urgency: 'high',
+            },
+            notification: {
+                title: notification.title,
+                body: notification.message,
+                icon: '/eduroute-logo-192.png',
+                badge: '/eduroute-logo-192.png',
+                tag: `eduroute-${notification.type}-${notification.id}`,
+                requireInteraction: false,
+                renotify: true,
+                vibrate: [200, 100, 200],
+            },
+            fcmOptions: {
+                link: notificationLink
+            }
         }
-    }
-});
+    };
+};
 
 const sendPushNotificationToUsers = async (userIds, payload) => {
     const normalizedUserIds = Array.from(new Set((userIds || []).filter(Boolean)));
@@ -87,11 +105,15 @@ const sendPushNotificationToUsers = async (userIds, payload) => {
 
     const messaging = getFirebaseMessaging();
     if (!messaging) {
+        console.warn('Push notifications skipped because Firebase Admin messaging is not configured.');
         return { delivered: 0, disabledTokens: 0, skipped: true };
     }
 
     const activeTokens = await pushTokenRepository.getActivePushTokensForUsers(normalizedUserIds);
     if (activeTokens.length === 0) {
+        console.warn('Push notifications skipped because no active push tokens were found for recipients.', {
+            recipientCount: normalizedUserIds.length,
+        });
         return { delivered: 0, disabledTokens: 0 };
     }
 
@@ -105,6 +127,11 @@ const sendPushNotificationToUsers = async (userIds, payload) => {
     let disabledTokens = 0;
     await Promise.all(response.responses.map(async (result, index) => {
         if (result.success) return;
+        console.error('FCM push delivery failed for token.', {
+            token: tokens[index],
+            code: result.error?.code || null,
+            message: result.error?.message || null,
+        });
         if (isInvalidFcmTokenError(result.error)) {
             disabledTokens += 1;
             await pushTokenRepository.disablePushToken(tokens[index]).catch(() => null);
@@ -123,7 +150,14 @@ const notifyUser = async (payload, client) => {
     const notification = await createNotification(payload, client);
     const io = getSocketServer();
     await sendSocketNotification(io, payload.recipientUserId, notification);
-    await sendPushNotificationToUser(payload.recipientUserId, notification).catch(() => null);
+    await sendPushNotificationToUser(payload.recipientUserId, notification).catch((error) => {
+        console.error('Failed to deliver push notification to user.', {
+            recipientUserId: payload.recipientUserId,
+            notificationId: notification?.id || null,
+            error: error?.message || String(error),
+        });
+        return null;
+    });
     return notification;
 };
 
@@ -135,7 +169,14 @@ const notifyUsers = async (recipients, payload, client) => {
         sendSocketNotification(io, notification.recipientUserId, notification).catch(() => null)
     ));
 
-    await sendPushNotificationToUsers(recipients, notifications[0] || payload).catch(() => null);
+    await sendPushNotificationToUsers(recipients, notifications[0] || payload).catch((error) => {
+        console.error('Failed to deliver bulk push notifications.', {
+            recipientCount: recipients.length,
+            notificationId: notifications[0]?.id || null,
+            error: error?.message || String(error),
+        });
+        return null;
+    });
     return notifications;
 };
 
