@@ -559,6 +559,7 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
         cssuValidatedAt: row.validated_at || null,
         cssuValidatedBy: cssuUserId,
         cssuValidationNotes: notes,
+        locatorSlipStatus: status === 'denied' ? 'rejected' : null,
     }).catch(() => null);
 
     if (status === 'validated') {

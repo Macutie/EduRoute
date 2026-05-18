@@ -708,6 +708,7 @@ const updateLocatorSlipCssuValidation = async ({
     cssuValidatedAt,
     cssuValidatedBy,
     cssuValidationNotes,
+    locatorSlipStatus,
 }) => {
     const hasValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
     const hasValidatedAtColumn = await getLocatorSlipColumnExists('cssu_validated_at');
@@ -738,6 +739,12 @@ const updateLocatorSlipCssuValidation = async ({
     if (hasValidationNotesColumn) {
         assignments.push(`cssu_validation_notes = $${index}`);
         params.push(cssuValidationNotes);
+        index += 1;
+    }
+
+    if (locatorSlipStatus) {
+        assignments.push(`status = $${index}`);
+        params.push(locatorSlipStatus);
         index += 1;
     }
 
