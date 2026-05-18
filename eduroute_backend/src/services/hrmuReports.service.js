@@ -126,6 +126,13 @@ const getNotificationStatusLabel = (type) => {
     }
 };
 
+const isWithinDateRange = (value, start, endExclusive) => {
+    if (!value) return false;
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return false;
+    return date >= start && date < endExclusive;
+};
+
 const sortProofRowsNewestFirst = (proofs) =>
     [...proofs].sort((left, right) => {
         const leftTime = toDateValue(getReportTimestamp(left))?.getTime() || 0;
@@ -427,7 +434,48 @@ const getNotificationMonthlyLogDownload = async (userId) => {
         [userId, range.start, range.endExclusive, NOTIFICATION_MONTHLY_LOG_TYPES]
     );
 
-    const rows = notificationRows.map((row) => ({
+    const flaggedTrips = await tripIncidentRepository.getFlaggedTrips().catch(() => []);
+    const lateReturnNotifications = flaggedTrips
+        .filter((row) => Array.isArray(row.incident_types) && row.incident_types.includes('LATE_RETURN'))
+        .filter((row) => isWithinDateRange(row.latest_detected_at, range.start, range.endExclusive))
+        .map((row) => ({
+            created_at: row.latest_detected_at,
+            type: 'hrmu_trip_flagged_late_return',
+            faculty_name: row.faculty_name,
+            trip_id: row.trip_id,
+        }));
+    const unverifiedLocationNotifications = flaggedTrips
+        .filter((row) => Array.isArray(row.incident_types) && row.incident_types.includes('UNVERIFIED_LOCATION'))
+        .filter((row) => isWithinDateRange(row.latest_detected_at, range.start, range.endExclusive))
+        .map((row) => ({
+            created_at: row.latest_detected_at,
+            type: 'hrmu_unverified_location',
+            faculty_name: row.faculty_name,
+            trip_id: row.trip_id,
+        }));
+
+    const seenLateReturnTripIds = new Set(
+        notificationRows
+            .filter((row) => row.type === 'hrmu_trip_flagged_late_return')
+            .map((row) => String(row.trip_id || ''))
+    );
+    const seenUnverifiedTripIds = new Set(
+        notificationRows
+            .filter((row) => row.type === 'hrmu_unverified_location')
+            .map((row) => String(row.trip_id || ''))
+    );
+
+    const mergedNotificationRows = [
+        ...lateReturnNotifications.filter((row) => !seenLateReturnTripIds.has(String(row.trip_id || ''))),
+        ...unverifiedLocationNotifications.filter((row) => !seenUnverifiedTripIds.has(String(row.trip_id || ''))),
+        ...notificationRows
+    ].sort((left, right) => {
+        const leftTime = left.created_at ? new Date(left.created_at).getTime() : 0;
+        const rightTime = right.created_at ? new Date(right.created_at).getTime() : 0;
+        return rightTime - leftTime;
+    });
+
+    const rows = mergedNotificationRows.map((row) => ({
         dateTimeLabel: formatTimestampLabel(row.created_at),
         facultyName: row.faculty_name || 'Unknown faculty',
         actionLabel: getNotificationActionLabel(row.type || row.title),
