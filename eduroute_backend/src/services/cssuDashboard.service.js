@@ -449,9 +449,9 @@ const lookupExitCandidate = async (query = {}) => {
             expectedReturnTime: slip.expected_return_datetime ? new Date(slip.expected_return_datetime).toISOString() : null,
             validatedAt: slip.validated_at ? new Date(slip.validated_at).toISOString() : null,
             validatedTimeLabel: formatTimeLabel(slip.validated_at),
-            canAllowExit: ['approved', 'verified'].includes(normalizedSlipStatus) && currentStatus !== 'validated',
-            canDenyExit: ['approved', 'verified'].includes(normalizedSlipStatus) && currentStatus !== 'denied' && currentStatus !== 'flagged',
-            canFlagIncident: ['pending', 'rejected'].includes(normalizedSlipStatus) && currentStatus !== 'flagged',
+            canAllowExit: ['approved', 'verified'].includes(normalizedSlipStatus) && currentStatus === 'approved',
+            canDenyExit: ['approved', 'verified'].includes(normalizedSlipStatus) && currentStatus === 'approved',
+            canFlagIncident: ['pending', 'rejected'].includes(normalizedSlipStatus) && ['pending', 'rejected'].includes(currentStatus),
             isOfficial: currentStatus === 'validated',
         } : {
             locatorSlipId: null,
@@ -503,6 +503,21 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
     }
 
     const locatorSlipStatus = String(locatorSlip.status || '').toLowerCase();
+    const existingExitStatus = String(locatorSlip.exit_status || '').toLowerCase();
+    const hasExistingFlagIncidentNote = String(locatorSlip.exit_notes || '').startsWith(CSSU_FLAG_INCIDENT_NOTE_PREFIX);
+
+    if (existingExitStatus === 'validated') {
+        throw new AppError('CSSU exit validation is already final for this locator slip.', 409);
+    }
+
+    if (existingExitStatus === 'denied') {
+        throw new AppError(
+            hasExistingFlagIncidentNote
+                ? 'This locator slip was already flagged by CSSU and can no longer be changed.'
+                : 'This locator slip exit was already rejected by CSSU and can no longer be changed.',
+            409
+        );
+    }
 
     if (status === 'flagged') {
         if (!['pending', 'rejected'].includes(locatorSlipStatus)) {

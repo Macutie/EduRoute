@@ -635,8 +635,14 @@ const findLocatorSlipByCode = async (locatorSlipCode) => {
 
 const findLocatorSlipForExitStatus = async (locatorSlipId) => {
     const { rows } = await pool.query(
-        `SELECT id, faculty_user_id, status
-         FROM locator_slips
+        `SELECT
+            ls.id,
+            ls.faculty_user_id,
+            ls.status,
+            log.status AS exit_status,
+            log.notes AS exit_notes
+         FROM locator_slips ls
+         LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
          WHERE id = $1
          LIMIT 1`,
         [locatorSlipId]
