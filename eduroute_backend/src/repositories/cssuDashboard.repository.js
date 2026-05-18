@@ -648,7 +648,7 @@ const findLocatorSlipForExitStatus = async (locatorSlipId) => {
             log.notes AS exit_notes
          FROM locator_slips ls
          LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
-         WHERE id = $1
+         WHERE ls.id = $1
          LIMIT 1`,
         [locatorSlipId]
     );
