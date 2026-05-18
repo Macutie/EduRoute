@@ -14799,6 +14799,12 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
     ? `${summary.approvalRate}% approved today`
     : 'No tracked exits yet';
 
+  const openExitClearanceForRow = (row) => {
+    if (!row?.locatorSlipCode) return;
+    localStorage.setItem('edurouteCssuPendingLocatorSlipCode', row.locatorSlipCode);
+    setView('cssu-scan');
+  };
+
   return (
     <CSSUDesktopPage
       activeKey="dashboard"
@@ -14907,13 +14913,14 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
                   <span>{row.facultyId || 'Unavailable'}</span>
                   <span className={`cssu-desktop-status ${statusClass}`}>{row.statusLabel}</span>
                   <span>{row.validatedTimeLabel || '--'}</span>
-                  {row.status === 'denied' ? (
-                    <button type="button" className="cssu-desktop-action">Intercept</button>
-                  ) : (
-                    <button type="button" className="cssu-desktop-action ghost">
-                      <EyeIcon color="var(--green)" size="18" />
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="cssu-desktop-action ghost"
+                    onClick={() => openExitClearanceForRow(row)}
+                    title={`Open exit clearance for ${row.facultyName}`}
+                  >
+                    <EyeIcon color="var(--green)" size="18" />
+                  </button>
                 </div>
               );
             })}
@@ -16008,6 +16015,15 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
 
   useEffect(() => () => {
     stopQrScanner();
+  }, []);
+
+  useEffect(() => {
+    const pendingLocatorSlipCode = localStorage.getItem('edurouteCssuPendingLocatorSlipCode');
+    if (!pendingLocatorSlipCode) return;
+
+    localStorage.removeItem('edurouteCssuPendingLocatorSlipCode');
+    setManualFacultyId(pendingLocatorSlipCode);
+    runLookup({ value: pendingLocatorSlipCode, method: 'manual' });
   }, []);
 
   const runLookup = async ({ value, method }) => {

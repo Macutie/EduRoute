@@ -138,6 +138,7 @@ const getLiveExitMonitoring = async (query = {}) => {
         gateLabel: formatGateLabel(gate),
         rows: rows.map((row) => ({
             locatorSlipId: row.locator_slip_id,
+            locatorSlipCode: row.locator_slip_code || null,
             facultyUserId: row.faculty_user_id,
             facultyName: row.faculty_name,
             profileImageUrl: row.faculty_profile_image_url || null,

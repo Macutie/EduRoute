@@ -522,6 +522,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
         const { rows } = await pool.query(
             `SELECT
                 ls.id AS locator_slip_id,
+                ls.locator_slip_code,
                 ls.faculty_user_id,
                 fu.full_name AS faculty_name,
                 fu.profile_image_url AS faculty_profile_image_url,
@@ -561,6 +562,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
     const { rows } = await pool.query(
         `SELECT
             ls.id AS locator_slip_id,
+            ls.locator_slip_code,
             ls.faculty_user_id,
             fu.full_name AS faculty_name,
             fu.profile_image_url AS faculty_profile_image_url,
