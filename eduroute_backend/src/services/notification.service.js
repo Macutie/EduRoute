@@ -60,8 +60,9 @@ const sendSocketNotification = async (io, recipientUserId, notification) => {
 };
 
 const buildPushPayload = (notification) => {
-    const normalizedUrl = normalizeNotificationUrl(notification.data?.url || '');
-    const notificationLink = notification.data?.url
+    const notificationData = notification && notification.data ? notification.data : {};
+    const normalizedUrl = normalizeNotificationUrl(notificationData.url || '');
+    const notificationLink = notificationData.url
         ? `${env.fcmWebPushLink.replace(/\/$/, '')}${normalizedUrl}`
         : env.fcmWebPushLink;
 
@@ -129,8 +130,8 @@ const sendPushNotificationToUsers = async (userIds, payload) => {
         if (result.success) return;
         console.error('FCM push delivery failed for token.', {
             token: tokens[index],
-            code: result.error?.code || null,
-            message: result.error?.message || null,
+            code: result && result.error ? result.error.code : null,
+            message: result && result.error ? result.error.message : null,
         });
         if (isInvalidFcmTokenError(result.error)) {
             disabledTokens += 1;
@@ -153,7 +154,7 @@ const notifyUser = async (payload, client) => {
     await sendPushNotificationToUser(payload.recipientUserId, notification).catch((error) => {
         console.error('Failed to deliver push notification to user.', {
             recipientUserId: payload.recipientUserId,
-            notificationId: notification?.id || null,
+            notificationId: notification ? notification.id : null,
             error: error?.message || String(error),
         });
         return null;
@@ -172,7 +173,7 @@ const notifyUsers = async (recipients, payload, client) => {
     await sendPushNotificationToUsers(recipients, notifications[0] || payload).catch((error) => {
         console.error('Failed to deliver bulk push notifications.', {
             recipientCount: recipients.length,
-            notificationId: notifications[0]?.id || null,
+            notificationId: notifications[0] ? notifications[0].id : null,
             error: error?.message || String(error),
         });
         return null;
@@ -265,7 +266,7 @@ const createLocatorSlipDeanNotifications = async (client, locatorSlip) => {
 };
 
 const emitLocatorSlipDeanNotification = async (locatorSlip) => {
-    const notifications = Array.isArray(locatorSlip?._deanNotifications) ? locatorSlip._deanNotifications : [];
+    const notifications = Array.isArray(locatorSlip && locatorSlip._deanNotifications) ? locatorSlip._deanNotifications : [];
     if (notifications.length === 0) return;
 
     const io = getSocketServer();
@@ -277,7 +278,7 @@ const emitLocatorSlipDeanNotification = async (locatorSlip) => {
         notifications[0]
     ).catch(() => null);
 
-    if (io && locatorSlip?.college_id) {
+    if (io && locatorSlip && locatorSlip.college_id) {
         const purpose = locatorSlip.custom_purpose || locatorSlip.purpose_of_travel;
         io.to(`college:${locatorSlip.college_id}:deans`).emit('locator-slip:new', {
             locatorSlipId: locatorSlip.id,
