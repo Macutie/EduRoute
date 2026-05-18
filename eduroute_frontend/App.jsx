@@ -10623,7 +10623,7 @@ const HrmuLiveMapPanel = ({
 
 const TogaLogoIcon = ({ size = 24 }) => (
   <img
-    src="/eduroute-logo.png"
+    src="/eduroute-logo-512.png?v=brand-hd-20260518"
     alt="EduRoute logo"
     width={size}
     height={size}

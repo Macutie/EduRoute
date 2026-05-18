@@ -875,7 +875,7 @@ label {
   width: 100%;
   height: 100%;
   display: block;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / contain no-repeat;
 }
 
 .footer-text {
@@ -1729,7 +1729,7 @@ label {
   width: 100%;
   height: 100%;
   display: block;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / contain no-repeat;
 }
 
 .signup-footer-text .footer-developed {
@@ -1815,7 +1815,7 @@ label {
   display: inline-block;
   flex-shrink: 0;
   border-radius: 8px;
-  background: url('/eduroute-logo.png') center / cover no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / cover no-repeat;
 }
 
 .dash-avatar {
@@ -6784,7 +6784,7 @@ label {
   display: inline-block;
   flex-shrink: 0;
   border-radius: 8px;
-  background: url('/eduroute-logo.png') center / cover no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / cover no-repeat;
 }
 
 .admin-header-right {
@@ -7770,7 +7770,7 @@ label {
   height: 70%;
   display: block;
   border-radius: 50%;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / contain no-repeat;
 }
 
 .hrmu-brand-text {
@@ -17566,7 +17566,7 @@ label {
   height: 70%;
   display: block;
   border-radius: 50%;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / contain no-repeat;
 }
 
 .cssu-brand-text {
