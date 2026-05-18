@@ -39,6 +39,17 @@ const downloadMonthlyReport = async (req, res, next) => {
     }
 };
 
+const downloadNotificationMonthlyLog = async (req, res, next) => {
+    try {
+        const payload = await hrmuReportsService.getNotificationMonthlyLogDownload(req.user.sub);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
+        return res.send(payload.buffer);
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const getMonthlyReportDetails = async (req, res, next) => {
     try {
         const payload = await hrmuReportsService.getMonthlyReportDetails(req.user.sub, req.params.locatorSlipId);
@@ -53,5 +64,6 @@ module.exports = {
     getMonthlyReportLogs,
     getMonthlyReportSummary,
     downloadMonthlyReport,
+    downloadNotificationMonthlyLog,
     getMonthlyReportDetails
 };

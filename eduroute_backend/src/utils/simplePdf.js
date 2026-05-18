@@ -116,6 +116,187 @@ const getSummaryCards = (summary) => ([
     },
 ]);
 
+const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Report', windowLabel = 'Last 30 days', rows = [] } = {}) => {
+    let PDFDocument;
+    let StandardFonts;
+    let rgb;
+
+    try {
+        ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
+    } catch (error) {
+        error.message = 'HRMU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        throw error;
+    }
+
+    const pdfDoc = await PDFDocument.create();
+    const fonts = {
+        regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+        bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+    };
+    const colorize = (tuple) => rgb(tuple[0], tuple[1], tuple[2]);
+    const logoBytes = loadLogoBytes();
+    let logoImage = null;
+
+    if (logoBytes) {
+        const isPng = logoBytes.slice(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+        logoImage = isPng ? await pdfDoc.embedPng(logoBytes) : await pdfDoc.embedJpg(logoBytes);
+    }
+
+    const columns = [
+        { label: 'DATE & TIME', width: 170 },
+        { label: 'FACULTY USER', width: 245 },
+        { label: 'STATUS', width: 96 },
+    ];
+    const tableWidth = columns.reduce((total, column) => total + column.width, 0);
+    const headerHeight = 26;
+    const rowHeight = 24;
+    const statusPillHeight = 14;
+    const titleY = PAGE.height - PAGE.marginTop;
+
+    let page = null;
+    let cursorY = 0;
+
+    const drawPageHeader = () => {
+        page = pdfDoc.addPage([PAGE.width, PAGE.height]);
+        cursorY = PAGE.height - PAGE.marginTop;
+
+        if (logoImage) {
+            const logoDims = logoImage.scale(0.14);
+            page.drawImage(logoImage, {
+                x: PAGE.marginX,
+                y: cursorY - 24,
+                width: logoDims.width,
+                height: logoDims.height,
+            });
+        }
+
+        page.drawText('EduRoute HRMU', {
+            x: PAGE.marginX + 48,
+            y: cursorY - 2,
+            size: 11,
+            font: fonts.regular,
+            color: colorize(COLORS.green),
+        });
+        page.drawText(reportTitle, {
+            x: PAGE.marginX + 48,
+            y: cursorY - 20,
+            size: 18,
+            font: fonts.bold,
+            color: colorize(COLORS.ink),
+        });
+        page.drawText(`Coverage: ${windowLabel}`, {
+            x: PAGE.marginX + 48,
+            y: cursorY - 36,
+            size: 9,
+            font: fonts.regular,
+            color: colorize(COLORS.muted),
+        });
+
+        const tableTopY = cursorY - 76;
+        page.drawRectangle({
+            x: PAGE.marginX,
+            y: tableTopY - headerHeight,
+            width: tableWidth,
+            height: headerHeight,
+            color: colorize(COLORS.headerFill),
+            borderColor: colorize(COLORS.border),
+            borderWidth: 1,
+        });
+
+        let headerX = PAGE.marginX;
+        columns.forEach((column) => {
+            page.drawText(column.label, {
+                x: headerX + 10,
+                y: tableTopY - 16,
+                size: 8.5,
+                font: fonts.bold,
+                color: colorize(COLORS.muted),
+            });
+            headerX += column.width;
+        });
+
+        cursorY = tableTopY - headerHeight;
+    };
+
+    drawPageHeader();
+
+    if (!rows.length) {
+        page.drawRectangle({
+            x: PAGE.marginX,
+            y: cursorY - rowHeight,
+            width: tableWidth,
+            height: rowHeight,
+            color: colorize(COLORS.white),
+            borderColor: colorize(COLORS.border),
+            borderWidth: 1,
+        });
+        page.drawText('No logs found for the selected 30-day period.', {
+            x: PAGE.marginX + 10,
+            y: cursorY - 15,
+            size: 9,
+            font: fonts.regular,
+            color: colorize(COLORS.muted),
+        });
+    } else {
+        rows.forEach((row) => {
+            if (cursorY - rowHeight < PAGE.marginBottom) {
+                drawPageHeader();
+            }
+
+            const rowY = cursorY - rowHeight;
+            page.drawRectangle({
+                x: PAGE.marginX,
+                y: rowY,
+                width: tableWidth,
+                height: rowHeight,
+                color: colorize(COLORS.white),
+                borderColor: colorize(COLORS.border),
+                borderWidth: 1,
+            });
+
+            page.drawText(String(row.dateTimeLabel || '--'), {
+                x: PAGE.marginX + 10,
+                y: rowY + 8,
+                size: 9,
+                font: fonts.regular,
+                color: colorize(COLORS.ink),
+            });
+
+            page.drawText(String(row.facultyName || 'Unknown faculty'), {
+                x: PAGE.marginX + columns[0].width + 10,
+                y: rowY + 8,
+                size: 9,
+                font: fonts.regular,
+                color: colorize(COLORS.ink),
+            });
+
+            const statusTone = getStatusTone(row.status);
+            const pillWidth = 72;
+            const pillX = PAGE.marginX + columns[0].width + columns[1].width + 10;
+            const pillY = rowY + ((rowHeight - statusPillHeight) / 2);
+            page.drawRectangle({
+                x: pillX,
+                y: pillY,
+                width: pillWidth,
+                height: statusPillHeight,
+                color: colorize(statusTone.fill),
+            });
+            page.drawText(String(row.status || '--').toUpperCase(), {
+                x: pillX + 8,
+                y: pillY + 4,
+                size: 7.5,
+                font: fonts.bold,
+                color: colorize(statusTone.text),
+            });
+
+            cursorY = rowY;
+        });
+    }
+
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes);
+};
+
 const loadLogoBytes = () => {
     const logoPath = REPORT_LOGO_CANDIDATES.find((candidate) => fs.existsSync(candidate));
     return logoPath ? fs.readFileSync(logoPath) : null;
@@ -1526,4 +1707,5 @@ module.exports = {
     buildHrmuMonthlyReportPdf,
     buildHrmuAnalyticsReportPdf,
     buildCssuMovementReportPdf,
+    buildHrmuNotificationLogReportPdf,
 };

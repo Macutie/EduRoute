@@ -122,3 +122,30 @@ export const downloadHrmuMonthlyReportPdf = async ({ monthIndex, baseYear }) => 
     filename: match?.[1] || 'eduroute-hrmu-report.pdf',
   };
 };
+
+export const downloadHrmuNotificationMonthlyLogPdf = async () => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}/api/hrmu/reports/monthly/log-download`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+
+  if (!response.ok) {
+    let message = 'HRMU monthly log report download failed';
+    try {
+      const data = await response.json();
+      message = data.message || message;
+    } catch (error) {
+      // ignore JSON parsing failure for binary responses
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/i);
+
+  return {
+    blob,
+    filename: match?.[1] || 'eduroute-hrmu-monthly-log-report.pdf',
+  };
+};

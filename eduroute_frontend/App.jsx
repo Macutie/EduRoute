@@ -65,6 +65,7 @@ import ProofComplianceList from './components/hrmu/ProofComplianceList';
 import ProofComplianceDetails from './components/hrmu/ProofComplianceDetails';
 import {
   downloadHrmuMonthlyReportPdf,
+  downloadHrmuNotificationMonthlyLogPdf,
   getHrmuFlaggedTrips,
   getHrmuVerificationIncidentSummary,
 } from './services/hrmuReportsApi';
@@ -87,6 +88,19 @@ import {
 } from './services/facultyTripApi';
 
 const DEFAULT_PROFILE_IMAGE = '/profile_pic.png';
+const triggerBlobDownload = (blob, filename) => {
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = objectUrl;
+  link.download = filename || 'download';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => {
+    window.URL.revokeObjectURL(objectUrl);
+  }, 0);
+};
+
 const decodeJwtPayload = (token) => {
   try {
     const payload = token.split('.')[1];
@@ -11991,6 +12005,22 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
   );
 };
 const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
+  const [downloadBusy, setDownloadBusy] = useState(false);
+
+  const handleDownloadMonthlyLogReport = async () => {
+    if (downloadBusy) return;
+
+    setDownloadBusy(true);
+    try {
+      const file = await downloadHrmuNotificationMonthlyLogPdf();
+      triggerBlobDownload(file.blob, file.filename);
+    } catch (error) {
+      console.error('Failed to download HRMU monthly log report:', error);
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
+
   return (
     <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
       <section className="hrmu-alerts-page">
@@ -12054,7 +12084,9 @@ const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
               </div>
               <h3>Monthly Log Report</h3>
               <p>30-days summary is ready for download.</p>
-              <button type="button" className="hrmu-alert-download-btn">DOWNLOAD PDF</button>
+              <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
+                {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
+              </button>
             </article>
           </aside>
         </section>
@@ -12291,6 +12323,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [alertsError, setAlertsError] = useState('');
   const [alertFilter, setAlertFilter] = useState('all');
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const [incidentSummary, setIncidentSummary] = useState({
     lateReturns: 0,
     unverifiedLocations: 0,
@@ -12422,6 +12455,21 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
     return true;
   });
 
+  const handleDownloadMonthlyLogReport = async () => {
+    if (downloadBusy) return;
+
+    setDownloadBusy(true);
+    try {
+      const file = await downloadHrmuNotificationMonthlyLogPdf();
+      triggerBlobDownload(file.blob, file.filename);
+    } catch (error) {
+      console.error('Failed to download HRMU monthly log report:', error);
+      setAlertsError(error.message || 'Failed to download the monthly log report.');
+    } finally {
+      setDownloadBusy(false);
+    }
+  };
+
   return (
     <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
       <section className="hrmu-alerts-page">
@@ -12526,7 +12574,9 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
               </div>
               <h3>Monthly Log Report</h3>
               <p>30-days summary is ready for download.</p>
-              <button type="button" className="hrmu-alert-download-btn">DOWNLOAD PDF</button>
+              <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
+                {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
+              </button>
             </article>
           </aside>
         </section>

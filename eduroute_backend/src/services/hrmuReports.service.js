@@ -6,7 +6,7 @@ const tripIncidentRepository = require('../repositories/tripIncident.repository'
 const tripIncidentService = require('./tripIncident.service');
 const { formatTimestampLabel } = require('../utils/formatDate');
 const { getMonthDateRange } = require('../utils/reportMonth');
-const { buildHrmuMonthlyReportPdf } = require('../utils/simplePdf');
+const { buildHrmuMonthlyReportPdf, buildHrmuNotificationLogReportPdf } = require('../utils/simplePdf');
 
 const assertHrmuUser = async (userId) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId);
@@ -56,6 +56,18 @@ const dedupeProofRows = (proofs) => {
     });
 
     return Array.from(deduped.values());
+};
+
+const getLastThirtyDaysRange = () => {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(start.getDate() - 30);
+
+    return {
+        start,
+        endExclusive: now,
+        label: `${formatTimestampLabel(start)} to ${formatTimestampLabel(now)}`
+    };
 };
 
 const sortProofRowsNewestFirst = (proofs) =>
@@ -338,12 +350,41 @@ const getMonthlyReportDownload = async (userId, query = {}) => {
     };
 };
 
+const getNotificationMonthlyLogDownload = async (userId) => {
+    await assertHrmuUser(userId);
+
+    const range = getLastThirtyDaysRange();
+    const proofs = await proofComplianceRepository.getHrmuProofList();
+    const filteredProofs = dedupeProofRows(sortProofRowsNewestFirst(filterProofsByMonthRange(proofs, range)));
+    const rows = filteredProofs.map((row) => ({
+        dateTimeLabel: formatTimestampLabel(getReportTimestamp(row)),
+        facultyName: row.facultyName || 'Unknown faculty',
+        status: normalizeProofStatus(row.verificationStatus) === 'verified'
+            ? 'VERIFIED'
+            : normalizeProofStatus(row.verificationStatus) === 'rejected'
+                ? 'REJECTED'
+                : 'PENDING'
+    }));
+
+    const buffer = await buildHrmuNotificationLogReportPdf({
+        reportTitle: 'Monthly Log Report',
+        windowLabel: range.label,
+        rows
+    });
+
+    return {
+        buffer,
+        filename: `eduroute-hrmu-monthly-log-report-${new Date().toISOString().slice(0, 10)}.pdf`,
+    };
+};
+
 module.exports = {
     getMonthlyReport,
     getMonthlyReportLogs,
     getMonthlyReportSummary,
     getMonthlyReportDetails,
     getMonthlyReportDownload,
+    getNotificationMonthlyLogDownload,
     getVerificationFlaggedTrips,
     getVerificationIncidentSummary
 };
