@@ -155,7 +155,7 @@ const ProofComplianceDetails = ({
         <div className="hrmu-verify-modal-header">
           <div className="hrmu-verify-modal-person">
             <div className="hrmu-verify-modal-avatar">
-              <img src="/profile_pic.png" alt={row.name} />
+              <img src={activeProof.profileImageUrl || row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
             </div>
             <div className="hrmu-verify-modal-person-copy">
               <div className="hrmu-verify-modal-topline">

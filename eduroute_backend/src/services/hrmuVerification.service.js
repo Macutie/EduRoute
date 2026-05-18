@@ -50,6 +50,7 @@ const mapVerificationTripRow = (row) => {
         tripId: row.trip_id,
         facultyUserId: row.faculty_user_id,
         facultyName: row.faculty_name,
+        profileImageUrl: row.faculty_profile_image_url || null,
         collegeName: row.college_name,
         purpose: row.purpose,
         destination: row.destination,

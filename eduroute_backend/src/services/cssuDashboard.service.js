@@ -140,6 +140,7 @@ const getLiveExitMonitoring = async (query = {}) => {
             locatorSlipId: row.locator_slip_id,
             facultyUserId: row.faculty_user_id,
             facultyName: row.faculty_name,
+            profileImageUrl: row.faculty_profile_image_url || null,
             facultyId: row.employee_id,
             departmentName: row.department_name || 'Unassigned Department',
             destination: row.destination,
@@ -431,6 +432,7 @@ const lookupExitCandidate = async (query = {}) => {
         faculty: {
             facultyUserId: slip.faculty_user_id,
             facultyName: slip.full_name,
+            profileImageUrl: slip.faculty_profile_image_url || null,
             departmentName: slip.department_name || 'Unassigned Department',
             facultyId: slip.employee_id,
             employmentTypeLabel: formatEmploymentTypeLabel(slip.employment_type),

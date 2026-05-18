@@ -25,7 +25,7 @@ const ProofComplianceList = ({ rows, loading, onOpen }) => (
       <div key={row.key} className="hrmu-verify-row">
         <div className="hrmu-verify-faculty">
           <div className="hrmu-verify-avatar">
-            <img src="/profile_pic.png" alt={row.name} />
+            <img src={row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
           </div>
           <div>
             <strong>{row.name}</strong>

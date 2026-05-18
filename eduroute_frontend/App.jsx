@@ -11348,6 +11348,7 @@ const HrmuVerificationView = ({ setView, profileData, onLogout }) => {
           tripId: row.tripId,
           locatorSlipId: row.locatorSlipId,
           name: facultyName,
+          profileImageUrl: row.profileImageUrl || null,
           id: row.facultyId || row.facultyUserId || 'N/A',
           department: collegeName,
           roleLine: `Faculty - ${collegeName}`,
@@ -14884,7 +14885,7 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
               return (
                 <div key={`${row.locatorSlipId}-${row.gate}`} className="cssu-desktop-log-row">
                   <div className="cssu-desktop-person">
-                    <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} />
+                    <img src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} />
                     <div>
                       <strong>{row.facultyName}</strong>
                       <span>{row.departmentName}</span>
@@ -15154,7 +15155,7 @@ const CSSUDashboardView = ({ setView, profileData, onLogout }) => {
                     key={`${row.locatorSlipId}-${row.gate}-${row.status}`}
                     className={`cssu-live-item${isFlagged ? ' flagged-item' : ''}`}
                   >
-                    <img src={DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-li-avatar" />
+                    <img src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-li-avatar" />
                     <div className="cssu-li-info">
                       <div className="cssu-li-top">
                         <h4>{row.facultyName}</h4>
@@ -16254,7 +16255,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
           <article className="cssu-checkpoint-profile-card">
             <div className="cssu-checkpoint-profile-top">
               <div className="cssu-checkpoint-profile-avatar">
-                <img src={DEFAULT_PROFILE_IMAGE} alt={faculty?.facultyName || 'Faculty'} />
+                <img src={faculty?.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={faculty?.facultyName || 'Faculty'} />
               </div>
               <div className="cssu-checkpoint-profile-copy">
                 <span className="cssu-checkpoint-card-kicker">FACULTY PROFILE</span>

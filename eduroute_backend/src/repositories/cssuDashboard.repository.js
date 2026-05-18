@@ -524,6 +524,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
                 ls.id AS locator_slip_id,
                 ls.faculty_user_id,
                 fu.full_name AS faculty_name,
+                fu.profile_image_url AS faculty_profile_image_url,
                 fu.employee_id,
                 d.department_name,
                 ls.destination,
@@ -562,6 +563,7 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
             ls.id AS locator_slip_id,
             ls.faculty_user_id,
             fu.full_name AS faculty_name,
+            fu.profile_image_url AS faculty_profile_image_url,
             fu.employee_id,
             d.department_name,
             ls.destination,
@@ -600,6 +602,7 @@ const findLocatorSlipByCode = async (locatorSlipCode) => {
         `SELECT
             fu.id AS faculty_user_id,
             fu.full_name,
+            fu.profile_image_url AS faculty_profile_image_url,
             fu.employee_id,
             fu.department_position,
             fu.employment_type,
