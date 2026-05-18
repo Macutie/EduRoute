@@ -537,7 +537,10 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
             LEFT JOIN departments d ON d.id = fu.department_id
             LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
-            WHERE ls.status IN ('approved', 'verified', 'completed')
+            WHERE (
+                  ls.status IN ('approved', 'verified', 'completed')
+                  OR COALESCE(log.status, '') = 'denied'
+              )
               AND (
                   (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                   OR
