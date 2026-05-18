@@ -246,6 +246,14 @@ const registerPushNotificationsForCurrentBrowser = async () => {
   return fcmToken;
 };
 
+const syncPushTokenForGrantedBrowser = async (accountRole = '') => {
+  if (!supportsPortalPushNotifications(accountRole)) return null;
+  if (typeof window === 'undefined' || !('Notification' in window)) return null;
+  if (Notification.permission !== 'granted') return null;
+
+  return registerPushNotificationsForCurrentBrowser();
+};
+
 function App() {
   console.log('API_BASE_URL:', API_BASE_URL);
   const [view, setView] = useState(() => {
@@ -623,15 +631,11 @@ function App() {
     const token = localStorage.getItem('token');
     const accountRole = String(profileData?.accountRole || '').toLowerCase();
 
-    if (!token || !supportsPortalPushNotifications(accountRole)) return;
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-    if (Notification.permission !== 'granted') return;
-
     let isCancelled = false;
 
     const syncExistingPushPermission = async () => {
       try {
-        await registerPushNotificationsForCurrentBrowser();
+        await syncPushTokenForGrantedBrowser(accountRole);
       } catch (error) {
         if (!isCancelled) {
           console.error('Failed to sync push notifications for current browser:', error);
@@ -693,12 +697,9 @@ function App() {
 
       if (
         supportsPortalPushNotifications(accountRole || portalRole)
-        && typeof window !== 'undefined'
-        && 'Notification' in window
-        && Notification.permission === 'granted'
       ) {
         try {
-          await registerPushNotificationsForCurrentBrowser();
+          await syncPushTokenForGrantedBrowser(accountRole || portalRole);
         } catch (pushError) {
           console.error('Failed to register device push token after login:', pushError);
         }
@@ -8039,6 +8040,18 @@ const NotificationSettingsView = ({ setView, profileData, mode = 'faculty', back
         alert('This browser does not support web notifications.');
       } else if (status === 'dismissed') {
         alert('Notification permission was not enabled. You can try again later.');
+      } else if (status === 'granted') {
+        try {
+          await syncPushTokenForGrantedBrowser(isDeanMode ? 'college_dean' : 'faculty');
+          alert(
+            isDeanMode
+              ? 'Notifications are enabled for this dean panel. You can now receive locator slip alerts even while EduRoute is closed.'
+              : 'Notifications are enabled for this device. EduRoute can now send approval alerts even while the site is closed.'
+          );
+        } catch (pushError) {
+          console.error('Failed to register push token from notification settings:', pushError);
+          alert(`Notifications were allowed, but EduRoute could not register this device yet: ${pushError.message}`);
+        }
       }
     } catch (error) {
       alert(error.message);
