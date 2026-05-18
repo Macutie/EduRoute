@@ -11098,6 +11098,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             key: `${row.locatorSlipId}-${row.tripId || 'na'}`,
             initials: getInitials(row.facultyName),
             name: row.facultyName,
+            profileImageUrl: row.facultyProfileImageUrl || null,
             dept: row.collegeName || row.departmentName || 'Unknown college',
             departure: formatActivityTime(row.departureTime),
             returnTime: formatActivityTime(row.expectedReturnTime),
@@ -11281,7 +11282,13 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             {!activityLoading && recentActivityRows.map((row) => (
               <div key={row.key} className="hrmu-log-row">
                 <div className="hrmu-faculty-cell">
-                  <div className="hrmu-initials-badge">{row.initials}</div>
+                  {row.profileImageUrl ? (
+                    <div className="hrmu-faculty-avatar">
+                      <img src={row.profileImageUrl} alt={row.name} />
+                    </div>
+                  ) : (
+                    <div className="hrmu-initials-badge">{row.initials}</div>
+                  )}
                   <div>
                     <strong>{row.name}</strong>
                     <span>{row.dept}</span>

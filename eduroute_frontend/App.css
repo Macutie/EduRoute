@@ -8375,6 +8375,23 @@ label {
   gap: 12px;
 }
 
+.hrmu-faculty-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: #E8F3E7;
+  border: 1px solid rgba(4, 149, 22, 0.12);
+}
+
+.hrmu-faculty-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .hrmu-initials-badge {
   width: 38px;
   height: 38px;

@@ -421,6 +421,7 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             t.id AS trip_id,
             fu.id AS faculty_user_id,
             fu.full_name AS faculty_name,
+            fu.profile_image_url AS faculty_profile_image_url,
             d.department_name AS college_name,
             fu.department_position AS department_name,
             ls.destination,

@@ -125,6 +125,7 @@ const mapRecentActivityRow = (row) => {
         tripId: row.trip_id,
         facultyUserId: row.faculty_user_id,
         facultyName: row.faculty_name,
+        facultyProfileImageUrl: row.faculty_profile_image_url || null,
         collegeName: row.college_name,
         departmentName: row.department_name,
         destination: row.destination || null,
