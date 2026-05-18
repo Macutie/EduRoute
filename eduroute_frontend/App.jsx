@@ -12429,27 +12429,35 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
           'hrmu_cssu_validated_exit',
           'hrmu_location_verification_submitted',
         ]);
+        const rejectedNotificationTypes = new Set([
+          'hrmu_locator_slip_rejected',
+        ]);
 
-        const verifiedAlerts = notificationRows
-          .filter((notification) => positiveNotificationTypes.has(notification.type))
+        const decisionAlerts = notificationRows
+          .filter((notification) => positiveNotificationTypes.has(notification.type) || rejectedNotificationTypes.has(notification.type))
           .map((notification) => {
+            const isRejectedDecision = rejectedNotificationTypes.has(notification.type);
             const defaultTitle = notification.type === 'hrmu_trip_started'
               ? 'Trip started'
               : notification.type === 'hrmu_trip_completed'
                 ? 'Faculty returned on time'
                 : notification.type === 'hrmu_cssu_validated_exit'
                   ? 'Exit clearance validated'
+                  : notification.type === 'hrmu_locator_slip_rejected'
+                    ? 'Locator slip rejected'
                   : notification.type === 'hrmu_trip_arrived'
                     ? 'Faculty arrived at destination'
                     : notification.title || 'Verified activity';
             return {
-              id: `verified-${notification.id}`,
-              type: 'verified',
+              id: `${isRejectedDecision ? 'rejected' : 'verified'}-${notification.id}`,
+              type: isRejectedDecision ? 'rejected' : 'verified',
               title: defaultTitle,
-              body: notification.message || `${notification.facultyName} locator slip approved.`,
+              body: notification.message || (isRejectedDecision
+                ? `${notification.facultyName} locator slip was rejected.`
+                : `${notification.facultyName} locator slip approved.`),
               time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
               sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
-              actionLabelPrimary: notification.type === 'hrmu_cssu_validated_exit' ? 'Open Dashboard' : 'Open Dashboard',
+              actionLabelPrimary: 'Open Dashboard',
               actionLabelSecondary: notification.type === 'hrmu_trip_started' || notification.type === 'hrmu_trip_completed' ? 'Open Reports' : 'Review Verification',
             };
           });
@@ -12465,7 +12473,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
           actionLabelSecondary: 'Open Reports',
         }));
 
-        const mergedAlerts = [...violationAlerts, ...verifiedAlerts]
+        const mergedAlerts = [...violationAlerts, ...decisionAlerts]
           .sort((left, right) => (right.sortDate || 0) - (left.sortDate || 0));
 
         setAlerts(mergedAlerts);
@@ -12502,7 +12510,7 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
 
   const filteredAlerts = alerts.filter((alert) => {
     if (alertFilter === 'verified') return alert.type === 'verified';
-    if (alertFilter === 'flagged') return alert.type === 'violation';
+    if (alertFilter === 'flagged') return alert.type === 'violation' || alert.type === 'rejected';
     return true;
   });
 
@@ -12556,21 +12564,23 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
             {!alertsLoading && filteredAlerts.length > 0 ? (
               <div className="hrmu-alert-feed-list">
                 {filteredAlerts.map((alert) => {
-                  const tone = alert.type === 'violation' ? 'incident' : 'verified';
-                  const primaryTarget = alert.type === 'violation' ? 'hrmu-verification' : 'hrmu-dashboard';
-                  const secondaryTarget = alert.type === 'violation' ? 'hrmu-reports' : 'hrmu-verification';
+                  const tone = alert.type === 'verified' ? 'verified' : 'incident';
+                  const isViolation = alert.type === 'violation';
+                  const isRejected = alert.type === 'rejected';
+                  const primaryTarget = alert.type === 'verified' ? 'hrmu-dashboard' : 'hrmu-verification';
+                  const secondaryTarget = isViolation ? 'hrmu-reports' : 'hrmu-verification';
 
                   return (
                     <article key={alert.id} className={`hrmu-alert-feed-card ${tone}`}>
                       <div className="hrmu-alert-feed-accent" aria-hidden="true" />
                       <div className="hrmu-alert-feed-body">
                         <div className={`hrmu-alert-feed-icon ${tone}`}>
-                          {alert.type === 'violation' ? <HrmuWarningIcon /> : <NotifSlipIcon />}
+                          {alert.type === 'verified' ? <NotifSlipIcon /> : <HrmuWarningIcon />}
                         </div>
                         <div className="hrmu-alert-feed-copy">
                           <div className="hrmu-alert-feed-head">
                             <span className={`hrmu-alert-critical-pill ${tone}`}>
-                              {alert.type === 'violation' ? 'VIOLATION' : 'VERIFIED'}
+                              {isViolation ? 'VIOLATION' : isRejected ? 'REJECTED' : 'VERIFIED'}
                             </span>
                             <span className="hrmu-alert-feed-time">{alert.time}</span>
                           </div>
