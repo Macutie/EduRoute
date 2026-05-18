@@ -115,18 +115,14 @@ const getNotificationActionLabel = (type) => {
 
 const getNotificationStatusLabel = (type) => {
     switch (String(type || '').trim().toLowerCase()) {
-    case 'hrmu_locator_slip_approved':
-    case 'hrmu_location_verification_submitted':
-        return 'VERIFIED';
     case 'hrmu_locator_slip_rejected':
-        return 'REJECTED';
     case 'hrmu_trip_flagged_late_return':
     case 'hrmu_unverified_location':
     case 'hrmu_location_disconnected':
     case 'hrmu_trip_flagged':
         return 'FLAGGED';
     default:
-        return 'ACTIVE';
+        return 'VERIFIED';
     }
 };
 
