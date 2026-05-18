@@ -15920,6 +15920,10 @@ label {
   font-size: 19px;
 }
 
+.portal-profile-desktop-legal-grid .portal-profile-desktop-action.legal:nth-child(3) {
+  grid-column: 2;
+}
+
 .portal-profile-legal-mobile {
   display: flex;
   flex-direction: column;
@@ -15940,6 +15944,10 @@ label {
 @media (max-width: 860px) {
   .portal-profile-desktop-legal-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .portal-profile-desktop-legal-grid .portal-profile-desktop-action.legal:nth-child(3) {
+    grid-column: auto;
   }
 }
 
