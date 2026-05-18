@@ -15828,6 +15828,13 @@ label {
   gap: 18px;
 }
 
+.portal-profile-desktop-legal {
+  width: min(100%, 920px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
 .portal-profile-desktop-admin-header span {
   display: block;
   margin-bottom: 8px;
@@ -15848,6 +15855,13 @@ label {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 360px));
   gap: 18px;
+}
+
+.portal-profile-desktop-legal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 320px));
+  gap: 18px;
+  align-items: start;
 }
 
 .portal-profile-desktop-action {
@@ -15896,6 +15910,37 @@ label {
   font-size: 14px;
   line-height: 1.45;
   color: #6B7280;
+}
+
+.portal-profile-desktop-action.legal {
+  min-height: 110px;
+}
+
+.portal-profile-desktop-action.legal .portal-profile-desktop-action-copy strong {
+  font-size: 19px;
+}
+
+.portal-profile-legal-mobile {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+@media (max-width: 1100px) {
+  .portal-profile-desktop-legal {
+    width: 100%;
+  }
+
+  .portal-profile-desktop-legal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .portal-profile-desktop-legal-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .portal-settings-desktop {

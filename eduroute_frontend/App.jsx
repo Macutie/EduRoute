@@ -17386,6 +17386,7 @@ const CSSUNotificationsView = ({ setView, profileData, onLogout }) => {
 
 const AdminProfileView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
+  const [activeLegalDoc, setActiveLegalDoc] = useState(null);
   const accountRole = profileData?.accountRole || '';
   const homeView = getPortalHomeViewForRole(accountRole);
   const notificationsView = getPortalNotificationsViewForRole(accountRole);
@@ -17395,6 +17396,12 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
   const badgeLabel = getPortalBadgeLabel(accountRole);
   const metaLabel = getPortalMetaLabel(profileData);
   const administrationDescription = getPortalAdministrationDescription(profileData);
+  const showLegalPanel = accountRole === 'hrmu' || accountRole === 'cssu';
+  const legalProfileItems = [
+    { key: 'terms', label: 'Terms and Conditions', icon: <FileTextIcon color="var(--green)" /> },
+    { key: 'privacy', label: 'Privacy Policy', icon: <ShieldSearchIcon color="var(--green)" /> },
+    { key: 'dataFaq', label: 'Data Usage FAQ', icon: <QuestionCircleIcon color="var(--green)" /> },
+  ];
 
   const profileContent = (
     <div className="aprof-container">
@@ -17434,6 +17441,23 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
             <AdminProfileChevronIcon />
           </button>
         </div>
+
+        {showLegalPanel && (
+          <div className="portal-profile-legal-mobile">
+            <h3 className="aprof-section-title">POLICIES &amp; PRIVACY</h3>
+            <div className="aprof-menu">
+              {legalProfileItems.map((item) => (
+                <button key={item.key} type="button" className="aprof-menu-item" onClick={() => setActiveLegalDoc(item.key)}>
+                  <div className="aprof-menu-icon-box">
+                    {item.icon}
+                  </div>
+                  <span className="aprof-menu-text">{item.label}</span>
+                  <AdminProfileChevronIcon />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button className="aprof-logout-btn" onClick={onLogout}>
           <AdminProfileLogoutIcon />
@@ -17495,123 +17519,186 @@ const AdminProfileView = ({ setView, profileData, onLogout }) => {
           </button>
         </div>
       </div>
+
+      {showLegalPanel && (
+        <div className="portal-profile-desktop-legal">
+          <div className="portal-profile-desktop-admin-header">
+            <span>Policies &amp; Privacy</span>
+            <p>Review role-relevant legal documents for system use, privacy, and data handling.</p>
+          </div>
+          <div className="portal-profile-desktop-legal-grid">
+            {legalProfileItems.map((item) => (
+              <button key={item.key} type="button" className="portal-profile-desktop-action legal" onClick={() => setActiveLegalDoc(item.key)}>
+                <div className="portal-profile-desktop-action-icon">
+                  {item.icon}
+                </div>
+                <div className="portal-profile-desktop-action-copy">
+                  <strong>{item.label}</strong>
+                  <span>Open document</span>
+                </div>
+                <AdminProfileChevronIcon />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 
   if (accountRole === 'hrmu' && isDesktopViewport) {
     return (
-      <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
-        <section className="cssu-desktop-page">{desktopProfileContent}</section>
-      </HrmuWorkspaceShell>
+      <>
+        <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
+          <section className="cssu-desktop-page">{desktopProfileContent}</section>
+        </HrmuWorkspaceShell>
+        <LegalDocumentModal
+          activeLegalDoc={activeLegalDoc}
+          onClose={() => setActiveLegalDoc(null)}
+        />
+      </>
     );
   }
 
   if (accountRole === 'cssu' && isDesktopViewport) {
     return (
-      <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
-        {desktopProfileContent}
-      </CSSUDesktopPage>
+      <>
+        <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
+          {desktopProfileContent}
+        </CSSUDesktopPage>
+        <LegalDocumentModal
+          activeLegalDoc={activeLegalDoc}
+          onClose={() => setActiveLegalDoc(null)}
+        />
+      </>
     );
   }
 
   if (accountRole === 'cssu') {
     return (
-      <div className="dashboard-wrapper">
-        <div className="content fade-in dash-content profile-content">
+      <>
+        <div className="dashboard-wrapper">
+          <div className="content fade-in dash-content profile-content">
 
-          <div className="slip-top-nav">
-            <div className="slip-nav-left" onClick={() => setView(homeView)}>
-              <BackArrowIcon color="var(--green)" />
-              <span className="dash-logo-text">EduRoute</span>
+            <div className="slip-top-nav">
+              <div className="slip-nav-left" onClick={() => setView(homeView)}>
+                <BackArrowIcon color="var(--green)" />
+                <span className="dash-logo-text">EduRoute</span>
+              </div>
+              <div className="admin-header-right">
+                <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
+                  <AdminBellIcon color="var(--text-dark)" />
+                  <div className="admin-bell-dot" />
+                </div>
+                <div className="dash-avatar">
+                  <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              </div>
+            </div>
+
+            <div className="profile-header-card">
+              <div className="profile-bg-wrapper">
+                <div className="profile-bg-shape"></div>
+              </div>
+              <div className="profile-image-container">
+                <div className="profile-image-wrapper">
+                  <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+                <div className="faculty-badge">{badgeLabel}</div>
+              </div>
+
+              <h1 className="profile-name">{fullName}</h1>
+              <p className="profile-dept">{position}</p>
+
+              <div className="profile-id-pill">
+                <IdBadgeIcon color="currentColor" />
+                <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
+              </div>
+            </div>
+
+            <div className="profile-section-title">
+              ACCOUNT ADMINISTRATION
+            </div>
+
+            <div className="profile-menu-list">
+              <div className="profile-menu-item" onClick={() => setView('admin-edit-profile')}>
+                <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                  <ProfileEditIcon color="var(--green)" />
+                </div>
+                <span className="profile-menu-text">Edit Profile</span>
+                <ChevronRightIcon color="var(--text-light)" />
+              </div>
+
+              <div className="profile-menu-item" onClick={() => setView('admin-change-password')}>
+                <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                  <PasswordIcon color="var(--green)" />
+                </div>
+                <span className="profile-menu-text">Change Password</span>
+                <ChevronRightIcon color="var(--text-light)" />
+              </div>
+            </div>
+
+            <div className="profile-section-title">
+              POLICIES &amp; PRIVACY
+            </div>
+
+            <div className="profile-menu-list">
+              {legalProfileItems.map((item) => (
+                <div key={item.key} className="profile-menu-item" onClick={() => setActiveLegalDoc(item.key)}>
+                  <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
+                    {item.icon}
+                  </div>
+                  <span className="profile-menu-text">{item.label}</span>
+                  <ChevronRightIcon color="var(--text-light)" />
+                </div>
+              ))}
+            </div>
+
+            <button type="button" className="session-logout-btn" onClick={onLogout}>
+              <LogoutIcon color="white" /> LOGOUT SESSION
+            </button>
+
+          </div>
+          <CSSUBottomNav active="" setView={setView} />
+        </div>
+        <LegalDocumentModal
+          activeLegalDoc={activeLegalDoc}
+          onClose={() => setActiveLegalDoc(null)}
+        />
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
+        <div className="admin-dash-scroll">
+          <div className="admin-header">
+            <div className="anotif-header-left">
+              <div className="anotif-back" onClick={() => setView(homeView)}>
+                <BackArrowIcon color="var(--green)" />
+              </div>
+              <span className="admin-logo-text">EduRoute</span>
             </div>
             <div className="admin-header-right">
               <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
                 <AdminBellIcon color="var(--text-dark)" />
                 <div className="admin-bell-dot" />
               </div>
-              <div className="dash-avatar">
-                <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} />
               </div>
             </div>
           </div>
 
-          <div className="profile-header-card">
-            <div className="profile-bg-wrapper">
-              <div className="profile-bg-shape"></div>
-            </div>
-            <div className="profile-image-container">
-              <div className="profile-image-wrapper">
-                <img src={profileData.image} alt="CSSU Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </div>
-              <div className="faculty-badge">{badgeLabel}</div>
-            </div>
-
-            <h1 className="profile-name">{fullName}</h1>
-            <p className="profile-dept">{position}</p>
-
-            <div className="profile-id-pill">
-              <IdBadgeIcon color="currentColor" />
-              <span>ID: {profileData?.employeeId || 'Not assigned'}</span>
-            </div>
-          </div>
-
-          <div className="profile-section-title">
-            ACCOUNT ADMINISTRATION
-          </div>
-
-          <div className="profile-menu-list">
-            <div className="profile-menu-item" onClick={() => setView('admin-edit-profile')}>
-              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
-                <ProfileEditIcon color="var(--green)" />
-              </div>
-              <span className="profile-menu-text">Edit Profile</span>
-              <ChevronRightIcon color="var(--text-light)" />
-            </div>
-
-            <div className="profile-menu-item" onClick={() => setView('admin-change-password')}>
-              <div className="profile-menu-icon" style={{ background: 'rgba(162, 218, 115, 0.2)' }}>
-                <PasswordIcon color="var(--green)" />
-              </div>
-              <span className="profile-menu-text">Change Password</span>
-              <ChevronRightIcon color="var(--text-light)" />
-            </div>
-          </div>
-
-          <button type="button" className="session-logout-btn" onClick={onLogout}>
-            <LogoutIcon color="white" /> LOGOUT SESSION
-          </button>
-
+          {profileContent}
         </div>
-        <CSSUBottomNav active="" setView={setView} />
+        {accountRole === 'cssu' ? <CSSUBottomNav active="" setView={setView} /> : <AdminBottomNav active="" setView={setView} />}
       </div>
-    );
-  }
-
-  return (
-    <div className="admin-dash-wrapper" style={{ background: '#F2F6ED' }}>
-      <div className="admin-dash-scroll">
-        <div className="admin-header">
-          <div className="anotif-header-left">
-            <div className="anotif-back" onClick={() => setView(homeView)}>
-              <BackArrowIcon color="var(--green)" />
-            </div>
-            <span className="admin-logo-text">EduRoute</span>
-          </div>
-          <div className="admin-header-right">
-            <div className="admin-bell-wrapper" onClick={() => setView(notificationsView)}>
-              <AdminBellIcon color="var(--text-dark)" />
-              <div className="admin-bell-dot" />
-            </div>
-            <div className="admin-avatar" style={{ border: '3px solid var(--yellow)' }} onClick={() => setView('admin-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} />
-            </div>
-          </div>
-        </div>
-
-        {profileContent}
-      </div>
-      {accountRole === 'cssu' ? <CSSUBottomNav active="" setView={setView} /> : <AdminBottomNav active="" setView={setView} />}
-    </div>
+      <LegalDocumentModal
+        activeLegalDoc={activeLegalDoc}
+        onClose={() => setActiveLegalDoc(null)}
+      />
+    </>
   );
 };
 
