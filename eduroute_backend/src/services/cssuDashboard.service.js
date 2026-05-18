@@ -354,10 +354,10 @@ const sendReportToHrmu = async (userId, query = {}) => {
     };
 };
 
-const buildValidationLog = ({ lookupMethod, lookupTime, validatedAt, statusLabel }) => {
+const buildValidationLog = ({ lookupMethod, lookupTime, validatedAt, statusLabel, suppressLookupLog = false }) => {
     const items = [];
 
-    if (lookupTime) {
+    if (lookupTime && !suppressLookupLog) {
         items.push({
             type: 'success',
             title: lookupMethod === 'qr' ? 'QR Code Validated' : 'Locator Slip Code Matched',
@@ -384,6 +384,7 @@ const lookupExitCandidate = async (query = {}) => {
     const locatorSlipCode = String(query.locatorSlipCode || query.qrValue || '').trim().toUpperCase();
     const gate = String(query.gate || 'main_gate').toLowerCase();
     const method = String(query.method || (query.qrValue ? 'qr' : 'manual')).toLowerCase();
+    const suppressLookupLog = String(query.suppressLookupLog || '').toLowerCase() === 'true';
 
     if (!locatorSlipCode) {
         throw new AppError('Locator slip code is required for CSSU exit validation lookup.', 422);
@@ -475,6 +476,7 @@ const lookupExitCandidate = async (query = {}) => {
             lookupTime,
             validatedAt: slip?.validated_at,
             statusLabel,
+            suppressLookupLog,
         }),
     };
 };

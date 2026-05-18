@@ -14802,6 +14802,7 @@ const CSSUDashboardDesktopView = ({ setView, profileData, onLogout }) => {
   const openExitClearanceForRow = (row) => {
     if (!row?.locatorSlipCode) return;
     localStorage.setItem('edurouteCssuPendingLocatorSlipCode', row.locatorSlipCode);
+    localStorage.setItem('edurouteCssuPendingLookupSource', 'dashboard-eye');
     setView('cssu-scan');
   };
 
@@ -16019,14 +16020,20 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
 
   useEffect(() => {
     const pendingLocatorSlipCode = localStorage.getItem('edurouteCssuPendingLocatorSlipCode');
+    const pendingLookupSource = localStorage.getItem('edurouteCssuPendingLookupSource');
     if (!pendingLocatorSlipCode) return;
 
     localStorage.removeItem('edurouteCssuPendingLocatorSlipCode');
+    localStorage.removeItem('edurouteCssuPendingLookupSource');
     setManualFacultyId(pendingLocatorSlipCode);
-    runLookup({ value: pendingLocatorSlipCode, method: 'manual' });
+    runLookup({
+      value: pendingLocatorSlipCode,
+      method: 'manual',
+      suppressLookupLog: pendingLookupSource === 'dashboard-eye',
+    });
   }, []);
 
-  const runLookup = async ({ value, method }) => {
+  const runLookup = async ({ value, method, suppressLookupLog = false }) => {
     const trimmedValue = String(value || '').trim();
     if (!trimmedValue) {
       setLookupError('Enter a faculty ID or QR value first.');
@@ -16042,6 +16049,7 @@ const CSSUScanView = ({ setView, profileData, onLogout }) => {
         locatorSlipCode: trimmedValue,
         gate: 'main_gate',
         method,
+        suppressLookupLog,
       });
       setActiveCandidate(result);
       setLastLookupMethod(method);
