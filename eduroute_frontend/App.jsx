@@ -14530,9 +14530,6 @@ const CssuWorkspaceShell = ({ activeKey = 'dashboard', setView, profileData, onL
               <AdminBellIcon color="var(--green)" />
               <div className="admin-bell-dot" />
             </div>
-            <button type="button" className="cssu-topbar-icon">
-              <QuestionCircleIcon color="var(--green)" />
-            </button>
             <div className="cssu-manager-copy">
               <strong>{profileData?.fullName || 'Admin User'}</strong>
               <span>CSSU Admnistrator</span>
