@@ -343,7 +343,7 @@
   width: 72%;
   height: 72%;
   display: block;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=login-hd-20260518') center / contain no-repeat;
   border-radius: 14px;
 }
 
@@ -16440,7 +16440,7 @@ label {
   width: 74%;
   height: 74%;
   display: block;
-  background: url('/eduroute-logo.png') center / contain no-repeat;
+  background: url('/eduroute-logo-512.png?v=login-hd-20260518') center / contain no-repeat;
   border-radius: 18px;
 }
 
