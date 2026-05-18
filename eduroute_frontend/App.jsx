@@ -28,7 +28,6 @@ import {
 import {
   exportHrmuRecentActivityCsvPlaceholder,
   getHrmuDashboardSummary,
-  getHrmuLiveFaculty,
   getHrmuNotifications,
   getHrmuReportInbox,
   getHrmuRecentActivity,
@@ -55,6 +54,7 @@ import {
   getHrmuFacultyActivity,
   getHrmuFacultyLiveDetail,
 } from './services/hrmuLiveTrackingApi';
+import { createTripSocketClient, HRMU_LIVE_SOCKET_EVENTS } from './services/tripSocket';
 import { useHrmuLiveTracking } from './hooks/useHrmuLiveTracking';
 import { useProofOfCompliance } from './hooks/useProofOfCompliance';
 import FacultyDetailCard from './components/hrmu/FacultyDetailCard';
@@ -10195,6 +10195,32 @@ const HrmuExportIcon = ({ color = "white" }) => (
 );
 
 const OLONGAPO_CENTER = [120.2822, 14.8386];
+const DEFAULT_HRMU_MAP_CENTER = {
+  lat: 14.8386,
+  lng: 120.2828,
+  label: 'Olongapo City',
+};
+
+const mergeHrmuLiveFacultyRow = (currentRows, incomingRow) => {
+  const nextRows = [...currentRows];
+  const targetFacultyUserId = String(incomingRow?.facultyUserId || '');
+  const index = nextRows.findIndex((row) => String(row?.facultyUserId || '') === targetFacultyUserId);
+
+  if (index >= 0) {
+    nextRows[index] = {
+      ...nextRows[index],
+      ...incomingRow,
+    };
+  } else {
+    nextRows.push(incomingRow);
+  }
+
+  return nextRows.sort((left, right) => {
+    const leftTime = left?.lastUpdatedAt ? new Date(left.lastUpdatedAt).getTime() : 0;
+    const rightTime = right?.lastUpdatedAt ? new Date(right.lastUpdatedAt).getTime() : 0;
+    return rightTime - leftTime;
+  });
+};
 
 const HrmuLiveMapPanel = ({
   faculty = [],
@@ -10696,6 +10722,7 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [liveFacultyRows, setLiveFacultyRows] = useState([]);
   const [liveFacultyLoading, setLiveFacultyLoading] = useState(false);
+  const [liveFacultyCenter, setLiveFacultyCenter] = useState(DEFAULT_HRMU_MAP_CENTER);
 
   const formatActivityTime = (value) => {
     if (!value) return '--';
@@ -10840,13 +10867,15 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
       setLiveFacultyLoading(true);
 
       try {
-        const data = await getHrmuLiveFaculty();
+        const data = await getHrmuActiveFaculty();
         if (!isMounted || !data) return;
 
+        setLiveFacultyCenter(data.center || DEFAULT_HRMU_MAP_CENTER);
         setLiveFacultyRows(Array.isArray(data.faculty) ? data.faculty : []);
       } catch (error) {
         if (isMounted) {
           console.error('Failed to load HRMU live faculty:', error);
+          setLiveFacultyCenter(DEFAULT_HRMU_MAP_CENTER);
           setLiveFacultyRows([]);
         }
       } finally {
@@ -10860,6 +10889,50 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
 
     return () => {
       isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return undefined;
+
+    const socket = createTripSocketClient({ token });
+
+    const handleLiveFacultyUpdate = (payload) => {
+      if (!payload) return;
+
+      if (Array.isArray(payload.faculty)) {
+        setLiveFacultyCenter(payload.center || DEFAULT_HRMU_MAP_CENTER);
+        setLiveFacultyRows(payload.faculty);
+        return;
+      }
+
+      setLiveFacultyRows((current) => mergeHrmuLiveFacultyRow(current, payload));
+    };
+
+    const handleDashboardSummaryUpdate = (payload) => {
+      if (!payload) return;
+
+      setSummary((current) => ({
+        ...current,
+        totalFacultyOutside: Number(payload.totalFacultyOutside ?? current.totalFacultyOutside ?? 0),
+        latestActivity: payload.latestActivity ?? current.latestActivity ?? null,
+        verifiedLocatorSlips: Number(payload.verifiedLocatorSlips ?? current.verifiedLocatorSlips ?? 0),
+        pendingSlips: Number(payload.pendingSlips ?? payload.unverifiedCases ?? current.pendingSlips ?? 0),
+      }));
+    };
+
+    socket.on('connect', () => {
+      socket.emit(HRMU_LIVE_SOCKET_EVENTS.join);
+    });
+    socket.on(HRMU_LIVE_SOCKET_EVENTS.facultyLocationUpdate, handleLiveFacultyUpdate);
+    socket.on('hrmu:dashboard:update', handleDashboardSummaryUpdate);
+    socket.connect();
+
+    return () => {
+      socket.off(HRMU_LIVE_SOCKET_EVENTS.facultyLocationUpdate, handleLiveFacultyUpdate);
+      socket.off('hrmu:dashboard:update', handleDashboardSummaryUpdate);
+      socket.disconnect();
     };
   }, []);
 
@@ -11009,6 +11082,11 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     },
   ];
 
+  const liveMapCenter = useMemo(() => [
+    Number(liveFacultyCenter?.lng || DEFAULT_HRMU_MAP_CENTER.lng),
+    Number(liveFacultyCenter?.lat || DEFAULT_HRMU_MAP_CENTER.lat),
+  ], [liveFacultyCenter?.lat, liveFacultyCenter?.lng]);
+
   return (
     <HrmuWorkspaceShell activeKey="dashboard" setView={setView} profileData={profileData} onLogout={onLogout}>
       <section className="hrmu-stats-grid">
@@ -11033,7 +11111,13 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
             <button type="button" onClick={() => setView('hrmu-live')}>↗ View Full Map</button>
           </div>
           <div className="hrmu-map-card">
-            <HrmuLiveMapPanel faculty={liveFacultyRows} compact className="hrmu-dashboard-live-map" />
+            <HrmuLiveMapPanel
+              faculty={liveFacultyRows}
+              center={liveMapCenter}
+              focusOnOlongapo
+              compact
+              className="hrmu-dashboard-live-map"
+            />
             <div className="hrmu-map-summary">
               <div>
                 <span>OLONGAPO ZONE</span>
