@@ -5461,6 +5461,9 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
   const displayedRoute = selectedAlternativeIndex >= 0 ? activeAlternatives[selectedAlternativeIndex] : routeSummary;
   const activeSteps = displayedRoute?.steps || [];
   const tripLifecycleState = getTripPhase(activeTrip);
+  const isCompletedSummaryMode = Boolean(tripSummary?.summary)
+    || tripLifecycleState === 'COMPLETED'
+    || locatorSlip?.trip_status === 'completed';
   const selectedModeMeta = routeModes.find((mode) => mode.key === routeMode) || routeModes[0];
   const activeModeEta = useMemo(
     () => modeEstimates.find((estimate) => estimate.profile === routeMode) || null,
@@ -6196,7 +6199,9 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
       setTripSummary(summaryPayload);
       setActiveTrip(completedTrip);
       setTripStartOrigin(null);
+      setShowActionBoard(false);
       setShowTripMetrics(false);
+      setShowProofPanel(false);
       setShowRouteTools(false);
       setActiveRoutePanel(null);
       stopLiveLocationWatch();
@@ -6225,6 +6230,15 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
       setShowProofPanel(true);
     }
   }, [proofCompliance?.id]);
+
+  useEffect(() => {
+    if (!isCompletedSummaryMode) return;
+    setShowActionBoard(false);
+    setShowTripMetrics(false);
+    setShowProofPanel(false);
+    setShowRouteTools(false);
+    setActiveRoutePanel(null);
+  }, [isCompletedSummaryMode]);
 
   useEffect(() => {
     const storedSlipId = localStorage.getItem('edurouteMapSlipId');
@@ -6685,7 +6699,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
         </button>
       )}
 
-      {showActionBoard ? (
+      {!isCompletedSummaryMode && showActionBoard ? (
         <div className="trip-action-board fade-in" style={getOverlayStyle('action')}>
           <div className="tb-header">
             <div className="tb-header-left">
@@ -6767,7 +6781,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
               </button>
             )}
           </div>
-          {proofCompliance?.proofComplianceImageUrl && tripLifecycleState !== 'RETURNING' && (
+          {proofCompliance?.proofComplianceImageUrl && !isCompletedSummaryMode && tripLifecycleState !== 'RETURNING' && (
             <p className="trip-search-state">Proof of compliance submitted successfully. You can now start the return route back to the original starting location.</p>
           )}
           {tripLifecycleState === 'RETURNING' && (
@@ -6785,13 +6799,13 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
             </div>
           )}
         </div>
-      ) : (
+      ) : !isCompletedSummaryMode ? (
         <button type="button" className="trip-action-restore-btn fade-in" onClick={() => setShowActionBoard(true)}>
           Show Route
         </button>
-      )}
+      ) : null}
 
-      {proofCompliance && showProofPanel ? (
+      {!isCompletedSummaryMode && proofCompliance && showProofPanel ? (
         <div className="trip-proof-panel fade-in" style={getOverlayStyle('proof')}>
           <div className="trip-metrics-head">
             <span>Compliance Proof</span>
@@ -6816,7 +6830,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
             showArrivalPhoto={false}
           />
         </div>
-      ) : proofCompliance ? (
+      ) : !isCompletedSummaryMode && proofCompliance ? (
         <button
           type="button"
           className="trip-proof-restore-btn fade-in"
@@ -6845,7 +6859,7 @@ const MapTrackingView = ({ setView, profileData, selectedSlip, setSelectedSlip }
         </div>
       )}
 
-      {activeTrip && (
+      {activeTrip && !isCompletedSummaryMode && (
         <div className={`trip-metrics-panel fade-in ${showTripMetrics ? '' : 'collapsed'}`} style={getOverlayStyle('metrics')}>
           <div className="trip-metrics-head">
             <span>Trip Metrics</span>

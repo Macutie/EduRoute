@@ -4760,6 +4760,20 @@ label {
   letter-spacing: 1px;
 }
 
+.tb-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tb-status {
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+}
+
 .tb-dot {
   width: 8px;
   height: 8px;
