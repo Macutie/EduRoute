@@ -194,6 +194,30 @@ const getDeanSignatureSettings = async (deanUserId) => {
     return serializeDeanSignatureSettings(dean, record);
 };
 
+const buildDeanScopedFacultyCte = () => `
+    WITH scoped_faculty AS (
+        SELECT
+            fu.id,
+            fu.full_name,
+            fu.employee_id,
+            fu.profile_image_url,
+            fu.account_role,
+            fu.status,
+            fu.department_id,
+            fu.department_position,
+            fu.employment_type
+        FROM faculty_users fu
+        LEFT JOIN LATERAL (
+            SELECT ls.college_id
+            FROM locator_slips ls
+            WHERE ls.faculty_user_id = fu.id
+              AND ls.status <> 'cancelled'
+            ORDER BY COALESCE(ls.updated_at, ls.created_at) DESC, ls.id DESC
+            LIMIT 1
+        ) latest_slip_scope ON TRUE
+        WHERE COALESCE(latest_slip_scope.college_id, fu.department_id) = $1
+    )`;
+
 const uploadDeanSignatureFile = async (deanUserId, file, payload = {}) => {
     if (!file) {
         throw new AppError('A digital signature file is required.', 422);
@@ -273,7 +297,8 @@ const getDashboardSummary = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
 
     const { rows } = await pool.query(
-        `SELECT
+        `${buildDeanScopedFacultyCte()}
+         SELECT
             COUNT(*) FILTER (WHERE ls.status = 'pending')::int AS pending_requests,
             COUNT(*) FILTER (
                 WHERE ls.status IN ('approved', 'verified', 'completed')
@@ -282,16 +307,15 @@ const getDashboardSummary = async (deanUserId) => {
             COUNT(*) FILTER (WHERE ls.status = 'rejected')::int AS rejected_requests,
             (
                 SELECT COUNT(*)::int
-                FROM faculty_users fu
-                WHERE fu.account_role = 'faculty'
-                  AND fu.department_id = $1
-                  AND fu.status = 'active'
+                FROM scoped_faculty sf
+                WHERE sf.account_role = 'faculty'
+                  AND sf.status = 'active'
             ) AS total_faculty
          FROM locator_slips ls
-         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         WHERE fu.account_role = 'faculty'
-           AND fu.status = 'active'
-           AND fu.department_id = $1`,
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'
+           AND COALESCE(ls.college_id, sf.department_id) = $1`,
         [dean.college_id]
     );
 
@@ -435,11 +459,12 @@ const getPendingApprovalsPreview = async (deanUserId, limit = 5) => {
     const safeLimit = Math.min(Math.max(Number(limit) || 5, 1), 20);
 
     const { rows } = await pool.query(
-        `SELECT
+        `${buildDeanScopedFacultyCte()}
+         SELECT
             ls.id,
             ls.faculty_user_id,
-            fu.full_name,
-            fu.employee_id,
+            sf.full_name,
+            sf.employee_id,
             d.department_name,
             ls.destination,
             ls.is_urgent,
@@ -450,9 +475,9 @@ const getPendingApprovalsPreview = async (deanUserId, limit = 5) => {
             ls.status,
             ls.created_at
          FROM locator_slips ls
-         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         JOIN departments d ON d.id = fu.department_id
-         WHERE COALESCE(ls.college_id, fu.department_id) = $1
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         JOIN departments d ON d.id = sf.department_id
+         WHERE COALESCE(ls.college_id, sf.department_id) = $1
            AND ls.status = 'pending'
          ORDER BY ls.created_at DESC
          LIMIT $2`,
@@ -488,32 +513,8 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
     }
 
     const whereClause = facultyClauses.join(' AND ');
-    const scopedFacultyCte = `
-        WITH scoped_faculty AS (
-            SELECT
-                fu.id,
-                fu.full_name,
-                fu.employee_id,
-                fu.profile_image_url,
-                fu.account_role,
-                fu.status,
-                fu.department_id,
-                fu.department_position,
-                fu.employment_type
-            FROM faculty_users fu
-            LEFT JOIN LATERAL (
-                SELECT ls.college_id
-                FROM locator_slips ls
-                WHERE ls.faculty_user_id = fu.id
-                  AND ls.status <> 'cancelled'
-                ORDER BY COALESCE(ls.updated_at, ls.created_at) DESC, ls.id DESC
-                LIMIT 1
-            ) latest_slip_scope ON TRUE
-            WHERE COALESCE(latest_slip_scope.college_id, fu.department_id) = $1
-        )`;
-
     const summaryResult = await pool.query(
-        `${scopedFacultyCte}
+        `${buildDeanScopedFacultyCte()}
          SELECT
             COUNT(DISTINCT sf.id)::int AS total_faculty,
             COUNT(ls.id) FILTER (WHERE ls.status = 'pending')::int AS active_requests
@@ -528,7 +529,7 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
     );
 
     const facultyResult = await pool.query(
-        `${scopedFacultyCte}
+        `${buildDeanScopedFacultyCte()}
          SELECT
             sf.id,
             sf.full_name,
@@ -608,24 +609,26 @@ const getPendingRequestsPage = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
 
     const summaryResult = await pool.query(
-        `WITH college_faculty AS (
+        `${buildDeanScopedFacultyCte()},
+        college_faculty AS (
             SELECT id
-            FROM faculty_users
+            FROM scoped_faculty
             WHERE account_role = 'faculty'
               AND status = 'active'
-              AND department_id = $1
         ),
         pending_slips AS (
             SELECT *
             FROM locator_slips
             WHERE status = 'pending'
               AND faculty_user_id IN (SELECT id FROM college_faculty)
+              AND COALESCE(college_id, $1) = $1
         ),
         active_trip_users AS (
             SELECT DISTINCT faculty_user_id
             FROM locator_slips
             WHERE status = 'approved'
               AND faculty_user_id IN (SELECT id FROM college_faculty)
+              AND COALESCE(college_id, $1) = $1
               AND departure_datetime <= CURRENT_TIMESTAMP
               AND expected_return_datetime >= CURRENT_TIMESTAMP
         )
@@ -638,12 +641,13 @@ const getPendingRequestsPage = async (deanUserId) => {
     );
 
     const requestsResult = await pool.query(
-        `SELECT
+        `${buildDeanScopedFacultyCte()}
+         SELECT
             ls.id,
             ls.faculty_user_id,
-            fu.full_name,
-            fu.employee_id,
-            COALESCE(fu.department_position, 'Instructor') AS department_position,
+            sf.full_name,
+            sf.employee_id,
+            COALESCE(sf.department_position, 'Instructor') AS department_position,
             d.department_name,
             ls.destination,
             ls.purpose_of_travel,
@@ -654,10 +658,11 @@ const getPendingRequestsPage = async (deanUserId) => {
             ls.departure_datetime,
             ls.expected_return_datetime
          FROM locator_slips ls
-         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         JOIN departments d ON d.id = fu.department_id
-         WHERE fu.department_id = $1
-           AND fu.account_role = 'faculty'
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         JOIN departments d ON d.id = sf.department_id
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'
+           AND COALESCE(ls.college_id, sf.department_id) = $1
            AND ls.status = 'pending'
          ORDER BY ls.is_urgent DESC, ls.created_at DESC`,
         [dean.college_id]
@@ -697,28 +702,30 @@ const getRegistryPage = async (deanUserId) => {
     const hasCancellationReasonColumn = await getLocatorSlipColumnExists('cancellation_reason');
 
     const summaryResult = await pool.query(
-        `SELECT
+        `${buildDeanScopedFacultyCte()}
+         SELECT
             COUNT(*) FILTER (
                 WHERE (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)
                   AND (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') < date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date) + INTERVAL '1 month'
             )::int AS monthly_total,
             COUNT(*)::int AS registry_size
          FROM locator_slips ls
-         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         WHERE fu.account_role = 'faculty'
-           AND fu.status = 'active'
-           AND fu.department_id = $1`,
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'
+           AND COALESCE(ls.college_id, sf.department_id) = $1`,
         [dean.college_id]
     );
 
     const itemsResult = await pool.query(
-        `SELECT
+        `${buildDeanScopedFacultyCte()}
+         SELECT
             ls.id,
             ls.faculty_user_id,
-            fu.full_name,
-            fu.employee_id,
-            fu.profile_image_url,
-            COALESCE(fu.department_position, d.department_name, 'Instructor') AS department_position,
+            sf.full_name,
+            sf.employee_id,
+            sf.profile_image_url,
+            COALESCE(sf.department_position, d.department_name, 'Instructor') AS department_position,
             d.department_name,
             ls.destination,
             ls.purpose_of_travel,
@@ -748,8 +755,8 @@ const getRegistryPage = async (deanUserId) => {
             ds.signature_original_filename AS current_signature_original_filename,
             ds.uploaded_at AS current_signature_uploaded_at
          FROM locator_slips ls
-         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         JOIN departments d ON d.id = fu.department_id
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         JOIN departments d ON d.id = sf.department_id
          LEFT JOIN faculty_users reviewer ON reviewer.id = ls.reviewed_by
          LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = ls.id
          LEFT JOIN dean_signature_settings ds ON ds.dean_user_id = reviewer.id
@@ -761,9 +768,9 @@ const getRegistryPage = async (deanUserId) => {
             ORDER BY n.created_at DESC, n.id DESC
             LIMIT 1
          ) latest_cancel_notification ON TRUE
-         WHERE fu.account_role = 'faculty'
-           AND fu.status = 'active'
-           AND fu.department_id = $1
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'
+           AND COALESCE(ls.college_id, sf.department_id) = $1
          ORDER BY ls.created_at DESC, ls.id DESC`,
         [dean.college_id]
     );

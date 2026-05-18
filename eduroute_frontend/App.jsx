@@ -14197,9 +14197,9 @@ const getDeanBadgeLabel = (department = '', accountRole = '') => {
 const DeanProfileView = ({ setView, profileData, onLogout }) => {
   const isDesktopViewport = useDesktopWorkspaceViewport();
   const roleLabel = getDeanRoleLabel(profileData?.accountRole);
-  const department = profileData?.department || 'College of Computer Studies';
+  const department = profileData?.department || 'Assigned College';
   const badgeLabel = getDeanBadgeLabel(department, profileData?.accountRole);
-  const fullName = profileData?.fullName || 'Dean User';
+  const fullName = profileData?.fullName || 'Dean Account';
 
   if (!isDesktopViewport) {
     return (
