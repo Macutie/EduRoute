@@ -48,7 +48,3 @@ lerna-debug.log*
 *.sln
 *.sw?
 Thumbs.db
-
-# ─── AI / Tool directories ───
-.codex/
-.gemini/
