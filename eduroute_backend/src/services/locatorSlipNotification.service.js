@@ -31,7 +31,7 @@ const notifyFacultyOfLocatorSlipApproval = async ({ recipientUserId, senderUserI
         message: `Your locator slip to ${destination} has been approved.`,
         data: {
             locatorSlipId,
-            url: `/faculty/locator-slips/${locatorSlipId}`
+            url: '/#/status'
         }
     })
 );
@@ -48,7 +48,22 @@ const notifyFacultyOfLocatorSlipRejection = async ({ recipientUserId, senderUser
             : 'Your locator slip was rejected. Please check the remarks.',
         data: {
             locatorSlipId,
-            url: `/faculty/locator-slips/${locatorSlipId}`
+            url: '/#/status'
+        }
+    })
+);
+
+const notifyFacultyOfCssuExitValidation = async ({ recipientUserId, senderUserId, locatorSlipId, gateLabel, destination }) => (
+    notificationService.notifyUser({
+        recipientUserId,
+        senderUserId,
+        locatorSlipId,
+        type: 'LOCATOR_SLIP_EXIT_ALLOWED',
+        title: 'Exit Clearance Allowed',
+        message: `CSSU allowed your exit through ${gateLabel}${destination ? ` for ${destination}` : ''}.`,
+        data: {
+            locatorSlipId,
+            url: '/#/status'
         }
     })
 );
@@ -70,7 +85,7 @@ const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUser
             data: {
                 locatorSlipId,
                 cancellationReason: cancellationReason || '',
-                url: `/dean/locator-slips/${locatorSlipId}`
+                url: '/#/dean-registry'
             }
         }
     );
@@ -79,6 +94,7 @@ const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUser
 module.exports = {
     notifyDeansOfLocatorSlipSubmission,
     notifyDeansOfLocatorSlipCancellation,
+    notifyFacultyOfCssuExitValidation,
     notifyFacultyOfLocatorSlipApproval,
     notifyFacultyOfLocatorSlipRejection
 };

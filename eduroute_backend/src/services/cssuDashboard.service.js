@@ -3,6 +3,7 @@ const cssuDashboardRepository = require('../repositories/cssuDashboard.repositor
 const { CSSU_FLAG_INCIDENT_NOTE_PREFIX } = require('../repositories/cssuDashboard.repository');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuReportInboxRepository = require('../repositories/hrmuReportInbox.repository');
+const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const { buildCssuMovementReportPdf } = require('../utils/simplePdf');
 
 const GATE_OPTIONS = new Set(['main_gate', 'back_gate']);
@@ -550,6 +551,16 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
                 message: `${hrmuValidationContext.faculty_name || 'A faculty member'} was cleared by CSSU through ${formatGateLabel(gate)}${hrmuValidationContext.destination ? ` for ${hrmuValidationContext.destination}` : ''}.`
             }).catch(() => null);
         }
+
+        await locatorSlipNotificationService.notifyFacultyOfCssuExitValidation({
+            recipientUserId: locatorSlip.faculty_user_id,
+            senderUserId: cssuUserId,
+            locatorSlipId,
+            gateLabel: formatGateLabel(gate),
+            destination: locatorSlip.destination,
+        }).catch((notificationError) => {
+            console.error('Failed to notify faculty about CSSU exit validation:', notificationError);
+        });
     }
 
     return {

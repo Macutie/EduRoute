@@ -11,6 +11,7 @@ const NOTIFICATION_TYPES = {
     LOCATOR_SLIP_SUBMITTED: 'LOCATOR_SLIP_SUBMITTED',
     LOCATOR_SLIP_APPROVED: 'LOCATOR_SLIP_APPROVED',
     LOCATOR_SLIP_REJECTED: 'LOCATOR_SLIP_REJECTED',
+    LOCATOR_SLIP_EXIT_ALLOWED: 'LOCATOR_SLIP_EXIT_ALLOWED',
     TRIP_FLAGGED: 'TRIP_FLAGGED',
     ARRIVAL_VERIFICATION_REQUIRED: 'ARRIVAL_VERIFICATION_REQUIRED'
 };
@@ -27,6 +28,14 @@ const mapNotificationForSocket = (notification) => ({
 });
 
 const createNotification = async (payload, client) => notificationRepository.createNotification(payload, client);
+
+const normalizeNotificationUrl = (value = '') => {
+    if (!value) return '';
+    if (value.startsWith('/#/')) return value;
+    if (/^\/faculty\/locator-slips\/[^/]+$/i.test(value)) return '/#/status';
+    if (/^\/dean\/locator-slips\/[^/]+$/i.test(value)) return '/#/dean-dashboard';
+    return value;
+};
 
 const createBulkNotifications = async (recipients, notificationPayload, client) => {
     const notifications = recipients.map((recipientUserId) => ({
@@ -59,12 +68,12 @@ const buildPushPayload = (notification) => ({
         notificationId: String(notification.id),
         locatorSlipId: notification.locatorSlipId ? String(notification.locatorSlipId) : '',
         type: notification.type,
-        url: notification.data?.url || ''
+        url: normalizeNotificationUrl(notification.data?.url || '')
     },
     webpush: {
         fcmOptions: {
             link: notification.data?.url
-                ? `${env.fcmWebPushLink.replace(/\/$/, '')}${notification.data.url}`
+                ? `${env.fcmWebPushLink.replace(/\/$/, '')}${normalizeNotificationUrl(notification.data.url)}`
                 : env.fcmWebPushLink
         }
     }
@@ -205,7 +214,7 @@ const createLocatorSlipDeanNotifications = async (client, locatorSlip) => {
         data: {
             locatorSlipId: locatorSlip.id,
             collegeId: locatorSlip.college_id,
-            url: `/dean/locator-slips/${locatorSlip.id}`
+            url: '/#/dean-dashboard'
         }
     };
 
