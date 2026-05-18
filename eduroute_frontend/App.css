@@ -9786,8 +9786,15 @@ label {
   flex-direction: column;
   align-items: center;
   justify-content: flex-end;
-  gap: 14px;
+  gap: 10px;
   height: 100%;
+}
+
+.hrmu-analytics-bar-value {
+  color: var(--text-dark);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
 }
 
 .hrmu-analytics-bar {

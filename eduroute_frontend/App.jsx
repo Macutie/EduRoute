@@ -11642,6 +11642,7 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 
                   return (
                     <div key={label} className="hrmu-analytics-chart-col">
+                      <strong className="hrmu-analytics-bar-value">{numberFormatter.format(currentValue)}</strong>
                       <div className="hrmu-analytics-bar" style={{ height: `${height}%` }} title={`${label}: ${currentValue}`} />
                       <span>{label}</span>
                     </div>
