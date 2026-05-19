@@ -10383,7 +10383,19 @@ const HrmuLiveMapPanel = ({
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+  const mapDisposedRef = useRef(false);
   const [mapReady, setMapReady] = useState(Boolean(MAPBOX_PUBLIC_TOKEN));
+
+  const runMapOperation = useCallback((map, operation) => {
+    if (!map || mapDisposedRef.current) return false;
+
+    try {
+      operation(map);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     if (!MAPBOX_PUBLIC_TOKEN || !mapContainerRef.current || mapRef.current) {
@@ -10394,6 +10406,7 @@ const HrmuLiveMapPanel = ({
     }
 
     mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
+    mapDisposedRef.current = false;
     const map = new mapboxgl.Map({
       container: mapContainerRef.current,
       style: 'mapbox://styles/mapbox/light-v11',
@@ -10407,23 +10420,41 @@ const HrmuLiveMapPanel = ({
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: false, showCompass: false }), 'top-right');
 
     map.on('load', () => {
+      if (mapDisposedRef.current) return;
       setMapReady(true);
       map.resize();
     });
 
     return () => {
-      markersRef.current.forEach((marker) => marker.remove());
+      mapDisposedRef.current = true;
+      markersRef.current.forEach((marker) => {
+        try {
+          marker.remove();
+        } catch {
+          /* ignore map cleanup race */
+        }
+      });
       markersRef.current = [];
-      map.remove();
+      try {
+        map.remove();
+      } catch {
+        /* ignore map cleanup race */
+      }
       mapRef.current = null;
     };
   }, [compact]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady || mapDisposedRef.current) return;
 
-    markersRef.current.forEach((marker) => marker.remove());
+    markersRef.current.forEach((marker) => {
+      try {
+        marker.remove();
+      } catch {
+        /* ignore marker cleanup race */
+      }
+    });
     markersRef.current = [];
 
     const validFaculty = faculty.filter((item) => Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
@@ -10491,15 +10522,17 @@ const HrmuLiveMapPanel = ({
       duration: 700,
       maxZoom: compact ? 12.8 : 13.4,
     });
-  }, [center, faculty, compact, focusOnOlongapo, onMarkerSelect, selectedFacultyUserId]);
+  }, [center, faculty, compact, focusOnOlongapo, mapReady, onMarkerSelect, selectedFacultyUserId]);
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady || mapDisposedRef.current) return;
 
     const clearSelectedRoute = () => {
-      if (map.getLayer('hrmu-live-selected-route-line')) map.removeLayer('hrmu-live-selected-route-line');
-      if (map.getSource('hrmu-live-selected-route')) map.removeSource('hrmu-live-selected-route');
+      runMapOperation(map, (activeMap) => {
+        if (activeMap.getLayer('hrmu-live-selected-route-line')) activeMap.removeLayer('hrmu-live-selected-route-line');
+        if (activeMap.getSource('hrmu-live-selected-route')) activeMap.removeSource('hrmu-live-selected-route');
+      });
     };
 
     const current = selectedFacultyDetail?.latestLocation;
@@ -10521,22 +10554,26 @@ const HrmuLiveMapPanel = ({
         geometry,
       };
 
-      if (map.getSource('hrmu-live-selected-route')) {
-        map.getSource('hrmu-live-selected-route').setData(routeFeature);
-      } else {
-        map.addSource('hrmu-live-selected-route', { type: 'geojson', data: routeFeature });
-        map.addLayer({
-          id: 'hrmu-live-selected-route-line',
-          type: 'line',
-          source: 'hrmu-live-selected-route',
-          layout: { 'line-cap': 'round', 'line-join': 'round' },
-          paint: {
-            'line-color': '#049516',
-            'line-width': compact ? 4 : 5,
-            'line-opacity': 0.85,
-          },
-        });
-      }
+      const routeRendered = runMapOperation(map, (activeMap) => {
+        if (activeMap.getSource('hrmu-live-selected-route')) {
+          activeMap.getSource('hrmu-live-selected-route').setData(routeFeature);
+        } else {
+          activeMap.addSource('hrmu-live-selected-route', { type: 'geojson', data: routeFeature });
+          activeMap.addLayer({
+            id: 'hrmu-live-selected-route-line',
+            type: 'line',
+            source: 'hrmu-live-selected-route',
+            layout: { 'line-cap': 'round', 'line-join': 'round' },
+            paint: {
+              'line-color': '#049516',
+              'line-width': compact ? 4 : 5,
+              'line-opacity': 0.85,
+            },
+          });
+        }
+      });
+
+      if (!routeRendered) return;
 
       const routeCoordinates = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
       if (routeCoordinates.length > 1) {
@@ -10550,10 +10587,12 @@ const HrmuLiveMapPanel = ({
             new mapboxgl.LngLatBounds(normalizedCoordinates[0], normalizedCoordinates[0])
           );
 
-          map.fitBounds(bounds, {
-            padding: compact ? 68 : 108,
-            duration: 650,
-            maxZoom: compact ? 13 : 14,
+          runMapOperation(map, (activeMap) => {
+            activeMap.fitBounds(bounds, {
+              padding: compact ? 68 : 108,
+              duration: 650,
+              maxZoom: compact ? 13 : 14,
+            });
           });
         }
       }
@@ -10683,7 +10722,7 @@ const HrmuLiveMapPanel = ({
       cancelled = true;
       clearSelectedRoute();
     };
-  }, [compact, selectedFaculty, selectedFacultyDetail]);
+  }, [compact, mapReady, runMapOperation, selectedFaculty, selectedFacultyDetail]);
 
   return (
     <div className={`hrmu-live-map-frame ${className}`.trim()}>
