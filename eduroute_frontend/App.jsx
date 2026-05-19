@@ -10,6 +10,7 @@ import {
   useDeanPendingApprovals,
   useDeanRealtimeNotifications,
 } from './hooks/useDeanDashboard';
+import { useNotificationSocket } from './hooks/useNotificationSocket';
 import { useNotifications } from './hooks/useNotifications';
 import { useHrmuAnalytics } from './hooks/useHrmuAnalytics';
 import { useHrmuMonthlyReport } from './hooks/useHrmuMonthlyReport';
@@ -9369,6 +9370,33 @@ const DeanNotificationsView = ({ setView, profileData }) => {
 
     loadNotifications();
   }, []);
+
+  const handleDeanInAppNotification = useCallback((payload) => {
+    if (!payload) return;
+
+    setNotifications((current) => {
+      const nextItem = {
+        id: payload.id,
+        recipient_user_id: payload.recipientUserId,
+        sender_user_id: payload.senderUserId,
+        locator_slip_id: payload.locatorSlipId,
+        title: payload.title,
+        message: payload.message,
+        type: payload.type,
+        is_read: Boolean(payload.isRead),
+        created_at: payload.createdAt,
+      };
+
+      return [
+        nextItem,
+        ...current.filter((item) => item.id !== nextItem.id),
+      ];
+    });
+  }, []);
+
+  useNotificationSocket({
+    onNotification: handleDeanInAppNotification,
+  });
 
   const handleDismiss = async (notificationId) => {
     try {
