@@ -4041,6 +4041,7 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [locatorSlipLoading, setLocatorSlipLoading] = useState(false);
   const [locatorSlipErrors, setLocatorSlipErrors] = useState({});
+  const [activeLegalDoc, setActiveLegalDoc] = useState(null);
   const [showPurposeTypeModal, setShowPurposeTypeModal] = useState(false);
   const [purposeModalStep, setPurposeModalStep] = useState('type');
   const [purposeModalCustomReason, setPurposeModalCustomReason] = useState('');
@@ -4542,6 +4543,17 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
           </div>
         </div>
 
+        <div className="locator-privacy-footnote">
+          <span>We protect your data.</span>{' '}
+          <button
+            type="button"
+            className="legal-inline-link"
+            onClick={() => setActiveLegalDoc('privacy')}
+          >
+            Read our privacy policy
+          </button>
+        </div>
+
         {locatorSlipTimeWarnings.length > 0 && (
           <div className="locator-time-warning-card" role="alert">
             <div className="locator-time-warning-icon">!</div>
@@ -4569,6 +4581,10 @@ const LocatorSlipView = ({ setView, profileData, setSelectedStatusSlip }) => {
 
       </div>
       <BottomNav active="slips" setView={setView} />
+      <LegalDocumentModal
+        activeLegalDoc={activeLegalDoc}
+        onClose={() => setActiveLegalDoc(null)}
+      />
     </div>
   );
 };

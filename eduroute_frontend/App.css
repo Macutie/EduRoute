@@ -2828,6 +2828,20 @@ label {
   margin-top: 4px;
 }
 
+.locator-privacy-footnote {
+  margin: 14px 4px 0;
+  color: var(--text-light);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.locator-privacy-footnote .legal-inline-link {
+  font-size: inherit;
+  font-weight: 700;
+  white-space: normal;
+}
+
 .slip-submit-btn.primary-btn {
   margin-top: 20px;
   margin-bottom: 16px;
