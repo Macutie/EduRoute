@@ -232,8 +232,18 @@ const getPortalMetaLabel = (profileData = {}) => {
   return profileData?.department || 'Portal Administration';
 };
 
-const supportsPortalPushNotifications = (accountRole = '') =>
-  ['faculty', 'assistant_dean', 'college_dean'].includes(String(accountRole || '').toLowerCase());
+const supportsPortalPushNotifications = (accountRole = '', department = '') => {
+  const normalizedRole = String(accountRole || '').toLowerCase();
+  if (['faculty', 'assistant_dean', 'college_dean', 'hrmu', 'cssu'].includes(normalizedRole)) {
+    return true;
+  }
+
+  if (normalizedRole === 'admin') {
+    return true;
+  }
+
+  return false;
+};
 
 const getPortalAdministrationDescription = (profileData = {}) => {
   if (profileData?.accountRole === 'cssu') {
@@ -266,8 +276,15 @@ const registerPushNotificationsForCurrentBrowser = async () => {
   return fcmToken;
 };
 
-const syncPushTokenForGrantedBrowser = async (accountRole = '') => {
-  if (!supportsPortalPushNotifications(accountRole)) return null;
+const syncPushTokenForGrantedBrowser = async (accountContext = {}) => {
+  const normalizedContext = typeof accountContext === 'string'
+    ? { accountRole: accountContext, department: '' }
+    : {
+      accountRole: accountContext?.accountRole || '',
+      department: accountContext?.department || '',
+    };
+
+  if (!supportsPortalPushNotifications(normalizedContext.accountRole, normalizedContext.department)) return null;
   if (typeof window === 'undefined' || !('Notification' in window)) return null;
   if (Notification.permission !== 'granted') return null;
 
@@ -667,7 +684,10 @@ function App() {
     const role = String(profileData?.accountRole || '').toLowerCase();
     const currentView = String(view || '').toLowerCase();
     const isFacultyLanding = role === 'faculty' && currentView === 'dashboard';
-    const isDeanLanding = ['assistant_dean', 'college_dean'].includes(role) && currentView === 'dean-dashboard';
+    const isDeanLanding = (
+      ['assistant_dean', 'college_dean'].includes(role)
+      || (role === 'admin' && isCollegeDeanDepartment(profileData?.department))
+    ) && currentView === 'dean-dashboard';
 
     if (!isFacultyLanding && !isDeanLanding) return;
 
@@ -691,7 +711,7 @@ function App() {
     };
 
     loadPermissionSetup();
-  }, [view, profileData?.accountRole]);
+  }, [view, profileData?.accountRole, profileData?.department]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -701,7 +721,10 @@ function App() {
 
     const syncExistingPushPermission = async () => {
       try {
-        await syncPushTokenForGrantedBrowser(accountRole);
+        await syncPushTokenForGrantedBrowser({
+          accountRole,
+          department: profileData?.department || '',
+        });
       } catch (error) {
         if (!isCancelled) {
           console.error('Failed to sync push notifications for current browser:', error);
@@ -714,7 +737,7 @@ function App() {
     return () => {
       isCancelled = true;
     };
-  }, [profileData?.accountRole]);
+  }, [profileData?.accountRole, profileData?.department]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -762,10 +785,13 @@ function App() {
       const accountRole = data.data.user?.account_role;
 
       if (
-        supportsPortalPushNotifications(accountRole || portalRole)
+        supportsPortalPushNotifications(accountRole || portalRole, data.data.user?.department_name || '')
       ) {
         try {
-          await syncPushTokenForGrantedBrowser(accountRole || portalRole);
+          await syncPushTokenForGrantedBrowser({
+            accountRole: accountRole || portalRole,
+            department: data.data.user?.department_name || '',
+          });
         } catch (pushError) {
           console.error('Failed to register device push token after login:', pushError);
         }
