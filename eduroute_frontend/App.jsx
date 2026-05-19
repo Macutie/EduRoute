@@ -10537,6 +10537,26 @@ const HrmuLiveMapPanel = ({
           },
         });
       }
+
+      const routeCoordinates = Array.isArray(geometry.coordinates) ? geometry.coordinates : [];
+      if (routeCoordinates.length > 1) {
+        const normalizedCoordinates = routeCoordinates
+          .map(normalizeCoordinate)
+          .filter(Boolean);
+
+        if (normalizedCoordinates.length > 1) {
+          const bounds = normalizedCoordinates.reduce(
+            (acc, coordinate) => acc.extend(coordinate),
+            new mapboxgl.LngLatBounds(normalizedCoordinates[0], normalizedCoordinates[0])
+          );
+
+          map.fitBounds(bounds, {
+            padding: compact ? 68 : 108,
+            duration: 650,
+            maxZoom: compact ? 13 : 14,
+          });
+        }
+      }
     };
 
     const normalizeCoordinate = (coordinate) => {
@@ -10663,7 +10683,7 @@ const HrmuLiveMapPanel = ({
       cancelled = true;
       clearSelectedRoute();
     };
-  }, [compact, selectedFacultyDetail]);
+  }, [compact, selectedFaculty, selectedFacultyDetail]);
 
   return (
     <div className={`hrmu-live-map-frame ${className}`.trim()}>
@@ -10870,6 +10890,8 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
   const [liveFacultyRows, setLiveFacultyRows] = useState([]);
   const [liveFacultyLoading, setLiveFacultyLoading] = useState(false);
   const [liveFacultyCenter, setLiveFacultyCenter] = useState(DEFAULT_HRMU_MAP_CENTER);
+  const [selectedLiveFacultyUserId, setSelectedLiveFacultyUserId] = useState(null);
+  const [selectedLiveFacultyDetail, setSelectedLiveFacultyDetail] = useState(null);
 
   const formatActivityTime = (value) => {
     if (!value) return '--';
@@ -11086,6 +11108,43 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
   }, []);
 
   useEffect(() => {
+    setSelectedLiveFacultyUserId((current) => {
+      if (current && liveFacultyRows.some((row) => row.facultyUserId === current)) {
+        return current;
+      }
+
+      return liveFacultyRows[0]?.facultyUserId || null;
+    });
+  }, [liveFacultyRows]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadSelectedLiveFacultyDetail = async () => {
+      if (!selectedLiveFacultyUserId) {
+        setSelectedLiveFacultyDetail(null);
+        return;
+      }
+
+      try {
+        const detail = await getHrmuFacultyLiveDetail(selectedLiveFacultyUserId);
+        if (!isMounted) return;
+        setSelectedLiveFacultyDetail(detail || null);
+      } catch (error) {
+        if (!isMounted) return;
+        console.error('Failed to load HRMU live faculty detail:', error);
+        setSelectedLiveFacultyDetail(null);
+      }
+    };
+
+    loadSelectedLiveFacultyDetail();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedLiveFacultyUserId]);
+
+  useEffect(() => {
     let isMounted = true;
 
     const loadNotifications = async () => {
@@ -11237,6 +11296,10 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
     Number(liveFacultyCenter?.lng || DEFAULT_HRMU_MAP_CENTER.lng),
     Number(liveFacultyCenter?.lat || DEFAULT_HRMU_MAP_CENTER.lat),
   ], [liveFacultyCenter?.lat, liveFacultyCenter?.lng]);
+  const selectedLiveFaculty = useMemo(
+    () => liveFacultyRows.find((row) => row.facultyUserId === selectedLiveFacultyUserId) || liveFacultyRows[0] || null,
+    [liveFacultyRows, selectedLiveFacultyUserId]
+  );
 
   return (
     <HrmuWorkspaceShell activeKey="dashboard" setView={setView} profileData={profileData} onLogout={onLogout}>
@@ -11267,6 +11330,10 @@ const HrmuDashboardView = ({ setView, profileData, onLogout }) => {
               center={liveMapCenter}
               focusOnOlongapo
               compact
+              selectedFacultyUserId={selectedLiveFaculty?.facultyUserId || null}
+              selectedFaculty={selectedLiveFaculty}
+              selectedFacultyDetail={selectedLiveFacultyDetail}
+              onMarkerSelect={(faculty) => setSelectedLiveFacultyUserId(faculty?.facultyUserId || null)}
               className="hrmu-dashboard-live-map"
             />
             <div className="hrmu-map-summary">
