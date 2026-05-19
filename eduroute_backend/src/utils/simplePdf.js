@@ -681,7 +681,7 @@ const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
     return y - cardHeight;
 };
 
-const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }, proofImages = []) => {
+const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs }) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -712,9 +712,8 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     const columns = [
         { key: 'timestampLabel', label: 'TIMESTAMP', width: 84 },
         { key: 'location', label: 'LOCATION', width: 152 },
-        { key: 'personnel', label: 'PERSONNEL', width: 126 },
-        { key: 'status', label: 'STATUS', width: 92 },
-        { key: 'action', label: 'ACTION', width: 78 },
+        { key: 'personnel', label: 'PERSONNEL', width: 156 },
+        { key: 'status', label: 'STATUS', width: 140 },
     ];
     const tableWidth = columns.reduce((sum, column) => sum + column.width, 0);
     const bodyFontSize = 8.5;
@@ -803,14 +802,6 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
                         font: fonts.bold,
                         color: colorize(tone.text),
                     });
-                } else if (column.key === 'action') {
-                    page.drawText('Details', {
-                        x: cellX + 16,
-                        y: cursorY - 22,
-                        size: 8.4,
-                        font: fonts.bold,
-                        color: colorize(COLORS.green),
-                    });
                 } else {
                     const lines = rowCells[index];
                     lines.forEach((line, lineIndex) => {
@@ -829,28 +820,6 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
 
             cursorY -= rowHeight;
         });
-    }
-
-    if (proofImages && proofImages.length > 0) {
-        for (const proofImage of proofImages) {
-            try {
-                const isPng = proofImage.buffer[0] === 0x89 && proofImage.buffer[1] === 0x50;
-                const embeddedImage = isPng 
-                    ? await pdfDoc.embedPng(proofImage.buffer) 
-                    : await pdfDoc.embedJpg(proofImage.buffer);
-                
-                const dims = embeddedImage.scale(1);
-                const proofPage = pdfDoc.addPage([dims.width, dims.height]);
-                proofPage.drawImage(embeddedImage, {
-                    x: 0,
-                    y: 0,
-                    width: dims.width,
-                    height: dims.height,
-                });
-            } catch (err) {
-                // Ignore embedding errors
-            }
-        }
     }
 
     const pdfBytes = await pdfDoc.save();
