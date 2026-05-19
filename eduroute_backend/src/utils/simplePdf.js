@@ -491,7 +491,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize
 };
 
 const drawLogTitle = ({ page, fonts, y, colorize }) => {
-    page.drawText('Key Incident Log', {
+    page.drawText('Monthly Faculty Movement Log', {
         x: PAGE.marginX,
         y,
         size: 15,

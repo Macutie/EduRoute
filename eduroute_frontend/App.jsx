@@ -11980,6 +11980,10 @@ const HrmuAnalyticsReportsView = ({ setView, profileData, onLogout, activeKey = 
 };
 const HrmuReportsView = ({ setView, profileData, onLogout }) => {
   const [downloadLoading, setDownloadLoading] = useState(false);
+  const [selectedReportRow, setSelectedReportRow] = useState(null);
+  const [reviewing, setReviewing] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [reviewLocked, setReviewLocked] = useState(false);
   const {
     monthIndex,
     baseYear,
@@ -11989,6 +11993,7 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
     detailLoading,
     selectedDetail,
     setSelectedDetail,
+    refetch,
     goPrevious,
     goNext,
     openDetails,
@@ -12011,6 +12016,47 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
     if (status === 'VERIFIED') return 'green';
     if (status === 'REJECTED') return 'red';
     return 'red';
+  };
+
+  const handleOpenReportDetails = async (row) => {
+    setSelectedReportRow(row);
+    setReviewLocked(false);
+    setReviewMessage('');
+    await openDetails(row);
+  };
+
+  const handleCloseReportDetails = () => {
+    setReviewLocked(false);
+    setReviewMessage('');
+    setSelectedReportRow(null);
+    setSelectedDetail(null);
+  };
+
+  const handleReportProofReview = async (nextStatus) => {
+    if (!selectedReportRow?.proofId) {
+      setReviewMessage('No uploaded proof is available to review for this trip.');
+      return;
+    }
+
+    try {
+      setReviewing(true);
+      setReviewMessage('');
+      const result = await reviewHrmuProofCompliance(selectedReportRow.proofId, {
+        verificationStatus: nextStatus,
+      });
+      setReviewMessage(
+        nextStatus === 'verified'
+          ? 'Trip marked as successful.'
+          : 'Trip flagged as unverified location/signature.'
+      );
+      setReviewLocked(true);
+      setSelectedDetail({ ...result, isProof: true });
+      await refetch(monthIndex, baseYear);
+    } catch (requestError) {
+      setReviewMessage(requestError.message || 'Verification review could not be saved.');
+    } finally {
+      setReviewing(false);
+    }
   };
 
   const handleDownloadReport = async () => {
@@ -12174,7 +12220,7 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
                   <span>{row.location}</span>
                   <span>{row.personnel}</span>
                   <span><em className={`hrmu-reports-status-pill ${mapStatusTone(row.status)}`}>{row.status}</em></span>
-                  <button type="button" className="hrmu-reports-detail-link" onClick={() => openDetails(row)}>Details</button>
+                  <button type="button" className="hrmu-reports-detail-link" onClick={() => handleOpenReportDetails(row)}>Details</button>
                 </div>
               ))}
             </div>
@@ -12185,24 +12231,39 @@ const HrmuReportsView = ({ setView, profileData, onLogout }) => {
         {selectedDetail && selectedDetail.isProof && !detailLoading && (
           <ProofComplianceDetails
             row={{
-              name: selectedDetail.facultyName,
+              key: selectedReportRow?.proofId || selectedDetail.id,
+              proofId: selectedReportRow?.proofId || selectedDetail.id,
+              name: selectedDetail.facultyName || selectedReportRow?.personnel || 'Faculty member',
               roleLine: selectedDetail.collegeName ? `Faculty - ${selectedDetail.collegeName}` : 'Faculty',
-              slipNumber: selectedDetail.locatorSlipId?.slice(0, 8).toUpperCase(),
-              actualReturnTime: selectedDetail.endedAt,
+              slipNumber: `LS-${String(selectedDetail.locatorSlipId || selectedReportRow?.locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+              actualReturnTime: selectedDetail.actualReturnTime || selectedReportRow?.timestamp,
               expectedReturnTime: selectedDetail.expectedReturnTime,
+              verificationStatus: String(selectedDetail.verificationStatus || 'submitted').toLowerCase(),
+              flaggedReasons: Array.isArray(selectedDetail.flaggedReasons) ? selectedDetail.flaggedReasons : [],
+              isLateReturn: Boolean(selectedDetail.isLateReturn),
+              purpose: selectedDetail.purpose || 'Official travel',
+              profileImageUrl: selectedDetail.profileImageUrl || null,
+              submittedAt: selectedDetail.submittedAt || null,
             }}
             details={selectedDetail}
-            reviewLocked={true}
-            onClose={() => setSelectedDetail(null)}
+            reviewMessage={reviewMessage}
+            reviewing={reviewing}
+            reviewLocked={
+              reviewLocked
+              || Boolean(selectedDetail?.isLateReturn)
+              || String(selectedDetail?.verificationStatus || '').toLowerCase() !== 'submitted'
+            }
+            onClose={handleCloseReportDetails}
+            onReview={handleReportProofReview}
           />
         )}
 
         {selectedDetail && !selectedDetail.isProof && (
-          <div className="hrmu-reports-detail-overlay" role="presentation" onClick={() => setSelectedDetail(null)}>
+          <div className="hrmu-reports-detail-overlay" role="presentation" onClick={handleCloseReportDetails}>
             <div className="hrmu-reports-detail-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
               <div className="hrmu-reports-detail-head">
                 <h3>{selectedDetail.facultyName}</h3>
-                <button type="button" className="hrmu-reports-detail-close" onClick={() => setSelectedDetail(null)} aria-label="Close details">
+                <button type="button" className="hrmu-reports-detail-close" onClick={handleCloseReportDetails} aria-label="Close details">
                   <RegistryModalCloseIcon />
                 </button>
               </div>
@@ -12259,7 +12320,6 @@ const HrmuNotificationsView = ({ setView, profileData, onLogout }) => {
             <p>Real-time monitoring and security notifications for HRMU faculty and campus operations.</p>
           </div>
           <div className="hrmu-alerts-actions">
-            <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
             <button type="button" className="hrmu-alerts-btn primary"><span aria-hidden="true">⌁</span><span>Filters</span></button>
           </div>
         </div>
@@ -12716,7 +12776,6 @@ const HrmuNotificationsRealtimeView = ({ setView, profileData, onLogout }) => {
             <p>Real-time monitoring and security notifications for HRMU faculty and campus operations.</p>
           </div>
           <div className="hrmu-alerts-actions">
-            <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
             <label className="hrmu-alerts-filter">
               <StatusGraphIcon color="currentColor" />
               <select value={alertFilter} onChange={(event) => setAlertFilter(event.target.value)} aria-label="Filter alerts">
