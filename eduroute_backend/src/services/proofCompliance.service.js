@@ -90,6 +90,7 @@ const normalizeProofResponse = (proof, context = {}) => {
         reviewedBy: proof.reviewedBy,
         reviewRemarks: proof.reviewRemarks,
         facultyName: context.facultyName || null,
+        profileImageUrl: context.profileImageUrl || null,
         collegeName: context.collegeName || null,
         destination: context.destination || null,
         purpose: context.purpose || null,
@@ -341,6 +342,7 @@ const listHrmuProofs = async (userId) => {
         proofs: proofs.map((proof) => normalizeProofResponse(proof, {
             facultyId: proof.facultyId,
             facultyName: proof.facultyName,
+            profileImageUrl: proof.profileImageUrl,
             collegeName: proof.collegeName,
             destination: proof.destination,
             purpose: proof.purpose,
@@ -377,6 +379,7 @@ const getHrmuProofDetails = async (proofId, userId) => {
     return normalizeProofResponse(proof, {
         facultyId: proof.facultyId,
         facultyName: proof.facultyName,
+        profileImageUrl: proof.profileImageUrl,
         collegeName: proof.collegeName,
         destination: proof.destination,
         purpose: proof.purpose,
@@ -458,6 +461,7 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
         return normalizeProofResponse(updated, {
             facultyId: existingProof.facultyId,
             facultyName: existingProof.facultyName,
+            profileImageUrl: existingProof.profileImageUrl,
             collegeName: existingProof.collegeName,
             destination: existingProof.destination,
             purpose: existingProof.purpose,
