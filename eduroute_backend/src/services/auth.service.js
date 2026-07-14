@@ -434,6 +434,26 @@ const changeCurrentFacultyPassword = async (facultyId, payload) => {
     );
 };
 
+const getRecoveryEmailFailureMessage = (error) => {
+    const code = String(error?.code || '');
+    const responseCode = String(error?.responseCode || '');
+    const message = String(error?.message || '');
+
+    if (code === 'EAUTH' || responseCode === '535' || /Username and Password not accepted|BadCredentials/i.test(message)) {
+        return 'EduRoute could not authenticate with the recovery email account. Please update SMTP_USER and SMTP_PASS with a valid Gmail App Password, then restart the backend.';
+    }
+
+    if (/SMTP is not configured/i.test(message)) {
+        return 'EduRoute recovery email is not configured. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and MAIL_FROM in the backend environment.';
+    }
+
+    if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(message)) {
+        return 'EduRoute could not reach the recovery email server. Please check the backend internet connection and SMTP_HOST/SMTP_PORT settings.';
+    }
+
+    return 'EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.';
+};
+
 const forgotPassword = async ({ email }) => {
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -477,7 +497,7 @@ const forgotPassword = async ({ email }) => {
         });
     } catch (error) {
         console.error('Failed to send password reset email:', error);
-        throw new AppError('EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.', 503);
+        throw new AppError(getRecoveryEmailFailureMessage(error), 503);
     }
 };
 
