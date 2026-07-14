@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   disablePushToken,
-  savePushToken,
 } from '../services/notificationApi';
 import {
-  requestFirebaseMessagingToken,
   subscribeToForegroundMessages,
 } from '../lib/firebase';
+import { registerPushNotificationsForCurrentBrowser } from '../app/shared/pushNotifications';
 
 export const usePushNotifications = () => {
   const [permission, setPermission] = useState(
@@ -52,18 +51,11 @@ export const usePushNotifications = () => {
         return null;
       }
 
-      const fcmToken = await requestFirebaseMessagingToken();
+      const fcmToken = await registerPushNotificationsForCurrentBrowser();
       if (!fcmToken) {
         setError('Unable to get an FCM token for this browser.');
         return null;
       }
-
-      await savePushToken({
-        fcmToken,
-        platform: 'web',
-        deviceName: navigator.platform,
-        userAgent: navigator.userAgent,
-      });
 
       setToken(fcmToken);
       return fcmToken;

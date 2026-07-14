@@ -1,7 +1,9 @@
 const express = require('express');
 const { protect } = require('../middlewares/auth.middleware');
+const { decryptSensitivePayload } = require('../middlewares/authPayloadEncryption.middleware');
 const notificationService = require('../services/notification.service');
 const pushTokenService = require('../services/pushToken.service');
+const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const router = express.Router();
 
@@ -14,7 +16,7 @@ router.get('/', wrap(async (req, res) => {
     res.json({
         success: true,
         message: 'Notifications fetched successfully.',
-        data
+        data: encryptSensitiveResponseData(req, data)
     });
 }));
 
@@ -23,16 +25,28 @@ router.get('/unread-count', wrap(async (req, res) => {
     res.json({
         success: true,
         message: 'Unread notification count fetched successfully.',
-        data: { unreadCount }
+        data: encryptSensitiveResponseData(req, { unreadCount })
     });
 }));
 
-router.patch('/:id/read', wrap(async (req, res) => {
-    const notification = await notificationService.markNotificationRead(req.params.id, req.user.sub);
+router.get('/push-status', wrap(async (req, res) => {
+    const status = await notificationService.getPushStatusForUser(req.user.sub);
     res.json({
         success: true,
-        message: 'Notification marked as read.',
-        data: notification
+        message: 'Push notification status fetched successfully.',
+        data: encryptSensitiveResponseData(req, status)
+    });
+}));
+
+router.post('/push-test', wrap(async (req, res) => {
+    const result = await notificationService.sendTestPushNotification(req.user.sub);
+    const delivered = Number(result.delivery?.delivered || 0);
+    res.status(delivered > 0 ? 200 : 409).json({
+        success: delivered > 0,
+        message: delivered > 0
+            ? 'Test notification sent successfully. Lock or close the app to confirm background delivery.'
+            : 'No active phone token received the test notification. Enable notifications on this device first.',
+        data: encryptSensitiveResponseData(req, result)
     });
 }));
 
@@ -41,34 +55,43 @@ router.patch('/read-all', wrap(async (req, res) => {
     res.json({
         success: true,
         message: 'All notifications marked as read.',
-        data: { updated }
+        data: encryptSensitiveResponseData(req, { updated })
     });
 }));
 
-router.post('/push-token', wrap(async (req, res) => {
+router.patch('/:id/read', wrap(async (req, res) => {
+    const notification = await notificationService.markNotificationRead(req.params.id, req.user.sub);
+    res.json({
+        success: true,
+        message: 'Notification marked as read.',
+        data: encryptSensitiveResponseData(req, notification)
+    });
+}));
+
+router.post('/push-token', decryptSensitivePayload, wrap(async (req, res) => {
     const token = await pushTokenService.savePushToken(req.user.sub, req.body);
     res.status(201).json({
         success: true,
         message: 'Push token saved successfully.',
-        data: token
+        data: encryptSensitiveResponseData(req, token)
     });
 }));
 
-router.delete('/push-token', wrap(async (req, res) => {
+router.delete('/push-token', decryptSensitivePayload, wrap(async (req, res) => {
     const removed = await pushTokenService.deletePushToken(req.user.sub, req.body?.fcmToken || req.query.fcmToken);
     res.json({
         success: true,
         message: 'Push token deleted successfully.',
-        data: { removed }
+        data: encryptSensitiveResponseData(req, { removed })
     });
 }));
 
-router.patch('/push-token/disable', wrap(async (req, res) => {
-    const token = await pushTokenService.disablePushToken(req.body?.fcmToken);
+router.patch('/push-token/disable', decryptSensitivePayload, wrap(async (req, res) => {
+    const token = await pushTokenService.disablePushToken(req.user.sub, req.body?.fcmToken);
     res.json({
         success: true,
         message: 'Push token disabled successfully.',
-        data: token
+        data: encryptSensitiveResponseData(req, token)
     });
 }));
 

@@ -2,6 +2,10 @@ const { body, validationResult } = require('express-validator');
 const AppError = require('../utils/appError');
 
 const ROLE_OPTIONS = ['faculty', 'hrmu', 'cssu', 'admin', 'assistant_dean', 'college_dean'];
+const ALLOWED_EMAIL_DOMAIN = '@gordoncollege.edu.ph';
+
+const isGordonCollegeEmail = (value = '') =>
+    String(value).trim().toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);
 
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
@@ -37,7 +41,19 @@ const registerValidator = [
 
             return true;
         }),
-    body('email').trim().isEmail().withMessage('A valid email address is required.').normalizeEmail(),
+    body('email')
+        .trim()
+        .isEmail()
+        .withMessage('A valid email address is required.')
+        .bail()
+        .custom((value) => {
+            if (!isGordonCollegeEmail(value)) {
+                throw new Error('Only @gordoncollege.edu.ph email addresses are accepted.');
+            }
+
+            return true;
+        })
+        .normalizeEmail(),
     body('password').isString().notEmpty().withMessage('Password is required.'),
     body('confirm_password')
         .custom((value, { req }) => value === req.body.password)
@@ -49,7 +65,20 @@ const registerValidator = [
 ];
 
 const loginValidator = [
-    body('email_or_employee_id').trim().notEmpty().withMessage('Email or Employee ID is required.'),
+    body('email_or_employee_id')
+        .trim()
+        .notEmpty()
+        .withMessage('Email or Employee ID is required.')
+        .bail()
+        .custom((value) => {
+            const identifier = String(value || '').trim();
+
+            if (identifier.includes('@') && !isGordonCollegeEmail(identifier)) {
+                throw new Error('Only @gordoncollege.edu.ph email addresses are accepted.');
+            }
+
+            return true;
+        }),
     body('password').isString().notEmpty().withMessage('Password is required.'),
     body('portal_role')
         .optional()
@@ -81,7 +110,10 @@ const resetPasswordValidator = [
 
 const updateProfileValidator = [
     body('full_name').trim().notEmpty().withMessage('Full name is required.'),
-    body('department_id').isInt({ min: 1 }).withMessage('A valid department is required.'),
+    body('department_id')
+        .optional({ nullable: true, checkFalsy: true })
+        .isInt({ min: 1 })
+        .withMessage('A valid department is required.'),
     handleValidation
 ];
 

@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const { encryptNullableText, decryptNullableText } = require('../utils/fieldEncryption');
 
 let arrivalVerificationColumnsCache = null;
 let arrivalVerificationsTableExistsCache = null;
@@ -69,7 +70,13 @@ const buildProofSelect = async (client = pool, { alias = 'verification' } = {}) 
         ${selectColumn('status', `'submitted'::text`)},
         ${selectColumn('verified_at', 'NULL::timestamp')},
         ${selectColumn('focal_person_name', 'NULL::text')},
+        ${selectColumn('focal_person_name_encrypted', 'NULL::text')},
+        ${selectColumn('focal_person_name_iv', 'NULL::text')},
+        ${selectColumn('focal_person_name_auth_tag', 'NULL::text')},
         ${selectColumn('focal_person_position', 'NULL::text')},
+        ${selectColumn('focal_person_position_encrypted', 'NULL::text')},
+        ${selectColumn('focal_person_position_iv', 'NULL::text')},
+        ${selectColumn('focal_person_position_auth_tag', 'NULL::text')},
         ${selectColumn('focal_person_signature_url', 'NULL::text')},
         ${selectColumn('focal_person_signature_public_id', 'NULL::text')},
         ${selectColumn('arrival_photo_url', 'NULL::text')},
@@ -81,9 +88,43 @@ const buildProofSelect = async (client = pool, { alias = 'verification' } = {}) 
         ${selectColumn('reviewed_by', 'NULL::uuid')},
         ${selectColumn('reviewed_at', 'NULL::timestamp')},
         ${selectColumn('review_remarks', 'NULL::text')},
+        ${selectColumn('review_remarks_encrypted', 'NULL::text')},
+        ${selectColumn('review_remarks_iv', 'NULL::text')},
+        ${selectColumn('review_remarks_auth_tag', 'NULL::text')},
         ${alias}.created_at,
         ${alias}.updated_at
     `;
+};
+
+const hasEncryptedTextColumns = (columns, fieldName) => (
+    columns.has(`${fieldName}_encrypted`)
+    && columns.has(`${fieldName}_iv`)
+    && columns.has(`${fieldName}_auth_tag`)
+);
+
+const decryptFieldFromRow = (row, fieldName) => {
+    const decrypted = decryptNullableText(
+        row[`${fieldName}_encrypted`],
+        row[`${fieldName}_iv`],
+        row[`${fieldName}_auth_tag`]
+    );
+
+    return decrypted || row[fieldName] || null;
+};
+
+const buildEncryptedTextColumnEntries = (columns, fieldName, value) => {
+    if (!hasEncryptedTextColumns(columns, fieldName)) {
+        return [[fieldName, value || null]];
+    }
+
+    const encrypted = encryptNullableText(value);
+
+    return [
+        [fieldName, null],
+        [`${fieldName}_encrypted`, encrypted?.encryptedData || null],
+        [`${fieldName}_iv`, encrypted?.iv || null],
+        [`${fieldName}_auth_tag`, encrypted?.authTag || null]
+    ];
 };
 
 const mapProofRow = (row) => {
@@ -96,8 +137,8 @@ const mapProofRow = (row) => {
         facultyUserId: row.faculty_user_id,
         imageUrl: row.image_url || row.proof_compliance_image_url || null,
         imagePublicId: row.image_public_id || row.proof_compliance_image_public_id || null,
-        focalPersonName: row.focal_person_name || null,
-        focalPersonPosition: row.focal_person_position || null,
+        focalPersonName: decryptFieldFromRow(row, 'focal_person_name'),
+        focalPersonPosition: decryptFieldFromRow(row, 'focal_person_position'),
         focalPersonSignatureUrl: row.focal_person_signature_url || null,
         focalPersonSignaturePublicId: row.focal_person_signature_public_id || null,
         arrivalPhotoUrl: row.arrival_photo_url || null,
@@ -108,7 +149,7 @@ const mapProofRow = (row) => {
         submittedAt: row.submitted_at || row.verified_at || row.created_at || null,
         reviewedBy: row.reviewed_by || null,
         reviewedAt: row.reviewed_at || null,
-        reviewRemarks: row.review_remarks || null,
+        reviewRemarks: decryptFieldFromRow(row, 'review_remarks'),
         deanApprovedAt: row.dean_approved_at || null,
         deanReviewedBy: row.dean_reviewed_by || null,
         deanName: row.dean_name || null,
@@ -163,8 +204,8 @@ const insertProof = async (payload, client = pool) => {
         ['image_public_id', payload.imagePublicId],
         ['status', payload.legacyStatus || payload.verificationStatus],
         ['verified_at', payload.submittedAt],
-        ['focal_person_name', payload.focalPersonName],
-        ['focal_person_position', payload.focalPersonPosition],
+        ...buildEncryptedTextColumnEntries(columns, 'focal_person_name', payload.focalPersonName),
+        ...buildEncryptedTextColumnEntries(columns, 'focal_person_position', payload.focalPersonPosition),
         ['focal_person_signature_url', payload.focalPersonSignatureUrl],
         ['focal_person_signature_public_id', payload.focalPersonSignaturePublicId],
         ['arrival_photo_url', payload.arrivalPhotoUrl],
@@ -224,6 +265,7 @@ const getHrmuProofList = async (client = pool) => {
             faculty.full_name AS faculty_name,
             faculty.id AS faculty_id,
             faculty.profile_image_url AS faculty_profile_image_url,
+            COALESCE(locator.college_id, faculty.department_id) AS college_id,
             department.department_name AS college_name,
             COALESCE(locator.custom_purpose, locator.purpose_of_travel) AS purpose,
             locator.destination,
@@ -232,6 +274,7 @@ const getHrmuProofList = async (client = pool) => {
             locator.reviewed_by AS dean_reviewed_by,
             trip.status AS trip_status,
             trip.ended_at,
+            locator.departure_datetime,
             locator.expected_return_datetime,
             reviewer.full_name AS reviewed_by_name,
             dean_reviewer.full_name AS dean_name,
@@ -259,12 +302,14 @@ const getHrmuProofList = async (client = pool) => {
         facultyName: row.faculty_name,
         facultyId: row.faculty_id,
         profileImageUrl: row.faculty_profile_image_url || null,
+        collegeId: row.college_id || null,
         collegeName: row.college_name || null,
         purpose: row.purpose || null,
         destination: row.destination || null,
         locatorSlipStatus: row.locator_slip_status || null,
         tripStatus: row.trip_status || null,
         actualReturnTime: row.ended_at || null,
+        departureTime: row.departure_datetime || null,
         expectedReturnTime: row.expected_return_datetime || null,
         reviewedByName: row.reviewed_by_name || null,
         deanApprovedAt: row.dean_approved_at || null,
@@ -311,12 +356,14 @@ const getHrmuProofById = async (proofId, client = pool) => {
             faculty.full_name AS faculty_name,
             faculty.id AS faculty_id,
             faculty.profile_image_url AS faculty_profile_image_url,
+            COALESCE(locator.college_id, faculty.department_id) AS college_id,
             department.department_name AS college_name,
             COALESCE(locator.custom_purpose, locator.purpose_of_travel) AS purpose,
             locator.destination,
             locator.status AS locator_slip_status,
             locator.approved_at AS dean_approved_at,
             locator.reviewed_by AS dean_reviewed_by,
+            locator.departure_datetime,
             locator.expected_return_datetime,
             trip.status AS trip_status,
             trip.started_at,
@@ -351,10 +398,12 @@ const getHrmuProofById = async (proofId, client = pool) => {
         facultyName: rows[0].faculty_name,
         facultyId: rows[0].faculty_id,
         profileImageUrl: rows[0].faculty_profile_image_url || null,
+        collegeId: rows[0].college_id || null,
         collegeName: rows[0].college_name || null,
         purpose: rows[0].purpose || null,
         destination: rows[0].destination || null,
         locatorSlipStatus: rows[0].locator_slip_status || null,
+        departureTime: rows[0].departure_datetime || null,
         expectedReturnTime: rows[0].expected_return_datetime || null,
         tripStatus: rows[0].trip_status || null,
         tripStartedAt: rows[0].started_at || null,
@@ -371,6 +420,25 @@ const getHrmuProofById = async (proofId, client = pool) => {
         flaggedReasons: Array.isArray(rows[0].incident_labels) ? rows[0].incident_labels : [],
         flaggedIncidentTypes: Array.isArray(rows[0].incident_types) ? rows[0].incident_types : []
     };
+};
+
+const getDeanProofListByCollegeId = async (collegeId, client = pool) => {
+    const proofs = await getHrmuProofList(client);
+    return proofs.filter((proof) => String(proof.collegeId || '') === String(collegeId || ''));
+};
+
+const getDeanProofByIdForCollege = async (proofId, collegeId, client = pool) => {
+    const proof = await getHrmuProofById(proofId, client);
+    if (!proof || String(proof.collegeId || '') !== String(collegeId || '')) {
+        return null;
+    }
+
+    return proof;
+};
+
+const getDeanProofByLocatorSlipForCollege = async (locatorSlipId, collegeId, client = pool) => {
+    const proofs = await getDeanProofListByCollegeId(collegeId, client);
+    return proofs.find((proof) => String(proof.locatorSlipId || '') === String(locatorSlipId || '')) || null;
 };
 
 const updateProofReview = async ({ proofId, reviewerId, verificationStatus, reviewRemarks }, client = pool) => {
@@ -408,7 +476,21 @@ const updateProofReview = async ({ proofId, reviewerId, verificationStatus, revi
         index += 1;
     }
 
-    if (columns.has('review_remarks')) {
+    if (hasEncryptedTextColumns(columns, 'review_remarks')) {
+        const encrypted = encryptNullableText(reviewRemarks);
+        const encryptedAssignments = [
+            ['review_remarks', columns.has('review_remarks') ? null : undefined],
+            ['review_remarks_encrypted', encrypted?.encryptedData || null],
+            ['review_remarks_iv', encrypted?.iv || null],
+            ['review_remarks_auth_tag', encrypted?.authTag || null]
+        ].filter(([, value]) => value !== undefined);
+
+        encryptedAssignments.forEach(([columnName, value]) => {
+            clauses.push(`${columnName} = $${index}`);
+            values.push(value);
+            index += 1;
+        });
+    } else if (columns.has('review_remarks')) {
         clauses.push(`review_remarks = $${index}`);
         values.push(reviewRemarks || null);
         index += 1;
@@ -437,5 +519,8 @@ module.exports = {
     insertProof,
     getHrmuProofList,
     getHrmuProofById,
+    getDeanProofListByCollegeId,
+    getDeanProofByIdForCollege,
+    getDeanProofByLocatorSlipForCollege,
     updateProofReview
 };

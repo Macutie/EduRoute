@@ -1,5 +1,6 @@
 const { successResponse } = require('../utils/apiResponse');
 const proofComplianceService = require('../services/proofCompliance.service');
+const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const submitFacultyProof = async (req, res, next) => {
     try {
@@ -22,7 +23,10 @@ const getFacultyProof = async (req, res, next) => {
 const getHrmuProofList = async (req, res, next) => {
     try {
         const payload = await proofComplianceService.listHrmuProofs(req.user.sub);
-        return res.json(successResponse('Proofs of compliance fetched successfully.', payload));
+        return res.json(successResponse(
+            'Proofs of compliance fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -31,7 +35,10 @@ const getHrmuProofList = async (req, res, next) => {
 const getHrmuProofDetails = async (req, res, next) => {
     try {
         const payload = await proofComplianceService.getHrmuProofDetails(req.params.id, req.user.sub);
-        return res.json(successResponse('Proof of compliance details fetched successfully.', payload));
+        return res.json(successResponse(
+            'Proof of compliance details fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -40,7 +47,10 @@ const getHrmuProofDetails = async (req, res, next) => {
 const reviewHrmuProof = async (req, res, next) => {
     try {
         const payload = await proofComplianceService.reviewHrmuProof(req.user.sub, req.params.id, req.body);
-        return res.json(successResponse('Proof of compliance review saved successfully.', payload));
+        return res.json(successResponse(
+            'Proof of compliance review saved successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }

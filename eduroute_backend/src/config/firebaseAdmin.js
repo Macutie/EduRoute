@@ -24,6 +24,12 @@ const getFirebaseCredential = () => {
     };
 };
 
+const getFirebaseAdminStatus = () => ({
+    configured: Boolean(admin && getFirebaseCredential()),
+    projectId: env.firebaseProjectId || null,
+    initialized: Boolean(admin && admin.apps.length > 0)
+});
+
 const initializeFirebaseAdmin = () => {
     if (!admin) {
         return null;
@@ -56,5 +62,6 @@ const getFirebaseMessaging = () => {
 module.exports = {
     admin,
     initializeFirebaseAdmin,
-    getFirebaseMessaging
+    getFirebaseMessaging,
+    getFirebaseAdminStatus
 };

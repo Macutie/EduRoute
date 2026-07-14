@@ -32,6 +32,8 @@ module.exports = {
     databaseUrl: process.env.DATABASE_URL,
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
+    fieldEncryptionKey: process.env.FIELD_ENCRYPTION_KEY,
+    authPayloadPrivateKey: process.env.AUTH_PAYLOAD_PRIVATE_KEY,
     frontendUrl: resolvedFrontendUrl,
     clientOrigin: resolvedClientOrigin,
     frontendUrls: (process.env.FRONTEND_URLS || process.env.FRONTEND_URL || 'http://localhost:3000')

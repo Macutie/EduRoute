@@ -59,7 +59,11 @@ const ProofComplianceDetails = ({
   reviewLocked,
   onClose,
   onReview,
+  onViewPathHistory,
 }) => {
+  const modalRef = useRef(null);
+  const [isExporting, setIsExporting] = useState(false);
+
   if (!row) return null;
 
   const activeProof = details || row;
@@ -80,14 +84,13 @@ const ProofComplianceDetails = ({
   const statusRowClassName = normalizedStatus === 'rejected' || normalizedStatus === 'late_return'
     ? 'hrmu-verify-current-status-row review'
     : 'hrmu-verify-current-status-row';
+  const isFlaggedProof = normalizedStatus === 'rejected' || normalizedStatus === 'late_return';
   const focalPersonName = activeProof.focalPersonName || 'N/A';
   const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
   const deanSignature = activeProof.digitalSignature || null;
   const isAutoLateReturn = isLateReturn;
   const effectiveReviewLocked = reviewLocked || isAutoLateReturn;
-
-  const modalRef = useRef(null);
-  const [isExporting, setIsExporting] = useState(false);
+  const canReviewProof = typeof onReview === 'function';
 
   const handleExportPdf = async () => {
     if (!modalRef.current) return;
@@ -245,7 +248,7 @@ const ProofComplianceDetails = ({
 
             <div className="hrmu-verify-modal-label">PROOF VERIFICATION CHECKS</div>
             <div className="hrmu-verify-check-grid">
-              <div className="hrmu-verify-check-card positive">
+              <div className={`hrmu-verify-check-card ${isFlaggedProof ? 'negative' : 'positive'}`}>
                 <span>PROOF STATUS</span>
                 <strong>{proofStatus}</strong>
               </div>
@@ -254,18 +257,15 @@ const ProofComplianceDetails = ({
                 <strong>{formatProofStatus('submitted')}</strong>
                 <small>{formatDateTime(activeProof.submittedAt || row.submittedAt)}</small>
               </div>
-              <div className={`hrmu-verify-check-card ${normalizedStatus === 'rejected' || normalizedStatus === 'late_return' ? 'negative' : 'positive'}`}>
+              <div className={`hrmu-verify-check-card ${isFlaggedProof ? 'negative' : 'positive'}`}>
                 <span>HRMU REVIEW</span>
-                <strong>{normalizedStatus === 'verified' ? 'SUCCESSFUL' : normalizedStatus === 'rejected' || normalizedStatus === 'late_return' ? 'FLAGGED' : 'PENDING'}</strong>
+                <strong>{normalizedStatus === 'verified' ? 'SUCCESSFUL' : isFlaggedProof ? 'FLAGGED' : 'PENDING'}</strong>
                 <small>{isLateReturn ? formatDateTime(activeProof.actualReturnTime || row.actualReturnTime) : activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.'}</small>
               </div>
-              <div className="hrmu-verify-check-card positive">
-                <span>FOCAL PERSON</span>
+              <div className="hrmu-verify-check-card positive focal-summary">
+                <span>FOCAL PERSON & POSITION</span>
                 <strong>{focalPersonName}</strong>
-              </div>
-              <div className="hrmu-verify-check-card positive">
-                <span>POSITION</span>
-                <strong>{focalPersonPosition}</strong>
+                <small>{focalPersonPosition}</small>
               </div>
             </div>
 
@@ -293,26 +293,33 @@ const ProofComplianceDetails = ({
               </div>
             )}
 
-            <div className="hrmu-verify-review-actions">
-              <button
-                type="button"
-                className="hrmu-verify-request-btn"
-                onClick={() => onReview('rejected')}
-                disabled={reviewing || effectiveReviewLocked}
-              >
-                {reviewing ? 'Saving...' : 'Flag as Unverified Location/Signature'}
-              </button>
-              <button
-                type="button"
-                className="hrmu-verify-clear-btn"
-                onClick={() => onReview('verified')}
-                disabled={reviewing || effectiveReviewLocked}
-              >
-                {reviewing ? 'Saving...' : 'Successful Trip'}
-              </button>
-            </div>
+            {canReviewProof && (
+              <div className="hrmu-verify-review-actions">
+                <button
+                  type="button"
+                  className="hrmu-verify-request-btn"
+                  onClick={() => onReview('rejected')}
+                  disabled={reviewing || effectiveReviewLocked}
+                >
+                  {reviewing ? 'Saving...' : 'Flag as Unverified Location/Signature'}
+                </button>
+                <button
+                  type="button"
+                  className="hrmu-verify-clear-btn"
+                  onClick={() => onReview('verified')}
+                  disabled={reviewing || effectiveReviewLocked}
+                >
+                  {reviewing ? 'Saving...' : 'Successful Trip'}
+                </button>
+              </div>
+            )}
 
             <div className="hrmu-verify-action-buttons" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {onViewPathHistory && (
+                <button type="button" className="hrmu-verify-return-btn" onClick={onViewPathHistory}>
+                  View Path History
+                </button>
+              )}
               <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
               <button 
                 type="button" 

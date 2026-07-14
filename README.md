@@ -113,11 +113,80 @@ Important backend values include:
 
 - `DATABASE_URL`
 - `JWT_SECRET`
+- `FIELD_ENCRYPTION_KEY`
 - `FRONTEND_URL`
 - SMTP configuration
 - Cloudinary credentials
 - Map provider keys
 - Firebase Admin credentials
+
+Generate a local field-encryption key with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Use a different `FIELD_ENCRYPTION_KEY` for local development and production. Never place this value in frontend environment files.
+
+For stable encrypted auth request payloads in production, generate an RSA private key for the backend:
+
+```bash
+node -e "const { generateKeyPairSync } = require('crypto'); const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 }); console.log(privateKey.export({ type: 'pkcs8', format: 'pem' }).replace(/\n/g, '\\n'))"
+```
+
+Place it in the backend environment only:
+
+```env
+AUTH_PAYLOAD_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+```
+
+If `AUTH_PAYLOAD_PRIVATE_KEY` is not configured locally, the backend generates a temporary runtime key for development testing.
+
+## Deployment Checklist
+
+Use the same repository root for the deployed frontend build. The frontend is built with:
+
+```bash
+npm install
+npm run build
+```
+
+The Firebase messaging service worker lives in `public/firebase-messaging-sw.js`, so Vite copies it to `dist/firebase-messaging-sw.js` during deployment.
+
+### Vercel frontend environment
+
+Set these values in the deployed frontend environment:
+
+- `VITE_API_BASE_URL=https://eduroute-production.up.railway.app`
+- `VITE_MAPBOX_PUBLIC_TOKEN`
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+- `VITE_FIREBASE_VAPID_KEY`
+
+All Firebase web values, including `VITE_FIREBASE_VAPID_KEY`, must come from the same Firebase project used by the deployed app.
+
+### Railway backend environment
+
+Set these values in the deployed backend environment:
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+- `FIELD_ENCRYPTION_KEY`
+- `AUTH_PAYLOAD_PRIVATE_KEY`
+- `FRONTEND_URL=https://edu-route.vercel.app`
+- `FRONTEND_URLS=https://edu-route.vercel.app`
+- `CLIENT_ORIGIN=https://edu-route.vercel.app`
+- `FCM_WEB_PUSH_LINK=https://edu-route.vercel.app`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_CLIENT_EMAIL`
+- `FIREBASE_PRIVATE_KEY`
+- SMTP, Cloudinary, and map provider credentials
+
+After changing Firebase web credentials, VAPID key, or service worker behavior, redeploy the frontend and refresh/reopen the installed PWA once so the browser can activate the latest worker.
 
 ## Database Setup
 
@@ -133,6 +202,8 @@ Common migrations:
 
 ```bash
 npm run migrate:locator-slips
+npm run migrate:profile-image
+npm run migrate:permissions
 npm run migrate:user-roles
 npm run migrate:role-registration
 npm run migrate:trips
@@ -146,9 +217,35 @@ npm run migrate:faculty-trip-flow
 npm run migrate:cssu-dashboard
 npm run migrate:locator-slip-qr
 npm run migrate:notifications-push
+npm run migrate:smart-analytics
+npm run migrate:trip-path-history
+npm run migrate:field-encryption
+node scripts/run-sql-file.js sql/cssu_scan_attempts.sql
 ```
 
-If your deployment includes newer tables stored in `eduroute_backend/sql/`, apply those as needed in your database host as part of deployment.
+### Latest database patches
+
+The current implementation phase added new database support for HRMU smart analytics, recorded trip path history, CSSU scan auditing, and field-level encryption. Apply these patches to any local or Railway database that was created before the latest changes.
+
+```bash
+cd eduroute_backend
+npm run migrate:smart-analytics
+npm run migrate:trip-path-history
+npm run migrate:field-encryption
+node scripts/run-sql-file.js sql/cssu_scan_attempts.sql
+```
+
+These patches add or update:
+
+- `trip_incidents` for HRMU incident signals such as late returns, missing proof, disconnected tracking, and unverified location issues.
+- `trip_analytics` for generated smart analytics and trip risk scoring.
+- `cssu_scan_attempts` for CSSU QR/manual scan history, rejected attempts, repeated attempts, and gate monitoring.
+- `trip_location_logs.accuracy`, `trip_location_logs.source`, and `trip_location_logs.sync_status` for recorded GPS path history.
+- Encrypted proof and review fields on `arrival_verifications` and `locator_slip_location_verifications` using AES-256-GCM payload, IV, and authentication tag columns.
+
+If you are restoring an old Railway database into a new Railway database, restore the data first, then run the latest database patches above.
+
+Important: keep the same `FIELD_ENCRYPTION_KEY` when moving an already encrypted database. Changing that key will prevent existing encrypted fields from being decrypted.
 
 ## Running the Project Locally
 
@@ -293,6 +390,44 @@ When deploying:
 - Do **not** commit Firebase service account secrets
 - Do **not** commit Cloudinary, SMTP, JWT, or database secrets
 - Commit only `.env.example` files for setup guidance
+
+### Field-Level Encryption
+
+EduRoute uses AES-256-GCM for backend-only field encryption of sensitive values that must remain readable later. Passwords are not encrypted with AES; they remain one-way hashed with bcrypt.
+
+Login credentials are submitted to the backend over HTTPS in production so the server can verify the password against the bcrypt hash. EduRoute also encrypts auth request bodies in the browser using a hybrid RSA-OAEP/AES-256-GCM envelope so Network payloads contain `{ encryptedData, iv, authTag, encryptedKey }` instead of plaintext credentials. Passwords are still hashed only by the backend with bcrypt after decryption. Auth responses return sensitive profile metadata as AES-GCM envelopes using `{ encryptedData, iv, authTag }` while keeping the account role readable for portal routing.
+
+Encrypted fields currently include:
+
+- proof-of-compliance focal person name
+- proof-of-compliance focal person position
+- HRMU proof review remarks
+- HRMU arrival/location review remarks
+- login/register response profile metadata such as name, employee ID, email, department, profile image URL, and timestamps
+
+The encrypted database layout stores each protected value as:
+
+- encrypted payload
+- IV/nonce
+- authentication tag
+
+Existing plaintext columns are kept temporarily for compatibility and old-record fallback. New writes use encrypted columns after `npm run migrate:field-encryption` is applied and `FIELD_ENCRYPTION_KEY` is configured. Do not expose encrypted payload, IV, auth tag, or encryption keys to the frontend.
+
+To smoke-test the crypto utility:
+
+```bash
+cd eduroute_backend
+npm run test:field-encryption
+```
+
+To test manually:
+
+- Generate and set `FIELD_ENCRYPTION_KEY` in `eduroute_backend/.env`
+- Run `npm run migrate:field-encryption`
+- Submit proof of compliance with focal person details
+- Review a proof or arrival verification with HRMU remarks
+- Confirm the encrypted columns contain base64 values while normal authorized API responses still show readable values
+- Confirm login/signup still works and `faculty_users.password_hash` remains bcrypt-hashed, not reversible AES
 
 ## Troubleshooting
 

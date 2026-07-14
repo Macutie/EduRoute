@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '../config';
+import { encryptSensitivePayload } from './authPayloadEncryption';
+import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -8,10 +10,11 @@ const request = async (endpoint, params = null) => {
   const response = await fetch(`${API_BASE_URL}${endpoint}${queryString ? `?${queryString}` : ''}`, {
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
     },
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'Request failed');
@@ -23,6 +26,11 @@ const request = async (endpoint, params = null) => {
 export const getCssuDashboardSummary = () => request('/api/cssu/dashboard/summary');
 
 export const getCssuLiveExitMonitoring = (params = {}) => request('/api/cssu/dashboard/live-exits', params);
+
+export const getCssuActivityTimeline = (params = {}) => request('/api/cssu/dashboard/activity-timeline', params);
+
+export const getCssuFacultyExitHistory = (facultyUserId, params = {}) =>
+  request(`/api/cssu/dashboard/faculty/${facultyUserId}/exit-history`, params);
 
 export const getCssuIncidentsOverview = () => request('/api/cssu/incidents/overview');
 export const getCssuNotificationsOverview = (params = {}) => request('/api/cssu/notifications/overview', params);
@@ -65,13 +73,14 @@ export const downloadCssuReportsPdf = async (params = {}) => {
 
 export const sendCssuReportToHrmu = async (payload = {}) => {
   const token = getToken();
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/cssu/reports/send`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
   const data = await response.json();
@@ -87,13 +96,14 @@ export const lookupCssuExitCandidate = (params = {}) => request('/api/cssu/exit-
 
 export const updateCssuExitStatus = async (locatorSlipId, payload = {}) => {
   const token = getToken();
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/cssu/dashboard/locator-slips/${locatorSlipId}/exit-status`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
   const data = await response.json();

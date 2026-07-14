@@ -4,6 +4,7 @@ const hrmuAnalyticsRoutes = require('./hrmuAnalytics.routes');
 const hrmuLiveTrackingRoutes = require('./hrmuLiveTracking.routes');
 const hrmuReportsRoutes = require('./hrmuReports.routes');
 const hrmuVerificationRoutes = require('./hrmuVerification.routes');
+const tripController = require('../controllers/trip.controller');
 const { protect, requireRole } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
@@ -22,6 +23,7 @@ router.get('/report-inbox', hrmuDashboardController.getReportInbox);
 router.get('/report-inbox/:id/download', hrmuDashboardController.downloadReportInboxAttachment);
 router.get('/recent-activity', hrmuDashboardController.getRecentActivity);
 router.get('/live-tracking', hrmuDashboardController.getLiveTracking);
+router.get('/trips/:tripId/path-history', tripController.getPathHistory);
 router.get('/recent-activity/export-csv', hrmuDashboardController.exportRecentActivityCsv);
 
 module.exports = router;

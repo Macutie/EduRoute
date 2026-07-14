@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config';
+import { encryptSensitivePayload } from './authPayloadEncryption';
 
 const authHeaders = (includeJson = true) => ({
   ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
@@ -32,30 +33,33 @@ export const getFacultyLocatorSlipDetails = async (locatorSlipId) => {
 };
 
 export const resolveFacultyLocatorSlipDestination = async (locatorSlipId, destinationText) => {
+  const encryptedPayload = await encryptSensitivePayload({ destinationText });
   const response = await fetch(`${API_BASE_URL}/api/faculty/locator-slips/${locatorSlipId}/resolve-destination`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify({ destinationText }),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseResponse(response, 'Failed to resolve the destination.');
 };
 
 export const saveFacultyManualPin = async (locatorSlipId, payload) => {
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/faculty/locator-slips/${locatorSlipId}/manual-pin`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseResponse(response, 'Failed to save the pinned destination.');
 };
 
 export const startFacultyTrip = async (payload) => {
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/faculty/trips/start`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseResponse(response, 'Failed to start the trip.');
@@ -73,9 +77,8 @@ export const markFacultyTripArrived = async (tripId) => {
 export const verifyFacultyTripArrival = async (tripId, file, locatorSlipId) => {
   const formData = new FormData();
   formData.append('verification_photo', file);
-  if (locatorSlipId) {
-    formData.append('locatorSlipId', locatorSlipId);
-  }
+  const encryptedPayload = await encryptSensitivePayload({ locatorSlipId: locatorSlipId || null });
+  formData.append('encryptedPayload', JSON.stringify(encryptedPayload.encryptedPayload));
 
   const response = await fetch(`${API_BASE_URL}/api/faculty/trips/${tripId}/verify-arrival`, {
     method: 'POST',
@@ -96,10 +99,11 @@ export const startFacultyTripReturn = async (tripId) => {
 };
 
 export const markFacultyTripReturned = async (tripId, payload = {}) => {
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/faculty/trips/${tripId}/returned`, {
     method: 'POST',
     headers: authHeaders(),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseResponse(response, 'Failed to complete the trip.');

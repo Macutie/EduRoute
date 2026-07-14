@@ -1,0 +1,13 @@
+/*
+  EduRoute stylesheet entrypoint.
+
+  Imports are ordered to preserve the previous App.css cascade while giving
+  each major area a clear home for future page-by-page extraction.
+*/
+@import './base/base.css';
+@import '../app/auth/auth.css';
+@import '../app/faculty/faculty.css';
+@import '../app/admin/admin.css';
+@import '../app/hrmu/hrmu.css';
+@import '../app/shared/workspace.css';
+@import '../app/cssu/cssu.css';

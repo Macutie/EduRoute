@@ -1,6 +1,6 @@
 const env = require('../config/env');
 const { getSocketServer } = require('../socket/socketBus');
-const { getFirebaseMessaging } = require('../config/firebaseAdmin');
+const { getFirebaseAdminStatus, getFirebaseMessaging } = require('../config/firebaseAdmin');
 const { isInvalidFcmTokenError } = require('../utils/firebaseErrorHandler');
 const notificationRepository = require('../repositories/notification.repository');
 const pushTokenRepository = require('../repositories/pushToken.repository');
@@ -13,7 +13,8 @@ const NOTIFICATION_TYPES = {
     LOCATOR_SLIP_REJECTED: 'LOCATOR_SLIP_REJECTED',
     LOCATOR_SLIP_EXIT_ALLOWED: 'LOCATOR_SLIP_EXIT_ALLOWED',
     TRIP_FLAGGED: 'TRIP_FLAGGED',
-    ARRIVAL_VERIFICATION_REQUIRED: 'ARRIVAL_VERIFICATION_REQUIRED'
+    ARRIVAL_VERIFICATION_REQUIRED: 'ARRIVAL_VERIFICATION_REQUIRED',
+    PROOF_OF_COMPLIANCE_SUBMITTED: 'PROOF_OF_COMPLIANCE_SUBMITTED'
 };
 
 const mapNotificationForSocket = (notification) => ({
@@ -62,37 +63,23 @@ const sendSocketNotification = async (io, recipientUserId, notification) => {
 const buildPushPayload = (notification) => {
     const notificationData = notification && notification.data ? notification.data : {};
     const normalizedUrl = normalizeNotificationUrl(notificationData.url || '');
-    const notificationLink = notificationData.url
-        ? `${env.fcmWebPushLink.replace(/\/$/, '')}${normalizedUrl}`
-        : env.fcmWebPushLink;
 
     return {
-        notification: {
-            title: notification.title,
-            body: notification.message
-        },
         data: {
             notificationId: String(notification.id),
             locatorSlipId: notification.locatorSlipId ? String(notification.locatorSlipId) : '',
-            type: notification.type,
-            url: normalizedUrl
+            type: String(notification.type || 'EDUROUTE_NOTIFICATION'),
+            title: String(notification.title || 'EduRoute'),
+            message: String(notification.message || 'You have a new EduRoute notification.'),
+            url: normalizedUrl || '/',
+            icon: '/eduroute-logo-192.png',
+            badge: '/eduroute-logo-192.png',
+            tag: `eduroute-${notification.type || 'notification'}-${notification.id}`
         },
         webpush: {
             headers: {
                 Urgency: 'high',
-            },
-            notification: {
-                title: notification.title,
-                body: notification.message,
-                icon: '/eduroute-logo-192.png',
-                badge: '/eduroute-logo-192.png',
-                tag: `eduroute-${notification.type}-${notification.id}`,
-                requireInteraction: false,
-                renotify: true,
-                vibrate: [200, 100, 200],
-            },
-            fcmOptions: {
-                link: notificationLink
+                TTL: '86400'
             }
         }
     };
@@ -118,31 +105,71 @@ const sendPushNotificationToUsers = async (userIds, payload) => {
         return { delivered: 0, disabledTokens: 0 };
     }
 
-    const tokens = activeTokens.map((tokenRow) => tokenRow.fcmToken).slice(0, 500);
+    const tokens = Array.from(new Set(activeTokens.map((tokenRow) => tokenRow.fcmToken)));
     const pushPayload = buildPushPayload(payload);
-    const response = await messaging.sendEachForMulticast({
-        tokens,
-        ...pushPayload
-    });
-
+    let delivered = 0;
     let disabledTokens = 0;
-    await Promise.all(response.responses.map(async (result, index) => {
-        if (result.success) return;
-        console.error('FCM push delivery failed for token.', {
-            token: tokens[index],
-            code: result && result.error ? result.error.code : null,
-            message: result && result.error ? result.error.message : null,
+
+    for (let offset = 0; offset < tokens.length; offset += 500) {
+        const tokenBatch = tokens.slice(offset, offset + 500);
+        const response = await messaging.sendEachForMulticast({
+            tokens: tokenBatch,
+            ...pushPayload
         });
-        if (isInvalidFcmTokenError(result.error)) {
-            disabledTokens += 1;
-            await pushTokenRepository.disablePushToken(tokens[index]).catch(() => null);
-        }
-    }));
+        delivered += response.successCount;
+
+        await Promise.all(response.responses.map(async (result, index) => {
+            if (result.success) return;
+            console.error('FCM push delivery failed for token.', {
+                token: tokenBatch[index],
+                code: result && result.error ? result.error.code : null,
+                message: result && result.error ? result.error.message : null,
+            });
+            if (isInvalidFcmTokenError(result.error)) {
+                disabledTokens += 1;
+                await pushTokenRepository.disablePushToken(tokenBatch[index]).catch(() => null);
+            }
+        }));
+    }
 
     return {
-        delivered: response.successCount,
+        delivered,
         disabledTokens
     };
+};
+
+const getPushStatusForUser = async (userId) => {
+    const activeTokens = await pushTokenRepository.getActivePushTokensForUser(userId);
+    const firebaseStatus = getFirebaseAdminStatus();
+
+    return {
+        firebaseConfigured: firebaseStatus.configured,
+        firebaseInitialized: firebaseStatus.initialized,
+        firebaseProjectId: firebaseStatus.projectId,
+        webPushLink: env.fcmWebPushLink,
+        activeDeviceCount: activeTokens.length,
+        devices: activeTokens.map((token) => ({
+            id: token.id,
+            platform: token.platform,
+            deviceName: token.deviceName,
+            lastSeenAt: token.lastSeenAt,
+        }))
+    };
+};
+
+const sendTestPushNotification = async (userId) => {
+    const notification = await createNotification({
+        recipientUserId: userId,
+        type: 'SYSTEM_PUSH_TEST',
+        title: 'EduRoute Notifications Active',
+        message: 'This device can receive EduRoute alerts even when the app is closed.',
+        data: { url: '/#/notifications' }
+    });
+    const io = getSocketServer();
+    await sendSocketNotification(io, userId, notification).catch(() => null);
+    const delivery = await sendPushNotificationToUser(userId, notification);
+
+    return { notification, delivery };
 };
 
 const sendPushNotificationToUser = async (userId, payload) => sendPushNotificationToUsers([userId], payload);
@@ -230,6 +257,7 @@ const listNotificationsForUser = async (userId, query = {}) => {
             locator_slip_id: notification.locatorSlipId,
             title: notification.title,
             message: notification.message,
+            data: notification.data || {},
             type: notification.type,
             is_read: notification.isRead,
             created_at: notification.createdAt,
@@ -300,6 +328,8 @@ module.exports = {
     sendSocketNotification,
     sendPushNotificationToUser,
     sendPushNotificationToUsers,
+    getPushStatusForUser,
+    sendTestPushNotification,
     notifyUser,
     notifyUsers,
     markNotificationRead,

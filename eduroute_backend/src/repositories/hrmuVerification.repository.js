@@ -1,5 +1,6 @@
 const pool = require('../db/pool');
 const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
+const { encryptNullableText } = require('../utils/fieldEncryption');
 const HRMU_REVIEW_FLAGGED_TYPE = 'hrmu_verification_review_flagged';
 const HRMU_REVIEW_SUCCESS_TYPE = 'hrmu_verification_review_successful';
 
@@ -27,7 +28,7 @@ const getVerificationReviewColumns = async () => {
          WHERE table_schema = 'public'
            AND table_name = 'locator_slip_location_verifications'
            AND column_name = ANY($1::text[])`,
-        [['reviewed_by', 'reviewed_at', 'remarks']]
+        [['reviewed_by', 'reviewed_at', 'remarks', 'remarks_encrypted', 'remarks_iv', 'remarks_auth_tag']]
     );
 
     verificationReviewColumnsCache = new Set(rows.map((row) => row.column_name));
@@ -218,6 +219,9 @@ const updateArrivalVerificationReview = async ({ verificationId, reviewerId, sta
     const setClauses = ['verification_status = $2'];
     const values = [verificationId, status];
     let parameterIndex = 3;
+    const hasEncryptedRemarksColumns = columns.has('remarks_encrypted')
+        && columns.has('remarks_iv')
+        && columns.has('remarks_auth_tag');
 
     if (columns.has('reviewed_by')) {
         setClauses.push(`reviewed_by = $${parameterIndex}`);
@@ -231,7 +235,21 @@ const updateArrivalVerificationReview = async ({ verificationId, reviewerId, sta
         parameterIndex += 1;
     }
 
-    if (columns.has('remarks')) {
+    if (hasEncryptedRemarksColumns) {
+        const encrypted = encryptNullableText(remarks);
+        const encryptedAssignments = [
+            ['remarks', columns.has('remarks') ? null : undefined],
+            ['remarks_encrypted', encrypted?.encryptedData || null],
+            ['remarks_iv', encrypted?.iv || null],
+            ['remarks_auth_tag', encrypted?.authTag || null]
+        ].filter(([, value]) => value !== undefined);
+
+        encryptedAssignments.forEach(([columnName, value]) => {
+            setClauses.push(`${columnName} = $${parameterIndex}`);
+            values.push(value);
+            parameterIndex += 1;
+        });
+    } else if (columns.has('remarks')) {
         setClauses.push(`remarks = $${parameterIndex}`);
         values.push(remarks || null);
         parameterIndex += 1;

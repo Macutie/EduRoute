@@ -1,10 +1,14 @@
 const { successResponse } = require('../utils/apiResponse');
 const hrmuReportsService = require('../services/hrmuReports.service');
+const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const getMonthlyReport = async (req, res, next) => {
     try {
         const payload = await hrmuReportsService.getMonthlyReport(req.user.sub, req.query);
-        return res.json(successResponse('HRMU monthly report fetched successfully.', payload));
+        return res.json(successResponse(
+            'HRMU monthly report fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -13,7 +17,10 @@ const getMonthlyReport = async (req, res, next) => {
 const getMonthlyReportLogs = async (req, res, next) => {
     try {
         const payload = await hrmuReportsService.getMonthlyReportLogs(req.user.sub, req.query);
-        return res.json(successResponse('HRMU monthly report logs fetched successfully.', payload));
+        return res.json(successResponse(
+            'HRMU monthly report logs fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -22,7 +29,10 @@ const getMonthlyReportLogs = async (req, res, next) => {
 const getMonthlyReportSummary = async (req, res, next) => {
     try {
         const payload = await hrmuReportsService.getMonthlyReportSummary(req.user.sub, req.query);
-        return res.json(successResponse('HRMU monthly report summary fetched successfully.', payload));
+        return res.json(successResponse(
+            'HRMU monthly report summary fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -53,7 +63,10 @@ const downloadNotificationMonthlyLog = async (req, res, next) => {
 const getMonthlyReportDetails = async (req, res, next) => {
     try {
         const payload = await hrmuReportsService.getMonthlyReportDetails(req.user.sub, req.params.locatorSlipId);
-        return res.json(successResponse('HRMU monthly report detail fetched successfully.', payload));
+        return res.json(successResponse(
+            'HRMU monthly report detail fetched successfully.',
+            encryptSensitiveResponseData(req, payload)
+        ));
     } catch (error) {
         return next(error);
     }

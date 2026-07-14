@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config';
+import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -8,12 +9,13 @@ const request = async (endpoint, options = {}) => {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
       ...(options.headers || {}),
     },
     ...options,
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU live tracking request failed');

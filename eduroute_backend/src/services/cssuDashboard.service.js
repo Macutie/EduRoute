@@ -26,6 +26,79 @@ const formatStatusLabel = (value) => {
     return 'Approved';
 };
 
+const getLookupOutcome = (status) => {
+    if (status === 'denied') return 'denied_locked';
+    if (status === 'rejected') return 'rejected';
+    if (status === 'pending') return 'pending';
+    if (status === 'completed') return 'completed';
+    if (status === 'cancelled') return 'cancelled';
+    if (status === 'validated') return 'validated_final';
+    if (status === 'flagged') return 'repeated_denied';
+    return 'approved_ready';
+};
+
+const buildScanConfidence = ({ currentStatus, normalizedSlipStatus, attemptStats }) => {
+    const repeatAttempts = Number(attemptStats?.denied_repeat_attempts || 0);
+
+    if (currentStatus === 'denied' || currentStatus === 'flagged') {
+        return {
+            level: 'locked',
+            tone: 'danger',
+            title: 'Denied exit is locked',
+            message: 'CSSU already denied this exit. No further exit action is allowed for this locator slip.',
+            repeatAttempts
+        };
+    }
+
+    if (currentStatus === 'validated') {
+        return {
+            level: 'final',
+            tone: 'success',
+            title: 'Exit already validated',
+            message: 'This locator slip has a final CSSU allowed-exit decision.',
+            repeatAttempts
+        };
+    }
+
+    if (normalizedSlipStatus === 'pending') {
+        return {
+            level: 'blocked',
+            tone: 'warning',
+            title: 'Dean approval required',
+            message: 'This locator slip is still pending and should not be allowed to exit.',
+            repeatAttempts
+        };
+    }
+
+    if (normalizedSlipStatus === 'rejected') {
+        return {
+            level: 'blocked',
+            tone: 'danger',
+            title: 'Rejected locator slip',
+            message: 'This locator slip was rejected and should only be flagged for incident review.',
+            repeatAttempts
+        };
+    }
+
+    if (normalizedSlipStatus === 'completed') {
+        return {
+            level: 'final',
+            tone: 'neutral',
+            title: 'Trip already completed',
+            message: 'The locator slip already belongs to a completed trip record.',
+            repeatAttempts
+        };
+    }
+
+    return {
+        level: 'ready',
+        tone: 'success',
+        title: 'Approved for CSSU decision',
+        message: 'Dean approval is valid. CSSU may allow or deny the exit.',
+        repeatAttempts
+    };
+};
+
 const formatEmploymentTypeLabel = (value) => (
     String(value || '').toLowerCase() === 'part_time'
         ? 'Part-Time Faculty'
@@ -117,9 +190,59 @@ const getDashboardSummary = async () => {
         totalFacultyExiting,
         approvedLocatorSlips,
         rejectedLocatorSlips,
+        pendingExitQueue: Number(summary.pending_exit_queue || 0),
+        repeatAttempts: Number(summary.repeat_attempts || 0),
+        suspiciousAttempts: Number(summary.suspicious_attempts || 0),
+        busiestGate: summary.busiest_gate || 'main_gate',
+        busiestGateLabel: formatGateLabel(summary.busiest_gate || 'main_gate'),
+        busiestGateCount: Number(summary.busiest_gate_count || 0),
         approvalRate: totalFacultyExiting
             ? Number(((approvedLocatorSlips / totalFacultyExiting) * 100).toFixed(1))
             : 0,
+    };
+};
+
+const mapCssuActivityRow = (row) => ({
+    id: row.activity_id || row.history_id,
+    locatorSlipId: row.locator_slip_id,
+    locatorSlipCode: row.locator_slip_code || '--',
+    facultyUserId: row.faculty_user_id,
+    facultyName: row.faculty_name || 'Unknown faculty',
+    facultyId: row.employee_id || '--',
+    profileImageUrl: row.profile_image_url || null,
+    departmentName: row.department_name || 'Unassigned Department',
+    destination: row.destination || 'Unknown destination',
+    gate: row.gate || 'main_gate',
+    gateLabel: formatGateLabel(row.gate || 'main_gate'),
+    method: row.validation_method || 'manual',
+    status: String(row.status || '').toLowerCase(),
+    statusLabel: formatStatusLabel(String(row.status || '').toLowerCase()),
+    title: row.title || 'CSSU activity',
+    entryType: row.entry_type || 'activity',
+    occurredAt: row.occurred_at ? new Date(row.occurred_at).toISOString() : null,
+    occurredTimeLabel: formatDateTimeLabel(row.occurred_at),
+});
+
+const getDashboardActivityTimeline = async (query = {}) => {
+    const limit = Math.min(Math.max(Number(query.limit || 12), 1), 50);
+    const rows = await cssuDashboardRepository.getDashboardActivityTimeline(limit);
+
+    return {
+        rows: rows.map(mapCssuActivityRow),
+    };
+};
+
+const getFacultyExitHistory = async (facultyUserId, query = {}) => {
+    if (!facultyUserId) {
+        throw new AppError('Faculty user ID is required.', 422);
+    }
+
+    const limit = Math.min(Math.max(Number(query.limit || 10), 1), 50);
+    const rows = await cssuDashboardRepository.getFacultyExitHistory(facultyUserId, limit);
+
+    return {
+        facultyUserId,
+        rows: rows.map(mapCssuActivityRow),
     };
 };
 
@@ -426,6 +549,23 @@ const lookupExitCandidate = async (query = {}) => {
                     ? 'Cancelled'
                     : formatStatusLabel(currentStatus);
     const lookupTime = new Date().toISOString();
+    const attemptStats = await cssuDashboardRepository.getLocatorSlipAttemptStats(slip.locator_slip_id);
+    const scanConfidence = buildScanConfidence({
+        currentStatus,
+        normalizedSlipStatus,
+        attemptStats,
+    });
+
+    if (!suppressLookupLog) {
+        await cssuDashboardRepository.recordScanAttempt({
+            locatorSlipId: slip.locator_slip_id,
+            facultyUserId: slip.faculty_user_id,
+            gate,
+            lookupMethod: method,
+            outcome: getLookupOutcome(currentStatus === 'rejected' ? normalizedSlipStatus : currentStatus),
+            notes: scanConfidence.message,
+        }).catch(() => null);
+    }
 
     return {
         lookupMethod: method,
@@ -455,6 +595,7 @@ const lookupExitCandidate = async (query = {}) => {
             canDenyExit: ['approved', 'verified'].includes(normalizedSlipStatus) && currentStatus === 'approved',
             canFlagIncident: ['pending', 'rejected'].includes(normalizedSlipStatus) && ['pending', 'rejected'].includes(currentStatus),
             isOfficial: currentStatus === 'validated',
+            locked: ['denied', 'flagged', 'validated', 'completed', 'cancelled'].includes(currentStatus),
         } : {
             locatorSlipId: null,
             locatorSlipCode,
@@ -470,7 +611,9 @@ const lookupExitCandidate = async (query = {}) => {
             canDenyExit: false,
             canFlagIncident: false,
             isOfficial: false,
+            locked: false,
         },
+        scanConfidence,
         validationLog: buildValidationLog({
             lookupMethod: method,
             lookupTime,
@@ -582,6 +725,16 @@ const updateExitLogStatus = async (cssuUserId, locatorSlipId, payload = {}) => {
         }).catch((notificationError) => {
             console.error('Failed to notify faculty about CSSU exit validation:', notificationError);
         });
+    } else if (status === 'denied') {
+        await locatorSlipNotificationService.notifyFacultyOfCssuExitDenial({
+            recipientUserId: locatorSlip.faculty_user_id,
+            senderUserId: cssuUserId,
+            locatorSlipId,
+            gateLabel: formatGateLabel(gate),
+            remarks: rawNotes,
+        }).catch((notificationError) => {
+            console.error('Failed to notify faculty about CSSU exit denial:', notificationError);
+        });
     }
 
     return {
@@ -602,6 +755,8 @@ module.exports = {
     getDashboardSummary,
     getIncidentOverview,
     getLiveExitMonitoring,
+    getDashboardActivityTimeline,
+    getFacultyExitHistory,
     getNotificationsOverview,
     getReportsOverview,
     getReportsDownload,

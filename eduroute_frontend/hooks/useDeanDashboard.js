@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, SOCKET_TRANSPORTS } from '../config';
 import {
   getDeanLocatorSlips,
   getDeanNotifications,
@@ -127,7 +127,7 @@ export const useDeanRealtimeNotifications = ({
 
     const socket = io(API_BASE_URL || window.location.origin, {
       auth: { token },
-      transports: ['websocket', 'polling'],
+      transports: SOCKET_TRANSPORTS,
     });
 
     const handleNewLocatorSlip = (payload) => {

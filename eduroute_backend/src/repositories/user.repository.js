@@ -47,8 +47,27 @@ const getDeanUsersByCollegeId = async (collegeId, client = pool) => {
     return rows.map(mapUserRow);
 };
 
+const getActiveUsersByRoles = async (roles = [], client = pool) => {
+    if (!Array.isArray(roles) || roles.length === 0) {
+        return [];
+    }
+
+    const { rows } = await client.query(
+        `SELECT fu.*, d.department_name
+         FROM faculty_users fu
+         LEFT JOIN departments d ON d.id = fu.department_id
+         WHERE fu.account_role = ANY($1::text[])
+           AND fu.status = 'active'
+         ORDER BY fu.full_name ASC`,
+        [roles]
+    );
+
+    return rows.map(mapUserRow);
+};
+
 module.exports = {
     getUsersByIds,
     getFacultyUserById,
-    getDeanUsersByCollegeId
+    getDeanUsersByCollegeId,
+    getActiveUsersByRoles
 };

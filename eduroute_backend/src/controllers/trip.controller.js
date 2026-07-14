@@ -59,11 +59,31 @@ const recordLocation = async (req, res, next) => {
     }
 };
 
+const recordLocationBulk = async (req, res, next) => {
+    try {
+        const update = await tripTrackingService.recordLiveLocationBulk(req.user.sub, req.params.id, req.body);
+        return res.json(successResponse('Trip location history synced successfully.', update));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getPathHistory = async (req, res, next) => {
+    try {
+        const history = await tripTrackingService.getPathHistory(req.user, req.params.id || req.params.tripId);
+        return res.json(successResponse('Trip path history fetched successfully.', history));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 module.exports = {
     searchDestinations,
     previewRoute,
     startTrip,
     getActiveTrip,
     endTrip,
-    recordLocation
+    recordLocation,
+    recordLocationBulk,
+    getPathHistory
 };

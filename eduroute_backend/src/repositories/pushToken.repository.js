@@ -85,6 +85,20 @@ const disablePushToken = async (fcmToken, client = pool) => {
     return rows[0] ? mapPushTokenRow(rows[0]) : null;
 };
 
+const disablePushTokenForUser = async (userId, fcmToken, client = pool) => {
+    const { rows } = await client.query(
+        `UPDATE user_push_tokens
+         SET is_active = FALSE,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = $1
+           AND fcm_token = $2
+         RETURNING *`,
+        [userId, fcmToken]
+    );
+
+    return rows[0] ? mapPushTokenRow(rows[0]) : null;
+};
+
 const deletePushTokenForUser = async (userId, fcmToken, client = pool) => {
     const { rowCount } = await client.query(
         `DELETE FROM user_push_tokens
@@ -101,5 +115,6 @@ module.exports = {
     getActivePushTokensForUser,
     getActivePushTokensForUsers,
     disablePushToken,
+    disablePushTokenForUser,
     deletePushTokenForUser
 };

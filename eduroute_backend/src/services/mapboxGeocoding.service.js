@@ -40,7 +40,7 @@ const searchDestinations = async (rawQuery) => {
     url.searchParams.set('autocomplete', 'true');
     url.searchParams.set('country', 'PH');
     url.searchParams.set('language', 'en');
-    url.searchParams.set('types', 'address,street,place,locality,neighborhood,postcode,district,region');
+    url.searchParams.set('types', 'address,place,locality,neighborhood,postcode,district,region');
 
     const response = await fetch(url);
     const data = await response.json();

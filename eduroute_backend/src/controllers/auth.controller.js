@@ -1,11 +1,26 @@
 const authService = require('../services/auth.service');
 const { successResponse } = require('../utils/apiResponse');
+const { getPublicKeyPem } = require('../utils/authPayloadEncryption');
+const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
+
+const getPayloadPublicKey = async (req, res, next) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json(successResponse('Auth payload public key fetched successfully.', {
+            publicKey: getPublicKeyPem(),
+            algorithm: 'RSA-OAEP-256/AES-256-GCM'
+        }));
+    } catch (error) {
+        return next(error);
+    }
+};
 
 const register = async (req, res, next) => {
     try {
         const user = await authService.registerFaculty(req.body);
+        res.set('Cache-Control', 'no-store');
         return res.status(201).json(
-            successResponse('Registration successful. You can now log in.', user)
+            successResponse('Registration successful. You can now log in.', { user })
         );
     } catch (error) {
         return next(error);
@@ -15,6 +30,7 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
     try {
         const result = await authService.loginFaculty(req.body);
+        res.set('Cache-Control', 'no-store');
         return res.status(200).json(successResponse('Login successful.', result));
     } catch (error) {
         return next(error);
@@ -55,7 +71,10 @@ const resetPassword = async (req, res, next) => {
 const me = async (req, res, next) => {
     try {
         const user = await authService.getCurrentFaculty(req.user.sub);
-        return res.status(200).json(successResponse('Faculty profile fetched successfully.', user));
+        return res.status(200).json(successResponse(
+            'Faculty profile fetched successfully.',
+            encryptSensitiveResponseData(req, user)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -64,7 +83,10 @@ const me = async (req, res, next) => {
 const updateMe = async (req, res, next) => {
     try {
         const user = await authService.updateCurrentFacultyProfile(req.user.sub, req.body);
-        return res.status(200).json(successResponse('Profile updated successfully.', user));
+        return res.status(200).json(successResponse(
+            'Profile updated successfully.',
+            encryptSensitiveResponseData(req, user)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -73,7 +95,10 @@ const updateMe = async (req, res, next) => {
 const updateProfileImage = async (req, res, next) => {
     try {
         const user = await authService.updateCurrentFacultyProfileImage(req.user.sub, req.file);
-        return res.status(200).json(successResponse('Profile picture updated successfully.', user));
+        return res.status(200).json(successResponse(
+            'Profile picture updated successfully.',
+            encryptSensitiveResponseData(req, user)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -89,6 +114,7 @@ const changePassword = async (req, res, next) => {
 };
 
 module.exports = {
+    getPayloadPublicKey,
     register,
     login,
     forgotPassword,

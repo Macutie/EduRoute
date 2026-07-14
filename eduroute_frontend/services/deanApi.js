@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '../config';
+import { encryptSensitivePayload } from './authPayloadEncryption';
+import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -9,12 +11,13 @@ export const deanApiRequest = async (endpoint, options = {}) => {
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
       ...(options.headers || {}),
     },
     ...options,
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'Dean request failed');
@@ -45,6 +48,15 @@ export const markDeanNotificationRead = (notificationId) =>
     method: 'PATCH',
   });
 
+export const getDeanProofComplianceList = () =>
+  deanApiRequest('/api/dean/proof-of-compliance');
+
+export const getDeanProofComplianceDetails = (proofId) =>
+  deanApiRequest(`/api/dean/proof-of-compliance/${proofId}`);
+
+export const getDeanProofComplianceByLocatorSlip = (locatorSlipId) =>
+  deanApiRequest(`/api/dean/proof-of-compliance/locator-slip/${locatorSlipId}`);
+
 export const getDeanPendingApprovals = ({ limit = 5 } = {}) =>
   deanApiRequest(`/api/dean/pending-approvals?limit=${limit}`);
 
@@ -64,8 +76,19 @@ export const getDeanFacultyOverview = ({ search = '' } = {}) => {
   return deanApiRequest(`/api/dean/faculty?${params.toString()}`);
 };
 
-export const getDeanPendingRequestsPage = () =>
-  deanApiRequest('/api/dean/requests/pending');
+export const getDeanPendingRequestsPage = ({ search = '', priority = 'all' } = {}) => {
+  const params = new URLSearchParams({ search, priority });
+  return deanApiRequest(`/api/dean/requests/pending?${params.toString()}`);
+};
+
+export const getDeanRequestInsights = (locatorSlipId) =>
+  deanApiRequest(`/api/dean/requests/${locatorSlipId}/insights`);
+
+export const bulkApproveDeanLocatorSlips = async (locatorSlipIds) =>
+  deanApiRequest('/api/dean/requests/bulk-approve', {
+    method: 'POST',
+    body: JSON.stringify(await encryptSensitivePayload({ locatorSlipIds })),
+  });
 
 export const getDeanRegistryPage = () =>
   deanApiRequest('/api/dean/registry');
@@ -75,8 +98,8 @@ export const approveDeanLocatorSlipRequest = (locatorSlipId) =>
     method: 'PATCH',
   });
 
-export const rejectDeanLocatorSlipRequest = (locatorSlipId, remarks = '') =>
+export const rejectDeanLocatorSlipRequest = async (locatorSlipId, remarks = '') =>
   deanApiRequest(`/api/dean/requests/${locatorSlipId}/reject`, {
     method: 'PATCH',
-    body: JSON.stringify({ remarks }),
+    body: JSON.stringify(await encryptSensitivePayload({ remarks })),
   });

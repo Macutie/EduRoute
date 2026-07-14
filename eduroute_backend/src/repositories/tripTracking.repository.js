@@ -50,6 +50,33 @@ const findTripByIdForUser = async (tripId, userId) => {
     return rows[0] ? mapTripRow(rows[0]) : null;
 };
 
+const findTripByIdWithFaculty = async (tripId) => {
+    const { rows } = await pool.query(
+        `SELECT
+            t.*,
+            fu.full_name AS faculty_name,
+            fu.email AS faculty_email,
+            fu.department_id AS faculty_department_id,
+            COALESCE(ls.college_id, fu.department_id) AS college_id,
+            d.department_name AS college_name,
+            ls.id AS locator_slip_id,
+            ls.destination AS locator_destination,
+            ls.purpose_of_travel,
+            ls.custom_purpose,
+            ls.departure_datetime,
+            ls.expected_return_datetime
+         FROM trips t
+         JOIN faculty_users fu ON fu.id = t.user_id
+         LEFT JOIN departments d ON d.id = fu.department_id
+         LEFT JOIN locator_slips ls ON ls.id = t.locator_slip_id
+         WHERE t.id = $1
+         LIMIT 1`,
+        [tripId]
+    );
+
+    return rows[0] || null;
+};
+
 const findApprovedLocatorSlipForTripStart = async (client, userId, destinationName) => {
     const normalizedDestination = String(destinationName || '').trim().toLowerCase();
     const { rows } = await client.query(
@@ -144,12 +171,34 @@ const insertTripLocationLog = async (client, event) => {
             user_id,
             lng,
             lat,
+            accuracy,
             speed,
             heading,
-            recorded_at
+            recorded_at,
+            source,
+            sync_status
          )
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [event.tripId, event.userId, event.lng, event.lat, event.speed, event.heading, event.recordedAt]
+         SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+         WHERE NOT EXISTS (
+            SELECT 1
+            FROM trip_location_logs
+            WHERE trip_id = $1
+              AND lng = $3
+              AND lat = $4
+              AND recorded_at = $8
+         )`,
+        [
+            event.tripId,
+            event.userId,
+            event.lng,
+            event.lat,
+            event.accuracy,
+            event.speed,
+            event.heading,
+            event.recordedAt,
+            event.source || 'gps',
+            event.syncStatus || event.sync_status || 'synced'
+        ]
     );
 };
 
@@ -201,6 +250,83 @@ const appendLocationUpdate = async (payload) => {
     }
 };
 
+const seedTripStartLocation = async (client, payload) => {
+    await upsertLatestLocation(client, payload);
+    await insertTripLocationLog(client, payload);
+};
+
+const appendLocationUpdates = async (updates = []) => {
+    if (!updates.length) {
+        return;
+    }
+
+    const client = await pool.connect();
+
+    try {
+        await client.query('BEGIN');
+        for (const update of updates) {
+            await upsertLatestLocation(client, update);
+            await insertTripLocationLog(client, update);
+        }
+        await client.query('COMMIT');
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
+};
+
+const getTripLocationLogsByTripId = async (tripId) => {
+    const { rows } = await pool.query(
+        `SELECT
+            id,
+            trip_id,
+            user_id,
+            lng,
+            lat,
+            accuracy,
+            speed,
+            heading,
+            recorded_at,
+            source,
+            sync_status,
+            created_at
+         FROM trip_location_logs
+         WHERE trip_id = $1
+         ORDER BY recorded_at ASC, created_at ASC`,
+        [tripId]
+    );
+
+    return rows;
+};
+
+const getTripEventsByTripId = async (tripId) => {
+    const { rows: tableRows } = await pool.query(`SELECT to_regclass('public.trip_events') AS table_name`);
+    if (!tableRows[0]?.table_name) {
+        return [];
+    }
+
+    const { rows } = await pool.query(
+        `SELECT
+            id,
+            trip_id,
+            faculty_user_id,
+            event_type,
+            title,
+            subtitle,
+            metadata,
+            occurred_at,
+            created_at
+         FROM trip_events
+         WHERE trip_id = $1
+         ORDER BY occurred_at ASC, created_at ASC`,
+        [tripId]
+    );
+
+    return rows;
+};
+
 const getTripEventsTableExists = async (client = pool) => {
     if (tripEventsTableExistsCache !== null) {
         return tripEventsTableExistsCache;
@@ -247,11 +373,16 @@ const insertTripEvent = async (client, event) => {
 module.exports = {
     findActiveTripByUserId,
     findTripByIdForUser,
+    findTripByIdWithFaculty,
     findApprovedLocatorSlipForTripStart,
     cancelExistingActiveTrips,
     insertTrip,
     updateTripStatus,
+    seedTripStartLocation,
     appendLocationUpdate,
+    appendLocationUpdates,
+    getTripLocationLogsByTripId,
+    getTripEventsByTripId,
     getTripEventsTableExists,
     insertTripEvent
 };

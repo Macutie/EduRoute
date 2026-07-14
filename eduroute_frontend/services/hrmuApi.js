@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config';
+import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -8,12 +9,13 @@ const request = async (endpoint, options = {}) => {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
       ...(options.headers || {}),
     },
     ...options,
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU request failed');
@@ -73,7 +75,7 @@ export const downloadHrmuReportInboxAttachment = async (inboxId) => {
 
   const blob = await response.blob();
   const disposition = response.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename=\"([^\"]+)\"/i);
+  const match = disposition.match(/filename="([^"]+)"/i);
 
   return {
     blob,
@@ -93,6 +95,3 @@ export const getHrmuRecentActivity = (params = {}) => {
   const queryString = searchParams.toString();
   return request(`/api/hrmu/recent-activity${queryString ? `?${queryString}` : ''}`);
 };
-
-export const exportHrmuRecentActivityCsvPlaceholder = () =>
-  request('/api/hrmu/recent-activity/export-csv');

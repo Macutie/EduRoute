@@ -4,6 +4,7 @@ const { formatDateTime } = require('../utils/dateFormatter');
 const notificationService = require('./notification.service');
 const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
+const proofComplianceRepository = require('../repositories/proofCompliance.repository');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 const { uploadFileBuffer, destroyUploadedAsset } = require('./upload.service');
 
@@ -49,6 +50,11 @@ const formatPurposeDisplay = (purposeOfTravel, customPurpose) => {
     }
 
     return normalizedCustom || 'Locator Slip';
+};
+
+const buildProofLocatorSlipCode = (locatorSlipId) => {
+    const normalized = String(locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase();
+    return normalized ? `LS-${normalized}` : 'Locator Slip';
 };
 
 const parseBoolean = (value) => {
@@ -295,6 +301,7 @@ const uploadDeanSignatureFile = async (deanUserId, file, payload = {}) => {
 
 const getDashboardSummary = async (deanUserId) => {
     const dean = await getDeanContext(deanUserId);
+    await ensureDeanSignatureTables();
 
     const { rows } = await pool.query(
         `${buildDeanScopedFacultyCte()}
@@ -320,6 +327,49 @@ const getDashboardSummary = async (deanUserId) => {
     );
 
     const summary = rows[0] || {};
+    const analyticsResult = await pool.query(
+        `${buildDeanScopedFacultyCte()}
+         SELECT
+            COUNT(*) FILTER (
+                WHERE (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
+                  AND ls.status <> 'cancelled'
+            )::int AS requests_this_month,
+            COUNT(*) FILTER (
+                WHERE ls.status IN ('approved', 'verified', 'completed')
+                  AND (COALESCE(ls.approved_at, ls.updated_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
+            )::int AS approved_this_month,
+            COUNT(*) FILTER (
+                WHERE ls.status = 'rejected'
+                  AND (COALESCE(ls.rejected_at, ls.updated_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')
+            )::int AS rejected_this_month,
+            (
+                SELECT NULLIF(TRIM(top_slip.destination), '')
+                FROM locator_slips top_slip
+                JOIN scoped_faculty top_faculty ON top_faculty.id = top_slip.faculty_user_id
+                WHERE top_slip.created_at >= date_trunc('month', CURRENT_TIMESTAMP)
+                  AND COALESCE(top_slip.college_id, top_faculty.department_id) = $1
+                  AND top_slip.status <> 'cancelled'
+                  AND NULLIF(TRIM(top_slip.destination), '') IS NOT NULL
+                GROUP BY NULLIF(TRIM(top_slip.destination), '')
+                ORDER BY COUNT(*) DESC, NULLIF(TRIM(top_slip.destination), '') ASC
+                LIMIT 1
+            ) AS top_destination
+         FROM locator_slips ls
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         WHERE sf.account_role = 'faculty'
+           AND sf.status = 'active'
+           AND COALESCE(ls.college_id, sf.department_id) = $1`,
+        [dean.college_id]
+    );
+    const signatureResult = await pool.query(
+        `SELECT consent_accepted, signature_url
+         FROM dean_signature_settings
+         WHERE dean_user_id = $1
+         LIMIT 1`,
+        [dean.id]
+    );
+    const analytics = analyticsResult.rows[0] || {};
+    const signature = signatureResult.rows[0] || {};
 
     return {
         pendingRequests: summary.pending_requests || 0,
@@ -327,6 +377,13 @@ const getDashboardSummary = async (deanUserId) => {
         approvedToday: summary.approved_today || 0,
         rejectedRequests: summary.rejected_requests || 0,
         totalFaculty: summary.total_faculty || 0,
+        signatureReady: Boolean(signature.consent_accepted && signature.signature_url),
+        monthlyAnalytics: {
+            requests: analytics.requests_this_month || 0,
+            approved: analytics.approved_this_month || 0,
+            rejected: analytics.rejected_this_month || 0,
+            topDestination: analytics.top_destination || 'No trips yet'
+        },
         college: {
             id: dean.college_id,
             name: dean.college_name
@@ -348,6 +405,84 @@ const markNotificationRead = async (deanUserId, notificationId) => {
     }
 
     return notification;
+};
+
+const serializeDeanProof = (proof) => ({
+    id: proof.id,
+    proofId: proof.id,
+    tripId: proof.tripId,
+    locatorSlipId: proof.locatorSlipId,
+    facultyUserId: proof.facultyUserId,
+    facultyId: proof.facultyId,
+    facultyName: proof.facultyName,
+    profileImageUrl: proof.profileImageUrl || null,
+    collegeId: proof.collegeId || null,
+    collegeName: proof.collegeName || null,
+    destination: proof.destination || 'No destination provided',
+    purpose: proof.purpose || 'Official travel',
+    locatorSlipCode: buildProofLocatorSlipCode(proof.locatorSlipId),
+    focalPersonName: proof.focalPersonName || null,
+    focalPersonPosition: proof.focalPersonPosition || null,
+    focalPersonSignatureUrl: proof.focalPersonSignatureUrl || null,
+    arrivalPhotoUrl: proof.arrivalPhotoUrl || null,
+    proofComplianceImageUrl: proof.proofComplianceImageUrl || proof.imageUrl || null,
+    verificationStatus: String(proof.verificationStatus || 'submitted').toLowerCase(),
+    submittedAt: proof.submittedAt || null,
+    reviewedAt: proof.reviewedAt || null,
+    reviewedByName: proof.reviewedByName || null,
+    departureTime: proof.departureTime || null,
+    departureDatetime: proof.departureTime || null,
+    expectedReturnTime: proof.expectedReturnTime || null,
+    actualReturnTime: proof.actualReturnTime || null,
+    tripStartedAt: proof.tripStartedAt || null,
+    flaggedReasons: Array.isArray(proof.flaggedReasons) ? proof.flaggedReasons : [],
+    flaggedIncidentTypes: Array.isArray(proof.flaggedIncidentTypes) ? proof.flaggedIncidentTypes : [],
+    digitalSignature: proof.deanSignatureUrl ? {
+        name: proof.deanName || 'Assigned Dean',
+        role: formatSignatureRoleLabel(proof.deanRole || 'college_dean', proof.collegeName),
+        signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
+        asset: {
+            url: proof.deanSignatureUrl,
+            mimeType: proof.deanSignatureMimeType || 'image/png',
+            originalFilename: proof.deanSignatureOriginalFilename || null,
+            attachedAt: proof.deanSignatureAttachedAt || null
+        }
+    } : null
+});
+
+const getProofComplianceList = async (deanUserId) => {
+    const dean = await getDeanContext(deanUserId);
+    const proofs = await proofComplianceRepository.getDeanProofListByCollegeId(dean.college_id);
+
+    return {
+        college: {
+            id: dean.college_id,
+            name: dean.college_name
+        },
+        proofs: proofs.map(serializeDeanProof)
+    };
+};
+
+const getProofComplianceDetails = async (deanUserId, proofId) => {
+    const dean = await getDeanContext(deanUserId);
+    const proof = await proofComplianceRepository.getDeanProofByIdForCollege(proofId, dean.college_id);
+
+    if (!proof) {
+        throw new AppError('Proof of compliance not found for your assigned college.', 404);
+    }
+
+    return serializeDeanProof(proof);
+};
+
+const getProofComplianceDetailsByLocatorSlip = async (deanUserId, locatorSlipId) => {
+    const dean = await getDeanContext(deanUserId);
+    const proof = await proofComplianceRepository.getDeanProofByLocatorSlipForCollege(locatorSlipId, dean.college_id);
+
+    if (!proof) {
+        throw new AppError('Proof of compliance not found for this locator slip.', 404);
+    }
+
+    return serializeDeanProof(proof);
 };
 
 const buildLocatorSlipWhere = (collegeId, { status, search }, values) => {
@@ -395,6 +530,57 @@ const normalizeLocatorSlipRow = (row) => ({
     formattedDepartureDatetime: formatDateTime(row.departure_datetime),
     formattedExpectedReturnDatetime: formatDateTime(row.expected_return_datetime)
 });
+
+const getRequestPriority = (row) => {
+    if (row.is_urgent === true) return { level: 'urgent', label: 'Urgent' };
+
+    const departureTime = row.departure_datetime ? new Date(row.departure_datetime).getTime() : NaN;
+    if (Number.isNaN(departureTime)) return { level: 'normal', label: 'Normal' };
+
+    const hoursUntilDeparture = (departureTime - Date.now()) / 3600000;
+    if (hoursUntilDeparture < 0) return { level: 'critical', label: 'Past departure' };
+    if (hoursUntilDeparture <= 6) return { level: 'high', label: 'Leaving soon' };
+    if (hoursUntilDeparture <= 24) return { level: 'medium', label: 'Within 24 hours' };
+    return { level: 'normal', label: 'Normal' };
+};
+
+const addRequestIntelligence = (row) => {
+    const base = normalizeLocatorSlipRow(row);
+    const priority = getRequestPriority(row);
+    const priorRejections = Number(row.prior_rejections || 0);
+    const lateReturns = Number(row.late_returns || 0);
+    const overlapCount = Number(row.overlap_count || 0);
+    const hasActiveTrip = Boolean(row.has_active_trip);
+    const riskIndicators = [];
+
+    if (overlapCount > 0) riskIndicators.push(`${overlapCount} schedule conflict${overlapCount === 1 ? '' : 's'}`);
+    if (hasActiveTrip) riskIndicators.push('Faculty has an active trip');
+    if (lateReturns > 0) riskIndicators.push(`${lateReturns} previous late return${lateReturns === 1 ? '' : 's'}`);
+    if (priorRejections > 0) riskIndicators.push(`${priorRejections} previously rejected request${priorRejections === 1 ? '' : 's'}`);
+
+    const riskScore = Math.min(
+        100,
+        (row.is_urgent ? 10 : 0)
+        + (overlapCount * 35)
+        + (hasActiveTrip ? 40 : 0)
+        + (lateReturns * 12)
+        + (priorRejections * 8)
+    );
+
+    return {
+        ...base,
+        profileImageUrl: row.profile_image_url || null,
+        priority,
+        riskScore,
+        riskLevel: riskScore >= 60 ? 'high' : riskScore >= 25 ? 'medium' : 'low',
+        riskIndicators,
+        priorRejections,
+        lateReturns,
+        overlapCount,
+        hasActiveTrip,
+        isLowRisk: riskScore < 25 && priority.level !== 'critical'
+    };
+};
 
 const getDeanLocatorSlips = async (deanUserId, query = {}) => {
     const dean = await getDeanContext(deanUserId);
@@ -545,7 +731,30 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
                 ARRAY_AGG(ls.status ORDER BY ls.created_at DESC)
                 FILTER (WHERE ls.id IS NOT NULL),
                 ARRAY[]::varchar[]
-            ) AS recent_statuses
+            ) AS recent_statuses,
+            COALESCE((
+                SELECT JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                        'id', reviewed_slip.id,
+                        'referenceNumber', CONCAT('LS-', EXTRACT(YEAR FROM reviewed_slip.created_at)::int, '-', LPAD(reviewed_slip.id::text, 3, '0')),
+                        'destination', reviewed_slip.destination,
+                        'purposeOfTravel', reviewed_slip.purpose_of_travel,
+                        'customPurpose', reviewed_slip.custom_purpose,
+                        'status', reviewed_slip.status,
+                        'departureDatetime', reviewed_slip.departure_datetime,
+                        'expectedReturnDatetime', reviewed_slip.expected_return_datetime,
+                        'approvedAt', reviewed_slip.approved_at,
+                        'rejectedAt', reviewed_slip.rejected_at,
+                        'updatedAt', reviewed_slip.updated_at,
+                        'createdAt', reviewed_slip.created_at
+                    )
+                    ORDER BY COALESCE(reviewed_slip.approved_at, reviewed_slip.rejected_at, reviewed_slip.updated_at, reviewed_slip.created_at) DESC
+                )
+                FROM locator_slips reviewed_slip
+                WHERE reviewed_slip.faculty_user_id = sf.id
+                  AND reviewed_slip.status IN ('approved', 'completed', 'verified', 'rejected', 'cancelled')
+                  AND COALESCE(reviewed_slip.college_id, sf.department_id) = $1
+            ), '[]'::json) AS reviewed_locator_slips
          FROM scoped_faculty sf
          JOIN departments d ON d.id = sf.department_id
          LEFT JOIN locator_slips ls
@@ -558,6 +767,7 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
             sf.full_name,
             sf.employee_id,
             sf.profile_image_url,
+            sf.department_id,
             sf.department_position,
             sf.employment_type,
             d.department_name
@@ -588,7 +798,37 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
             approvalRate,
             approvalRateLabel: `${approvalRate}%`,
             recentStatuses: recentStatuses.slice(0, 3),
-            remainingStatusCount: Math.max(recentStatuses.length - 3, 0)
+            remainingStatusCount: Math.max(recentStatuses.length - 3, 0),
+            locatorSlipHistory: (row.reviewed_locator_slips || []).map((slip) => ({
+                id: slip.id,
+                referenceNumber: slip.referenceNumber,
+                destination: slip.destination,
+                purpose: formatPurposeDisplay(slip.purposeOfTravel, slip.customPurpose),
+                status: normalizeRegistryStatus(slip.status),
+                departureDatetime: slip.departureDatetime,
+                expectedReturnDatetime: slip.expectedReturnDatetime,
+                formattedDepartureDatetime: formatDateTime(slip.departureDatetime),
+                formattedExpectedReturnDatetime: formatDateTime(slip.expectedReturnDatetime),
+                approvedAt: slip.approvedAt,
+                rejectedAt: slip.rejectedAt,
+                updatedAt: slip.updatedAt,
+                formattedDecisionAt: formatDateTime(slip.approvedAt || slip.rejectedAt || slip.updatedAt || slip.createdAt)
+            })),
+            acceptedLocatorSlips: (row.reviewed_locator_slips || [])
+                .filter((slip) => ['approved', 'completed', 'verified'].includes(slip.status))
+                .map((slip) => ({
+                    id: slip.id,
+                    referenceNumber: slip.referenceNumber,
+                    destination: slip.destination,
+                    purpose: formatPurposeDisplay(slip.purposeOfTravel, slip.customPurpose),
+                    status: normalizeRegistryStatus(slip.status),
+                    departureDatetime: slip.departureDatetime,
+                    expectedReturnDatetime: slip.expectedReturnDatetime,
+                    formattedDepartureDatetime: formatDateTime(slip.departureDatetime),
+                    formattedExpectedReturnDatetime: formatDateTime(slip.expectedReturnDatetime),
+                    approvedAt: slip.approvedAt,
+                    formattedApprovedAt: formatDateTime(slip.approvedAt || slip.createdAt)
+                }))
         };
     });
 
@@ -605,8 +845,31 @@ const getFacultyOverview = async (deanUserId, query = {}) => {
     };
 };
 
-const getPendingRequestsPage = async (deanUserId) => {
+const getPendingRequestsPage = async (deanUserId, query = {}) => {
     const dean = await getDeanContext(deanUserId);
+    const search = String(query.search || '').trim();
+    const priority = String(query.priority || 'all').trim().toLowerCase();
+    const values = [dean.college_id];
+    const requestClauses = [
+        "sf.account_role = 'faculty'",
+        "sf.status = 'active'",
+        'COALESCE(ls.college_id, sf.department_id) = $1',
+        "ls.status = 'pending'"
+    ];
+
+    if (search) {
+        values.push(`%${search}%`);
+        requestClauses.push(`(
+            sf.full_name ILIKE $${values.length}
+            OR sf.employee_id ILIKE $${values.length}
+            OR ls.destination ILIKE $${values.length}
+            OR ls.purpose_of_travel ILIKE $${values.length}
+            OR COALESCE(ls.custom_purpose, '') ILIKE $${values.length}
+        )`);
+    }
+
+    if (priority === 'urgent') requestClauses.push('ls.is_urgent = TRUE');
+    if (priority === 'soon') requestClauses.push("ls.departure_datetime BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '24 hours'");
 
     const summaryResult = await pool.query(
         `${buildDeanScopedFacultyCte()},
@@ -647,6 +910,7 @@ const getPendingRequestsPage = async (deanUserId) => {
             ls.faculty_user_id,
             sf.full_name,
             sf.employee_id,
+            sf.profile_image_url,
             COALESCE(sf.department_position, 'Instructor') AS department_position,
             d.department_name,
             ls.destination,
@@ -656,16 +920,44 @@ const getPendingRequestsPage = async (deanUserId) => {
             ls.status,
             ls.created_at,
             ls.departure_datetime,
-            ls.expected_return_datetime
+            ls.expected_return_datetime,
+            (
+                SELECT COUNT(*)::int
+                FROM locator_slips previous_slip
+                WHERE previous_slip.faculty_user_id = ls.faculty_user_id
+                  AND previous_slip.id <> ls.id
+                  AND previous_slip.status = 'rejected'
+            ) AS prior_rejections,
+            (
+                SELECT COUNT(*)::int
+                FROM trips previous_trip
+                JOIN locator_slips previous_trip_slip ON previous_trip_slip.id = previous_trip.locator_slip_id
+                WHERE previous_trip.user_id = ls.faculty_user_id
+                  AND previous_trip.status = 'completed'
+                  AND previous_trip_slip.expected_return_datetime IS NOT NULL
+                  AND COALESCE(previous_trip.ended_at, previous_trip.returned_at, previous_trip.updated_at) > previous_trip_slip.expected_return_datetime
+            ) AS late_returns,
+            EXISTS (
+                SELECT 1
+                FROM trips active_trip
+                WHERE active_trip.user_id = ls.faculty_user_id
+                  AND active_trip.status IN ('active', 'arrived', 'returning')
+            ) AS has_active_trip,
+            (
+                SELECT COUNT(*)::int
+                FROM locator_slips overlap_slip
+                WHERE overlap_slip.faculty_user_id = ls.faculty_user_id
+                  AND overlap_slip.id <> ls.id
+                  AND overlap_slip.status IN ('pending', 'approved')
+                  AND overlap_slip.departure_datetime < ls.expected_return_datetime
+                  AND overlap_slip.expected_return_datetime > ls.departure_datetime
+            ) AS overlap_count
          FROM locator_slips ls
          JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
          JOIN departments d ON d.id = sf.department_id
-         WHERE sf.account_role = 'faculty'
-           AND sf.status = 'active'
-           AND COALESCE(ls.college_id, sf.department_id) = $1
-           AND ls.status = 'pending'
-         ORDER BY ls.is_urgent DESC, ls.created_at DESC`,
-        [dean.college_id]
+         WHERE ${requestClauses.join('\n           AND ')}
+         ORDER BY ls.is_urgent DESC, ls.departure_datetime ASC NULLS LAST, ls.created_at DESC`,
+        values
     );
 
     return {
@@ -679,8 +971,111 @@ const getPendingRequestsPage = async (deanUserId) => {
                 name: dean.college_name
             }
         },
-        items: requestsResult.rows.map(normalizeLocatorSlipRow)
+        items: requestsResult.rows.map(addRequestIntelligence)
     };
+};
+
+const getRequestInsights = async (deanUserId, locatorSlipId) => {
+    const dean = await getDeanContext(deanUserId);
+    const { rows } = await pool.query(
+        `${buildDeanScopedFacultyCte()}
+         SELECT
+            ls.*,
+            sf.full_name,
+            sf.employee_id,
+            sf.profile_image_url,
+            COALESCE(sf.department_position, 'Instructor') AS department_position,
+            d.department_name,
+            (
+                SELECT COUNT(*)::int FROM locator_slips previous_slip
+                WHERE previous_slip.faculty_user_id = ls.faculty_user_id
+                  AND previous_slip.id <> ls.id
+                  AND previous_slip.status = 'rejected'
+            ) AS prior_rejections,
+            (
+                SELECT COUNT(*)::int
+                FROM trips previous_trip
+                JOIN locator_slips previous_trip_slip ON previous_trip_slip.id = previous_trip.locator_slip_id
+                WHERE previous_trip.user_id = ls.faculty_user_id
+                  AND previous_trip.status = 'completed'
+                  AND previous_trip_slip.expected_return_datetime IS NOT NULL
+                  AND COALESCE(previous_trip.ended_at, previous_trip.returned_at, previous_trip.updated_at) > previous_trip_slip.expected_return_datetime
+            ) AS late_returns,
+            EXISTS (
+                SELECT 1 FROM trips active_trip
+                WHERE active_trip.user_id = ls.faculty_user_id
+                  AND active_trip.status IN ('active', 'arrived', 'returning')
+            ) AS has_active_trip,
+            (
+                SELECT COUNT(*)::int FROM locator_slips overlap_slip
+                WHERE overlap_slip.faculty_user_id = ls.faculty_user_id
+                  AND overlap_slip.id <> ls.id
+                  AND overlap_slip.status IN ('pending', 'approved')
+                  AND overlap_slip.departure_datetime < ls.expected_return_datetime
+                  AND overlap_slip.expected_return_datetime > ls.departure_datetime
+            ) AS overlap_count
+         FROM locator_slips ls
+         JOIN scoped_faculty sf ON sf.id = ls.faculty_user_id
+         JOIN departments d ON d.id = sf.department_id
+         WHERE ls.id = $2
+           AND COALESCE(ls.college_id, sf.department_id) = $1
+         LIMIT 1`,
+        [dean.college_id, locatorSlipId]
+    );
+
+    if (!rows[0]) throw new AppError('Locator slip not found for your assigned college.', 404);
+
+    const request = addRequestIntelligence(rows[0]);
+    const historyResult = await pool.query(
+        `SELECT id, destination, purpose_of_travel, custom_purpose, status, created_at, approved_at, rejected_at
+         FROM locator_slips
+         WHERE faculty_user_id = $1
+           AND id <> $2
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [request.facultyUserId, locatorSlipId]
+    );
+
+    const timeline = [
+        { label: 'Request filed', timestamp: rows[0].created_at, tone: 'pending' },
+        rows[0].approved_at ? { label: 'Approved by dean', timestamp: rows[0].approved_at, tone: 'success' } : null,
+        rows[0].rejected_at ? { label: 'Rejected by dean', timestamp: rows[0].rejected_at, tone: 'danger' } : null
+    ].filter(Boolean);
+
+    return {
+        ...request,
+        timeline,
+        recentRequests: historyResult.rows.map((item) => ({
+            locatorSlipId: item.id,
+            destination: item.destination,
+            purpose: formatPurposeDisplay(item.purpose_of_travel, item.custom_purpose),
+            status: item.status,
+            createdAt: item.created_at,
+            formattedCreatedAt: formatDateTime(item.created_at)
+        }))
+    };
+};
+
+const bulkApproveLocatorSlipRequests = async (deanUserId, locatorSlipIds = []) => {
+    const ids = [...new Set((Array.isArray(locatorSlipIds) ? locatorSlipIds : []).filter(Boolean))].slice(0, 20);
+    if (!ids.length) throw new AppError('Select at least one locator slip to approve.', 422);
+
+    const approved = [];
+    const skipped = [];
+    for (const locatorSlipId of ids) {
+        try {
+            const request = await getRequestInsights(deanUserId, locatorSlipId);
+            if (request.status !== 'pending' || !request.isLowRisk) {
+                skipped.push({ locatorSlipId, reason: request.status !== 'pending' ? 'Request is no longer pending.' : 'Individual review is required.' });
+                continue;
+            }
+            approved.push(await approveLocatorSlipRequest(deanUserId, locatorSlipId));
+        } catch (error) {
+            skipped.push({ locatorSlipId, reason: error.message || 'Approval failed.' });
+        }
+    }
+
+    return { approved, skipped, approvedCount: approved.length, skippedCount: skipped.length };
 };
 
 const normalizeRegistryStatus = (status) => {
@@ -707,6 +1102,7 @@ const getRegistryPage = async (deanUserId) => {
             COUNT(*) FILTER (
                 WHERE (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') >= date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)
                   AND (ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') < date_trunc('month', (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date) + INTERVAL '1 month'
+                  AND ls.status <> 'cancelled'
             )::int AS monthly_total,
             COUNT(*)::int AS registry_size
          FROM locator_slips ls
@@ -740,7 +1136,8 @@ const getRegistryPage = async (deanUserId) => {
             ls.additional_remarks,
             COALESCE(
                 ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text,'}
-                latest_cancel_notification.cancellation_reason
+                latest_cancel_notification.cancellation_reason,
+                latest_cancel_notification.cancellation_reason_from_message
             ) AS cancellation_reason,
             ls.departure_datetime,
             ls.expected_return_datetime,
@@ -761,7 +1158,13 @@ const getRegistryPage = async (deanUserId) => {
          LEFT JOIN locator_slip_dean_signatures lsig ON lsig.locator_slip_id = ls.id
          LEFT JOIN dean_signature_settings ds ON ds.dean_user_id = reviewer.id
          LEFT JOIN LATERAL (
-            SELECT n.data ->> 'cancellationReason' AS cancellation_reason
+            SELECT
+                NULLIF(n.data ->> 'cancellationReason', '') AS cancellation_reason,
+                CASE
+                    WHEN n.message ILIKE '%Reason:%'
+                        THEN NULLIF(TRIM(SUBSTRING(n.message FROM 'Reason: (.*)\.$')), '')
+                    ELSE NULL
+                END AS cancellation_reason_from_message
             FROM notifications n
             WHERE n.locator_slip_id = ls.id
               AND n.type = 'LOCATOR_SLIP_CANCELLED'
@@ -934,6 +1337,16 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
             console.error('Failed to notify faculty about approved locator slip:', notificationError);
         });
 
+        await locatorSlipNotificationService.notifyCssuOfLocatorSlipApproval({
+            senderUserId: dean.id,
+            locatorSlipId: slip.id,
+            facultyName: slip.full_name,
+            destination: slip.destination,
+            purpose: slip.custom_purpose || slip.purpose_of_travel
+        }).catch((notificationError) => {
+            console.error('Failed to notify CSSU about approved locator slip:', notificationError);
+        });
+
         await socketBroadcasterService.broadcastHrmuNotificationNew(hrmuNotificationPayload).catch((broadcastError) => {
             console.error('Failed to broadcast HRMU approval notification:', broadcastError);
         });
@@ -1067,10 +1480,15 @@ module.exports = {
     getDashboardSummary,
     getDeanNotifications,
     markNotificationRead,
+    getProofComplianceList,
+    getProofComplianceDetails,
+    getProofComplianceDetailsByLocatorSlip,
     getDeanLocatorSlips,
     getPendingApprovalsPreview,
     getFacultyOverview,
     getPendingRequestsPage,
+    getRequestInsights,
+    bulkApproveLocatorSlipRequests,
     getRegistryPage,
     approveLocatorSlipRequest,
     rejectLocatorSlipRequest

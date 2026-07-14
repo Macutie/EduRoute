@@ -21,7 +21,14 @@
         "migrate:faculty-trip-flow": "node scripts/run-sql-file.js sql/faculty_trip_flow.sql",
         "migrate:cssu-dashboard": "node scripts/run-sql-file.js sql/cssu_dashboard.sql",
         "migrate:locator-slip-qr": "node scripts/run-sql-file.js sql/locator_slip_qr.sql",
-        "migrate:notifications-push": "node scripts/run-sql-file.js sql/notifications_push.sql"
+        "migrate:notifications-push": "node scripts/run-sql-file.js sql/notifications_push.sql",
+        "migrate:smart-analytics": "node scripts/run-sql-file.js sql/smart_hrmu_analytics.sql",
+        "migrate:trip-path-history": "node scripts/run-sql-file.js sql/trip_path_history.sql",
+        "migrate:field-encryption": "node scripts/run-sql-file.js sql/field_encryption.sql",
+        "test:field-encryption": "node scripts/test-field-encryption.js",
+        "sync:accounts": "node scripts/sync-accounts-from-db.js",
+        "sync:database": "node scripts/sync-database-from-db.js",
+        "repair:pinned-destinations": "node scripts/repair-pinned-destinations.js"
     },
     "dependencies": {
         "bcrypt": "^5.1.1",

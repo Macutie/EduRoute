@@ -1087,7 +1087,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
             borderWidth: 1,
         });
 
-        page.drawText('Daily Faculty Movement', {
+        page.drawText('Weekly Movement Trend', {
             x: cardX + 18,
             y: y - 28,
             size: 16,
@@ -1096,8 +1096,8 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
         });
 
         drawWrappedText(page, fonts.regular, analytics?.selectedCollege
-            ? `Tracking locator slip volume for ${analytics.selectedCollege}`
-            : 'Tracking locator slip volume across the five HRMU colleges', {
+            ? `Weekly locator slip volume for ${analytics.selectedCollege}`
+            : 'Weekly locator slip volume across the selected date range', {
             x: cardX + 18,
             y: y - 48,
             width: cardWidth - 36,

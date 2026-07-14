@@ -17,6 +17,31 @@ const CANCELLATION_REASON_OPTIONS = [
     'incorrect_locator_slip_details'
 ];
 
+const WORKING_HOURS_START_MINUTES = 7 * 60;
+const WORKING_HOURS_END_MINUTES = 21 * 60;
+const WORKING_HOURS_ERROR = 'Locator slips can only be scheduled between 7:00 AM and 9:00 PM. Times from 9:01 PM to 6:59 AM are outside working hours.';
+
+const getLocalMinutesFromDateTimeInput = (value) => {
+    const normalized = String(value || '').trim();
+    const match = normalized.match(/T(\d{2}):(\d{2})/);
+
+    if (match) {
+        return Number(match[1]) * 60 + Number(match[2]);
+    }
+
+    const date = new Date(normalized);
+    if (Number.isNaN(date.getTime())) return null;
+
+    return date.getHours() * 60 + date.getMinutes();
+};
+
+const isWithinWorkingHours = (value) => {
+    const minutes = getLocalMinutesFromDateTimeInput(value);
+    if (minutes === null) return true;
+
+    return minutes >= WORKING_HOURS_START_MINUTES && minutes <= WORKING_HOURS_END_MINUTES;
+};
+
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
 
@@ -75,6 +100,10 @@ const createLocatorSlipValidator = [
                 throw new Error('Departure date and time cannot be in the past.');
             }
 
+            if (!isWithinWorkingHours(value)) {
+                throw new Error(WORKING_HOURS_ERROR);
+            }
+
             return true;
         }),
     body('expected_return_datetime')
@@ -93,6 +122,10 @@ const createLocatorSlipValidator = [
 
             if (expectedReturn <= departure) {
                 throw new Error('Expected return date and time must be later than departure date and time.');
+            }
+
+            if (!isWithinWorkingHours(value)) {
+                throw new Error(WORKING_HOURS_ERROR);
             }
 
             return true;

@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, SOCKET_TRANSPORTS } from '../config';
 
 let socketInstance = null;
 
@@ -15,7 +15,7 @@ export const getNotificationSocket = () => {
 
   socketInstance = io(API_BASE_URL || window.location.origin, {
     auth: { token },
-    transports: ['websocket', 'polling'],
+    transports: SOCKET_TRANSPORTS,
   });
 
   return socketInstance;

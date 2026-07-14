@@ -25,13 +25,13 @@ const deletePushToken = async (userId, fcmToken) => {
     return pushTokenRepository.deletePushTokenForUser(userId, normalizedToken);
 };
 
-const disablePushToken = async (fcmToken) => {
+const disablePushToken = async (userId, fcmToken) => {
     const normalizedToken = String(fcmToken || '').trim();
     if (!normalizedToken) {
         throw new AppError('FCM token is required.', 422);
     }
 
-    return pushTokenRepository.disablePushToken(normalizedToken);
+    return pushTokenRepository.disablePushTokenForUser(userId, normalizedToken);
 };
 
 module.exports = {

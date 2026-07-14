@@ -1,6 +1,20 @@
 const PRODUCTION_API_URL = 'https://eduroute-production.up.railway.app';
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
+const normalizeApiBaseUrl = (value) => {
+  const trimmedValue = String(value || '').trim();
+
+  if (!trimmedValue) {
+    return '';
+  }
+
+  if (!/^https?:\/\//i.test(trimmedValue)) {
+    return '';
+  }
+
+  return trimmedValue.replace(/\/$/, '');
+};
+
 const getApiBaseUrl = () => {
   if (typeof window === 'undefined') {
     return configuredApiBaseUrl || PRODUCTION_API_URL;
@@ -11,25 +25,26 @@ const getApiBaseUrl = () => {
   const isLanHost = /^(192\.168|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
   const isNgrokHost = /\.ngrok(-free)?\.(app|dev)$/i.test(hostname);
   const isLocalDev = isLocalHost || isLanHost;
+  const normalizedConfiguredApiBaseUrl = normalizeApiBaseUrl(configuredApiBaseUrl);
 
   if (isLocalDev) {
-    return configuredApiBaseUrl || `${protocol}//${hostname}:5000`;
+    return normalizedConfiguredApiBaseUrl || `${protocol}//${hostname}:5000`;
   }
 
   if (isNgrokHost) {
     return '';
   }
 
-  if (configuredApiBaseUrl) {
+  if (normalizedConfiguredApiBaseUrl) {
     try {
-      const configuredUrl = new URL(configuredApiBaseUrl);
+      const configuredUrl = new URL(normalizedConfiguredApiBaseUrl);
       const apiIsConfiguredForLocalhost = ['localhost', '127.0.0.1'].includes(configuredUrl.hostname);
 
       if (apiIsConfiguredForLocalhost) {
         return PRODUCTION_API_URL;
       }
 
-      return configuredApiBaseUrl.replace(/\/$/, '');
+      return normalizedConfiguredApiBaseUrl;
     } catch (error) {
       return PRODUCTION_API_URL;
     }
@@ -40,5 +55,25 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 console.log('API_BASE_URL:', API_BASE_URL);
+
+const getSocketTransports = () => {
+  if (typeof window === 'undefined') {
+    return ['polling', 'websocket'];
+  }
+
+  const apiUrl = API_BASE_URL || window.location.origin;
+
+  try {
+    const { hostname } = new URL(apiUrl, window.location.origin);
+    const isLocalSocket = ['localhost', '127.0.0.1'].includes(hostname)
+      || /^(192\.168|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
+
+    return isLocalSocket ? ['polling'] : ['polling', 'websocket'];
+  } catch (error) {
+    return ['polling'];
+  }
+};
+
+export const SOCKET_TRANSPORTS = getSocketTransports();
 const configuredMapboxToken = import.meta.env.VITE_MAPBOX_PUBLIC_TOKEN || '';
 export const MAPBOX_PUBLIC_TOKEN = configuredMapboxToken.startsWith('your_') ? '' : configuredMapboxToken;

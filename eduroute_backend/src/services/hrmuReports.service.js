@@ -33,11 +33,58 @@ const assertHrmuUser = async (userId) => {
     return user;
 };
 
-const mapFlaggedReason = (reason) => ({
-    type: reason.type,
-    label: reason.label,
-    severity: reason.severity
-});
+const mapFlaggedReason = (reason) => {
+    if (!reason) return null;
+
+    if (typeof reason === 'string') {
+        return {
+            type: reason.trim().toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'FLAGGED',
+            label: reason,
+            severity: 'medium'
+        };
+    }
+
+    return {
+        type: reason.type || reason.incidentType || 'FLAGGED',
+        label: reason.label || reason.incidentLabel || 'Flagged incident',
+        severity: reason.severity || 'medium'
+    };
+};
+
+const normalizeFlaggedReasons = (reasons = []) =>
+    (Array.isArray(reasons) ? reasons : [])
+        .map(mapFlaggedReason)
+        .filter((reason) => reason?.label);
+
+const getFlaggedReasonCategory = (reason) => {
+    const normalizedType = String(reason?.type || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '_');
+    const normalizedLabel = String(reason?.label || '').trim().toLowerCase();
+
+    if (normalizedType.includes('LATE_RETURN') || normalizedLabel.includes('late return')) {
+        return 'lateReturn';
+    }
+
+    if (
+        normalizedType.includes('LOCATION_DISCONNECTED')
+        || normalizedType.includes('LIVE_LOCATION_DISCONNECTED')
+        || normalizedLabel.includes('disconnected')
+    ) {
+        return 'locationDisconnected';
+    }
+
+    if (
+        normalizedType.includes('UNVERIFIED_LOCATION')
+        || normalizedType.includes('UNVERIFIED_SIGNATURE')
+        || normalizedLabel.includes('unverified')
+    ) {
+        return 'unverifiedLocation';
+    }
+
+    return 'flagged';
+};
 
 const getReportTimestamp = (row) => {
     if (!row) return null;
@@ -142,9 +189,19 @@ const sortProofRowsNewestFirst = (proofs) =>
 
 const mapProofToReportLogRow = (row) => {
     const normalizedStatus = normalizeProofStatus(row.verificationStatus);
-    const flaggedReasons = normalizedStatus === 'rejected'
+    const joinedFlaggedReasons = normalizeFlaggedReasons(row.flaggedReasons);
+    const rejectedFlaggedReasons = normalizedStatus === 'rejected'
         ? [{ type: 'unverified_location', label: 'Unverified location', severity: 'medium' }]
         : [];
+    const flaggedReasons = joinedFlaggedReasons.length ? joinedFlaggedReasons : rejectedFlaggedReasons;
+    const hasFlaggedReasons = flaggedReasons.length > 0;
+    const reportStatus = hasFlaggedReasons
+        ? 'FLAGGED'
+        : normalizedStatus === 'verified'
+            ? 'VERIFIED'
+            : normalizedStatus === 'rejected'
+                ? 'REJECTED'
+                : 'PENDING';
 
     return {
         locatorSlipId: row.locatorSlipId,
@@ -154,15 +211,14 @@ const mapProofToReportLogRow = (row) => {
         timestampLabel: formatTimestampLabel(getReportTimestamp(row)),
         location: row.destination || 'Unknown destination',
         personnel: row.facultyName || 'Unknown faculty',
-        status: normalizedStatus === 'verified'
-            ? 'VERIFIED'
-            : normalizedStatus === 'rejected'
-                ? 'REJECTED'
-                : 'PENDING',
-        rawStatus: normalizedStatus,
+        status: reportStatus,
+        rawStatus: hasFlaggedReasons ? 'flagged' : normalizedStatus,
         flaggedReasons
     };
 };
+
+const proofHasFlaggedIncidents = (row) =>
+    normalizeFlaggedReasons(row?.flaggedReasons).length > 0 || normalizeProofStatus(row?.verificationStatus) === 'rejected';
 
 const buildReportFromVerificationRows = (proofs, monthRange, limit = 20) => {
     const filteredProofs = filterProofsByMonthRange(proofs, monthRange);
@@ -171,24 +227,40 @@ const buildReportFromVerificationRows = (proofs, monthRange, limit = 20) => {
     const logRows = dedupedProofs.slice(0, limit).map(mapProofToReportLogRow);
 
     const totalMovements = dedupedProofs.length;
-    const successfulTrips = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'verified').length;
-    const flaggedIncidents = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'rejected').length;
-    const pendingReviews = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'submitted').length;
+    const successfulTrips = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'verified' && !proofHasFlaggedIncidents(row)).length;
+    const flaggedRows = dedupedProofs.filter(proofHasFlaggedIncidents);
+    const incidentSummary = flaggedRows.reduce((summary, row) => {
+        const reasons = normalizeFlaggedReasons(row.flaggedReasons);
+
+        if (!reasons.length && normalizeProofStatus(row.verificationStatus) === 'rejected') {
+            summary.unverifiedLocation += 1;
+            return summary;
+        }
+
+        const categories = new Set(reasons.map(getFlaggedReasonCategory));
+        if (categories.has('lateReturn')) summary.lateReturn += 1;
+        if (categories.has('unverifiedLocation')) summary.unverifiedLocation += 1;
+        if (categories.has('locationDisconnected')) summary.locationDisconnected += 1;
+        if (!categories.size || categories.has('flagged')) summary.unverifiedLocation += 1;
+        return summary;
+    }, {
+        lateReturn: 0,
+        unverifiedLocation: 0,
+        locationDisconnected: 0
+    });
+    const flaggedIncidents = flaggedRows.length;
+    const pendingReviews = dedupedProofs.filter((row) => normalizeProofStatus(row.verificationStatus) === 'submitted' && !proofHasFlaggedIncidents(row)).length;
 
     const summary = {
         totalMovements,
         flaggedIncidents,
         successfulTrips,
         complianceRate: totalMovements ? Number(((successfulTrips / totalMovements) * 100).toFixed(1)) : 0,
-        lateReturns: 0,
-        unverifiedLocations: flaggedIncidents,
-        disconnectedLocations: 0,
+        lateReturns: incidentSummary.lateReturn,
+        unverifiedLocations: incidentSummary.unverifiedLocation,
+        disconnectedLocations: incidentSummary.locationDisconnected,
         pendingReviews,
-        incidentSummary: {
-            lateReturn: 0,
-            unverifiedLocation: flaggedIncidents,
-            locationDisconnected: 0
-        }
+        incidentSummary
     };
 
     return {

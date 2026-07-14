@@ -29,6 +29,34 @@ const request = async (endpoint, params = {}) => {
   return data.data;
 };
 
+const postRequest = async (endpoint, params = {}) => {
+  const searchParams = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      searchParams.set(key, value);
+    }
+  });
+
+  const token = getToken();
+  const queryString = searchParams.toString();
+  const response = await fetch(`${API_BASE_URL}${endpoint}${queryString ? `?${queryString}` : ''}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'HRMU smart analytics request failed');
+  }
+
+  return data.data;
+};
+
 export const getHrmuAnalyticsOverview = (params = {}) =>
   request('/api/hrmu/analytics/overview', params);
 
@@ -43,6 +71,21 @@ export const getHrmuAnalyticsFrequentDestinations = (params = {}) =>
 
 export const getHrmuAnalyticsMonthlySummary = (params = {}) =>
   request('/api/hrmu/analytics/monthly-summary', params);
+
+export const getHrmuSmartAnalyticsSummary = (params = {}) =>
+  request('/api/hrmu/analytics/summary', params);
+
+export const getHrmuSmartAnalyticsRiskTrips = (params = {}) =>
+  request('/api/hrmu/analytics/risk-trips', params);
+
+export const getHrmuSmartAnalyticsIncidents = (params = {}) =>
+  request('/api/hrmu/analytics/incidents', params);
+
+export const getHrmuSmartAnalyticsCollegeSummary = (params = {}) =>
+  request('/api/hrmu/analytics/college-summary', params);
+
+export const generateHrmuSmartAnalytics = (params = {}) =>
+  postRequest('/api/hrmu/analytics/generate', params);
 
 export const exportHrmuAnalyticsCsvPlaceholder = (params = {}) =>
   request('/api/hrmu/analytics/export-csv', params);
@@ -74,7 +117,7 @@ export const downloadHrmuAnalyticsPdf = async (params = {}) => {
 
   const blob = await response.blob();
   const disposition = response.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename=\"([^\"]+)\"/i);
+  const match = disposition.match(/filename="([^"]+)"/i);
 
   return {
     blob,

@@ -8,7 +8,7 @@ const VALID_PROFILES = new Set([
     'mapbox/cycling'
 ]);
 
-const DEFAULT_GEOCODING_TYPES = 'country,region,postcode,district,place,locality,neighborhood,street,block,address,secondary_address';
+const DEFAULT_GEOCODING_TYPES = 'country,region,postcode,district,place,locality,neighborhood,address';
 
 const searchDestinations = async (query, options = {}) => {
     if (!env.mapboxSecretToken) {

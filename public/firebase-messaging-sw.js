@@ -9,11 +9,6 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('fetch', () => {
-  // Keep the service worker recognized as a page-controlling app worker
-  // while allowing the browser/network to handle requests normally.
-});
-
 const firebaseConfig = {
   apiKey: search.get('apiKey') || '',
   authDomain: search.get('authDomain') || '',
@@ -23,9 +18,9 @@ const firebaseConfig = {
   appId: search.get('appId') || '',
 };
 
-if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-  importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-app-compat.js');
-  importScripts('https://www.gstatic.com/firebasejs/12.4.0/firebase-messaging-compat.js');
+if (firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.messagingSenderId && firebaseConfig.appId) {
+  importScripts('https://www.gstatic.com/firebasejs/12.12.1/firebase-app-compat.js');
+  importScripts('https://www.gstatic.com/firebasejs/12.12.1/firebase-messaging-compat.js');
 
   firebase.initializeApp(firebaseConfig);
   const messaging = firebase.messaging();
@@ -36,7 +31,7 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
     const url = payload.data?.url || '/';
     const icon = payload.notification?.icon || payload.data?.icon || '/eduroute-logo-192.png';
     const badge = payload.data?.badge || '/eduroute-logo-192.png';
-    const tag = payload.data?.tag || `eduroute-${Date.now()}`;
+    const tag = payload.data?.tag || `eduroute-${payload.data?.type || 'notification'}-${payload.data?.notificationId || Date.now()}`;
 
     self.registration.showNotification(title, {
       body,
@@ -46,14 +41,20 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
       renotify: true,
       requireInteraction: false,
       vibrate: [200, 100, 200],
-      data: { url },
+      timestamp: Date.now(),
+      data: {
+        url,
+        notificationId: payload.data?.notificationId || '',
+        locatorSlipId: payload.data?.locatorSlipId || '',
+        type: payload.data?.type || '',
+      },
     });
   });
 }
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = event.notification?.data?.url || '/';
+  const targetUrl = new URL(event.notification?.data?.url || '/', self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {

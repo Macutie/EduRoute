@@ -1,4 +1,6 @@
 import { API_BASE_URL } from '../config';
+import { encryptSensitivePayload } from './authPayloadEncryption';
+import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
@@ -17,10 +19,11 @@ const request = async (endpoint, params = {}) => {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
     },
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU reports request failed');
@@ -52,16 +55,18 @@ export const getHrmuVerificationTrips = () =>
 
 export const reviewHrmuArrivalVerification = async (verificationId, payload) => {
   const token = getToken();
+  const encryptedPayload = await encryptSensitivePayload(payload);
   const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/arrival/${verificationId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(encryptedPayload),
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU verification review failed');
@@ -72,18 +77,18 @@ export const reviewHrmuArrivalVerification = async (verificationId, payload) => 
 
 export const flagHrmuTripWithoutProof = async (tripId, locatorSlipId = null) => {
   const token = getToken();
+  const encryptedPayload = await encryptSensitivePayload({ locatorSlipId });
   const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/trips/${tripId}/flag-unverified`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(await getSensitiveResponseHeaders()),
     },
-    body: JSON.stringify({
-      locatorSlipId,
-    }),
+    body: JSON.stringify(encryptedPayload),
   });
 
-  const data = await response.json();
+  const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU trip flagging failed');

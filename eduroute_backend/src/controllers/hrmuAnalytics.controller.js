@@ -51,6 +51,66 @@ const getMonthlySummary = async (req, res, next) => {
     }
 };
 
+const getSmartSummary = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const summary = await hrmuAnalyticsService.getSmartSummary(req.query);
+        return res.json(successResponse('Smart HRMU analytics summary fetched successfully.', summary));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getSmartRiskTrips = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const riskTrips = await hrmuAnalyticsService.getSmartRiskTrips(req.query);
+        return res.json(successResponse('Smart HRMU risk trips fetched successfully.', riskTrips));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getSmartIncidents = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const incidents = await hrmuAnalyticsService.getSmartIncidents(req.query);
+        return res.json(successResponse('Smart HRMU incidents fetched successfully.', incidents));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getSmartCollegeSummary = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const collegeSummary = await hrmuAnalyticsService.getSmartCollegeSummary(req.query);
+        return res.json(successResponse('Smart HRMU college summary fetched successfully.', collegeSummary));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const generateSmartAnalytics = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const analytics = await hrmuAnalyticsService.generateSmartAnalytics(req.query);
+        return res.json(successResponse('Smart HRMU analytics generated successfully.', analytics));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const generateSmartAnalyticsForTrip = async (req, res, next) => {
+    try {
+        await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
+        const analytics = await hrmuAnalyticsService.generateSmartAnalyticsForTrip(req.params.tripId, req.query);
+        return res.json(successResponse('Smart HRMU trip analytics generated successfully.', analytics));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const exportCsv = async (req, res, next) => {
     try {
         const placeholder = await hrmuAnalyticsService.getExportPlaceholder(req.user.sub, 'csv');
@@ -78,6 +138,12 @@ module.exports = {
     getApprovalRate,
     getFrequentDestinations,
     getMonthlySummary,
+    getSmartSummary,
+    getSmartRiskTrips,
+    getSmartIncidents,
+    getSmartCollegeSummary,
+    generateSmartAnalytics,
+    generateSmartAnalyticsForTrip,
     exportCsv,
     exportPdf
 };

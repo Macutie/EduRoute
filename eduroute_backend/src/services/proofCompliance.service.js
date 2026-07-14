@@ -65,6 +65,7 @@ const normalizeProofResponse = (proof, context = {}) => {
     const baseFlaggedIncidentTypes = Array.isArray(context.flaggedIncidentTypes) ? context.flaggedIncidentTypes : [];
     const expectedReturnTime = context.expectedReturnTime || null;
     const actualReturnTime = context.actualReturnTime || null;
+    const departureTime = context.departureTime || null;
     const autoLateReturn = detectLateReturnStatus(expectedReturnTime, actualReturnTime);
     const flaggedReasons = autoLateReturn && !baseFlaggedReasons.includes(tripIncidentService.INCIDENT_LABELS.LATE_RETURN)
         ? [...baseFlaggedReasons, tripIncidentService.INCIDENT_LABELS.LATE_RETURN]
@@ -96,6 +97,7 @@ const normalizeProofResponse = (proof, context = {}) => {
         purpose: context.purpose || null,
         locatorSlipCode: context.locatorSlipCode || null,
         reviewedByName: context.reviewedByName || null,
+        departureTime,
         actualReturnTime,
         expectedReturnTime,
         tripStartedAt: context.tripStartedAt || null,
@@ -302,6 +304,31 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             }).catch(() => null);
         }
 
+        const deanProofScopeResult = await client.query(
+            `SELECT COALESCE(ls.college_id, fu.department_id) AS college_id
+             FROM locator_slips ls
+             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+             WHERE ls.id = $1
+             LIMIT 1`,
+            [trip.locator_slip_id]
+        );
+        const deanCollegeId = deanProofScopeResult.rows[0]?.college_id || null;
+
+        if (deanCollegeId) {
+            await locatorSlipNotificationService.notifyDeansOfProofComplianceSubmission({
+                locatorSlipId: trip.locator_slip_id,
+                proofId: savedProof.id,
+                facultyUserId,
+                collegeId: deanCollegeId,
+                facultyName,
+                destination,
+                focalPersonName,
+                focalPersonPosition
+            }).catch((notificationError) => {
+                console.error('Failed to notify deans about proof of compliance submission:', notificationError);
+            });
+        }
+
         await client.query('COMMIT');
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
         await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
@@ -347,24 +374,25 @@ const listHrmuProofs = async (userId) => {
             destination: proof.destination,
             purpose: proof.purpose,
             locatorSlipCode: buildLocatorSlipCode(proof.locatorSlipId),
-        reviewedByName: proof.reviewedByName,
-        actualReturnTime: proof.actualReturnTime,
-        expectedReturnTime: proof.expectedReturnTime,
-        tripStartedAt: proof.tripStartedAt,
-        flaggedReasons: proof.flaggedReasons,
-        flaggedIncidentTypes: proof.flaggedIncidentTypes,
-        digitalSignature: proof.deanSignatureUrl ? {
-            name: proof.deanName || 'Assigned Dean',
-            role: proof.deanRole || 'Dean',
-            signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
-            asset: {
-                url: proof.deanSignatureUrl,
-                mimeType: proof.deanSignatureMimeType || 'image/png',
-                originalFilename: proof.deanSignatureOriginalFilename || null,
-                attachedAt: proof.deanSignatureAttachedAt || null
-            }
-        } : null
-    }))
+            reviewedByName: proof.reviewedByName,
+            departureTime: proof.departureTime,
+            actualReturnTime: proof.actualReturnTime,
+            expectedReturnTime: proof.expectedReturnTime,
+            tripStartedAt: proof.tripStartedAt,
+            flaggedReasons: proof.flaggedReasons,
+            flaggedIncidentTypes: proof.flaggedIncidentTypes,
+            digitalSignature: proof.deanSignatureUrl ? {
+                name: proof.deanName || 'Assigned Dean',
+                role: proof.deanRole || 'Dean',
+                signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
+                asset: {
+                    url: proof.deanSignatureUrl,
+                    mimeType: proof.deanSignatureMimeType || 'image/png',
+                    originalFilename: proof.deanSignatureOriginalFilename || null,
+                    attachedAt: proof.deanSignatureAttachedAt || null
+                }
+            } : null
+        }))
     };
 };
 
@@ -385,6 +413,7 @@ const getHrmuProofDetails = async (proofId, userId) => {
         purpose: proof.purpose,
         locatorSlipCode: buildLocatorSlipCode(proof.locatorSlipId),
         reviewedByName: proof.reviewedByName,
+        departureTime: proof.departureTime,
         actualReturnTime: proof.actualReturnTime,
         expectedReturnTime: proof.expectedReturnTime,
         tripStartedAt: proof.tripStartedAt,

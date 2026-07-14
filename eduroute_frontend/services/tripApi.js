@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '../config';
+import { encryptSensitivePayload } from './authPayloadEncryption';
 
 const authHeaders = (token, includeJson = true) => ({
   ...(includeJson ? { 'Content-Type': 'application/json' } : {}),
@@ -25,20 +26,22 @@ export const searchDestinationsApi = async ({ token, query, signal }) => {
 };
 
 export const previewRouteApi = async ({ token, origin, destination, profile = 'mapbox/driving' }) => {
+  const encryptedPayload = await encryptSensitivePayload({ origin, destination, profile });
   const response = await fetch(`${API_BASE_URL}/api/trips/route`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ origin, destination, profile }),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseJson(response);
 };
 
 export const startTripApi = async ({ token, origin, destination, profile = 'mapbox/driving' }) => {
+  const encryptedPayload = await encryptSensitivePayload({ origin, destination, profile });
   const response = await fetch(`${API_BASE_URL}/api/trips/start`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ origin, destination, profile }),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseJson(response);
@@ -53,10 +56,11 @@ export const getActiveTripApi = async ({ token }) => {
 };
 
 export const endTripApi = async ({ token, tripId, status = 'completed' }) => {
+  const encryptedPayload = await encryptSensitivePayload({ status });
   const response = await fetch(`${API_BASE_URL}/api/trips/${tripId}/end`, {
     method: 'POST',
     headers: authHeaders(token),
-    body: JSON.stringify({ status }),
+    body: JSON.stringify(encryptedPayload),
   });
 
   return parseJson(response);

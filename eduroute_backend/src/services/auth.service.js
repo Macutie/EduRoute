@@ -8,6 +8,7 @@ const { generateResetCode, hashResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
+const { encryptNullableText } = require('../utils/fieldEncryption');
 
 const ROLE_LABELS = {
     faculty: 'Faculty',
@@ -41,6 +42,31 @@ const sanitizeFaculty = (faculty) => ({
     profile_image_url: faculty.profile_image_url,
     last_login_at: faculty.last_login_at,
     created_at: faculty.created_at
+});
+
+const encryptAuthField = (value) => {
+    if (value === null || value === undefined) {
+        return null;
+    }
+
+    return encryptNullableText(String(value));
+};
+
+const buildEncryptedAuthProfile = (faculty) => ({
+    id: encryptAuthField(faculty.id),
+    full_name: encryptAuthField(faculty.full_name),
+    employee_id: encryptAuthField(faculty.employee_id),
+    email: encryptAuthField(faculty.email),
+    department_id: encryptAuthField(faculty.department_id),
+    department_name: encryptAuthField(faculty.department_name),
+    profile_image_url: encryptAuthField(faculty.profile_image_url),
+    last_login_at: encryptAuthField(faculty.last_login_at),
+    created_at: encryptAuthField(faculty.created_at)
+});
+
+const sanitizeAuthSession = (faculty) => ({
+    account_role: faculty.account_role,
+    encrypted_profile: buildEncryptedAuthProfile(faculty)
 });
 
 const registerFaculty = async (payload) => {
@@ -120,12 +146,15 @@ const registerFaculty = async (payload) => {
             [fullName, employeeId, departmentId, email, passwordHash, accountRole, termsAccepted]
         );
 
-        await client.query('COMMIT');
-
-        return {
+        const registeredFaculty = {
             ...insertResult.rows[0],
             department_name: department?.department_name || null
         };
+        const responsePayload = sanitizeAuthSession(registeredFaculty);
+
+        await client.query('COMMIT');
+
+        return responsePayload;
     } catch (error) {
         try {
             await client.query('ROLLBACK');
@@ -203,13 +232,12 @@ const loginFaculty = async ({ email_or_employee_id, password, portal_role = 'fac
 
     const token = signAccessToken({
         sub: user.id,
-        email: user.email,
         role: user.account_role
     });
 
     return {
         token,
-        user: sanitizeFaculty({
+        user: sanitizeAuthSession({
             ...user,
             last_login_at: updateResult.rows[0]?.last_login_at || user.last_login_at
         })
@@ -248,25 +276,37 @@ const getCurrentFaculty = async (facultyId) => {
 
 const updateCurrentFacultyProfile = async (facultyId, payload) => {
     const fullName = payload.full_name.trim();
-    const departmentId = Number(payload.department_id);
+    const hasDepartmentUpdate = Object.prototype.hasOwnProperty.call(payload, 'department_id')
+        && payload.department_id !== null
+        && payload.department_id !== '';
+    const departmentId = hasDepartmentUpdate ? Number(payload.department_id) : null;
 
-    const departmentResult = await pool.query(
-        'SELECT id FROM departments WHERE id = $1',
-        [departmentId]
-    );
+    if (hasDepartmentUpdate) {
+        const departmentResult = await pool.query(
+            'SELECT id FROM departments WHERE id = $1',
+            [departmentId]
+        );
 
-    if (departmentResult.rowCount === 0) {
-        throw new AppError('Selected department does not exist.', 404);
+        if (departmentResult.rowCount === 0) {
+            throw new AppError('Selected department does not exist.', 404);
+        }
+    }
+
+    const updateParams = [facultyId, fullName];
+    const departmentAssignment = hasDepartmentUpdate ? ', department_id = $3' : '';
+
+    if (hasDepartmentUpdate) {
+        updateParams.push(departmentId);
     }
 
     const updateResult = await pool.query(
         `UPDATE faculty_users
-         SET full_name = $2,
-             department_id = $3,
+         SET full_name = $2
+             ${departmentAssignment},
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $1
          RETURNING id`,
-        [facultyId, fullName, departmentId]
+        updateParams
     );
 
     if (updateResult.rowCount === 0) {

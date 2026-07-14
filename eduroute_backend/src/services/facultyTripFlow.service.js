@@ -454,7 +454,7 @@ const resolveDestination = async (facultyUserId, locatorSlipId, destinationText)
     }
 
     const updatedSlip = await facultyTripRepository.updateLocatorSlipDestination(facultyUserId, locatorSlipId, {
-        destinationLabel: results[0].full_address || results[0].name || locatorSlip.destination,
+        destinationLabel: null,
         lat: results[0].coordinates.lat,
         lng: results[0].coordinates.lng,
         method: 'search'
@@ -465,7 +465,7 @@ const resolveDestination = async (facultyUserId, locatorSlipId, destinationText)
         requiresManualPin: false,
         locatorSlip: updatedSlip,
         destination: {
-            label: updatedSlip.destination,
+            label: locatorSlip.destination || updatedSlip.destination,
             lat: updatedSlip.destination_lat,
             lng: updatedSlip.destination_lng,
             source: 'geocoding'
@@ -478,8 +478,20 @@ const saveManualPin = async (facultyUserId, locatorSlipId, payload) => {
     ensureApprovedLocatorSlip(locatorSlip);
 
     const coordinate = mapboxService.assertCoordinate(payload, 'Destination');
+    const providedOriginalDestination = String(payload.originalDestination || '').trim();
+    const existingDestination = String(locatorSlip.destination || '').trim();
+    const generatedPinnedLabel = String(payload.label || '').trim();
+    const shouldKeepExistingDestination = existingDestination && !/^Pinned location\s*\(/i.test(existingDestination);
+    const shouldUseProvidedOriginalDestination =
+        providedOriginalDestination && !/^Pinned location\s*\(/i.test(providedOriginalDestination);
+    const resolvedDestinationLabel = shouldUseProvidedOriginalDestination
+        ? providedOriginalDestination
+        : shouldKeepExistingDestination
+            ? existingDestination
+            : generatedPinnedLabel || locatorSlip.destination;
+
     const updatedSlip = await facultyTripRepository.updateLocatorSlipDestination(facultyUserId, locatorSlipId, {
-        destinationLabel: String(payload.label || locatorSlip.destination || '').trim() || locatorSlip.destination,
+        destinationLabel: resolvedDestinationLabel,
         lat: coordinate.lat,
         lng: coordinate.lng,
         method: 'manual_pin'
@@ -626,6 +638,19 @@ const startTrip = async (facultyUserId, payload) => {
             routeDurationSeconds: route.duration_seconds,
             outboundDistanceMeters: Number(payload.outboundDistanceMeters) || route.distance_meters
         }, client);
+
+        await tripRepository.seedTripStartLocation(client, {
+            tripId: trip.id,
+            userId: facultyUserId,
+            lng: origin.lng,
+            lat: origin.lat,
+            accuracy: payload.originAccuracy === null || payload.originAccuracy === undefined ? null : Number(payload.originAccuracy),
+            speed: null,
+            heading: null,
+            recordedAt: trip.started_at || new Date(),
+            source: 'trip_start',
+            syncStatus: 'synced'
+        }).catch(() => null);
 
         await facultyTripRepository.updateLocatorSlipTripStatus(locatorSlipId, 'active', client);
         await tripRepository.insertTripEvent(client, {

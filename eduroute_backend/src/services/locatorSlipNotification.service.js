@@ -36,6 +36,26 @@ const notifyFacultyOfLocatorSlipApproval = async ({ recipientUserId, senderUserI
     })
 );
 
+const notifyCssuOfLocatorSlipApproval = async ({ senderUserId, locatorSlipId, facultyName, destination, purpose }) => {
+    const cssuUsers = await userRepository.getActiveUsersByRoles(['cssu']);
+    if (cssuUsers.length === 0) return [];
+
+    return notificationService.notifyUsers(
+        cssuUsers.map((user) => user.id),
+        {
+            senderUserId,
+            locatorSlipId,
+            type: 'LOCATOR_SLIP_READY_FOR_EXIT',
+            title: 'Locator Slip Ready for CSSU',
+            message: `${facultyName || 'A faculty member'} has an approved locator slip${destination ? ` to ${destination}` : ''}${purpose ? ` for ${purpose}` : ''}.`,
+            data: {
+                locatorSlipId,
+                url: '/#/cssu-dashboard'
+            }
+        }
+    );
+};
+
 const notifyFacultyOfLocatorSlipRejection = async ({ recipientUserId, senderUserId, locatorSlipId, remarks }) => (
     notificationService.notifyUser({
         recipientUserId,
@@ -68,6 +88,23 @@ const notifyFacultyOfCssuExitValidation = async ({ recipientUserId, senderUserId
     })
 );
 
+const notifyFacultyOfCssuExitDenial = async ({ recipientUserId, senderUserId, locatorSlipId, gateLabel, remarks }) => (
+    notificationService.notifyUser({
+        recipientUserId,
+        senderUserId,
+        locatorSlipId,
+        type: 'LOCATOR_SLIP_EXIT_DENIED',
+        title: 'Exit Clearance Denied',
+        message: remarks
+            ? `CSSU denied your exit through ${gateLabel}. ${remarks}`
+            : `CSSU denied your exit through ${gateLabel}. Your locator slip is now rejected.`,
+        data: {
+            locatorSlipId,
+            url: '/#/status'
+        }
+    })
+);
+
 const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUserId, collegeId, facultyName, destination, cancellationReason }) => {
     const deans = await userRepository.getDeanUsersByCollegeId(collegeId);
     if (deans.length === 0) return [];
@@ -91,9 +128,42 @@ const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUser
     );
 };
 
+const notifyDeansOfProofComplianceSubmission = async ({
+    locatorSlipId,
+    proofId,
+    facultyUserId,
+    collegeId,
+    facultyName,
+    destination,
+    focalPersonName,
+    focalPersonPosition
+}) => {
+    const deans = await userRepository.getDeanUsersByCollegeId(collegeId);
+    if (deans.length === 0) return [];
+
+    return notificationService.notifyUsers(
+        deans.map((dean) => dean.id),
+        {
+            senderUserId: facultyUserId,
+            locatorSlipId,
+            type: notificationService.NOTIFICATION_TYPES.PROOF_OF_COMPLIANCE_SUBMITTED,
+            title: 'Proof of compliance submitted',
+            message: `${facultyName || 'A faculty member'} submitted proof of compliance${destination ? ` for ${destination}` : ''}, confirmed by ${focalPersonName || 'the focal person'}${focalPersonPosition ? ` (${focalPersonPosition})` : ''}.`,
+            data: {
+                locatorSlipId,
+                proofId,
+                url: '/#/dean-notifications'
+            }
+        }
+    );
+};
+
 module.exports = {
     notifyDeansOfLocatorSlipSubmission,
     notifyDeansOfLocatorSlipCancellation,
+    notifyDeansOfProofComplianceSubmission,
+    notifyCssuOfLocatorSlipApproval,
+    notifyFacultyOfCssuExitDenial,
     notifyFacultyOfCssuExitValidation,
     notifyFacultyOfLocatorSlipApproval,
     notifyFacultyOfLocatorSlipRejection

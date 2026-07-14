@@ -1,6 +1,10 @@
 const express = require('express');
 const proofComplianceController = require('../controllers/proofCompliance.controller');
 const { protect, requireRole } = require('../middlewares/auth.middleware');
+const {
+    decryptSensitivePayload,
+    decryptMultipartSensitivePayload
+} = require('../middlewares/authPayloadEncryption.middleware');
 const { uploadProofComplianceAssets } = require('../middlewares/upload.middleware');
 
 const router = express.Router();
@@ -13,6 +17,7 @@ router.post(
         { name: 'arrival_photo', maxCount: 1 },
         { name: 'signature_image', maxCount: 1 }
     ]),
+    decryptMultipartSensitivePayload,
     proofComplianceController.submitFacultyProof
 );
 
@@ -41,6 +46,7 @@ router.patch(
     '/hrmu/proof-of-compliance/:id/review',
     protect,
     requireRole('hrmu', 'admin'),
+    decryptSensitivePayload,
     proofComplianceController.reviewHrmuProof
 );
 

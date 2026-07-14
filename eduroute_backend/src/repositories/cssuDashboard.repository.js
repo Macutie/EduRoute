@@ -10,6 +10,7 @@ const ALLOWED_COLLEGE_NAMES = [
 const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
 
 let cssuExitLogsTableExistsCache = null;
+let cssuScanAttemptsTableReadyCache = null;
 const locatorSlipColumnExistsCache = {};
 
 const getCssuExitLogsTableExists = async () => {
@@ -20,6 +21,35 @@ const getCssuExitLogsTableExists = async () => {
     const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
     cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
     return cssuExitLogsTableExistsCache;
+};
+
+const ensureCssuScanAttemptsTable = async () => {
+    if (cssuScanAttemptsTableReadyCache) {
+        return true;
+    }
+
+    await pool.query(
+        `CREATE TABLE IF NOT EXISTS cssu_scan_attempts (
+            id BIGSERIAL PRIMARY KEY,
+            locator_slip_id UUID REFERENCES locator_slips(id) ON DELETE SET NULL,
+            faculty_user_id UUID REFERENCES faculty_users(id) ON DELETE SET NULL,
+            gate VARCHAR(32) NOT NULL DEFAULT 'main_gate',
+            lookup_method VARCHAR(24) NOT NULL DEFAULT 'manual',
+            outcome VARCHAR(40) NOT NULL,
+            notes TEXT,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )`
+    );
+    await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_cssu_scan_attempts_locator_created
+         ON cssu_scan_attempts(locator_slip_id, created_at DESC)`
+    );
+    await pool.query(
+        `CREATE INDEX IF NOT EXISTS idx_cssu_scan_attempts_faculty_created
+         ON cssu_scan_attempts(faculty_user_id, created_at DESC)`
+    );
+    cssuScanAttemptsTableReadyCache = true;
+    return true;
 };
 
 const getLocatorSlipColumnExists = async (columnName) => {
@@ -44,20 +74,59 @@ const getLocatorSlipColumnExists = async (columnName) => {
 
 const getDashboardSummary = async () => {
     const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    await ensureCssuScanAttemptsTable();
     
     const logJoin = hasCssuExitLogsTable
         ? `LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id`
-        : `LEFT JOIN LATERAL (SELECT NULL::text AS status) log ON TRUE`;
+        : `LEFT JOIN LATERAL (
+            SELECT
+                NULL::text AS status,
+                NULL::text AS gate,
+                NULL::timestamp AS validated_at,
+                NULL::timestamp AS created_at
+        ) log ON TRUE`;
 
     const { rows } = await pool.query(
-        `SELECT
-            COUNT(*) FILTER (WHERE ls.status IN ('approved', 'verified', 'completed'))::int AS total_faculty_exiting,
-            COUNT(*) FILTER (WHERE log.status = 'validated')::int AS approved_locator_slips,
-            COUNT(*) FILTER (WHERE ls.status = 'rejected' OR log.status = 'denied')::int AS rejected_locator_slips
-         FROM locator_slips ls
-         ${logJoin}
-         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-            OR (log.validated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date`
+        `WITH today_logs AS (
+            SELECT *
+            FROM cssu_exit_logs
+            WHERE (COALESCE(validated_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+        ),
+        today_attempts AS (
+            SELECT *
+            FROM cssu_scan_attempts
+            WHERE (created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+        ),
+        gate_counts AS (
+            SELECT gate, COUNT(*)::int AS count
+            FROM today_logs
+            GROUP BY gate
+            ORDER BY count DESC, gate ASC
+            LIMIT 1
+        ),
+        relevant_slips AS (
+            SELECT
+                ls.id,
+                ls.status,
+                log.status AS exit_status
+            FROM locator_slips ls
+            ${logJoin}
+            WHERE (
+                (COALESCE(ls.approved_at, ls.updated_at, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                OR (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                OR (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+            )
+        )
+        SELECT
+            COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified', 'completed') OR exit_status IN ('validated', 'denied'))::int AS total_faculty_exiting,
+            COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified', 'completed') AND COALESCE(exit_status, 'approved') <> 'denied')::int AS approved_locator_slips,
+            COUNT(DISTINCT id) FILTER (WHERE status = 'rejected' OR exit_status = 'denied')::int AS rejected_locator_slips,
+            COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified') AND COALESCE(exit_status, 'approved') = 'approved')::int AS pending_exit_queue,
+            (SELECT COUNT(*)::int FROM today_attempts WHERE outcome IN ('denied_locked', 'repeated_denied')) AS repeat_attempts,
+            (SELECT COUNT(*)::int FROM today_attempts WHERE outcome IN ('pending', 'rejected', 'denied_locked', 'repeated_denied', 'cancelled', 'completed')) AS suspicious_attempts,
+            COALESCE((SELECT gate FROM gate_counts), 'main_gate') AS busiest_gate,
+            COALESCE((SELECT count FROM gate_counts), 0)::int AS busiest_gate_count
+         FROM relevant_slips`
     );
 
     return rows[0] || {
@@ -65,6 +134,173 @@ const getDashboardSummary = async () => {
         approved_locator_slips: 0,
         rejected_locator_slips: 0,
     };
+};
+
+const recordScanAttempt = async ({
+    locatorSlipId,
+    facultyUserId,
+    gate = 'main_gate',
+    lookupMethod = 'manual',
+    outcome = 'lookup',
+    notes = null,
+}) => {
+    await ensureCssuScanAttemptsTable();
+
+    const { rows } = await pool.query(
+        `INSERT INTO cssu_scan_attempts (
+            locator_slip_id,
+            faculty_user_id,
+            gate,
+            lookup_method,
+            outcome,
+            notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *`,
+        [locatorSlipId, facultyUserId, gate, lookupMethod, outcome, notes]
+    );
+
+    return rows[0] || null;
+};
+
+const getLocatorSlipAttemptStats = async (locatorSlipId) => {
+    await ensureCssuScanAttemptsTable();
+
+    const { rows } = await pool.query(
+        `SELECT
+            COUNT(*)::int AS total_attempts,
+            COUNT(*) FILTER (WHERE outcome IN ('denied_locked', 'repeated_denied'))::int AS denied_repeat_attempts,
+            MAX(created_at) AS last_attempt_at
+         FROM cssu_scan_attempts
+         WHERE locator_slip_id = $1`,
+        [locatorSlipId]
+    );
+
+    return rows[0] || {
+        total_attempts: 0,
+        denied_repeat_attempts: 0,
+        last_attempt_at: null,
+    };
+};
+
+const getDashboardActivityTimeline = async (limit = 12) => {
+    await ensureCssuScanAttemptsTable();
+
+    const { rows } = await pool.query(
+        `WITH decision_rows AS (
+            SELECT
+                CONCAT('decision-', log.id)::text AS activity_id,
+                log.locator_slip_id,
+                log.faculty_user_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                fu.profile_image_url,
+                d.department_name,
+                ls.locator_slip_code,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                log.gate,
+                log.validation_method,
+                log.status,
+                COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                CASE
+                    WHEN log.status = 'validated' THEN 'Allowed exit'
+                    WHEN log.status = 'denied' THEN 'Denied exit'
+                    ELSE 'Exit decision'
+                END AS title
+            FROM cssu_exit_logs log
+            JOIN locator_slips ls ON ls.id = log.locator_slip_id
+            JOIN faculty_users fu ON fu.id = log.faculty_user_id
+            LEFT JOIN departments d ON d.id = fu.department_id
+        ),
+        attempt_rows AS (
+            SELECT
+                CONCAT('attempt-', attempt.id)::text AS activity_id,
+                attempt.locator_slip_id,
+                attempt.faculty_user_id,
+                fu.full_name AS faculty_name,
+                fu.employee_id,
+                fu.profile_image_url,
+                d.department_name,
+                ls.locator_slip_code,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                attempt.gate,
+                attempt.lookup_method AS validation_method,
+                attempt.outcome AS status,
+                attempt.created_at AS occurred_at,
+                CASE
+                    WHEN attempt.outcome IN ('denied_locked', 'repeated_denied') THEN 'Repeated denied scan'
+                    WHEN attempt.outcome = 'approved_ready' THEN 'Locator slip checked'
+                    WHEN attempt.outcome = 'pending' THEN 'Pending slip scanned'
+                    WHEN attempt.outcome = 'rejected' THEN 'Rejected slip scanned'
+                    ELSE 'Lookup attempt'
+                END AS title
+            FROM cssu_scan_attempts attempt
+            LEFT JOIN locator_slips ls ON ls.id = attempt.locator_slip_id
+            LEFT JOIN faculty_users fu ON fu.id = attempt.faculty_user_id
+            LEFT JOIN departments d ON d.id = fu.department_id
+        ),
+        combined_rows AS (
+            SELECT * FROM decision_rows
+            UNION ALL
+            SELECT * FROM attempt_rows
+        )
+        SELECT *
+        FROM combined_rows
+        ORDER BY occurred_at DESC, activity_id DESC
+        LIMIT $1`,
+        [limit]
+    );
+
+    return rows;
+};
+
+const getFacultyExitHistory = async (facultyUserId, limit = 10) => {
+    await ensureCssuScanAttemptsTable();
+
+    const { rows } = await pool.query(
+        `WITH decision_rows AS (
+            SELECT
+                CONCAT('decision-', log.id)::text AS history_id,
+                log.locator_slip_id,
+                ls.locator_slip_code,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                log.gate,
+                log.validation_method,
+                log.status,
+                COALESCE(log.validated_at, log.created_at) AS occurred_at,
+                'decision'::text AS entry_type
+            FROM cssu_exit_logs log
+            JOIN locator_slips ls ON ls.id = log.locator_slip_id
+            WHERE log.faculty_user_id = $1
+        ),
+        attempt_rows AS (
+            SELECT
+                CONCAT('attempt-', attempt.id)::text AS history_id,
+                attempt.locator_slip_id,
+                ls.locator_slip_code,
+                COALESCE(ls.destination, 'Unknown destination') AS destination,
+                attempt.gate,
+                attempt.lookup_method AS validation_method,
+                attempt.outcome AS status,
+                attempt.created_at AS occurred_at,
+                'attempt'::text AS entry_type
+            FROM cssu_scan_attempts attempt
+            LEFT JOIN locator_slips ls ON ls.id = attempt.locator_slip_id
+            WHERE attempt.faculty_user_id = $1
+        ),
+        combined_rows AS (
+            SELECT * FROM decision_rows
+            UNION ALL
+            SELECT * FROM attempt_rows
+        )
+        SELECT *
+        FROM combined_rows
+        ORDER BY occurred_at DESC, history_id DESC
+        LIMIT $2`,
+        [facultyUserId, limit]
+    );
+
+    return rows;
 };
 
 const buildReportsFilter = ({ startDate, endDate, departmentName } = {}) => {
@@ -539,12 +775,14 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
             LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
             WHERE (
                   ls.status IN ('approved', 'verified', 'completed')
-                  OR COALESCE(log.status, '') = 'denied'
+                  OR COALESCE(log.status, '') IN ('validated', 'denied')
               )
               AND (
+                  (COALESCE(ls.approved_at, ls.updated_at, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  OR
                   (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                   OR
-                  (log.validated_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
               )
               AND COALESCE(log.gate, 'main_gate') = $1
             ORDER BY
@@ -579,7 +817,11 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          LEFT JOIN departments d ON d.id = fu.department_id
-         WHERE (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+         WHERE (
+              (COALESCE(ls.approved_at, ls.updated_at, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+              OR
+              (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+           )
            AND ls.status IN ('approved', 'verified', 'completed')
            AND $1 = 'main_gate'
          ORDER BY COALESCE(ls.approved_at, ls.updated_at, ls.created_at) DESC
@@ -777,6 +1019,10 @@ module.exports = {
     getReportsSummary,
     getReportsActivityByDepartment,
     getReportsMovementLogs,
+    recordScanAttempt,
+    getLocatorSlipAttemptStats,
+    getDashboardActivityTimeline,
+    getFacultyExitHistory,
     findLocatorSlipByCode,
     findLocatorSlipForExitStatus,
     upsertExitLogStatus,

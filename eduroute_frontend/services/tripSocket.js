@@ -1,5 +1,5 @@
 import { io } from 'socket.io-client';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, SOCKET_TRANSPORTS } from '../config';
 
 export const TRIP_SOCKET_EVENTS = {
   subscribe: 'trip:subscribe',
@@ -18,7 +18,7 @@ export const HRMU_LIVE_SOCKET_EVENTS = {
 
 export const createTripSocketClient = ({ token }) =>
   io(API_BASE_URL || window.location.origin, {
-    transports: ['websocket', 'polling'],
+    transports: SOCKET_TRANSPORTS,
     autoConnect: false,
     auth: {
       token,

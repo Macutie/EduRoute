@@ -7,6 +7,7 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#049516",
+  "gcm_sender_id": "103953800507",
   "description": "EduRoute Faculty Tracking System",
   "icons": [
     {

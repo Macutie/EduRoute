@@ -1,10 +1,14 @@
 const { successResponse } = require('../utils/apiResponse');
 const locatorSlipService = require('../services/locatorSlip.service');
+const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const getFacultyProfile = async (req, res, next) => {
     try {
         const profile = await locatorSlipService.getFacultyProfile(req.user.sub);
-        return res.json(successResponse('Faculty profile fetched successfully.', profile));
+        return res.json(successResponse(
+            'Faculty profile fetched successfully.',
+            encryptSensitiveResponseData(req, profile)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -13,7 +17,10 @@ const getFacultyProfile = async (req, res, next) => {
 const createLocatorSlip = async (req, res, next) => {
     try {
         const locatorSlip = await locatorSlipService.createLocatorSlip(req.user.sub, req.body);
-        return res.status(201).json(successResponse('Locator slip submitted successfully.', locatorSlip));
+        return res.status(201).json(successResponse(
+            'Locator slip submitted successfully.',
+            encryptSensitiveResponseData(req, locatorSlip)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -22,7 +29,10 @@ const createLocatorSlip = async (req, res, next) => {
 const getMyLocatorSlips = async (req, res, next) => {
     try {
         const locatorSlips = await locatorSlipService.getMyLocatorSlips(req.user.sub, req.query.status || null);
-        return res.json(successResponse('Locator slips fetched successfully.', locatorSlips));
+        return res.json(successResponse(
+            'Locator slips fetched successfully.',
+            encryptSensitiveResponseData(req, locatorSlips)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -31,7 +41,10 @@ const getMyLocatorSlips = async (req, res, next) => {
 const getLocatorSlipById = async (req, res, next) => {
     try {
         const locatorSlip = await locatorSlipService.getLocatorSlipById(req.user.sub, req.params.id);
-        return res.json(successResponse('Locator slip fetched successfully.', locatorSlip));
+        return res.json(successResponse(
+            'Locator slip fetched successfully.',
+            encryptSensitiveResponseData(req, locatorSlip)
+        ));
     } catch (error) {
         return next(error);
     }
@@ -44,7 +57,10 @@ const cancelLocatorSlip = async (req, res, next) => {
             req.params.id,
             req.body?.cancellation_reason || req.body?.reason || null
         );
-        return res.json(successResponse('Locator slip request cancelled successfully.', locatorSlip));
+        return res.json(successResponse(
+            'Locator slip request cancelled successfully.',
+            encryptSensitiveResponseData(req, locatorSlip)
+        ));
     } catch (error) {
         return next(error);
     }
