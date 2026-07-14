@@ -6,6 +6,7 @@ const proofComplianceRepository = require('../repositories/proofCompliance.repos
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const socketBroadcasterService = require('./socketBroadcaster.service');
 const tripIncidentService = require('./tripIncident.service');
+const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const tripRepository = require('../repositories/tripTracking.repository');
 const { optimizeImage, ALLOWED_IMAGE_MIME_TYPES } = require('./imageOptimization.service');
 const { uploadImageBuffer } = require('./upload.service');

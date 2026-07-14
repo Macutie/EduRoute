@@ -1876,7 +1876,7 @@
 
 /* Modal Styles */
 .afac-modal-overlay {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -1893,8 +1893,11 @@
   background: white;
   width: 100%;
   max-width: 380px;
+  max-height: calc(100dvh - 48px);
   border-radius: 20px;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   display: flex;
   flex-direction: column;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
@@ -1912,6 +1915,7 @@
   flex-direction: column;
   align-items: center;
   position: relative;
+  flex: 1 0 auto;
 }
 
 .afac-modal-avatar {
