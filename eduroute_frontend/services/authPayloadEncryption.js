@@ -101,4 +101,8 @@ export const encryptAuthPayload = async (payload) => {
   };
 };
 
+export const clearAuthPayloadPublicKeyCache = () => {
+  cachedPublicKey = null;
+};
+
 export const encryptSensitivePayload = encryptAuthPayload;

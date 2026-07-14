@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config';
-import { encryptSensitivePayload } from './authPayloadEncryption';
+import { clearAuthPayloadPublicKeyCache, encryptSensitivePayload } from './authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token') || '';
@@ -13,6 +13,9 @@ const parseResponse = async (response, fallbackMessage) => {
 
   return data.data;
 };
+
+const isPayloadDecryptError = (error) =>
+  /encrypted (sensitive|multipart) payload could not be decrypted/i.test(String(error?.message || ''));
 
 export const getFacultyProofOfCompliance = async (tripId) => {
   const response = await fetch(`${API_BASE_URL}/api/faculty/trips/${tripId}/proof-of-compliance`, {
@@ -72,16 +75,27 @@ export const getHrmuProofComplianceDetails = async (proofId) => {
 };
 
 export const reviewHrmuProofCompliance = async (proofId, payload) => {
-  const encryptedPayload = await encryptSensitivePayload(payload);
-  const response = await fetch(`${API_BASE_URL}/api/hrmu/proof-of-compliance/${proofId}/review`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getToken()}`,
-      ...(await getSensitiveResponseHeaders()),
-    },
-    body: JSON.stringify(encryptedPayload),
-  });
+  const sendReview = async () => {
+    const encryptedPayload = await encryptSensitivePayload(payload);
+    return fetch(`${API_BASE_URL}/api/hrmu/proof-of-compliance/${proofId}/review`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getToken()}`,
+        ...(await getSensitiveResponseHeaders()),
+      },
+      body: JSON.stringify(encryptedPayload),
+    });
+  };
 
-  return parseResponse(response, 'Failed to save proof of compliance review.');
+  try {
+    return await parseResponse(await sendReview(), 'Failed to save proof of compliance review.');
+  } catch (error) {
+    if (!isPayloadDecryptError(error)) {
+      throw error;
+    }
+
+    clearAuthPayloadPublicKeyCache();
+    return parseResponse(await sendReview(), 'Failed to save proof of compliance review.');
+  }
 };

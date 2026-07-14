@@ -1321,6 +1321,16 @@
   padding: 28px 32px 32px;
 }
 
+.hrmu-verify-export-snapshot {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.hrmu-verify-export-snapshot .hrmu-verify-modal-body {
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr) !important;
+  align-items: start;
+}
+
 .hrmu-verify-modal-left,
 .hrmu-verify-modal-right {
   min-width: 0;

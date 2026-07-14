@@ -1,8 +1,11 @@
 import { API_BASE_URL } from '../config';
-import { encryptSensitivePayload } from './authPayloadEncryption';
+import { clearAuthPayloadPublicKeyCache, encryptSensitivePayload } from './authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
+
+const isPayloadDecryptError = (error) =>
+  /encrypted (sensitive|multipart) payload could not be decrypted/i.test(String(error?.message || ''));
 
 const request = async (endpoint, params = {}) => {
   const searchParams = new URLSearchParams();
@@ -55,18 +58,27 @@ export const getHrmuVerificationTrips = () =>
 
 export const reviewHrmuArrivalVerification = async (verificationId, payload) => {
   const token = getToken();
-  const encryptedPayload = await encryptSensitivePayload(payload);
-  const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/arrival/${verificationId}`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(await getSensitiveResponseHeaders()),
-    },
-    body: JSON.stringify(encryptedPayload),
-  });
+  const sendReview = async () => {
+    const encryptedPayload = await encryptSensitivePayload(payload);
+    return fetch(`${API_BASE_URL}/api/hrmu/verification/arrival/${verificationId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(await getSensitiveResponseHeaders()),
+      },
+      body: JSON.stringify(encryptedPayload),
+    });
+  };
 
-  const data = await decryptSensitiveResponseJson(await response.json());
+  let response = await sendReview();
+  let data = await decryptSensitiveResponseJson(await response.json());
+
+  if (!response.ok && isPayloadDecryptError(new Error(data.message))) {
+    clearAuthPayloadPublicKeyCache();
+    response = await sendReview();
+    data = await decryptSensitiveResponseJson(await response.json());
+  }
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU verification review failed');
@@ -77,18 +89,27 @@ export const reviewHrmuArrivalVerification = async (verificationId, payload) => 
 
 export const flagHrmuTripWithoutProof = async (tripId, locatorSlipId = null) => {
   const token = getToken();
-  const encryptedPayload = await encryptSensitivePayload({ locatorSlipId });
-  const response = await fetch(`${API_BASE_URL}/api/hrmu/verification/trips/${tripId}/flag-unverified`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(await getSensitiveResponseHeaders()),
-    },
-    body: JSON.stringify(encryptedPayload),
-  });
+  const sendFlag = async () => {
+    const encryptedPayload = await encryptSensitivePayload({ locatorSlipId });
+    return fetch(`${API_BASE_URL}/api/hrmu/verification/trips/${tripId}/flag-unverified`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(await getSensitiveResponseHeaders()),
+      },
+      body: JSON.stringify(encryptedPayload),
+    });
+  };
 
-  const data = await decryptSensitiveResponseJson(await response.json());
+  let response = await sendFlag();
+  let data = await decryptSensitiveResponseJson(await response.json());
+
+  if (!response.ok && isPayloadDecryptError(new Error(data.message))) {
+    clearAuthPayloadPublicKeyCache();
+    response = await sendFlag();
+    data = await decryptSensitiveResponseJson(await response.json());
+  }
 
   if (!response.ok) {
     throw new Error(data.message || 'HRMU trip flagging failed');

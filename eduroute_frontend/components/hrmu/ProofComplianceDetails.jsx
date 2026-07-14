@@ -97,47 +97,51 @@ const ProofComplianceDetails = ({
     setIsExporting(true);
     
     try {
-      // Temporarily hide close button and export button to avoid capturing them
-      const closeBtn = modalRef.current.querySelector('.hrmu-verify-modal-close');
-      const actionArea = modalRef.current.querySelector('.hrmu-verify-action-buttons');
-      
-      if (closeBtn) closeBtn.style.display = 'none';
-      if (actionArea) actionArea.style.display = 'none';
+      const exportNode = modalRef.current.cloneNode(true);
+      exportNode.classList.add('hrmu-verify-export-snapshot');
 
-      // Temporarily expand modal to capture full content without scrolling issues
-      const originalMaxHeight = modalRef.current.style.maxHeight;
-      const originalOverflow = modalRef.current.style.overflow;
-      const originalTransform = modalRef.current.style.transform;
-      const originalPosition = modalRef.current.style.position;
-      
-      modalRef.current.style.maxHeight = 'none';
-      modalRef.current.style.overflow = 'visible';
-      modalRef.current.style.transform = 'none';
-      modalRef.current.style.position = 'relative';
+      exportNode.querySelector('.hrmu-verify-modal-close')?.remove();
+      exportNode.querySelector('.hrmu-verify-check-grid')?.remove();
+      exportNode.querySelector('.hrmu-verify-proof-card')?.remove();
+      exportNode.querySelectorAll('.hrmu-verify-modal-label').forEach((label) => {
+        if (label.textContent?.toLowerCase().includes('proof verification checks')) {
+          label.remove();
+        }
+      });
+      exportNode.querySelector('.hrmu-analytics-feedback')?.remove();
+      exportNode.querySelector('.hrmu-verify-review-actions')?.remove();
+      exportNode.querySelector('.hrmu-verify-action-buttons')?.remove();
 
-      const canvas = await html2canvas(modalRef.current, {
-        scale: 2, // Higher resolution
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        scrollY: -window.scrollY, // Avoid scroll offset cropping
-        windowWidth: document.documentElement.scrollWidth,
-        windowHeight: document.documentElement.scrollHeight,
-        width: modalRef.current.scrollWidth,
-        height: modalRef.current.scrollHeight
+      Object.assign(exportNode.style, {
+        position: 'fixed',
+        left: '-10000px',
+        top: '0',
+        width: '1046px',
+        maxHeight: 'none',
+        overflow: 'visible',
+        transform: 'none',
+        background: '#ffffff',
       });
 
-      // Restore original styles
-      modalRef.current.style.maxHeight = originalMaxHeight;
-      modalRef.current.style.overflow = originalOverflow;
-      modalRef.current.style.transform = originalTransform;
-      modalRef.current.style.position = originalPosition;
+      document.body.appendChild(exportNode);
 
-      if (closeBtn) closeBtn.style.display = '';
-      if (actionArea) actionArea.style.display = '';
+      const canvas = await html2canvas(exportNode, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: exportNode.scrollWidth,
+        windowHeight: exportNode.scrollHeight,
+        width: exportNode.scrollWidth,
+        height: exportNode.scrollHeight,
+      });
+
+      exportNode.remove();
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
-        orientation: canvas.width > canvas.height ? 'landscape' : 'portrait',
+        orientation: 'landscape',
         unit: 'px',
         format: [canvas.width, canvas.height]
       });
