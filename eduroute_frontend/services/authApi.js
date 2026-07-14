@@ -1,5 +1,35 @@
 import { API_BASE_URL } from '../config';
-import { encryptAuthPayload } from './authPayloadEncryption';
+import { clearAuthPayloadPublicKeyCache, encryptAuthPayload } from './authPayloadEncryption';
+
+const isEncryptedPayloadDecryptError = (error) => /encrypted payload could not be decrypted|payload could not be decrypted|decryption failed/i.test(
+    String(error?.message || error || '')
+);
+
+const parseJsonResponse = async (response, fallbackMessage) => {
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message || fallbackMessage);
+    }
+
+    return data;
+};
+
+const withRecoveryRequestTimeout = async (request) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+        return await request(controller.signal);
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw new Error('Password recovery is taking too long. Please check your connection and try again.');
+        }
+        throw error;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
 
 export const registerFaculty = async (formData) => {
     const encryptedPayload = await encryptAuthPayload({
@@ -64,23 +94,31 @@ export const fetchDepartments = async () => {
 };
 
 export const forgotPassword = async (email) => {
-    const encryptedPayload = await encryptAuthPayload({ email });
+    const sendRequest = async (signal) => {
+        const encryptedPayload = await encryptAuthPayload({ email });
 
-    const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(encryptedPayload)
-    });
+        const response = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+            method: 'POST',
+            signal,
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(encryptedPayload)
+        });
 
-    const data = await response.json();
+        return parseJsonResponse(response, 'Forgot password failed');
+    };
 
-    if (!response.ok) {
-        throw new Error(data.message || 'Forgot password failed');
+    try {
+        return await withRecoveryRequestTimeout(sendRequest);
+    } catch (error) {
+        if (!isEncryptedPayloadDecryptError(error)) {
+            throw error;
+        }
+
+        clearAuthPayloadPublicKeyCache();
+        return withRecoveryRequestTimeout(sendRequest);
     }
-
-    return data;
 };
 
 export const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {

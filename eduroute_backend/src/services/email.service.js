@@ -1,7 +1,32 @@
 const transporter = require('../config/mailer');
 const env = require('../config/env');
 
+const RESET_EMAIL_TIMEOUT_MS = Number(process.env.RESET_EMAIL_TIMEOUT_MS || 15000);
+
+const assertMailerConfigured = () => {
+    if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) {
+        throw new Error('SMTP is not configured for password recovery emails.');
+    }
+};
+
+const sendMailWithTimeout = async (mailOptions) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error('Password recovery email request timed out.'));
+        }, RESET_EMAIL_TIMEOUT_MS);
+    });
+
+    try {
+        return await Promise.race([transporter.sendMail(mailOptions), timeoutPromise]);
+    } finally {
+        clearTimeout(timeoutId);
+    }
+};
+
 const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
+    assertMailerConfigured();
+
     const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
       <h2>EduRoute Faculty Portal Password Reset</h2>
@@ -15,7 +40,7 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
     </div>
   `;
 
-    return transporter.sendMail({
+    return sendMailWithTimeout({
         from: env.mailFrom,
         to,
         subject: 'EduRoute Password Reset Code',

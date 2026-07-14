@@ -26,7 +26,7 @@ import { downloadHrmuMonthlyReportPdf, downloadHrmuNotificationMonthlyLogPdf, ge
 import { getHrmuProofComplianceDetails, getHrmuProofComplianceList, getFacultyProofOfCompliance, reviewHrmuProofCompliance } from '../../services/proofComplianceApi';
 import { getApprovedFacultyLocatorSlips, getFacultyLocatorSlipDetails, getFacultyTripSummary, markFacultyTripArrived, markFacultyTripReturned, resolveFacultyLocatorSlipDestination, saveFacultyManualPin, startFacultyTrip, startFacultyTripReturn } from '../../services/facultyTripApi';
 import { getHrmuTripPathHistory, getTripPathHistory } from '../../services/tripPathHistoryApi';
-import { encryptAuthPayload, encryptSensitivePayload } from '../../services/authPayloadEncryption';
+import { clearAuthPayloadPublicKeyCache, encryptAuthPayload, encryptSensitivePayload } from '../../services/authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders, resetSensitiveResponseKeyPair } from '../../services/responseEncryption';
 import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileEditIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, AdminUserOutlineIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, CssuChartIcon, CssuExitDoorIcon, CssuIncidentsNavIcon, CssuMapNavIcon, CssuReportsNavIcon, CssuRoleIcon, CssuRosetteCheckIcon, CssuScanNavIcon, CssuTrendingUpIcon, CssuWarningCircleIcon, CssuWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPersonIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultySearchIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryEyeIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
 import { LEGAL_DOCUMENTS, LegalDocumentModal, getPermissionSetupStorageKey } from "../../components/legal/LegalDocuments.jsx";
@@ -220,10 +220,25 @@ function App() {
     method: 'POST',
     body: JSON.stringify(await encryptAuthPayload(payload))
   });
-  const forgotPasswordApi = async payload => apiRequest('/api/auth/forgot-password', {
-    method: 'POST',
-    body: JSON.stringify(await encryptAuthPayload(payload))
-  });
+  const forgotPasswordApi = async payload => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 20000);
+
+    try {
+      return await apiRequest('/api/auth/forgot-password', {
+        method: 'POST',
+        signal: controller.signal,
+        body: JSON.stringify(await encryptAuthPayload(payload))
+      });
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Password recovery is taking too long. Please check your connection and try again.');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
   const verifyResetCodeApi = async payload => apiRequest('/api/auth/verify-reset-code', {
     method: 'POST',
     body: JSON.stringify(await encryptAuthPayload(payload))
@@ -232,6 +247,19 @@ function App() {
     method: 'POST',
     body: JSON.stringify(await encryptAuthPayload(payload))
   });
+  const isEncryptedPayloadDecryptError = error => /encrypted payload could not be decrypted|payload could not be decrypted|decryption failed/i.test(String(error?.message || error || ''));
+  const forgotPasswordApiWithKeyRetry = async payload => {
+    try {
+      return await forgotPasswordApi(payload);
+    } catch (error) {
+      if (!isEncryptedPayloadDecryptError(error)) {
+        throw error;
+      }
+
+      clearAuthPayloadPublicKeyCache();
+      return forgotPasswordApi(payload);
+    }
+  };
   const permissionApiHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem('token') || ''}`
   });
@@ -709,7 +737,7 @@ function App() {
     setLoading(true);
     try {
       const email = forgotForm.email.trim();
-      const data = await forgotPasswordApi({
+      const data = await forgotPasswordApiWithKeyRetry({
         email
       });
       alert(formatApiMessage(data.message) || 'Reset code sent.');

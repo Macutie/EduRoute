@@ -101,13 +101,7 @@ const ProofComplianceDetails = ({
       exportNode.classList.add('hrmu-verify-export-snapshot');
 
       exportNode.querySelector('.hrmu-verify-modal-close')?.remove();
-      exportNode.querySelector('.hrmu-verify-check-grid')?.remove();
       exportNode.querySelector('.hrmu-verify-proof-card')?.remove();
-      exportNode.querySelectorAll('.hrmu-verify-modal-label').forEach((label) => {
-        if (label.textContent?.toLowerCase().includes('proof verification checks')) {
-          label.remove();
-        }
-      });
       exportNode.querySelector('.hrmu-analytics-feedback')?.remove();
       exportNode.querySelector('.hrmu-verify-review-actions')?.remove();
       exportNode.querySelector('.hrmu-verify-action-buttons')?.remove();

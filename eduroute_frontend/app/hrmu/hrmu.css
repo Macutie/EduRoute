@@ -1331,6 +1331,15 @@
   align-items: start;
 }
 
+.hrmu-verify-export-snapshot .hrmu-verify-check-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 640px;
+}
+
+.hrmu-verify-export-snapshot .hrmu-verify-check-card {
+  min-height: 108px;
+}
+
 .hrmu-verify-modal-left,
 .hrmu-verify-modal-right {
   min-width: 0;
