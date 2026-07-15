@@ -24,6 +24,16 @@ const sendMailWithTimeout = async (mailOptions) => {
     }
 };
 
+const shouldRetryWithFallbackSmtp = (error) => {
+    const code = String(error?.code || '');
+    const command = String(error?.command || '');
+    const message = String(error?.message || '');
+
+    return ['ESOCKET', 'ETIMEDOUT', 'ECONNECTION'].includes(code)
+        || command === 'CONN'
+        || /ENETUNREACH|ETIMEDOUT|ECONNREFUSED|Connection timeout/i.test(message);
+};
+
 const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
     assertMailerConfigured();
 
@@ -40,12 +50,23 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
     </div>
   `;
 
-    return sendMailWithTimeout({
+    const mailOptions = {
         from: env.mailFrom,
         to,
         subject: 'EduRoute Password Reset Code',
         html
-    });
+    };
+
+    try {
+        return await sendMailWithTimeout(mailOptions);
+    } catch (error) {
+        if (!shouldRetryWithFallbackSmtp(error) || typeof transporter.createFallbackTransport !== 'function') {
+            throw error;
+        }
+
+        const fallbackTransporter = transporter.createFallbackTransport();
+        return fallbackTransporter.sendMail(mailOptions);
+    }
 };
 
 module.exports = {
