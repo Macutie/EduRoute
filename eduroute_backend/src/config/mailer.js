@@ -5,6 +5,11 @@ const env = require('./env');
 dns.setDefaultResultOrder?.('ipv4first');
 
 const smtpAddressFamily = Number(process.env.SMTP_ADDRESS_FAMILY || 4);
+const smtpTimeouts = {
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 20000),
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 20000),
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 30000)
+};
 
 const lookupSmtpHost = (hostname, options, callback) => {
     dns.lookup(hostname, { ...options, family: smtpAddressFamily }, callback);
@@ -16,9 +21,7 @@ const createSmtpTransport = (overrides = {}) => nodemailer.createTransport({
     secure: typeof overrides.secure === 'boolean' ? overrides.secure : env.smtpSecure,
     family: smtpAddressFamily,
     lookup: lookupSmtpHost,
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS || 10000),
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS || 10000),
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS || 15000),
+    ...smtpTimeouts,
     tls: {
         servername: overrides.host || env.smtpHost
     },
@@ -29,6 +32,19 @@ const createSmtpTransport = (overrides = {}) => nodemailer.createTransport({
 });
 
 const transporter = createSmtpTransport();
+
+transporter.getSafeConfig = () => ({
+    host: env.smtpHost || null,
+    port: env.smtpPort || null,
+    secure: env.smtpSecure,
+    addressFamily: smtpAddressFamily,
+    fallbackPort: Number(process.env.SMTP_FALLBACK_PORT || 465),
+    fallbackSecure: String(process.env.SMTP_FALLBACK_SECURE || 'true') === 'true',
+    hasUser: Boolean(env.smtpUser),
+    hasPassword: Boolean(env.smtpPass),
+    hasMailFrom: Boolean(env.mailFrom),
+    ...smtpTimeouts
+});
 
 transporter.createFallbackTransport = () => createSmtpTransport({
     port: Number(process.env.SMTP_FALLBACK_PORT || 465),

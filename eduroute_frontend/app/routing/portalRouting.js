@@ -85,7 +85,7 @@ export const getEduRouteDialogContent = ({
 } = {}) => {
   let text = String(message ?? '');
   if (/EMAIL_PROVIDER=resend|RESEND_API_KEY|RESEND_FROM|HTTPS email delivery/i.test(text)) {
-    text = 'EduRoute could not reach the recovery email server. Please check SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_ADDRESS_FAMILY, SMTP_USER, SMTP_PASS, and MAIL_FROM in the Railway backend variables, then redeploy the backend.';
+    text = 'EduRoute could not reach Gmail SMTP from the Railway backend. Please verify SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_SECURE=false, SMTP_ADDRESS_FAMILY=4, SMTP_USER, SMTP_PASS, and MAIL_FROM in Railway, then redeploy the backend.';
   }
   if (text.toLowerCase().includes('invalid credentials')) {
     return {

@@ -447,8 +447,8 @@ const getRecoveryEmailFailureMessage = (error) => {
         return 'EduRoute recovery email is not configured. Please set SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, and MAIL_FROM in the backend environment.';
     }
 
-    if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(message)) {
-        return 'EduRoute could not reach the recovery email server. Please check SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_ADDRESS_FAMILY, and Railway network access to Gmail SMTP.';
+    if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH/i.test(message)) {
+        return 'EduRoute could not reach Gmail SMTP from the Railway backend. Please verify SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_SECURE=false, SMTP_ADDRESS_FAMILY=4, SMTP_USER, SMTP_PASS, and MAIL_FROM. If the same timeout continues after redeploy, Railway is likely blocking or timing out outbound SMTP for this service.';
     }
 
     return 'EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.';

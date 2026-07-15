@@ -1,7 +1,7 @@
 const transporter = require('../config/mailer');
 const env = require('../config/env');
 
-const RESET_EMAIL_TIMEOUT_MS = Number(process.env.RESET_EMAIL_TIMEOUT_MS || 9000);
+const RESET_EMAIL_TIMEOUT_MS = Number(process.env.RESET_EMAIL_TIMEOUT_MS || 30000);
 
 const assertMailerConfigured = () => {
     if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) {
@@ -57,6 +57,10 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
         html
     };
 
+    const safeMailerConfig = typeof transporter.getSafeConfig === 'function'
+        ? transporter.getSafeConfig()
+        : null;
+
     try {
         return await sendMailWithTimeout(mailOptions);
     } catch (error) {
@@ -67,11 +71,22 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
         console.warn('Primary SMTP transport failed; retrying with fallback SMTP transport:', {
             code: error?.code,
             command: error?.command,
-            message: error?.message
+            message: error?.message,
+            smtp: safeMailerConfig
         });
 
         const fallbackTransporter = transporter.createFallbackTransport();
-        return sendMailWithTimeout(mailOptions, fallbackTransporter);
+        try {
+            return await sendMailWithTimeout(mailOptions, fallbackTransporter);
+        } catch (fallbackError) {
+            console.error('Fallback SMTP transport failed:', {
+                code: fallbackError?.code,
+                command: fallbackError?.command,
+                message: fallbackError?.message,
+                smtp: safeMailerConfig
+            });
+            throw fallbackError;
+        }
     }
 };
 
