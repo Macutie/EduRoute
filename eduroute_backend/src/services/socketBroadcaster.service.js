@@ -2,7 +2,7 @@ const { getSocketServer } = require('../socket/socketBus');
 const hrmuDashboardRepository = require('../repositories/hrmuDashboard.repository');
 const hrmuLiveTrackingRepository = require('../repositories/hrmuLiveTracking.repository');
 const tripIncidentRepository = require('../repositories/tripIncident.repository');
-const { formatRelativeTime, mapLiveFacultyRow } = require('./hrmuDashboard.service');
+const { formatRelativeTime, mapLiveFacultyRow } = require('../utils/hrmuDashboardMappers');
 const { mapFacultyMarkerRow, mapActivityItem } = require('./hrmuLiveTracking.service');
 
 const emitToHrmu = (eventName, payload) => {
