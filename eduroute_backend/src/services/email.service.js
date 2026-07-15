@@ -96,7 +96,20 @@ const sendWithResend = async ({ to, subject, html, text }) => {
 
     if (!response.ok) {
         const responseText = await response.text();
-        throw new Error(`Resend email delivery failed (${response.status}): ${responseText}`);
+        let providerMessage = responseText;
+
+        try {
+            const parsed = JSON.parse(responseText);
+            providerMessage = parsed?.message || parsed?.error || responseText;
+        } catch (_) {
+            providerMessage = responseText;
+        }
+
+        const error = new Error(`Resend email delivery failed (${response.status}): ${providerMessage}`);
+        error.code = 'RESEND_DELIVERY_FAILED';
+        error.statusCode = response.status;
+        error.providerMessage = providerMessage;
+        throw error;
     }
 
     return response.json();

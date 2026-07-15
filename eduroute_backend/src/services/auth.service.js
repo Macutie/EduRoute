@@ -451,8 +451,8 @@ const getRecoveryEmailFailureMessage = (error) => {
         return 'EduRoute recovery email provider is not configured. Please set RESEND_API_KEY and RESEND_FROM in the backend environment.';
     }
 
-    if (/Resend email delivery failed/i.test(message)) {
-        return 'EduRoute could not send the recovery code through the email provider. Please check the RESEND_API_KEY, RESEND_FROM sender, and verified domain settings.';
+    if (code === 'RESEND_DELIVERY_FAILED' || /Resend email delivery failed/i.test(message)) {
+        return 'EduRoute could not send the recovery code through Resend. Please check Railway variables: RESEND_API_KEY must be valid, and RESEND_FROM must be an allowed sender such as EduRoute <onboarding@resend.dev> for testing or a verified domain sender.';
     }
 
     if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(message)) {
