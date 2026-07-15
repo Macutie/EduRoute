@@ -51,6 +51,19 @@ const buildStatusCopy = (proof) => {
   return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location/signature.`;
 };
 
+const waitForImagesToSettle = async (container) => {
+  const images = Array.from(container.querySelectorAll('img'));
+
+  await Promise.all(images.map((image) => {
+    if (image.complete) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      image.addEventListener('load', resolve, { once: true });
+      image.addEventListener('error', resolve, { once: true });
+    });
+  }));
+};
+
 const ProofComplianceDetails = ({
   row,
   details,
@@ -95,9 +108,10 @@ const ProofComplianceDetails = ({
   const handleExportPdf = async () => {
     if (!modalRef.current) return;
     setIsExporting(true);
+    let exportNode = null;
     
     try {
-      const exportNode = modalRef.current.cloneNode(true);
+      exportNode = modalRef.current.cloneNode(true);
       exportNode.classList.add('hrmu-verify-export-snapshot');
 
       exportNode.querySelector('.hrmu-verify-modal-close')?.remove();
@@ -111,6 +125,7 @@ const ProofComplianceDetails = ({
         left: '-10000px',
         top: '0',
         width: '1046px',
+        height: 'auto',
         maxHeight: 'none',
         overflow: 'visible',
         transform: 'none',
@@ -118,6 +133,7 @@ const ProofComplianceDetails = ({
       });
 
       document.body.appendChild(exportNode);
+      await waitForImagesToSettle(exportNode);
 
       const canvas = await html2canvas(exportNode, {
         scale: 2,
@@ -132,20 +148,38 @@ const ProofComplianceDetails = ({
       });
 
       exportNode.remove();
+      exportNode = null;
 
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
         orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
+        unit: 'pt',
+        format: 'a4'
       });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 18;
+      const imageWidth = pageWidth - margin * 2;
+      const imageHeight = (canvas.height * imageWidth) / canvas.width;
+      const pageContentHeight = pageHeight - margin * 2;
+      let remainingHeight = imageHeight;
+      let imageTop = margin;
 
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      pdf.addImage(imgData, 'PNG', margin, imageTop, imageWidth, imageHeight);
+
+      while (remainingHeight > pageContentHeight) {
+        remainingHeight -= pageContentHeight;
+        imageTop -= pageContentHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, imageTop, imageWidth, imageHeight);
+      }
+
       const filename = `proof-of-compliance-${row.slipNumber || 'export'}.pdf`;
       pdf.save(filename);
     } catch (err) {
       console.error('Failed to export PDF', err);
     } finally {
+      exportNode?.remove();
       setIsExporting(false);
     }
   };

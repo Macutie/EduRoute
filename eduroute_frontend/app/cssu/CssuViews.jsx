@@ -48,6 +48,26 @@ export const useDesktopWorkspaceViewport = () => {
   }, []);
   return isDesktopViewport;
 };
+
+const getCssuExitHistoryStatusLabel = (item = {}) => {
+  const normalizedStatus = String(item.status || item.statusLabel || '').toLowerCase();
+
+  if (normalizedStatus === 'approved' || normalizedStatus === 'validated') {
+    return 'Visited';
+  }
+
+  return item.statusLabel || item.status || 'Visited';
+};
+
+const normalizeCssuExitHistoryRows = (rows = []) => (
+  Array.isArray(rows)
+    ? rows.map((item) => ({
+      ...item,
+      statusLabel: getCssuExitHistoryStatusLabel(item),
+    }))
+    : []
+);
+
 export const CssuWorkspaceShell = ({
   activeKey = 'dashboard',
   setView,
@@ -366,7 +386,7 @@ export const CSSUDashboardDesktopView = ({
         loading: false,
         error: '',
         facultyName: row.facultyName || 'Faculty user',
-        rows: Array.isArray(history?.rows) ? history.rows : []
+        rows: normalizeCssuExitHistoryRows(history?.rows)
       });
     } catch (error) {
       setHistoryDrawer({
@@ -734,7 +754,7 @@ export const CSSUDashboardView = ({
         loading: false,
         error: '',
         facultyName: row.facultyName || 'Faculty user',
-        rows: Array.isArray(history?.rows) ? history.rows : []
+        rows: normalizeCssuExitHistoryRows(history?.rows)
       });
     } catch (error) {
       setHistoryDrawer({
