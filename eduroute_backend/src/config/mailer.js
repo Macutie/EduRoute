@@ -23,7 +23,7 @@ const createSmtpTransport = (overrides = {}) => nodemailer.createTransport({
     lookup: lookupSmtpHost,
     ...smtpTimeouts,
     tls: {
-        servername: overrides.host || env.smtpHost
+        servername: overrides.tlsServername || env.smtpHost
     },
     auth: {
         user: env.smtpUser,
@@ -32,6 +32,15 @@ const createSmtpTransport = (overrides = {}) => nodemailer.createTransport({
 });
 
 const transporter = createSmtpTransport();
+
+const resolveSmtpIpv4Host = async () => {
+    if (!env.smtpHost || smtpAddressFamily !== 4) {
+        return null;
+    }
+
+    const addresses = await dns.promises.resolve4(env.smtpHost);
+    return addresses[0] || null;
+};
 
 transporter.getSafeConfig = () => ({
     host: env.smtpHost || null,
@@ -46,7 +55,26 @@ transporter.getSafeConfig = () => ({
     ...smtpTimeouts
 });
 
+transporter.createIpv4Transport = async (overrides = {}) => {
+    const ipv4Host = await resolveSmtpIpv4Host();
+
+    if (!ipv4Host) {
+        return createSmtpTransport(overrides);
+    }
+
+    return createSmtpTransport({
+        ...overrides,
+        host: ipv4Host,
+        tlsServername: env.smtpHost
+    });
+};
+
 transporter.createFallbackTransport = () => createSmtpTransport({
+    port: Number(process.env.SMTP_FALLBACK_PORT || 465),
+    secure: String(process.env.SMTP_FALLBACK_SECURE || 'true') === 'true'
+});
+
+transporter.createIpv4FallbackTransport = async () => transporter.createIpv4Transport({
     port: Number(process.env.SMTP_FALLBACK_PORT || 465),
     secure: String(process.env.SMTP_FALLBACK_SECURE || 'true') === 'true'
 });

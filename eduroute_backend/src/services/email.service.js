@@ -61,8 +61,12 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
         ? transporter.getSafeConfig()
         : null;
 
+    const primaryTransporter = typeof transporter.createIpv4Transport === 'function'
+        ? await transporter.createIpv4Transport()
+        : transporter;
+
     try {
-        return await sendMailWithTimeout(mailOptions);
+        return await sendMailWithTimeout(mailOptions, primaryTransporter);
     } catch (error) {
         if (!shouldRetryWithFallbackSmtp(error) || typeof transporter.createFallbackTransport !== 'function') {
             throw error;
@@ -75,7 +79,9 @@ const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
             smtp: safeMailerConfig
         });
 
-        const fallbackTransporter = transporter.createFallbackTransport();
+        const fallbackTransporter = typeof transporter.createIpv4FallbackTransport === 'function'
+            ? await transporter.createIpv4FallbackTransport()
+            : transporter.createFallbackTransport();
         try {
             return await sendMailWithTimeout(mailOptions, fallbackTransporter);
         } catch (fallbackError) {
