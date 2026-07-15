@@ -20,6 +20,8 @@ const env = require('./config/env');
 
 const app = express();
 
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS || 1));
+
 app.use(helmet());
 app.use(
     cors({
