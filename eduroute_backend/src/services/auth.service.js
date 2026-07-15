@@ -444,11 +444,19 @@ const getRecoveryEmailFailureMessage = (error) => {
     }
 
     if (/SMTP is not configured/i.test(message)) {
-        return 'EduRoute recovery email is not configured. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and MAIL_FROM in the backend environment.';
+        return 'EduRoute recovery email is not configured. Please set SMTP_HOST, SMTP_USER, SMTP_PASS, and MAIL_FROM, or configure EMAIL_PROVIDER=resend with RESEND_API_KEY and RESEND_FROM.';
+    }
+
+    if (/Resend is not configured/i.test(message)) {
+        return 'EduRoute recovery email provider is not configured. Please set RESEND_API_KEY and RESEND_FROM in the backend environment.';
+    }
+
+    if (/Resend email delivery failed/i.test(message)) {
+        return 'EduRoute could not send the recovery code through the email provider. Please check the RESEND_API_KEY, RESEND_FROM sender, and verified domain settings.';
     }
 
     if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN/i.test(message)) {
-        return 'EduRoute could not reach the recovery email server. Please check the backend internet connection and SMTP_HOST/SMTP_PORT settings.';
+        return 'EduRoute could not reach the recovery email server. Railway may be blocking or timing out SMTP; configure EMAIL_PROVIDER=resend with RESEND_API_KEY and RESEND_FROM for HTTPS email delivery.';
     }
 
     return 'EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.';
