@@ -3081,7 +3081,7 @@ export const MapTrackingView = ({
         }}>
             
                 Choose Another Slip
-              </button> : !activeTrip || tripLifecycleState === 'COMPLETED' ? <button type="button" className="trip-start-btn" onClick={startTrip} disabled={mapLoading || !destination || !getLocatorSlipActionState(locatorSlip, activeTrip).startTrip}>
+              </button> : !activeTrip || tripLifecycleState === 'COMPLETED' ? <button type="button" className="trip-start-btn" onClick={startTrip} disabled={mapLoading}>
             
                 {mapLoading ? 'Preparing...' : 'Start Trip'}
               </button> : tripLifecycleState === 'ACTIVE' ? <button type="button" className="trip-start-btn" onClick={markTripArrived} disabled={mapLoading}>
