@@ -1932,6 +1932,19 @@ export const MapTrackingView = ({
     const haversine = Math.sin(deltaLatitude / 2) * Math.sin(deltaLatitude / 2) + Math.cos(startLatitude) * Math.cos(endLatitude) * Math.sin(deltaLongitude / 2) * Math.sin(deltaLongitude / 2);
     return 2 * earthRadiusMeters * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
   };
+  const normalizeMapCoordinate = coordinate => {
+    if (!coordinate) return null;
+    const latitude = Number(coordinate.latitude ?? coordinate.lat);
+    const longitude = Number(coordinate.longitude ?? coordinate.lng);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    return {
+      ...coordinate,
+      latitude,
+      longitude,
+      lat: latitude,
+      lng: longitude
+    };
+  };
   const runWhenMapStyleReady = operation => {
     const map = mapRef.current;
     if (!map) return;
@@ -2090,9 +2103,10 @@ export const MapTrackingView = ({
   const setOriginMarker = (coordinate, {
     recenter = true
   } = {}) => {
-    if (!mapRef.current || !coordinate) return;
+    const normalizedCoordinate = normalizeMapCoordinate(coordinate);
+    if (!mapRef.current || !normalizedCoordinate) return;
     runWhenMapStyleReady(map => {
-    const lngLat = [coordinate.longitude, coordinate.latitude];
+    const lngLat = [normalizedCoordinate.longitude, normalizedCoordinate.latitude];
     if (!originMarkerRef.current) {
       originMarkerRef.current = new mapboxgl.Marker({
         color: '#049516'
@@ -2109,10 +2123,19 @@ export const MapTrackingView = ({
     }
     });
   };
-  const setDestinationMarker = coordinate => {
-    if (!mapRef.current || !coordinate) return;
+  const setDestinationMarker = (coordinate, {
+    recenter = true
+  } = {}) => {
+    const normalizedCoordinate = normalizeMapCoordinate(coordinate);
+    if (!mapRef.current || !normalizedCoordinate) {
+      if (destinationMarkerRef.current) {
+        destinationMarkerRef.current.remove();
+        destinationMarkerRef.current = null;
+      }
+      return;
+    }
     runWhenMapStyleReady(map => {
-    const lngLat = [coordinate.longitude, coordinate.latitude];
+    const lngLat = [normalizedCoordinate.longitude, normalizedCoordinate.latitude];
     if (!destinationMarkerRef.current) {
       destinationMarkerRef.current = new mapboxgl.Marker({
         color: '#FFD517'
@@ -2120,11 +2143,13 @@ export const MapTrackingView = ({
     } else {
       destinationMarkerRef.current.setLngLat(lngLat);
     }
-    map.flyTo({
-      center: lngLat,
-      zoom: 15,
-      essential: true
-    });
+    if (recenter) {
+      map.flyTo({
+        center: lngLat,
+        zoom: 15,
+        essential: true
+      });
+    }
     });
   };
   const handleDestinationRetrieve = async result => {
@@ -2393,13 +2418,17 @@ export const MapTrackingView = ({
     setMapLoading(true);
     setMapError('');
     try {
+      const tripDestination = normalizeMapCoordinate(destination);
+      if (!tripDestination) {
+        throw new Error('Resolve or pin the locator slip destination first.');
+      }
       const data = await startFacultyTrip({
         locatorSlipId: locatorSlip?.id,
         originLat: origin.latitude,
         originLng: origin.longitude,
         originAccuracy: origin.accuracy,
-        destinationLat: destination.latitude,
-        destinationLng: destination.longitude,
+        destinationLat: tripDestination.latitude,
+        destinationLng: tripDestination.longitude,
         outboundDistanceMeters: routeSummary?.distance_meters || null,
         profile: routeMode
       });
@@ -2493,7 +2522,7 @@ export const MapTrackingView = ({
       setMapError(tripActionState.helperText || 'CSSU must allow exit before you can start this trip.');
       return;
     }
-    if (!destination) {
+    if (!normalizeMapCoordinate(destination)) {
       setMapError('Resolve or pin the locator slip destination first.');
       return;
     }
@@ -2907,7 +2936,17 @@ export const MapTrackingView = ({
     return () => {
       cancelled = true;
     };
-  }, [origin?.latitude, origin?.longitude, destination?.latitude, destination?.longitude, activeTrip?.id]);
+  }, [origin?.latitude, origin?.longitude, origin?.lat, origin?.lng, destination?.latitude, destination?.longitude, destination?.lat, destination?.lng, activeTrip?.id]);
+  useEffect(() => {
+    if (!mapReady) return;
+    if (!destination) {
+      setDestinationMarker(null);
+      return;
+    }
+    setDestinationMarker(destination, {
+      recenter: false
+    });
+  }, [mapReady, destination?.latitude, destination?.longitude, destination?.lat, destination?.lng]);
   useEffect(() => {
     if (activeTrip && destination && ['ACTIVE', 'RETURNING'].includes(getTripPhase(activeTrip))) {
       startLiveLocationWatch();

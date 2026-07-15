@@ -651,7 +651,8 @@ const updateLocatorSlipDestination = async (facultyUserId, locatorSlipId, payloa
         ]
     );
 
-    return rows[0] ? mapLocatorSlipRow(rows[0]) : null;
+    if (!rows[0]) return null;
+    return getLocatorSlipForTripAccess(facultyUserId, locatorSlipId, client);
 };
 
 const updateLocatorSlipTripStatus = async (locatorSlipId, status, client = pool) => {
