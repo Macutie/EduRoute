@@ -192,21 +192,6 @@ const getPushStatusForUser = async (userId) => {
     };
 };
 
-const sendTestPushNotification = async (userId) => {
-    const notification = await createNotification({
-        recipientUserId: userId,
-        type: 'SYSTEM_PUSH_TEST',
-        title: 'EduRoute Notifications Active',
-        message: 'This device can receive EduRoute alerts even when the app is closed.',
-        data: { url: '/#/notifications' }
-    });
-    const io = getSocketServer();
-    await sendSocketNotification(io, userId, notification).catch(() => null);
-    const delivery = await sendPushNotificationToUser(userId, notification);
-
-    return { notification, delivery };
-};
-
 const sendPushNotificationToUser = async (userId, payload) => sendPushNotificationToUsers([userId], payload);
 
 const notifyUser = async (payload, client) => {
@@ -364,7 +349,6 @@ module.exports = {
     sendPushNotificationToUser,
     sendPushNotificationToUsers,
     getPushStatusForUser,
-    sendTestPushNotification,
     notifyUser,
     notifyUsers,
     markNotificationRead,

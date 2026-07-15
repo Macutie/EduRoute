@@ -7,7 +7,7 @@ import { AdminBadgeIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminPr
 import { LegalDocumentModal } from "../../components/legal/LegalDocuments.jsx";
 import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
 import { getPortalPositionLabel, getPortalMetaLabel, getPortalBadgeLabel } from "../routing/portalRouting.js";
-import { registerPushNotificationsForCurrentBrowser, syncPushTokenForGrantedBrowser } from "../shared/pushNotifications.js";
+import { registerPushNotificationsForCurrentBrowser } from "../shared/pushNotifications.js";
 import { BottomNav } from "../faculty/FacultyViews.jsx";
 import { DeanBottomNav } from "../dean/DeanViews.jsx";
 import { CSSUBottomNav, CSSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
@@ -295,7 +295,6 @@ export const NotificationSettingsView = ({
   const [notificationStatus, setNotificationStatus] = useState('unknown');
   const [notificationSettingsLoading, setNotificationSettingsLoading] = useState(false);
   const [pushStatus, setPushStatus] = useState(null);
-  const [pushTestLoading, setPushTestLoading] = useState(false);
   const formatNotificationApiMessage = value => {
     if (!value) return '';
     if (typeof value === 'string') return value;
@@ -408,31 +407,6 @@ export const NotificationSettingsView = ({
       setNotificationSettingsLoading(false);
     }
   };
-  const handlePushTest = async () => {
-    if (pushTestLoading) return;
-    setPushTestLoading(true);
-    try {
-      await syncPushTokenForGrantedBrowser(isDeanMode ? 'college_dean' : 'faculty');
-      const {
-        getPushNotificationStatus,
-        sendPushTestNotification
-      } = await import('../../services/notificationApi');
-      const status = await getPushNotificationStatus();
-      setPushStatus(status);
-      if (!status.firebaseConfigured) {
-        throw new Error('Firebase Admin is not configured in the backend deployment.');
-      }
-      if (Number(status.activeDeviceCount || 0) < 1) {
-        throw new Error('No active device token is saved for this account yet.');
-      }
-      const result = await sendPushTestNotification();
-      alert(result?.delivery?.delivered > 0 ? 'Test notification sent. Close or minimize EduRoute and check your phone notification tray.' : 'Firebase accepted no device delivery. Re-enable notifications and try again.');
-    } catch (error) {
-      alert(error.message || 'Unable to send the test notification.');
-    } finally {
-      setPushTestLoading(false);
-    }
-  };
   return <div className="dashboard-wrapper">
       <div className="content fade-in dash-content notif-content">
 
@@ -471,19 +445,6 @@ export const NotificationSettingsView = ({
           </div>
           <ToggleSwitch isOn={approvalNotifs} onToggle={handleApprovalNotificationToggle} />
         </div>
-
-        {approvalNotifs && <div className="notif-push-test-panel">
-            <div className="notif-push-test-copy">
-              <span>BACKGROUND DELIVERY</span>
-              <strong>
-                {Number(pushStatus?.activeDeviceCount || 0)} active device{Number(pushStatus?.activeDeviceCount || 0) === 1 ? '' : 's'}
-              </strong>
-              <p>Send a real system notification to verify alerts while EduRoute is minimized or closed.</p>
-            </div>
-            <button type="button" onClick={handlePushTest} disabled={pushTestLoading}>
-              {pushTestLoading ? 'SENDING...' : 'SEND TEST'}
-            </button>
-          </div>}
 
         {/* Reminder Alerts */}
         <div className="notif-card">

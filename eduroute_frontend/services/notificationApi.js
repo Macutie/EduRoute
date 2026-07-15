@@ -39,9 +39,6 @@ export const getNotificationUnreadCount = () => request('/api/notifications/unre
 
 export const getPushNotificationStatus = () => request('/api/notifications/push-status');
 
-export const sendPushTestNotification = () =>
-  request('/api/notifications/push-test', { method: 'POST' });
-
 export const markNotificationRead = (notificationId) =>
   request(`/api/notifications/${notificationId}/read`, { method: 'PATCH' });
 

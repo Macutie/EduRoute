@@ -11,3 +11,59 @@
 @import '../app/hrmu/hrmu.css';
 @import '../app/shared/workspace.css';
 @import '../app/cssu/cssu.css';
+
+/*
+  Shared mobile modal placement.
+
+  Portal styles define each modal's look; this final layer only normalizes
+  popup positioning so system notices and confirmation dialogs appear centered
+  instead of behaving like bottom sheets on phones.
+*/
+@media (max-width: 640px) {
+  .eduroute-dialog-backdrop,
+  .permission-modal-backdrop,
+  .cancel-reason-modal-backdrop,
+  .adet-modal-backdrop,
+  .dean-modal-backdrop,
+  .priv-legal-modal-backdrop,
+  .cssu-gate-picker-backdrop,
+  .cssu-qr-scanner-backdrop,
+  .hrmu-reports-detail-overlay,
+  .hrmu-verify-modal-overlay,
+  .modal-overlay,
+  .qr-modal-overlay,
+  .hrmu-inbox-preview-overlay,
+  .rmodal-overlay,
+  .afac-modal-overlay,
+  .cssu-send-report-overlay,
+  .trip-path-modal-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 16px 10px !important;
+  }
+
+  .eduroute-dialog-modal,
+  .permission-modal-card,
+  .cancel-reason-modal-card,
+  .adet-modal-card,
+  .dean-requests-modal,
+  .priv-legal-modal-card,
+  .cssu-gate-picker-modal,
+  .cssu-qr-scanner-modal,
+  .hrmu-reports-detail-modal,
+  .hrmu-verify-modal,
+  .logout-modal-card,
+  .qr-modal-card,
+  .hrmu-inbox-preview-modal,
+  .rmodal-container,
+  .afac-modal-container,
+  .cssu-send-report-modal,
+  .trip-path-modal {
+    margin: 0 auto !important;
+    max-height: calc(100dvh - 32px) !important;
+    overflow-y: auto !important;
+  }
+}

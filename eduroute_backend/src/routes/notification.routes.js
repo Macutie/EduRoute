@@ -38,18 +38,6 @@ router.get('/push-status', wrap(async (req, res) => {
     });
 }));
 
-router.post('/push-test', wrap(async (req, res) => {
-    const result = await notificationService.sendTestPushNotification(req.user.sub);
-    const delivered = Number(result.delivery?.delivered || 0);
-    res.status(delivered > 0 ? 200 : 409).json({
-        success: delivered > 0,
-        message: delivered > 0
-            ? 'Test notification sent successfully. Lock or close the app to confirm background delivery.'
-            : 'No active phone token received the test notification. Enable notifications on this device first.',
-        data: encryptSensitiveResponseData(req, result)
-    });
-}));
-
 router.patch('/read-all', wrap(async (req, res) => {
     const updated = await notificationService.markAllNotificationsRead(req.user.sub);
     res.json({
