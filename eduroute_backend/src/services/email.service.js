@@ -3,15 +3,8 @@ const env = require('../config/env');
 
 const RESET_EMAIL_TIMEOUT_MS = Number(process.env.RESET_EMAIL_TIMEOUT_MS || 9000);
 
-const isSmtpConfigured = () => Boolean(env.smtpHost && env.smtpUser && env.smtpPass && env.mailFrom);
-const isResendConfigured = () => Boolean(env.resendApiKey && env.resendFrom);
-
-const assertEmailDeliveryConfigured = () => {
-    if (env.emailProvider === 'resend' && !isResendConfigured()) {
-        throw new Error('Resend is not configured for password recovery emails.');
-    }
-
-    if (env.emailProvider !== 'resend' && !isSmtpConfigured() && !isResendConfigured()) {
+const assertMailerConfigured = () => {
+    if (!env.smtpHost || !env.smtpUser || !env.smtpPass || !env.mailFrom) {
         throw new Error('SMTP is not configured for password recovery emails.');
     }
 };
@@ -41,7 +34,9 @@ const shouldRetryWithFallbackSmtp = (error) => {
         || /ENETUNREACH|ETIMEDOUT|ECONNREFUSED|Connection timeout/i.test(message);
 };
 
-const buildResetEmailContent = ({ fullName, resetCode }) => {
+const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
+    assertMailerConfigured();
+
     const html = `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">
       <h2>EduRoute Faculty Portal Password Reset</h2>
@@ -55,70 +50,12 @@ const buildResetEmailContent = ({ fullName, resetCode }) => {
     </div>
   `;
 
-    return {
+    const mailOptions = {
+        from: env.mailFrom,
+        to,
         subject: 'EduRoute Password Reset Code',
-        html,
-        text: [
-            `Hello ${fullName || 'Faculty Member'},`,
-            '',
-            'You requested to reset your EduRoute password.',
-            `Your reset code is: ${resetCode}`,
-            `This code will expire in ${env.resetCodeTtlMinutes} minutes.`,
-            '',
-            'If you did not request this, you can ignore this email.'
-        ].join('\n')
+        html
     };
-};
-
-const sendWithResend = async ({ to, subject, html, text }) => {
-    if (!isResendConfigured()) {
-        throw new Error('Resend is not configured for password recovery emails.');
-    }
-
-    if (typeof fetch !== 'function') {
-        throw new Error('This Node runtime does not support fetch for Resend email delivery.');
-    }
-
-    const response = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${env.resendApiKey}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            from: env.resendFrom,
-            to,
-            subject,
-            html,
-            text
-        })
-    });
-
-    if (!response.ok) {
-        const responseText = await response.text();
-        let providerMessage = responseText;
-
-        try {
-            const parsed = JSON.parse(responseText);
-            providerMessage = parsed?.message || parsed?.error || responseText;
-        } catch (_) {
-            providerMessage = responseText;
-        }
-
-        const error = new Error(`Resend email delivery failed (${response.status}): ${providerMessage}`);
-        error.code = 'RESEND_DELIVERY_FAILED';
-        error.statusCode = response.status;
-        error.providerMessage = providerMessage;
-        throw error;
-    }
-
-    return response.json();
-};
-
-const sendWithSmtp = async (mailOptions) => {
-    if (!isSmtpConfigured()) {
-        throw new Error('SMTP is not configured for password recovery emails.');
-    }
 
     try {
         return await sendMailWithTimeout(mailOptions);
@@ -135,43 +72,6 @@ const sendWithSmtp = async (mailOptions) => {
 
         const fallbackTransporter = transporter.createFallbackTransport();
         return sendMailWithTimeout(mailOptions, fallbackTransporter);
-    }
-};
-
-const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
-    assertEmailDeliveryConfigured();
-
-    const emailContent = buildResetEmailContent({ fullName, resetCode });
-    const mailOptions = {
-        from: env.mailFrom,
-        to,
-        ...emailContent
-    };
-
-    if (env.emailProvider === 'resend') {
-        return sendWithResend({
-            to,
-            ...emailContent
-        });
-    }
-
-    try {
-        return await sendWithSmtp(mailOptions);
-    } catch (error) {
-        if (!isResendConfigured() || !shouldRetryWithFallbackSmtp(error)) {
-            throw error;
-        }
-
-        console.warn('SMTP delivery failed; retrying password recovery email through Resend HTTPS API:', {
-            code: error?.code,
-            command: error?.command,
-            message: error?.message
-        });
-
-        return sendWithResend({
-            to,
-            ...emailContent
-        });
     }
 };
 

@@ -83,7 +83,10 @@ export const getEduRouteDialogContent = ({
   message = '',
   tone = 'info'
 } = {}) => {
-  const text = String(message ?? '');
+  let text = String(message ?? '');
+  if (/EMAIL_PROVIDER=resend|RESEND_API_KEY|RESEND_FROM|HTTPS email delivery/i.test(text)) {
+    text = 'EduRoute could not reach the recovery email server. Please check SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_ADDRESS_FAMILY, SMTP_USER, SMTP_PASS, and MAIL_FROM in the Railway backend variables, then redeploy the backend.';
+  }
   if (text.toLowerCase().includes('invalid credentials')) {
     return {
       title: 'Incorrect Credentials',

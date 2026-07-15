@@ -113,7 +113,7 @@ function App() {
     const nativeAlert = window.alert;
     window.alert = message => {
       const text = String(message ?? '');
-      const isError = /failed|unable|error|denied|blocked|required|invalid|missing|not available|not support/i.test(text);
+      const isError = /failed|unable|error|denied|blocked|required|invalid|missing|not available|not support|could not|cannot|can't|check .*variables|smtp|resend|provider/i.test(text);
       const isSuccess = !isError && /success|approved|updated|sent|saved|completed|allowed|enabled|verified/i.test(text);
       const isLocatorSlipApproved = /locator slip/i.test(text) && /approved/i.test(text);
       const isLocatorSlipRejected = /locator slip/i.test(text) && /rejected/i.test(text);
