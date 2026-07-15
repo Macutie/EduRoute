@@ -41,7 +41,7 @@ const forgotPassword = async (req, res, next) => {
     try {
         await authService.forgotPassword(req.body);
         return res.status(200).json(
-            successResponse('If an account exists for this email, a reset code has been sent.')
+            successResponse('If the email exists, a password reset PIN has been sent.')
         );
     } catch (error) {
         return next(error);

@@ -4,7 +4,7 @@ const env = require('../config/env');
 const AppError = require('../utils/appError');
 const { signAccessToken } = require('../utils/jwt');
 const { validatePasswordPolicy } = require('../utils/passwordPolicy');
-const { generateResetCode, hashResetCode } = require('../utils/resetCode');
+const { generateResetCode, hashResetCode, compareResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
@@ -435,23 +435,21 @@ const changeCurrentFacultyPassword = async (facultyId, payload) => {
 };
 
 const getRecoveryEmailFailureMessage = (error) => {
-    const code = String(error?.code || '');
-    const responseCode = String(error?.responseCode || '');
     const message = String(error?.message || '');
 
-    if (code === 'EAUTH' || responseCode === '535' || /Username and Password not accepted|BadCredentials/i.test(message)) {
-        return 'EduRoute could not authenticate with the recovery email account. Please update SMTP_USER and SMTP_PASS with a valid Gmail App Password, then restart the backend.';
+    if (/RESEND_API_KEY is missing/i.test(message)) {
+        return 'EduRoute password recovery is not configured. Please set RESEND_API_KEY in the backend environment.';
     }
 
-    if (/SMTP is not configured/i.test(message)) {
-        return 'EduRoute recovery email is not configured. Please set SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS, and MAIL_FROM in the backend environment.';
+    if (/EMAIL_FROM is missing/i.test(message)) {
+        return 'EduRoute password recovery sender is not configured. Please set EMAIL_FROM in the backend environment.';
     }
 
-    if (code === 'ETIMEDOUT' || code === 'ESOCKET' || /timed out|ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ENETUNREACH/i.test(message)) {
-        return 'EduRoute could not reach Gmail SMTP from the Railway backend. Please verify SMTP_HOST=smtp.gmail.com, SMTP_PORT=587, SMTP_SECURE=false, SMTP_ADDRESS_FAMILY=4, SMTP_USER, SMTP_PASS, and MAIL_FROM. If the same timeout continues after redeploy, Railway is likely blocking or timing out outbound SMTP for this service.';
+    if (/domain is not verified|sender|from/i.test(message)) {
+        return 'EduRoute could not send the recovery PIN because the Resend sender is not verified. Please verify EMAIL_FROM in Resend or use an allowed sender.';
     }
 
-    return 'EduRoute could not send the recovery code right now. Please try again later or contact the IT Support Desk.';
+    return 'EduRoute could not send the recovery PIN right now. Please try again later or contact the IT Support Desk.';
 };
 
 const forgotPassword = async ({ email }) => {
@@ -473,7 +471,7 @@ const forgotPassword = async ({ email }) => {
     }
 
     const resetCode = generateResetCode();
-    const resetCodeHash = hashResetCode(resetCode);
+    const resetCodeHash = await hashResetCode(resetCode);
     const expiresAt = new Date(Date.now() + env.resetCodeTtlMinutes * 60 * 1000);
 
     await pool.query(
@@ -484,8 +482,8 @@ const forgotPassword = async ({ email }) => {
     );
 
     await pool.query(
-        `INSERT INTO password_reset_tokens (faculty_user_id, reset_code_hash, expires_at)
-     VALUES ($1, $2, $3)`,
+        `INSERT INTO password_reset_tokens (faculty_user_id, reset_code_hash, expires_at, attempts)
+     VALUES ($1, $2, $3, 0)`,
         [user.id, resetCodeHash, expiresAt]
     );
 
@@ -503,7 +501,7 @@ const forgotPassword = async ({ email }) => {
 
 const verifyResetCode = async ({ email, reset_code }) => {
     const normalizedEmail = email.trim().toLowerCase();
-    const codeHash = hashResetCode(reset_code.trim());
+    const code = reset_code.trim();
 
     const query = `
     SELECT
@@ -512,6 +510,7 @@ const verifyResetCode = async ({ email, reset_code }) => {
       prt.reset_code_hash,
       prt.expires_at,
       prt.used_at,
+      COALESCE(prt.attempts, 0) AS attempts,
       fu.email,
       fu.status
     FROM password_reset_tokens prt
@@ -525,7 +524,7 @@ const verifyResetCode = async ({ email, reset_code }) => {
     const { rows, rowCount } = await pool.query(query, [normalizedEmail]);
 
     if (rowCount === 0) {
-        throw new AppError('Invalid or expired reset code.', 400);
+        throw new AppError('Invalid or expired reset PIN.', 400);
     }
 
     const tokenRecord = rows[0];
@@ -535,11 +534,23 @@ const verifyResetCode = async ({ email, reset_code }) => {
     }
 
     if (new Date(tokenRecord.expires_at).getTime() < Date.now()) {
-        throw new AppError('Reset code has expired.', 400);
+        throw new AppError('Reset PIN has expired.', 400);
     }
 
-    if (tokenRecord.reset_code_hash !== codeHash) {
-        throw new AppError('Invalid or expired reset code.', 400);
+    if (Number(tokenRecord.attempts || 0) >= 5) {
+        throw new AppError('Too many invalid reset PIN attempts. Please request a new PIN.', 429);
+    }
+
+    const codeMatches = await compareResetCode(code, tokenRecord.reset_code_hash);
+
+    if (!codeMatches) {
+        await pool.query(
+            `UPDATE password_reset_tokens
+             SET attempts = COALESCE(attempts, 0) + 1
+             WHERE id = $1`,
+            [tokenRecord.id]
+        );
+        throw new AppError('Invalid or expired reset PIN.', 400);
     }
 
     return { verified: true };
@@ -550,7 +561,7 @@ const resetPassword = async ({ email, reset_code, new_password }) => {
 
     try {
         const normalizedEmail = email.trim().toLowerCase();
-        const codeHash = hashResetCode(reset_code.trim());
+        const code = reset_code.trim();
 
         await client.query('BEGIN');
 
@@ -584,7 +595,7 @@ const resetPassword = async ({ email, reset_code, new_password }) => {
         }
 
         const tokenResult = await client.query(
-            `SELECT id, faculty_user_id, reset_code_hash, expires_at, used_at
+            `SELECT id, faculty_user_id, reset_code_hash, expires_at, used_at, COALESCE(attempts, 0) AS attempts
        FROM password_reset_tokens
        WHERE faculty_user_id = $1 AND used_at IS NULL
        ORDER BY created_at DESC
@@ -593,17 +604,29 @@ const resetPassword = async ({ email, reset_code, new_password }) => {
         );
 
         if (tokenResult.rowCount === 0) {
-            throw new AppError('Invalid or expired reset code.', 400);
+        throw new AppError('Invalid or expired reset PIN.', 400);
         }
 
         const tokenRecord = tokenResult.rows[0];
 
         if (new Date(tokenRecord.expires_at).getTime() < Date.now()) {
-            throw new AppError('Reset code has expired.', 400);
+            throw new AppError('Reset PIN has expired.', 400);
         }
 
-        if (tokenRecord.reset_code_hash !== codeHash) {
-            throw new AppError('Invalid or expired reset code.', 400);
+        if (Number(tokenRecord.attempts || 0) >= 5) {
+            throw new AppError('Too many invalid reset PIN attempts. Please request a new PIN.', 429);
+        }
+
+        const codeMatches = await compareResetCode(code, tokenRecord.reset_code_hash);
+
+        if (!codeMatches) {
+            await client.query(
+                `UPDATE password_reset_tokens
+                 SET attempts = COALESCE(attempts, 0) + 1
+                 WHERE id = $1`,
+                [tokenRecord.id]
+            );
+            throw new AppError('Invalid or expired reset PIN.', 400);
         }
 
         const newPasswordHash = await bcrypt.hash(new_password, env.bcryptSaltRounds);

@@ -92,18 +92,46 @@ const forgotPasswordValidator = [
     handleValidation
 ];
 
+const getResetPinValue = (req) => req.body.reset_code || req.body.pin || req.body.code || req.body.otp || req.body.otp_code;
+const getNewPasswordValue = (req) => req.body.new_password || req.body.newPassword || req.body.password;
+const getConfirmPasswordValue = (req) => req.body.confirm_password
+    || req.body.confirmPassword
+    || req.body.password_confirmation
+    || req.body.new_password_confirmation;
+
 const verifyResetCodeValidator = [
     body('email').trim().isEmail().withMessage('A valid email address is required.').normalizeEmail(),
-    body('reset_code').trim().isLength({ min: 6, max: 12 }).withMessage('A valid reset code is required.'),
+    body().custom((_, { req }) => {
+        const pin = String(getResetPinValue(req) || '').trim();
+        if (!/^\d{6}$/.test(pin)) {
+            throw new Error('A valid 6-digit reset PIN is required.');
+        }
+        req.body.reset_code = pin;
+        return true;
+    }),
     handleValidation
 ];
 
 const resetPasswordValidator = [
     body('email').trim().isEmail().withMessage('A valid email address is required.').normalizeEmail(),
-    body('reset_code').trim().isLength({ min: 6, max: 12 }).withMessage('A valid reset code is required.'),
-    body('new_password').isString().notEmpty().withMessage('New password is required.'),
-    body('confirm_password')
-        .custom((value, { req }) => value === req.body.new_password)
+    body().custom((_, { req }) => {
+        const pin = String(getResetPinValue(req) || '').trim();
+        if (!/^\d{6}$/.test(pin)) {
+            throw new Error('A valid 6-digit reset PIN is required.');
+        }
+        req.body.reset_code = pin;
+        return true;
+    }),
+    body().custom((_, { req }) => {
+        const newPassword = getNewPasswordValue(req);
+        if (typeof newPassword !== 'string' || !newPassword) {
+            throw new Error('New password is required.');
+        }
+        req.body.new_password = newPassword;
+        return true;
+    }),
+    body()
+        .custom((_, { req }) => getConfirmPasswordValue(req) === req.body.new_password)
         .withMessage('Confirm password must match new password.'),
     handleValidation
 ];

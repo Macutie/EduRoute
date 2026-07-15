@@ -39,6 +39,7 @@ CREATE TABLE password_reset_tokens (
     reset_code_hash TEXT NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     used_at TIMESTAMP NULL,
+    attempts INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

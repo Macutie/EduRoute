@@ -345,7 +345,7 @@ export const ForgotPasswordView = ({
   const isProfileRecovery = backView !== 'login';
   const backLabel = isProfileRecovery ? 'Back to Change Password' : 'Back to Login';
   return <>
-      <DesktopAuthShell portalLabel="ACCOUNT RECOVERY PORTAL" sideEyebrow="PASSWORD SUPPORT" sideTitle="Recover Access" sideDescription="Use your registered institutional email to receive a secure reset link and restore access to your account." formTitle="Account Recovery" formDescription="Enter your registered institutional email to receive a secure password reset link.">
+      <DesktopAuthShell portalLabel="ACCOUNT RECOVERY PORTAL" sideEyebrow="PASSWORD SUPPORT" sideTitle="Recover Access" sideDescription="Use your registered institutional email to receive a secure reset PIN and restore access to your account." formTitle="Account Recovery" formDescription="Enter your registered institutional email to receive a secure password reset PIN.">
         
         <form className="card recovery-card dauth-card dauth-recovery-card" onSubmit={onForgotPassword}>
           <div className="input-group">
@@ -361,7 +361,7 @@ export const ForgotPasswordView = ({
           </div>
 
           <button type="submit" className="primary-btn" disabled={loading}>
-            {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
+            {loading ? 'Sending...' : <>Send Reset PIN <ArrowRightIcon /></>}
           </button>
 
           <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
@@ -395,7 +395,7 @@ export const ForgotPasswordView = ({
         </div>
 
         <p className="recovery-desc">
-          Enter your registered institutional email to receive a secure password reset link.
+          Enter your registered institutional email to receive a secure password reset PIN.
         </p>
 
         <form className="card recovery-card" onSubmit={onForgotPassword}>
@@ -412,7 +412,7 @@ export const ForgotPasswordView = ({
           </div>
 
           <button type="submit" className="primary-btn" disabled={loading}>
-            {loading ? 'Sending...' : <>Send Reset Link <ArrowRightIcon /></>}
+            {loading ? 'Sending...' : <>Send Reset PIN <ArrowRightIcon /></>}
           </button>
 
           <button type="button" className="ghost-btn" onClick={() => setView(backView)}>
@@ -467,11 +467,11 @@ export const ResetCodeView = ({
     codeInputRefs.current[Math.min(pastedCode.length, 5)]?.focus();
   };
   return <>
-      <DesktopAuthShell portalLabel="ACCOUNT RECOVERY PORTAL" sideEyebrow="VERIFICATION STEP" sideTitle="Confirm Reset Code" sideDescription="Enter the six-digit reset code sent to the registered account so we can verify this password recovery request." formTitle="Enter Reset Code" formDescription="Type the six-digit verification code and continue to set a new password.">
+      <DesktopAuthShell portalLabel="ACCOUNT RECOVERY PORTAL" sideEyebrow="VERIFICATION STEP" sideTitle="Confirm Reset PIN" sideDescription="Enter the six-digit reset PIN sent to the registered account so we can verify this password recovery request." formTitle="Enter Reset PIN" formDescription="Type the six-digit verification PIN and continue to set a new password.">
         
         <form className="card recovery-card reset-code-card dauth-card dauth-recovery-card" onSubmit={onVerifyResetCode}>
           <div className="input-group">
-            <label>TYPE OTP CODE</label>
+            <label>TYPE RESET PIN</label>
             <div className="otp-code-row" onPaste={handleCodePaste}>
               {digits.map((digit, index) => <input key={index} ref={node => {
               codeInputRefs.current[index] = node;
@@ -516,12 +516,12 @@ export const ResetCodeView = ({
         </div>
 
         <p className="recovery-desc reset-code-desc">
-          Enter your registered faculty email to receive a secure password reset link.
+          Enter the six-digit PIN sent to your registered faculty email.
         </p>
 
         <form className="card recovery-card reset-code-card" onSubmit={onVerifyResetCode}>
           <div className="input-group">
-            <label>TYPE OTP CODE</label>
+            <label>TYPE RESET PIN</label>
             <div className="otp-code-row" onPaste={handleCodePaste}>
               {digits.map((digit, index) => <input key={index} ref={node => {
               codeInputRefs.current[index] = node;
@@ -669,7 +669,7 @@ export const SetNewPasswordView = ({
         </div>
 
         <p className="recovery-desc set-password-desc">
-          Enter your registered faculty email to receive a secure password reset link.
+          Create a new password after verifying your six-digit reset PIN.
         </p>
 
         <div className="password-policy-card set-password-policy-card">

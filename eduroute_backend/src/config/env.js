@@ -40,13 +40,9 @@ module.exports = {
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
-    smtpHost: process.env.SMTP_HOST,
-    smtpPort: Number(process.env.SMTP_PORT || 587),
-    smtpSecure: String(process.env.SMTP_SECURE) === 'true',
-    smtpUser: process.env.SMTP_USER,
-    smtpPass: process.env.SMTP_PASS,
-    mailFrom: process.env.MAIL_FROM,
-    resetCodeTtlMinutes: Number(process.env.RESET_CODE_TTL_MINUTES || 15),
+    resendApiKey: process.env.RESEND_API_KEY,
+    emailFrom: process.env.EMAIL_FROM,
+    resetCodeTtlMinutes: Number(process.env.RESET_CODE_TTL_MINUTES || 10),
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),
     cloudinaryCloudName: process.env.CLOUDINARY_CLOUD_NAME,
     cloudinaryApiKey: process.env.CLOUDINARY_API_KEY,

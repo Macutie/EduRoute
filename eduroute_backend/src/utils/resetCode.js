@@ -1,14 +1,21 @@
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 const generateResetCode = () => {
-    return String(Math.floor(100000 + Math.random() * 900000));
+    return crypto.randomInt(100000, 1000000).toString();
 };
 
-const hashResetCode = (code) => {
-    return crypto.createHash('sha256').update(code).digest('hex');
+const hashResetCode = async (code) => {
+    return bcrypt.hash(String(code), 10);
+};
+
+const compareResetCode = async (code, hash) => {
+    if (!code || !hash) return false;
+    return bcrypt.compare(String(code), hash);
 };
 
 module.exports = {
     generateResetCode,
-    hashResetCode
+    hashResetCode,
+    compareResetCode
 };

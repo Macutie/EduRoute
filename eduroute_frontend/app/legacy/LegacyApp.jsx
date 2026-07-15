@@ -740,7 +740,7 @@ function App() {
       const data = await forgotPasswordApiWithKeyRetry({
         email
       });
-      alert(formatApiMessage(data.message) || 'Reset code sent.');
+      alert(formatApiMessage(data.message) || 'Password reset PIN sent.');
       setForgotForm(prev => ({
         ...prev,
         email
@@ -770,7 +770,7 @@ function App() {
   const handleVerifyResetCode = e => {
     e.preventDefault();
     if (resetCode.length !== 6) {
-      alert('Please enter the 6-digit reset code.');
+      alert('Please enter the 6-digit reset PIN.');
       return;
     }
     const verifyCode = async () => {
@@ -786,7 +786,7 @@ function App() {
           reset_code: resetCode.trim()
         });
         setResetToken(data.data?.token || data.data?.reset_token || data.reset_token || data.token || '');
-        alert(formatApiMessage(data.message) || 'Reset code verified.');
+        alert(formatApiMessage(data.message) || 'Reset PIN verified.');
         setNewPasswordForm({
           password: '',
           confirm_password: ''

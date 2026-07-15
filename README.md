@@ -48,7 +48,7 @@ EduRoute/
 - Socket.IO
 - Cloudinary
 - Firebase Admin
-- Nodemailer
+- Resend API for password reset PIN emails
 - pdf-lib
 
 ## Installation
@@ -115,7 +115,8 @@ Important backend values include:
 - `JWT_SECRET`
 - `FIELD_ENCRYPTION_KEY`
 - `FRONTEND_URL`
-- SMTP configuration
+- `RESEND_API_KEY`
+- `EMAIL_FROM`
 - Cloudinary credentials
 - Map provider keys
 - Firebase Admin credentials
@@ -184,7 +185,9 @@ Set these values in the deployed backend environment:
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
-- SMTP, Cloudinary, and map provider credentials
+- `RESEND_API_KEY`
+- `EMAIL_FROM=EduRoute <admin.eduroute.system@gmail.com>`
+- Cloudinary and map provider credentials
 
 After changing Firebase web credentials, VAPID key, or service worker behavior, redeploy the frontend and refresh/reopen the installed PWA once so the browser can activate the latest worker.
 
@@ -217,6 +220,7 @@ npm run migrate:faculty-trip-flow
 npm run migrate:cssu-dashboard
 npm run migrate:locator-slip-qr
 npm run migrate:notifications-push
+npm run migrate:password-reset-pins
 npm run migrate:smart-analytics
 npm run migrate:trip-path-history
 npm run migrate:field-encryption
@@ -225,12 +229,13 @@ node scripts/run-sql-file.js sql/cssu_scan_attempts.sql
 
 ### Latest database patches
 
-The current implementation phase added new database support for HRMU smart analytics, recorded trip path history, CSSU scan auditing, and field-level encryption. Apply these patches to any local or Railway database that was created before the latest changes.
+The current implementation phase added new database support for HRMU smart analytics, recorded trip path history, CSSU scan auditing, password reset PIN attempts, and field-level encryption. Apply these patches to any local or Railway database that was created before the latest changes.
 
 ```bash
 cd eduroute_backend
 npm run migrate:smart-analytics
 npm run migrate:trip-path-history
+npm run migrate:password-reset-pins
 npm run migrate:field-encryption
 node scripts/run-sql-file.js sql/cssu_scan_attempts.sql
 ```
@@ -240,6 +245,7 @@ These patches add or update:
 - `trip_incidents` for HRMU incident signals such as late returns, missing proof, disconnected tracking, and unverified location issues.
 - `trip_analytics` for generated smart analytics and trip risk scoring.
 - `cssu_scan_attempts` for CSSU QR/manual scan history, rejected attempts, repeated attempts, and gate monitoring.
+- `password_reset_tokens.attempts` for Resend PIN retry limits during password recovery.
 - `trip_location_logs.accuracy`, `trip_location_logs.source`, and `trip_location_logs.sync_status` for recorded GPS path history.
 - Encrypted proof and review fields on `arrival_verifications` and `locator_slip_location_verifications` using AES-256-GCM payload, IV, and authentication tag columns.
 
@@ -382,13 +388,13 @@ When deploying:
 
 - make sure backend environment variables are present
 - make sure the correct database migrations are applied
-- confirm SMTP, Cloudinary, Firebase, and map service keys are configured
+- confirm Resend, Cloudinary, Firebase, and map service keys are configured
 
 ## Security Notes
 
 - Do **not** commit `.env` or `.env.local`
 - Do **not** commit Firebase service account secrets
-- Do **not** commit Cloudinary, SMTP, JWT, or database secrets
+- Do **not** commit Cloudinary, Resend, JWT, or database secrets
 - Commit only `.env.example` files for setup guidance
 
 ### Field-Level Encryption
@@ -459,9 +465,10 @@ Check:
 
 Check:
 
-- `SMTP_USER`
-- `SMTP_PASS`
-- app-password or provider credentials
+- `RESEND_API_KEY` is set only on the backend
+- `EMAIL_FROM=EduRoute <admin.eduroute.system@gmail.com>` is set on the backend
+- the sender is allowed by Resend for your account/domain
+- `npm run migrate:password-reset-pins` has been applied so reset attempts can be tracked
 
 ## Maintenance Guidance
 

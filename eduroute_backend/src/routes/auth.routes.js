@@ -20,6 +20,7 @@ router.get('/payload-public-key', authController.getPayloadPublicKey);
 router.post('/register', authLimiter, decryptAuthPayload, registerValidator, authController.register);
 router.post('/login', authLimiter, decryptAuthPayload, loginValidator, authController.login);
 router.post('/forgot-password', authLimiter, decryptAuthPayload, forgotPasswordValidator, authController.forgotPassword);
+router.post('/verify-reset-pin', authLimiter, decryptAuthPayload, verifyResetCodeValidator, authController.verifyResetCode);
 router.post('/verify-reset-code', authLimiter, decryptAuthPayload, verifyResetCodeValidator, authController.verifyResetCode);
 router.post('/reset-password', authLimiter, decryptAuthPayload, resetPasswordValidator, authController.resetPassword);
 router.get('/me', protect, authController.me);
