@@ -4,7 +4,7 @@ import { SearchBox } from "@mapbox/search-js-react";
 import { API_BASE_URL, MAPBOX_PUBLIC_TOKEN } from "../../config";
 import { useNotifications } from "../../hooks/useNotifications";
 import { useProofOfCompliance } from "../../hooks/useProofOfCompliance";
-import { encryptSensitivePayload } from "../../services/authPayloadEncryption";
+import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from "../../services/authPayloadEncryption";
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from "../../services/responseEncryption";
 import { getFacultyProofOfCompliance } from "../../services/proofComplianceApi";
 import { getApprovedFacultyLocatorSlips, getFacultyLocatorSlipDetails, getFacultyTripSummary, markFacultyTripArrived, markFacultyTripReturned, resolveFacultyLocatorSlipDestination, saveFacultyManualPin, startFacultyTrip, startFacultyTripReturn } from "../../services/facultyTripApi";
@@ -660,10 +660,10 @@ export const LocatorSlipView = ({
         departure_datetime: locatorSlipForm.departure_datetime || '',
         expected_return_datetime: locatorSlipForm.expected_return_datetime || ''
       };
-      const data = await fetchLocatorSlipJson('/api/locator-slips', {
+      const data = await withFreshAuthPayloadKeyRetry(async () => fetchLocatorSlipJson('/api/locator-slips', {
         method: 'POST',
         body: JSON.stringify(await encryptSensitivePayload(payload))
-      });
+      }));
       alert(data.message);
       if (data.data) {
         setSelectedStatusSlip?.(data.data);
@@ -1218,21 +1218,24 @@ export const LocatorSlipDetailView = ({
     const reasonLabel = getCancellationReasonLabel(selectedCancelReason);
     setCancelLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/locator-slips/${slip.id}/cancel`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-          ...(await getSensitiveResponseHeaders())
-        },
-        body: JSON.stringify(await encryptSensitivePayload({
-          cancellation_reason: selectedCancelReason
-        }))
+      const data = await withFreshAuthPayloadKeyRetry(async () => {
+        const response = await fetch(`${API_BASE_URL}/api/locator-slips/${slip.id}/cancel`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+            ...(await getSensitiveResponseHeaders())
+          },
+          body: JSON.stringify(await encryptSensitivePayload({
+            cancellation_reason: selectedCancelReason
+          }))
+        });
+        const payload = await decryptSensitiveResponseJson(await response.json());
+        if (!response.ok) {
+          throw new Error(payload.message || 'Failed to cancel locator slip.');
+        }
+        return payload;
       });
-      const data = await decryptSensitiveResponseJson(await response.json());
-      if (!response.ok) {
-        throw new Error(data.message || 'Failed to cancel locator slip.');
-      }
       alert(`${data.message || 'Locator slip request cancelled successfully.'} Reason: ${reasonLabel}.`);
       setShowCancelReasonModal(false);
       setView('status');
@@ -1813,6 +1816,20 @@ export const MapTrackingView = ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token') || ''}`
   });
+  const fetchEncryptedDirections = async (payload, fallbackMessage) =>
+    withFreshAuthPayloadKeyRetry(async () => {
+      const encryptedPayload = await encryptSensitivePayload(payload);
+      const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(encryptedPayload)
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || fallbackMessage || 'Failed to load trip route.');
+      }
+      return data.data;
+    });
   const readStoredTripProgress = () => {
     try {
       const raw = localStorage.getItem(TRIP_PROGRESS_STORAGE_KEY);
@@ -2222,26 +2239,17 @@ export const MapTrackingView = ({
     alternatives
   } = {}) => {
     if (!destination || !nextOrigin) return null;
-    const encryptedPayload = await encryptSensitivePayload({
+    const routeData = await fetchEncryptedDirections({
       origin: nextOrigin,
       destination,
       profile,
       alternatives: alternatives ?? profile === 'mapbox/driving-traffic'
-    });
-    const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
-      method: 'POST',
-      headers: authHeaders(),
-      body: JSON.stringify(encryptedPayload)
-    });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to refresh trip route.');
-    }
-    setRouteSummary(data.data);
+    }, 'Failed to refresh trip route.');
+    setRouteSummary(routeData);
     setSelectedAlternativeIndex(-1);
     setHighlightedStepIndex(-1);
     clearHighlightedStep();
-    drawRoute(data.data.geometry);
+    drawRoute(routeData.geometry);
     if (skipFit && mapRef.current && nextOrigin) {
       mapRef.current.easeTo({
         center: [nextOrigin.longitude, nextOrigin.latitude],
@@ -2250,7 +2258,7 @@ export const MapTrackingView = ({
         essential: true
       });
     }
-    return data.data;
+    return routeData;
   };
   const applyDisplayedRoute = (route, {
     flyTo = false
@@ -2560,23 +2568,14 @@ export const MapTrackingView = ({
         });
         lastAcceptedOriginRef.current = returnOrigin;
         lastRouteOriginRef.current = returnOrigin;
-        const encryptedReturnRoutePayload = await encryptSensitivePayload({
+        const returnRoute = await fetchEncryptedDirections({
           origin: returnOrigin,
           destination: returnDestination,
           profile: routeMode,
           alternatives: false
-        });
-        const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify(encryptedReturnRoutePayload)
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.message || 'Failed to prepare the return route.');
-        }
-        setRouteSummary(data.data);
-        drawRoute(data.data.geometry);
+        }, 'Failed to prepare the return route.');
+        setRouteSummary(returnRoute);
+        drawRoute(returnRoute.geometry);
       }
     } catch (error) {
       setMapError(error.message);
@@ -2700,21 +2699,15 @@ export const MapTrackingView = ({
 
             // Fetch a fresh return route instead of reusing the outbound geometry.
             try {
-              const encryptedReturnRoutePayload = await encryptSensitivePayload({
+              const returnRouteData = await fetchEncryptedDirections({
                 origin: returnOrigin,
                 destination: returnDestination,
                 profile: routeMode,
                 alternatives: false
-              });
-              const returnRouteResponse = await fetch(`${API_BASE_URL}/api/maps/directions`, {
-                method: 'POST',
-                headers: authHeaders(),
-                body: JSON.stringify(encryptedReturnRoutePayload)
-              });
-              const returnRouteData = await returnRouteResponse.json();
-              if (mounted && returnRouteResponse.ok && returnRouteData.data?.geometry) {
-                setRouteSummary(returnRouteData.data);
-                drawRoute(returnRouteData.data.geometry);
+              }, 'Failed to restore the return route.');
+              if (mounted && returnRouteData?.geometry) {
+                setRouteSummary(returnRouteData);
+                drawRoute(returnRouteData.geometry);
               }
             } catch (routeErr) {
               // Fall through — the stored outbound geometry (if any) will
@@ -2889,24 +2882,14 @@ export const MapTrackingView = ({
     const compareModes = async () => {
       try {
         const profiles = ['mapbox/driving-traffic', 'mapbox/driving', 'mapbox/walking'];
-        const responses = await Promise.all(profiles.map(async profile => {
-          const encryptedComparisonPayload = await encryptSensitivePayload({
+        const responses = await Promise.all(profiles.map(async profile => (
+          fetchEncryptedDirections({
             origin,
             destination,
             profile,
             alternatives: profile === 'mapbox/driving-traffic'
-          });
-          const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify(encryptedComparisonPayload)
-          });
-          const data = await response.json();
-          if (!response.ok) {
-            throw new Error(data.message || 'Failed to compare route modes.');
-          }
-          return data.data;
-        }));
+          }, 'Failed to compare route modes.')
+        )));
         if (!cancelled) {
           setModeEstimates(responses);
           const suggestedMode = responses.reduce((bestRoute, nextRoute) => !bestRoute || nextRoute.duration_seconds < bestRoute.duration_seconds ? nextRoute : bestRoute, null);

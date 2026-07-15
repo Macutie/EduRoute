@@ -5,14 +5,15 @@ const getToken = () => localStorage.getItem('token');
 
 const request = async (endpoint, options = {}) => {
   const token = getToken();
+  const { headers: optionHeaders = {}, ...requestOptions } = options;
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...requestOptions,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(await getSensitiveResponseHeaders()),
-      ...(options.headers || {}),
+      ...optionHeaders,
     },
-    ...options,
   });
 
   const data = await decryptSensitiveResponseJson(await response.json());

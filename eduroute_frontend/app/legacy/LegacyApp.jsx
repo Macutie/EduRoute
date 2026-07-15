@@ -191,12 +191,13 @@ function App() {
     }
   }, [profileData, setView, view]);
   const apiRequest = async (endpoint, options = {}) => {
+    const { headers: optionHeaders = {}, ...requestOptions } = options;
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      ...requestOptions,
       headers: {
         'Content-Type': 'application/json',
-        ...(options.headers || {})
-      },
-      ...options
+        ...optionHeaders
+      }
     });
     const contentType = response.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {

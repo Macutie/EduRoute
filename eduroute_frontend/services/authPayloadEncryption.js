@@ -105,4 +105,22 @@ export const clearAuthPayloadPublicKeyCache = () => {
   cachedPublicKey = null;
 };
 
+export const isAuthPayloadDecryptError = (error) =>
+  /encrypted\s+(?:sensitive\s+|multipart\s+)?payload could not be decrypted|payload could not be decrypted|decryption failed/i.test(
+    String(error?.message || error || '')
+  );
+
+export const withFreshAuthPayloadKeyRetry = async (requestFactory) => {
+  try {
+    return await requestFactory();
+  } catch (error) {
+    if (!isAuthPayloadDecryptError(error)) {
+      throw error;
+    }
+
+    clearAuthPayloadPublicKeyCache();
+    return requestFactory();
+  }
+};
+
 export const encryptSensitivePayload = encryptAuthPayload;

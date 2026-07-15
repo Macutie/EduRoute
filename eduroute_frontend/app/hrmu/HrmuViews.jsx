@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import { API_BASE_URL, MAPBOX_PUBLIC_TOKEN } from "../../config";
-import { encryptSensitivePayload } from "../../services/authPayloadEncryption";
+import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from "../../services/authPayloadEncryption";
 import { useHrmuAnalytics } from "../../hooks/useHrmuAnalytics";
 import { useHrmuMonthlyReport } from "../../hooks/useHrmuMonthlyReport";
 import { useHrmuLiveTracking } from "../../hooks/useHrmuLiveTracking";
@@ -378,31 +378,33 @@ export const HrmuLiveMapPanel = ({
     };
     const loadRoadRoute = async () => {
       try {
-        const encryptedRoadRoutePayload = await encryptSensitivePayload({
-          origin: {
-            latitude: Number(current.lat),
-            longitude: Number(current.lng)
-          },
-          destination: {
-            latitude: Number(target.lat),
-            longitude: Number(target.lng)
-          },
-          profile: 'mapbox/driving-traffic',
-          alternatives: false,
-          steps: false
+        const route = await withFreshAuthPayloadKeyRetry(async () => {
+          const encryptedRoadRoutePayload = await encryptSensitivePayload({
+            origin: {
+              latitude: Number(current.lat),
+              longitude: Number(current.lng)
+            },
+            destination: {
+              latitude: Number(target.lat),
+              longitude: Number(target.lng)
+            },
+            profile: 'mapbox/driving-traffic',
+            alternatives: false,
+            steps: false
+          });
+          const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
+            method: 'POST',
+            headers: authHeaders(),
+            body: JSON.stringify(encryptedRoadRoutePayload)
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.message || 'Failed to load the live route.');
+          }
+          return payload.data;
         });
-        const response = await fetch(`${API_BASE_URL}/api/maps/directions`, {
-          method: 'POST',
-          headers: authHeaders(),
-          body: JSON.stringify(encryptedRoadRoutePayload)
-        });
-        const payload = await response.json();
-        const geometry = payload?.data?.geometry;
-        if (!response.ok || !geometry?.coordinates?.length) {
-          setRouteGeometry(fallbackStraightGeometry);
-          return;
-        }
-        setRouteGeometry(geometry);
+        const geometry = route?.geometry;
+        setRouteGeometry(geometry?.coordinates?.length ? geometry : fallbackStraightGeometry);
       } catch {
         setRouteGeometry(fallbackStraightGeometry);
       }

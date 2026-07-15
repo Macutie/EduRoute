@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config';
-import { clearAuthPayloadPublicKeyCache, encryptAuthPayload } from './authPayloadEncryption';
+import { clearAuthPayloadPublicKeyCache, encryptAuthPayload, withFreshAuthPayloadKeyRetry } from './authPayloadEncryption';
 
 const isEncryptedPayloadDecryptError = (error) => /encrypted payload could not be decrypted|payload could not be decrypted|decryption failed/i.test(
     String(error?.message || error || '')
@@ -32,54 +32,58 @@ const withRecoveryRequestTimeout = async (request) => {
 };
 
 export const registerFaculty = async (formData) => {
-    const encryptedPayload = await encryptAuthPayload({
-        full_name: formData.full_name,
-        employee_id: formData.employee_id,
-        department_id: Number(formData.department_id),
-        email: formData.email,
-        password: formData.password,
-        confirm_password: formData.confirm_password,
-        terms_accepted: formData.terms_accepted
+    return withFreshAuthPayloadKeyRetry(async () => {
+        const encryptedPayload = await encryptAuthPayload({
+            full_name: formData.full_name,
+            employee_id: formData.employee_id,
+            department_id: Number(formData.department_id),
+            email: formData.email,
+            password: formData.password,
+            confirm_password: formData.confirm_password,
+            terms_accepted: formData.terms_accepted
+        });
+
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(encryptedPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Registration failed');
+        }
+
+        return data;
     });
-
-    const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(encryptedPayload)
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || 'Registration failed');
-    }
-
-    return data;
 };
 
 export const loginFaculty = async (emailOrEmployeeId, password) => {
-    const encryptedPayload = await encryptAuthPayload({
-        email_or_employee_id: emailOrEmployeeId,
-        password
+    return withFreshAuthPayloadKeyRetry(async () => {
+        const encryptedPayload = await encryptAuthPayload({
+            email_or_employee_id: emailOrEmployeeId,
+            password
+        });
+
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(encryptedPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.message || 'Login failed');
+        }
+
+        return data;
     });
-
-    const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(encryptedPayload)
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
-    }
-
-    return data;
 };
 
 export const fetchDepartments = async () => {
@@ -122,26 +126,28 @@ export const forgotPassword = async (email) => {
 };
 
 export const changePassword = async ({ currentPassword, newPassword, confirmPassword }) => {
-    const encryptedPayload = await encryptAuthPayload({
-        current_password: currentPassword,
-        new_password: newPassword,
-        confirm_password: confirmPassword
+    return withFreshAuthPayloadKeyRetry(async () => {
+        const encryptedPayload = await encryptAuthPayload({
+            current_password: currentPassword,
+            new_password: newPassword,
+            confirm_password: confirmPassword
+        });
+
+        const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token') || ''}`
+            },
+            body: JSON.stringify(encryptedPayload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw data;
+        }
+
+        return data;
     });
-
-    const response = await fetch(`${API_BASE_URL}/api/auth/change-password`, {
-        method: 'PATCH',
-        headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('token') || ''}`
-        },
-        body: JSON.stringify(encryptedPayload)
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw data;
-    }
-
-    return data;
 };

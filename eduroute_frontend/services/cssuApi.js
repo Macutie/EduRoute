@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config';
-import { encryptSensitivePayload } from './authPayloadEncryption';
+import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from './authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
@@ -72,45 +72,49 @@ export const downloadCssuReportsPdf = async (params = {}) => {
 };
 
 export const sendCssuReportToHrmu = async (payload = {}) => {
-  const token = getToken();
-  const encryptedPayload = await encryptSensitivePayload(payload);
-  const response = await fetch(`${API_BASE_URL}/api/cssu/reports/send`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(encryptedPayload),
+  return withFreshAuthPayloadKeyRetry(async () => {
+    const token = getToken();
+    const encryptedPayload = await encryptSensitivePayload(payload);
+    const response = await fetch(`${API_BASE_URL}/api/cssu/reports/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(encryptedPayload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'CSSU report send failed');
+    }
+
+    return data.data;
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'CSSU report send failed');
-  }
-
-  return data.data;
 };
 
 export const lookupCssuExitCandidate = (params = {}) => request('/api/cssu/exit-clearance/lookup', params);
 
 export const updateCssuExitStatus = async (locatorSlipId, payload = {}) => {
-  const token = getToken();
-  const encryptedPayload = await encryptSensitivePayload(payload);
-  const response = await fetch(`${API_BASE_URL}/api/cssu/dashboard/locator-slips/${locatorSlipId}/exit-status`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(encryptedPayload),
+  return withFreshAuthPayloadKeyRetry(async () => {
+    const token = getToken();
+    const encryptedPayload = await encryptSensitivePayload(payload);
+    const response = await fetch(`${API_BASE_URL}/api/cssu/dashboard/locator-slips/${locatorSlipId}/exit-status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(encryptedPayload),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Request failed');
+    }
+
+    return data.data;
   });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.message || 'Request failed');
-  }
-
-  return data.data;
 };

@@ -1,19 +1,20 @@
 import { API_BASE_URL } from '../config';
-import { encryptSensitivePayload } from './authPayloadEncryption';
+import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from './authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
 
 const request = async (endpoint, options = {}) => {
   const token = getToken();
+  const { headers: optionHeaders = {}, ...requestOptions } = options;
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...requestOptions,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(await getSensitiveResponseHeaders()),
-      ...(options.headers || {}),
+      ...optionHeaders,
     },
-    ...options,
   });
 
   const data = await decryptSensitiveResponseJson(await response.json());
@@ -48,19 +49,19 @@ export const markAllNotificationsRead = () =>
   request('/api/notifications/read-all', { method: 'PATCH' });
 
 export const savePushToken = async (payload) =>
-  request('/api/notifications/push-token', {
+  withFreshAuthPayloadKeyRetry(async () => request('/api/notifications/push-token', {
     method: 'POST',
     body: JSON.stringify(await encryptSensitivePayload(payload)),
-  });
+  }));
 
 export const disablePushToken = async (fcmToken) =>
-  request('/api/notifications/push-token/disable', {
+  withFreshAuthPayloadKeyRetry(async () => request('/api/notifications/push-token/disable', {
     method: 'PATCH',
     body: JSON.stringify(await encryptSensitivePayload({ fcmToken })),
-  });
+  }));
 
 export const deletePushToken = async (fcmToken) =>
-  request('/api/notifications/push-token', {
+  withFreshAuthPayloadKeyRetry(async () => request('/api/notifications/push-token', {
     method: 'DELETE',
     body: JSON.stringify(await encryptSensitivePayload({ fcmToken })),
-  });
+  }));

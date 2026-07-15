@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../config';
-import { encryptSensitivePayload } from './authPayloadEncryption';
+import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from './authPayloadEncryption';
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from './responseEncryption';
 
 const getToken = () => localStorage.getItem('token');
@@ -7,14 +7,15 @@ const getToken = () => localStorage.getItem('token');
 export const deanApiRequest = async (endpoint, options = {}) => {
   const token = getToken();
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const { headers: optionHeaders = {}, ...requestOptions } = options;
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    ...requestOptions,
     headers: {
       ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(await getSensitiveResponseHeaders()),
-      ...(options.headers || {}),
+      ...optionHeaders,
     },
-    ...options,
   });
 
   const data = await decryptSensitiveResponseJson(await response.json());
@@ -85,10 +86,10 @@ export const getDeanRequestInsights = (locatorSlipId) =>
   deanApiRequest(`/api/dean/requests/${locatorSlipId}/insights`);
 
 export const bulkApproveDeanLocatorSlips = async (locatorSlipIds) =>
-  deanApiRequest('/api/dean/requests/bulk-approve', {
+  withFreshAuthPayloadKeyRetry(async () => deanApiRequest('/api/dean/requests/bulk-approve', {
     method: 'POST',
     body: JSON.stringify(await encryptSensitivePayload({ locatorSlipIds })),
-  });
+  }));
 
 export const getDeanRegistryPage = () =>
   deanApiRequest('/api/dean/registry');
@@ -99,7 +100,7 @@ export const approveDeanLocatorSlipRequest = (locatorSlipId) =>
   });
 
 export const rejectDeanLocatorSlipRequest = async (locatorSlipId, remarks = '') =>
-  deanApiRequest(`/api/dean/requests/${locatorSlipId}/reject`, {
+  withFreshAuthPayloadKeyRetry(async () => deanApiRequest(`/api/dean/requests/${locatorSlipId}/reject`, {
     method: 'PATCH',
     body: JSON.stringify(await encryptSensitivePayload({ remarks })),
-  });
+  }));
