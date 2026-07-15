@@ -85,6 +85,44 @@ const buildPushPayload = (notification) => {
     };
 };
 
+const sendFirebaseMulticast = async (messaging, tokenBatch, pushPayload) => {
+    if (typeof messaging.sendEachForMulticast === 'function') {
+        return messaging.sendEachForMulticast({
+            tokens: tokenBatch,
+            ...pushPayload
+        });
+    }
+
+    if (typeof messaging.sendMulticast === 'function') {
+        return messaging.sendMulticast({
+            tokens: tokenBatch,
+            ...pushPayload
+        });
+    }
+
+    if (typeof messaging.send === 'function') {
+        const responses = await Promise.all(tokenBatch.map(async (token) => {
+            try {
+                await messaging.send({
+                    token,
+                    ...pushPayload
+                });
+                return { success: true };
+            } catch (error) {
+                return { success: false, error };
+            }
+        }));
+
+        return {
+            responses,
+            successCount: responses.filter((response) => response.success).length,
+            failureCount: responses.filter((response) => !response.success).length
+        };
+    }
+
+    throw new Error('Firebase Admin messaging does not support web push delivery in this deployment.');
+};
+
 const sendPushNotificationToUsers = async (userIds, payload) => {
     const normalizedUserIds = Array.from(new Set((userIds || []).filter(Boolean)));
     if (normalizedUserIds.length === 0) {
@@ -112,10 +150,7 @@ const sendPushNotificationToUsers = async (userIds, payload) => {
 
     for (let offset = 0; offset < tokens.length; offset += 500) {
         const tokenBatch = tokens.slice(offset, offset + 500);
-        const response = await messaging.sendEachForMulticast({
-            tokens: tokenBatch,
-            ...pushPayload
-        });
+        const response = await sendFirebaseMulticast(messaging, tokenBatch, pushPayload);
         delivered += response.successCount;
 
         await Promise.all(response.responses.map(async (result, index) => {

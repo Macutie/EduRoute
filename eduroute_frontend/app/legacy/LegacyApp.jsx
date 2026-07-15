@@ -478,11 +478,12 @@ function App() {
     const token = localStorage.getItem('token');
     const alreadyHandled = localStorage.getItem(getPermissionSetupStorageKey()) === '1';
     if (!token) return;
-    if (permissionSetupSeenRef.current || alreadyHandled) {
+    if (alreadyHandled) {
       permissionSetupSeenRef.current = true;
       setShowPermissionSetup(false);
       return;
     }
+    if (permissionSetupSeenRef.current) return;
     const role = String(profileData?.accountRole || '').toLowerCase();
     const currentView = String(view || '').toLowerCase();
     const isFacultyLanding = role === 'faculty' && currentView === 'dashboard';
@@ -493,7 +494,6 @@ function App() {
         const data = await fetchPermissionPreferencesApi();
         const preferences = data.data;
         if (!preferences?.first_login_setup_completed) {
-          permissionSetupSeenRef.current = true;
           setPermissionSetupStep('intro');
           setPermissionSetupMessage('');
           setShowPermissionSetup(true);
@@ -671,16 +671,17 @@ function App() {
   };
   const finishPermissionSetup = async notificationsStatus => {
     setPermissionSetupLoading(true);
-    markPermissionSetupSeen();
     try {
       await updatePermissionPreferencesApi({
         notifications_status: notificationsStatus,
         first_login_setup_completed: true
       });
+      markPermissionSetupSeen();
       setShowPermissionSetup(false);
       setPermissionSetupStep('intro');
       setPermissionSetupMessage('');
     } catch (error) {
+      clearPermissionSetupSeen();
       alert(error.message);
     } finally {
       setPermissionSetupLoading(false);
@@ -691,7 +692,6 @@ function App() {
   };
   const handleEnableNotificationPermission = async () => {
     setPermissionSetupLoading(true);
-    markPermissionSetupSeen();
     try {
       let notificationStatus = 'unsupported';
       if ('Notification' in window) {
@@ -708,9 +708,15 @@ function App() {
         notifications_status: notificationStatus,
         first_login_setup_completed: true
       });
+      markPermissionSetupSeen();
       if (notificationStatus === 'granted') {
-        await registerPushNotificationsForCurrentBrowser();
-        setPermissionSetupMessage('Approval alerts are enabled for this browser. You can manage this later in Privacy & Security.');
+        try {
+          await registerPushNotificationsForCurrentBrowser();
+          setPermissionSetupMessage('Approval alerts are enabled for this browser. You can manage this later in Privacy & Security.');
+        } catch (pushError) {
+          console.error('Failed to register device push token during first-login setup:', pushError);
+          setPermissionSetupMessage('Notifications are allowed for this browser, but EduRoute could not register this device yet. The first-login setup is saved, and you can retry device alerts later in Privacy & Security.');
+        }
       } else if (notificationStatus === 'denied') {
         setPermissionSetupMessage('Notifications are blocked in this browser. You can re-enable them from your browser or device site settings.');
       } else if (notificationStatus === 'dismissed') {
@@ -720,7 +726,6 @@ function App() {
       }
       setPermissionSetupStep('result');
     } catch (error) {
-      clearPermissionSetupSeen();
       alert(error.message);
     } finally {
       setPermissionSetupLoading(false);
@@ -966,7 +971,6 @@ function App() {
         </div>}
 
       {showPermissionSetup && <PermissionSetupModal step={permissionSetupStep} message={permissionSetupMessage} loading={permissionSetupLoading} onShowExplainer={() => {
-      markPermissionSetupSeen();
       setPermissionSetupStep('notifications');
     }} onEnableNotifications={handleEnableNotificationPermission} onMaybeLater={handleMaybeLaterPermissions} onClose={() => setShowPermissionSetup(false)} />}
 

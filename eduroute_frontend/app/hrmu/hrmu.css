@@ -5032,11 +5032,14 @@
 
 @media (max-width: 480px) {
   .eduroute-dialog-backdrop {
-    align-items: end;
-    padding: 12px 10px 18px;
+    align-items: center;
+    place-items: center;
+    padding: 16px 10px;
   }
 
   .eduroute-dialog-modal {
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
     padding: 22px 18px 18px;
     border-radius: 26px;
   }
@@ -5051,6 +5054,18 @@
 
   .eduroute-dialog-actions .eduroute-dialog-primary {
     grid-row: 1;
+  }
+
+  .permission-modal-backdrop {
+    position: fixed;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 10px;
+  }
+
+  .permission-modal-card {
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
   }
 }
 
