@@ -16,6 +16,18 @@
   border-radius: 14px;
 }
 
+.auth-brand-logo-box img {
+  width: 74%;
+  height: 74%;
+  object-fit: contain;
+  display: block;
+  image-rendering: auto;
+}
+
+.auth-brand-logo-box::before {
+  display: none !important;
+}
+
 h1 {
   color: var(--green);
   font-size: 28px;
@@ -1399,6 +1411,11 @@ label {
   height: 100%;
   display: block;
   background: url('/eduroute-logo-512.png?v=brand-hd-20260518') center / contain no-repeat;
+}
+
+.signup-footer-logo.auth-brand-logo-box img {
+  width: 100%;
+  height: 100%;
 }
 
 .signup-footer-text .footer-developed {

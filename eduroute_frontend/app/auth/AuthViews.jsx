@@ -89,8 +89,8 @@ export const LoginView = ({
             <div className="dlogin-left">
               <div className="dlogin-left-inner">
                 <div className="dlogin-logo-section">
-                  <div className="dlogin-logo-box">
-                    <MapIcon />
+                  <div className="dlogin-logo-box auth-brand-logo-box">
+                    <TogaLogoIcon size={68} />
                   </div>
                   <h1>EduRoute</h1>
                   <h2>{activeRole.title.toUpperCase()}</h2>
@@ -193,8 +193,8 @@ export const LoginView = ({
       <div className="mobile-view">
         <div className="content fade-in login-content">
           <div className="logo-container login-logo-container">
-            <div className="logo-box login-logo-box">
-              <MapIcon />
+            <div className="logo-box login-logo-box auth-brand-logo-box">
+              <TogaLogoIcon size={52} />
             </div>
             <h1>EduRoute</h1>
             <h2 className="login-portal-title">{activeRole.title.toUpperCase()}</h2>
@@ -302,8 +302,8 @@ export const DesktopAuthShell = ({
         <div className="dlogin-left dauth-left">
           <div className="dlogin-left-inner dauth-left-inner">
             <div className="dlogin-logo-section dauth-logo-section">
-              <div className="dlogin-logo-box dauth-logo-box">
-                <MapIcon />
+              <div className="dlogin-logo-box dauth-logo-box auth-brand-logo-box">
+                <TogaLogoIcon size={62} />
               </div>
               <h1>EduRoute</h1>
               <h2>{portalLabel}</h2>
@@ -1114,8 +1114,8 @@ export const SignUpView = ({
         </form>
 
         <div className="signup-brand-footer">
-          <div className="signup-footer-logo">
-            <CapIcon color="white" />
+          <div className="signup-footer-logo auth-brand-logo-box">
+            <TogaLogoIcon size={34} />
           </div>
           <div className="footer-text signup-footer-text">
             <span className="footer-developed">DEVELOPED BY</span>
