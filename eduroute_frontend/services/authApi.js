@@ -17,13 +17,13 @@ const parseJsonResponse = async (response, fallbackMessage) => {
 
 const withRecoveryRequestTimeout = async (request) => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
         return await request(controller.signal);
     } catch (error) {
         if (error?.name === 'AbortError') {
-            throw new Error('Password recovery is taking too long. Please check your connection and try again.');
+            throw new Error('Password recovery is taking too long. Please try again in a moment or contact the IT Support Desk.');
         }
         throw error;
     } finally {

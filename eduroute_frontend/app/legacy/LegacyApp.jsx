@@ -222,7 +222,7 @@ function App() {
   });
   const forgotPasswordApi = async payload => {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
 
     try {
       return await apiRequest('/api/auth/forgot-password', {
@@ -232,7 +232,7 @@ function App() {
       });
     } catch (error) {
       if (error?.name === 'AbortError') {
-        throw new Error('Password recovery is taking too long. Please check your connection and try again.');
+        throw new Error('Password recovery is taking too long. Please try again in a moment or contact the IT Support Desk.');
       }
       throw error;
     } finally {
