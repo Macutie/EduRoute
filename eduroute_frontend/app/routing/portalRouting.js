@@ -84,8 +84,11 @@ export const getEduRouteDialogContent = ({
   tone = 'info'
 } = {}) => {
   let text = String(message ?? '');
-  if (/Gmail SMTP|SMTP_HOST|SMTP_PORT|SMTP_SECURE|SMTP_ADDRESS_FAMILY|SMTP_USER|SMTP_PASS|MAIL_FROM|EMAIL_PROVIDER=resend|RESEND_API_KEY|RESEND_FROM|HTTPS email delivery/i.test(text)) {
-    text = 'EduRoute password recovery now uses Resend API. Please verify RESEND_API_KEY and EMAIL_FROM in the Railway backend variables, then redeploy the backend.';
+  if (/Gmail SMTP|SMTP_HOST|SMTP_PORT|SMTP_SECURE|SMTP_ADDRESS_FAMILY|SMTP_USER|SMTP_PASS|MAIL_FROM|EMAIL_PROVIDER=resend|RESEND_API_KEY|RESEND_FROM|BREVO_API_KEY|Brevo|HTTPS email delivery/i.test(text)) {
+    const isLocalhost = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    text = isLocalhost
+      ? 'EduRoute password recovery now uses Brevo API. Please verify BREVO_API_KEY and EMAIL_FROM in eduroute_backend/.env, then restart the local backend.'
+      : 'EduRoute password recovery now uses Brevo API. Please verify BREVO_API_KEY and EMAIL_FROM in the Railway backend variables, then redeploy the backend.';
   }
   if (text.toLowerCase().includes('invalid credentials')) {
     return {

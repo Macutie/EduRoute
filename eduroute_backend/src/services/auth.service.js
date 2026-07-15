@@ -437,16 +437,16 @@ const changeCurrentFacultyPassword = async (facultyId, payload) => {
 const getRecoveryEmailFailureMessage = (error) => {
     const message = String(error?.message || '');
 
-    if (/RESEND_API_KEY is missing/i.test(message)) {
-        return 'EduRoute password recovery is not configured. Please set RESEND_API_KEY in the backend environment.';
+    if (/BREVO_API_KEY is missing/i.test(message)) {
+        return 'EduRoute password recovery is not configured. Please set BREVO_API_KEY in the backend environment.';
     }
 
     if (/EMAIL_FROM is missing/i.test(message)) {
         return 'EduRoute password recovery sender is not configured. Please set EMAIL_FROM in the backend environment.';
     }
 
-    if (/domain is not verified|sender|from/i.test(message)) {
-        return 'EduRoute could not send the recovery PIN because the Resend sender is not verified. Please verify EMAIL_FROM in Resend or use an allowed sender.';
+    if (/sender|from|unauthorized|not verified|invalid api key|authentication|permission|Key not found/i.test(message)) {
+        return 'EduRoute could not send the recovery PIN through Brevo. Please verify BREVO_API_KEY and that EMAIL_FROM is a verified Brevo sender.';
     }
 
     return 'EduRoute could not send the recovery PIN right now. Please try again later or contact the IT Support Desk.';

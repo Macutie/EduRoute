@@ -40,7 +40,7 @@ module.exports = {
         .split(',')
         .map((origin) => origin.trim())
         .filter(Boolean),
-    resendApiKey: process.env.RESEND_API_KEY,
+    brevoApiKey: process.env.BREVO_API_KEY,
     emailFrom: process.env.EMAIL_FROM,
     resetCodeTtlMinutes: Number(process.env.RESET_CODE_TTL_MINUTES || 10),
     bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS || 12),

@@ -48,7 +48,7 @@ EduRoute/
 - Socket.IO
 - Cloudinary
 - Firebase Admin
-- Resend API for password reset PIN emails
+- Brevo Transactional Email API for password reset PIN emails
 - pdf-lib
 
 ## Installation
@@ -115,7 +115,7 @@ Important backend values include:
 - `JWT_SECRET`
 - `FIELD_ENCRYPTION_KEY`
 - `FRONTEND_URL`
-- `RESEND_API_KEY`
+- `BREVO_API_KEY`
 - `EMAIL_FROM`
 - Cloudinary credentials
 - Map provider keys
@@ -185,7 +185,7 @@ Set these values in the deployed backend environment:
 - `FIREBASE_PROJECT_ID`
 - `FIREBASE_CLIENT_EMAIL`
 - `FIREBASE_PRIVATE_KEY`
-- `RESEND_API_KEY`
+- `BREVO_API_KEY`
 - `EMAIL_FROM=EduRoute <admin.eduroute.system@gmail.com>`
 - Cloudinary and map provider credentials
 
@@ -245,7 +245,7 @@ These patches add or update:
 - `trip_incidents` for HRMU incident signals such as late returns, missing proof, disconnected tracking, and unverified location issues.
 - `trip_analytics` for generated smart analytics and trip risk scoring.
 - `cssu_scan_attempts` for CSSU QR/manual scan history, rejected attempts, repeated attempts, and gate monitoring.
-- `password_reset_tokens.attempts` for Resend PIN retry limits during password recovery.
+- `password_reset_tokens.attempts` for password reset PIN retry limits during password recovery.
 - `trip_location_logs.accuracy`, `trip_location_logs.source`, and `trip_location_logs.sync_status` for recorded GPS path history.
 - Encrypted proof and review fields on `arrival_verifications` and `locator_slip_location_verifications` using AES-256-GCM payload, IV, and authentication tag columns.
 
@@ -388,13 +388,13 @@ When deploying:
 
 - make sure backend environment variables are present
 - make sure the correct database migrations are applied
-- confirm Resend, Cloudinary, Firebase, and map service keys are configured
+- confirm Brevo, Cloudinary, Firebase, and map service keys are configured
 
 ## Security Notes
 
 - Do **not** commit `.env` or `.env.local`
 - Do **not** commit Firebase service account secrets
-- Do **not** commit Cloudinary, Resend, JWT, or database secrets
+- Do **not** commit Cloudinary, Brevo, JWT, or database secrets
 - Commit only `.env.example` files for setup guidance
 
 ### Field-Level Encryption
@@ -465,9 +465,9 @@ Check:
 
 Check:
 
-- `RESEND_API_KEY` is set only on the backend
+- `BREVO_API_KEY` is set only on the backend
 - `EMAIL_FROM=EduRoute <admin.eduroute.system@gmail.com>` is set on the backend
-- the sender is allowed by Resend for your account/domain
+- the sender is verified/allowed in Brevo for your account
 - `npm run migrate:password-reset-pins` has been applied so reset attempts can be tracked
 
 ## Maintenance Guidance
