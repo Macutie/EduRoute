@@ -74,11 +74,15 @@ const registerFaculty = async (payload) => {
 
     try {
         const accountRole = payload.account_role || 'faculty';
+        if (accountRole !== 'faculty') {
+            throw new AppError(
+                'Self-registration is limited to faculty accounts. HRMU, CSSU, and Dean accounts must be assigned by an authorized administrator.',
+                403
+            );
+        }
         const fullName = payload.full_name.trim();
         const employeeId = payload.employee_id.trim();
-        const departmentId = ['faculty', 'admin', 'assistant_dean', 'college_dean'].includes(accountRole)
-            ? Number(payload.department_id)
-            : null;
+        const departmentId = Number(payload.department_id);
         const email = payload.email.trim().toLowerCase();
         const password = payload.password;
         const termsAccepted = payload.terms_accepted === true;

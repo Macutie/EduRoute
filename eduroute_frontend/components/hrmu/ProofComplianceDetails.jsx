@@ -1,5 +1,4 @@
 import React, { useRef, useState } from 'react';
-import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 
 const formatDateTime = (value) => {
@@ -51,17 +50,24 @@ const buildStatusCopy = (proof) => {
   return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location/signature.`;
 };
 
-const waitForImagesToSettle = async (container) => {
-  const images = Array.from(container.querySelectorAll('img'));
+const getImageDataUrl = async (url) => {
+  if (!url) return null;
+  if (String(url).startsWith('data:')) return url;
 
-  await Promise.all(images.map((image) => {
-    if (image.complete) return Promise.resolve();
+  try {
+    const response = await fetch(url, { mode: 'cors' });
+    if (!response.ok) return null;
+    const blob = await response.blob();
 
-    return new Promise((resolve) => {
-      image.addEventListener('load', resolve, { once: true });
-      image.addEventListener('error', resolve, { once: true });
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
     });
-  }));
+  } catch {
+    return null;
+  }
 };
 
 const ProofComplianceDetails = ({
@@ -106,80 +112,247 @@ const ProofComplianceDetails = ({
   const canReviewProof = typeof onReview === 'function';
 
   const handleExportPdf = async () => {
-    if (!modalRef.current) return;
     setIsExporting(true);
-    let exportNode = null;
     
     try {
-      exportNode = modalRef.current.cloneNode(true);
-      exportNode.classList.add('hrmu-verify-export-snapshot');
-
-      exportNode.querySelector('.hrmu-verify-modal-close')?.remove();
-      exportNode.querySelector('.hrmu-verify-proof-card')?.remove();
-      exportNode.querySelector('.hrmu-analytics-feedback')?.remove();
-      exportNode.querySelector('.hrmu-verify-review-actions')?.remove();
-      exportNode.querySelector('.hrmu-verify-action-buttons')?.remove();
-
-      Object.assign(exportNode.style, {
-        position: 'fixed',
-        left: '-10000px',
-        top: '0',
-        width: '1046px',
-        height: 'auto',
-        maxHeight: 'none',
-        overflow: 'visible',
-        transform: 'none',
-        background: '#ffffff',
-      });
-
-      document.body.appendChild(exportNode);
-      await waitForImagesToSettle(exportNode);
-
-      const canvas = await html2canvas(exportNode, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: exportNode.scrollWidth,
-        windowHeight: exportNode.scrollHeight,
-        width: exportNode.scrollWidth,
-        height: exportNode.scrollHeight,
-      });
-
-      exportNode.remove();
-      exportNode = null;
-
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'pt',
         format: 'a4'
       });
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 18;
-      const imageWidth = pageWidth - margin * 2;
-      const imageHeight = (canvas.height * imageWidth) / canvas.width;
-      const pageContentHeight = pageHeight - margin * 2;
-      let remainingHeight = imageHeight;
-      let imageTop = margin;
+      const margin = 42;
+      const contentWidth = pageWidth - margin * 2;
+      const green = [0, 150, 35];
+      const yellow = [255, 199, 33];
+      const red = [217, 45, 32];
+      const dark = [26, 35, 50];
+      const muted = [94, 107, 103];
+      let y = 42;
 
-      pdf.addImage(imgData, 'PNG', margin, imageTop, imageWidth, imageHeight);
-
-      while (remainingHeight > pageContentHeight) {
-        remainingHeight -= pageContentHeight;
-        imageTop -= pageContentHeight;
+      const ensureSpace = (heightNeeded) => {
+        if (y + heightNeeded <= pageHeight - 42) return;
         pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin, imageTop, imageWidth, imageHeight);
+        y = 42;
+      };
+
+      const writeText = (text, x, textY, options = {}) => {
+        const {
+          size = 10,
+          color = dark,
+          weight = 'normal',
+          maxWidth = contentWidth,
+          lineGap = 12,
+        } = options;
+        pdf.setFont('helvetica', weight);
+        pdf.setFontSize(size);
+        pdf.setTextColor(...color);
+        const lines = pdf.splitTextToSize(String(text || 'N/A'), maxWidth);
+        pdf.text(lines, x, textY);
+        return lines.length * lineGap;
+      };
+
+      const sectionTitle = (title) => {
+        ensureSpace(34);
+        pdf.setFillColor(...yellow);
+        pdf.circle(margin + 4, y - 4, 3, 'F');
+        writeText(title.toUpperCase(), margin + 14, y, {
+          size: 9,
+          color: green,
+          weight: 'bold',
+          maxWidth: contentWidth - 14,
+          lineGap: 10,
+        });
+        y += 22;
+      };
+
+      const infoRow = (label, value, x = margin, width = contentWidth) => {
+        ensureSpace(48);
+        writeText(label.toUpperCase(), x, y, {
+          size: 8,
+          color: muted,
+          weight: 'bold',
+          maxWidth: width,
+          lineGap: 9,
+        });
+        const used = writeText(value || 'N/A', x, y + 16, {
+          size: 11,
+          color: dark,
+          weight: 'bold',
+          maxWidth: width,
+          lineGap: 13,
+        });
+        y += Math.max(42, used + 24);
+      };
+
+      const checkCard = (x, cardY, width, label, value, subValue, tone = 'positive') => {
+        const isNegative = tone === 'negative';
+        pdf.setFillColor(246, 248, 246);
+        pdf.setDrawColor(226, 232, 226);
+        pdf.roundedRect(x, cardY, width, 78, 12, 12, 'FD');
+        writeText(label.toUpperCase(), x + 16, cardY + 24, {
+          size: 8,
+          color: muted,
+          weight: 'bold',
+          maxWidth: width - 32,
+          lineGap: 9,
+        });
+        writeText(value, x + 16, cardY + 44, {
+          size: 14,
+          color: isNegative ? red : green,
+          weight: 'bold',
+          maxWidth: width - 32,
+          lineGap: 14,
+        });
+        if (subValue) {
+          writeText(subValue, x + 16, cardY + 62, {
+            size: 8,
+            color: muted,
+            weight: 'normal',
+            maxWidth: width - 32,
+            lineGap: 9,
+          });
+        }
+      };
+
+      const drawImageBox = async (title, imageUrl, captionLines = []) => {
+        ensureSpace(170);
+        writeText(title.toUpperCase(), margin, y, {
+          size: 8,
+          color: muted,
+          weight: 'bold',
+          maxWidth: contentWidth,
+          lineGap: 9,
+        });
+        y += 12;
+        pdf.setFillColor(255, 255, 255);
+        pdf.setDrawColor(226, 232, 226);
+        pdf.roundedRect(margin, y, 190, 92, 10, 10, 'FD');
+        const dataUrl = await getImageDataUrl(imageUrl);
+        if (dataUrl) {
+          const imageType = dataUrl.includes('image/jpeg') || dataUrl.includes('image/jpg') ? 'JPEG' : 'PNG';
+          pdf.addImage(dataUrl, imageType, margin + 18, y + 16, 154, 58, undefined, 'FAST');
+        } else {
+          writeText('No image available.', margin + 22, y + 48, {
+            size: 9,
+            color: muted,
+            weight: 'bold',
+            maxWidth: 146,
+            lineGap: 10,
+          });
+        }
+        captionLines.forEach((line, index) => {
+          writeText(line, margin + 220, y + 24 + (index * 16), {
+            size: index === 0 ? 12 : 9,
+            color: index === 0 ? dark : muted,
+            weight: index === 0 ? 'bold' : 'normal',
+            maxWidth: contentWidth - 220,
+            lineGap: 12,
+          });
+        });
+        y += 112;
+      };
+
+      const profileDataUrl = await getImageDataUrl(activeProof.profileImageUrl || row.profileImageUrl || '/profile_pic.png');
+      if (profileDataUrl) {
+        const imageType = profileDataUrl.includes('image/jpeg') || profileDataUrl.includes('image/jpg') ? 'JPEG' : 'PNG';
+        pdf.addImage(profileDataUrl, imageType, margin, y, 54, 54, undefined, 'FAST');
       }
+      writeText(row.name, margin + 68, y + 20, {
+        size: 21,
+        color: dark,
+        weight: 'bold',
+        maxWidth: contentWidth - 190,
+        lineGap: 21,
+      });
+      pdf.setFillColor(...green);
+      pdf.roundedRect(pageWidth - margin - 104, y + 4, 104, 24, 12, 12, 'F');
+      writeText('COMPLETED TRIP', pageWidth - margin - 88, y + 20, {
+        size: 8,
+        color: [255, 255, 255],
+        weight: 'bold',
+        maxWidth: 90,
+        lineGap: 9,
+      });
+      writeText(row.roleLine || 'Faculty', margin + 68, y + 38, {
+        size: 10,
+        color: muted,
+        weight: 'bold',
+        maxWidth: contentWidth - 68,
+        lineGap: 11,
+      });
+      y += 76;
+
+      infoRow('Returned', formatDateTime(activeProof.actualReturnTime || row.actualReturnTime), margin, contentWidth / 2 - 8);
+      y -= 42;
+      infoRow('Estimated Return', formatDateTime(activeProof.expectedReturnTime || row.expectedReturnTime), margin + contentWidth / 2 + 8, contentWidth / 2 - 8);
+      y += 12;
+
+      sectionTitle(`Official Locator Slip #${row.slipNumber || 'N/A'}`);
+      infoRow('Purpose of Travel', activeProof.purpose || 'Official travel');
+      infoRow('Requested By', row.name);
+      infoRow('Current Status', displayStatus);
+      writeText(buildStatusCopy(activeProof), margin, y, {
+        size: 10,
+        color: muted,
+        weight: 'normal',
+        maxWidth: contentWidth,
+        lineGap: 13,
+      });
+      y += 44;
+
+      sectionTitle('Proof of Compliance');
+      await drawImageBox('Focal Person Signature', activeProof.focalPersonSignatureUrl, [
+        'Confirmed by focal person',
+        focalPersonName,
+        focalPersonPosition,
+        formatDateTime(activeProof.submittedAt || row.submittedAt),
+      ]);
+
+      if (deanSignature) {
+        await drawImageBox('Authorized Digital Signature', deanSignature.asset?.url, [
+          deanSignature.name || 'Assigned Dean',
+          formatRoleLabel(deanSignature.role, 'Dean'),
+          deanSignature.signedAt ? formatDateTime(deanSignature.signedAt) : 'Approval time unavailable.',
+        ]);
+      }
+
+      if (activeProof.arrivalPhotoUrl) {
+        await drawImageBox('Uploaded Arrival Image', activeProof.arrivalPhotoUrl, [
+          'Arrival photo submitted by faculty',
+        ]);
+      }
+
+      sectionTitle('Proof Verification Checks');
+      ensureSpace(178);
+      const cardGap = 14;
+      const cardWidth = (contentWidth - cardGap) / 2;
+      checkCard(margin, y, cardWidth, 'Proof Status', proofStatus, '', isFlaggedProof ? 'negative' : 'positive');
+      checkCard(margin + cardWidth + cardGap, y, cardWidth, 'Proof of Compliance', formatProofStatus('submitted'), formatDateTime(activeProof.submittedAt || row.submittedAt));
+      y += 92;
+      checkCard(
+        margin,
+        y,
+        cardWidth,
+        'HRMU Review',
+        normalizedStatus === 'verified' ? 'SUCCESSFUL' : isFlaggedProof ? 'FLAGGED' : 'PENDING',
+        isLateReturn ? formatDateTime(activeProof.actualReturnTime || row.actualReturnTime) : activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.',
+        isFlaggedProof ? 'negative' : 'positive'
+      );
+      checkCard(margin + cardWidth + cardGap, y, cardWidth, 'Focal Person & Position', focalPersonName, focalPersonPosition);
+      y += 104;
+
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(8);
+      pdf.setTextColor(120, 130, 130);
+      pdf.text(`Generated by EduRoute on ${formatDateTime(new Date())}`, margin, pageHeight - 24);
 
       const filename = `proof-of-compliance-${row.slipNumber || 'export'}.pdf`;
       pdf.save(filename);
     } catch (err) {
       console.error('Failed to export PDF', err);
     } finally {
-      exportNode?.remove();
       setIsExporting(false);
     }
   };

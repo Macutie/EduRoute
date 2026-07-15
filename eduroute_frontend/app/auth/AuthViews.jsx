@@ -6,21 +6,6 @@ export const AUTH_ACCOUNT_ROLES = [{
   label: 'Faculty',
   title: 'Gordon College Faculty Portal',
   icon: FacultyRoleIcon
-}, {
-  key: 'hrmu',
-  label: 'HRMU',
-  title: 'Gordon College HRMU Portal',
-  icon: HrmuRoleIcon
-}, {
-  key: 'cssu',
-  label: 'CSSU',
-  title: 'Gordon College CSSU Portal',
-  icon: CssuRoleIcon
-}, {
-  key: 'admin',
-  label: 'Dean',
-  title: 'Gordon College Dean Portal',
-  icon: AdminRoleIcon
 }];
 export const LOGIN_PORTAL_ROLES = [{
   key: 'faculty',
@@ -757,9 +742,8 @@ export const SignUpView = ({
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
-  const selectedSignupRole = registerForm.account_role || 'faculty';
-  const signupRole = AUTH_ACCOUNT_ROLES.find(role => role.key === selectedSignupRole) || AUTH_ACCOUNT_ROLES[0];
-  const signupNeedsDepartment = ['faculty', 'admin'].includes(selectedSignupRole);
+  const signupRole = AUTH_ACCOUNT_ROLES[0];
+  const signupNeedsDepartment = true;
   const signupPasswordPolicy = useMemo(() => {
     const password = registerForm.password;
     const passwordLower = password.toLowerCase();
@@ -787,22 +771,6 @@ export const SignUpView = ({
           <div className="signup-header">
             <h1>Create {signupRole.label}<br />Account</h1>
             <p>Please enter your institutional details to begin.</p>
-          </div>
-
-          <div className="signup-role-selector" aria-label="Select account role">
-            {AUTH_ACCOUNT_ROLES.map(role => {
-            const RoleIcon = role.icon;
-            const isActive = selectedSignupRole === role.key;
-            return <button type="button" key={role.key} className={`signup-role-tab ${isActive ? 'active' : ''}`} onClick={() => setRegisterForm(prev => ({
-              ...prev,
-              account_role: role.key,
-              department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : ''
-            }))}>
-                  
-                  <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
-                  <span>{role.label}</span>
-                </button>;
-          })}
           </div>
 
           <div className="input-group">
@@ -953,22 +921,6 @@ export const SignUpView = ({
           <div className="signup-header">
             <h1>Create {signupRole.label}<br />Account</h1>
             <p>Please enter your institutional details to begin.</p>
-          </div>
-
-          <div className="signup-role-selector" aria-label="Select account role">
-            {AUTH_ACCOUNT_ROLES.map(role => {
-            const RoleIcon = role.icon;
-            const isActive = selectedSignupRole === role.key;
-            return <button type="button" key={role.key} className={`signup-role-tab ${isActive ? 'active' : ''}`} onClick={() => setRegisterForm(prev => ({
-              ...prev,
-              account_role: role.key,
-              department_id: ['faculty', 'admin'].includes(role.key) ? prev.department_id : ''
-            }))}>
-                  
-                  <RoleIcon color={isActive ? 'var(--green)' : '#4e5a4f'} size="22" />
-                  <span>{role.label}</span>
-                </button>;
-          })}
           </div>
 
           <div className="input-group">

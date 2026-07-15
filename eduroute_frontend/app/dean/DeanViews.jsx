@@ -416,10 +416,31 @@ export const DeanNotificationsView = ({
     const notificationMessage = String(notification.message || '').toLowerCase();
     const notificationData = notification.data || {};
     const locatorSlipId = notificationData.locatorSlipId || notificationData.locator_slip_id || notification.locator_slip_id || notification.locatorSlipId;
+    const isTripProofReviewNotification = [
+      'PROOF_OF_COMPLIANCE_SUBMITTED',
+      'HRMU_PROOF_VERIFICATION_SUCCESSFUL',
+      'HRMU_PROOF_VERIFICATION_FLAGGED',
+      'HRMU_TRIP_STARTED',
+      'HRMU_TRIP_ARRIVED',
+      'HRMU_TRIP_COMPLETED',
+      'HRMU_TRIP_FLAGGED_LATE_RETURN',
+      'HRMU_TRIP_FLAGGED'
+    ].includes(notificationType)
+      || notificationTitle.includes('proof verified')
+      || notificationTitle.includes('proof rejected')
+      || notificationTitle.includes('proof of compliance')
+      || notificationTitle.includes('faculty returned')
+      || notificationTitle.includes('faculty arrived')
+      || notificationTitle.includes('faculty started trip')
+      || notificationMessage.includes('proof of compliance')
+      || notificationMessage.includes('returned on time')
+      || notificationMessage.includes('marked the trip as arrived')
+      || notificationMessage.includes('started a trip');
     const isProofNotification = notificationType === 'PROOF_OF_COMPLIANCE_SUBMITTED'
       || Boolean(notificationData.proofId || notification.proofId)
       || notificationTitle.includes('proof of compliance')
-      || notificationMessage.includes('proof of compliance submitted');
+      || notificationMessage.includes('proof of compliance submitted')
+      || isTripProofReviewNotification;
 
     if (isProofNotification) {
       const proofId = notificationData.proofId || notification.proofId;
@@ -432,25 +453,27 @@ export const DeanNotificationsView = ({
             ? await getDeanProofComplianceByLocatorSlip(locatorSlipId)
             : null;
 
-        if (!proof) {
-          alert('This proof notification is missing its proof reference.');
+        if (proof) {
+          setSelectedProof(proof);
+          if (notification.id) {
+            await markDeanNotificationRead(notification.id).catch(() => null);
+            setNotifications(prev => prev.map(item => item.id === notification.id ? {
+              ...item,
+              is_read: true
+            } : item));
+          }
           return;
         }
-
-        setSelectedProof(proof);
-        if (notification.id) {
-          await markDeanNotificationRead(notification.id).catch(() => null);
-          setNotifications(prev => prev.map(item => item.id === notification.id ? {
-            ...item,
-            is_read: true
-          } : item));
-        }
       } catch (proofError) {
-        alert(proofError.message || 'Unable to open proof of compliance details.');
+        console.error('Unable to open dean proof notification:', proofError);
       } finally {
         setProofLoading(false);
       }
-      return;
+
+      if (!locatorSlipId) {
+        alert('This notification is missing its locator slip reference.');
+        return;
+      }
     }
 
     if (notificationType === 'LOCATOR_SLIP_CANCELLED') {

@@ -320,6 +320,7 @@ const getNotificationsOverview = async (query = {}) => {
         notifications: (Array.isArray(data.notifications) ? data.notifications : []).map((row) => ({
             id: row.notification_id,
             locatorSlipId: row.locator_slip_id,
+            locatorSlipCode: row.locator_slip_code || null,
             facultyUserId: row.faculty_user_id,
             facultyName: row.faculty_name,
             facultyId: row.employee_id || '--',

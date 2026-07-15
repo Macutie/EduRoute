@@ -1727,7 +1727,7 @@ export const CSSUScanView = ({
     runLookup({
       value: pendingLocatorSlipCode,
       method: 'manual',
-      suppressLookupLog: pendingLookupSource === 'dashboard-eye'
+      suppressLookupLog: pendingLookupSource === 'dashboard-eye' || pendingLookupSource === 'notification-exit-clearance'
     });
   }, []);
   const runLookup = async ({
@@ -2706,6 +2706,7 @@ export const CSSUNotificationsView = ({
         setAlerts(notificationRows.map(notification => ({
           id: notification.id,
           type: notification.type === 'flagged' ? 'flagged' : 'validated',
+          locatorSlipCode: notification.locatorSlipCode || null,
           title: notification.title || (notification.type === 'flagged' ? 'Flagged Exit Attempt' : 'Exit Clearance Validated'),
           body: notification.type === 'flagged' ? `${notification.facultyName} attempted exit clearance at ${notification.gateLabel} while the locator slip was still ${notification.locatorSlipStatus}.` : `${notification.facultyName} was cleared by CSSU for ${notification.purpose}${notification.destination ? ` bound for ${notification.destination}` : ''}.`,
           time: formatRelativeAlertTime(notification.occurredAt),
@@ -2746,6 +2747,17 @@ export const CSSUNotificationsView = ({
   const featuredAlert = filteredAlerts[0] || null;
   const featuredTone = featuredAlert?.type === 'flagged' ? 'incident' : 'verified';
   const featuredPillLabel = alertsLoading ? 'LOADING' : featuredAlert?.type === 'flagged' ? 'FLAGGED' : featuredAlert ? 'VALIDATED' : 'NO ALERTS';
+  const openAlertExitClearance = alert => {
+    if (alert?.type === 'flagged') {
+      setView('cssu-incidents');
+      return;
+    }
+    if (alert?.locatorSlipCode) {
+      localStorage.setItem('edurouteCssuPendingLocatorSlipCode', alert.locatorSlipCode);
+      localStorage.setItem('edurouteCssuPendingLookupSource', 'notification-exit-clearance');
+    }
+    setView('cssu-scan');
+  };
   if (!isDesktopViewport) {
     return <div className="dashboard-wrapper">
         <div className="content fade-in dash-content notif-content cssu-mobile-notif-content">
@@ -2819,7 +2831,7 @@ export const CSSUNotificationsView = ({
                 <h3>{alert.title}</h3>
                 <p>{alert.body}</p>
                 <div className="cssu-mobile-notif-actions">
-                  <button type="button" className="cssu-mobile-notif-action primary" onClick={() => setView('cssu-scan')}>
+                  <button type="button" className="cssu-mobile-notif-action primary" onClick={() => openAlertExitClearance(alert)}>
                     
                     {alert.actionLabelPrimary}
                   </button>
@@ -2883,7 +2895,7 @@ export const CSSUNotificationsView = ({
                           <h2>{alert.title}</h2>
                           <p>{alert.body}</p>
                           <div className="hrmu-alert-feed-actions">
-                            <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => setView('cssu-scan')}>
+                            <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => openAlertExitClearance(alert)}>
                             
                               {alert.actionLabelPrimary || 'Open Exit Clearance'}
                             </button>

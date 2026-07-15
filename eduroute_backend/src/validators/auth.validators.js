@@ -25,18 +25,14 @@ const handleValidation = (req, res, next) => {
 const registerValidator = [
     body('account_role')
         .optional()
-        .isIn(ROLE_OPTIONS)
-        .withMessage('Selected account role is invalid.'),
+        .custom((value) => String(value || 'faculty') === 'faculty')
+        .withMessage('Self-registration is limited to faculty accounts. HRMU, CSSU, and Dean accounts must be assigned by an authorized administrator.'),
     body('full_name').trim().notEmpty().withMessage('Full name is required.'),
     body('employee_id').trim().notEmpty().withMessage('Employee ID is required.'),
     body('department_id')
         .custom((value, { req }) => {
-            const role = req.body.account_role || 'faculty';
-
-            if (['faculty', 'admin', 'assistant_dean', 'college_dean'].includes(role)) {
-                if (!Number.isInteger(Number(value)) || Number(value) < 1) {
-                    throw new Error('A valid department is required.');
-                }
+            if (!Number.isInteger(Number(value)) || Number(value) < 1) {
+                throw new Error('A valid department is required.');
             }
 
             return true;

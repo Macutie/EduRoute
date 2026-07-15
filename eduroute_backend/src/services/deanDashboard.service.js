@@ -398,7 +398,7 @@ const getDeanNotifications = async (deanUserId, query) => {
 
 const markNotificationRead = async (deanUserId, notificationId) => {
     await getDeanContext(deanUserId);
-    const notification = await notificationService.markNotificationRead(deanUserId, notificationId);
+    const notification = await notificationService.markNotificationRead(notificationId, deanUserId);
 
     if (!notification) {
         throw new AppError('Notification not found.', 404);

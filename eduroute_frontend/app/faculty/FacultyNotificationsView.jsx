@@ -3,6 +3,7 @@ import { useNotifications } from "../../hooks/useNotifications";
 import { formatNotificationRelativeTime, getNotificationGroupLabel } from "../shared/dateDisplay.js";
 import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
 import { BottomNav } from "./FacultyViews.jsx";
+import { getFacultyLocatorSlipDetails } from "../../services/facultyTripApi";
 /* ======================================================== */
 /* ADMIN DASHBOARD VIEW (Strategic Oversight)               */
 /* ======================================================== */
@@ -29,16 +30,40 @@ export const FacultyNotificationsView = ({
     };
   }, {});
   const orderedGroups = Object.entries(groupedNotifications);
+  const getNotificationLocatorSlipId = notification => {
+    const notificationData = notification?.data || {};
+    return notification?.locatorSlipId
+      || notification?.locator_slip_id
+      || notificationData.locatorSlipId
+      || notificationData.locator_slip_id
+      || null;
+  };
   const openNotification = async notification => {
     try {
       await markRead(notification.id);
     } catch (markError) {
       console.error('Failed to mark notification read:', markError);
     }
-    if (notification.locatorSlipId) {
-      setSelectedStatusSlip?.(null);
+    const locatorSlipId = getNotificationLocatorSlipId(notification);
+    if (!locatorSlipId) {
+      setView('status');
+      return;
     }
-    setView('status');
+
+    try {
+      const slip = await getFacultyLocatorSlipDetails(locatorSlipId);
+      localStorage.removeItem('edurouteVerifySlipId');
+      localStorage.setItem('edurouteDetailSlipId', locatorSlipId);
+      localStorage.setItem('edurouteLastView', 'locator-slip-detail');
+      setSelectedStatusSlip?.(slip);
+      setView('locator-slip-detail');
+    } catch (loadError) {
+      console.error('Failed to open notification locator slip:', loadError);
+      localStorage.setItem('edurouteDetailSlipId', locatorSlipId);
+      localStorage.setItem('edurouteLastView', 'locator-slip-detail');
+      setSelectedStatusSlip?.(null);
+      setView('locator-slip-detail');
+    }
   };
   return <div className="dashboard-wrapper">
       <div className="content fade-in dash-content">

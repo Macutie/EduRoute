@@ -44,6 +44,8 @@ const HRMU_COLLEGE_OPTIONS = [{
   label: 'College of Computer Studies',
   value: 'College of Computer Studies'
 }];
+const HRMU_PENDING_VERIFICATION_TARGET_KEY = 'edurouteHrmuPendingVerificationTarget';
+const HRMU_PENDING_REPORT_MONTH_KEY = 'edurouteHrmuPendingReportMonth';
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${localStorage.getItem('token') || ''}`
@@ -1095,6 +1097,34 @@ export const HrmuVerificationView = ({
       const successfulTrips = mappedRows.filter(row => row.status === 'SUCCESSFUL').length;
       const pendingReviews = mappedRows.filter(row => row.status === 'PENDING').length;
       setRegistryRows(mappedRows);
+      const pendingVerificationTarget = (() => {
+        try {
+          const rawTarget = window.localStorage.getItem(HRMU_PENDING_VERIFICATION_TARGET_KEY);
+          return rawTarget ? JSON.parse(rawTarget) : null;
+        } catch (error) {
+          return null;
+        }
+      })();
+      if (pendingVerificationTarget?.locatorSlipId || pendingVerificationTarget?.proofId || pendingVerificationTarget?.tripId) {
+        const targetRow = mappedRows.find(row => {
+          const targetLocatorSlipId = String(pendingVerificationTarget.locatorSlipId || '');
+          const targetProofId = String(pendingVerificationTarget.proofId || '');
+          const targetTripId = String(pendingVerificationTarget.tripId || '');
+          return targetLocatorSlipId && String(row.locatorSlipId || '') === targetLocatorSlipId || targetProofId && String(row.proofId || '') === targetProofId || targetTripId && String(row.tripId || '') === targetTripId;
+        });
+        window.localStorage.removeItem(HRMU_PENDING_VERIFICATION_TARGET_KEY);
+        if (targetRow) {
+          setReviewLocked(false);
+          setReviewMessage('');
+          setSelectedRegistryRow(targetRow);
+          setSelectedProofDetails(null);
+          getHrmuProofComplianceDetails(targetRow.proofId).then(details => {
+            setSelectedProofDetails(details);
+          }).catch(error => {
+            setReviewMessage(error.message || 'Failed to load proof details.');
+          });
+        }
+      }
       setSummary({
         completedTrips: mappedRows.length,
         pendingReviews,
@@ -2065,6 +2095,25 @@ export const HrmuReportsView = ({
   profileData,
   onLogout
 }) => {
+  const pendingReportMonth = useMemo(() => {
+    try {
+      const rawTarget = window.localStorage.getItem(HRMU_PENDING_REPORT_MONTH_KEY);
+      window.localStorage.removeItem(HRMU_PENDING_REPORT_MONTH_KEY);
+      if (!rawTarget) return null;
+      const parsedTarget = JSON.parse(rawTarget);
+      const monthIndex = Number(parsedTarget?.monthIndex);
+      const year = Number(parsedTarget?.year);
+      if (!Number.isInteger(monthIndex) || monthIndex < 1 || monthIndex > 12 || !Number.isInteger(year)) {
+        return null;
+      }
+      return {
+        monthIndex,
+        year
+      };
+    } catch (error) {
+      return null;
+    }
+  }, []);
   const [downloadLoading, setDownloadLoading] = useState(false);
   const [selectedReportRow, setSelectedReportRow] = useState(null);
   const [reviewing, setReviewing] = useState(false);
@@ -2090,8 +2139,8 @@ export const HrmuReportsView = ({
     goNext,
     openDetails
   } = useHrmuMonthlyReport({
-    initialMonthIndex: 1,
-    initialYear: 2026
+    initialMonthIndex: pendingReportMonth?.monthIndex || 1,
+    initialYear: pendingReportMonth?.year || 2026
   });
   const summary = report?.summary || {};
   const reportRows = Array.isArray(report?.locatorSlipLogs) ? report.locatorSlipLogs : [];
@@ -2736,6 +2785,14 @@ export const HrmuNotificationsRealtimeView = ({
     unverifiedLocations: 0,
     disconnectedLocations: 0
   });
+  const getReportMonthTargetFromDate = value => {
+    const date = value ? new Date(value) : new Date();
+    const safeDate = Number.isNaN(date.getTime()) ? new Date() : date;
+    return {
+      monthIndex: safeDate.getMonth() + 1,
+      year: safeDate.getFullYear()
+    };
+  };
   useEffect(() => {
     let isMounted = true;
     const formatRelativeAlertTime = value => {
@@ -2770,13 +2827,18 @@ export const HrmuNotificationsRealtimeView = ({
         const decisionAlerts = notificationRows.filter(notification => positiveNotificationTypes.has(notification.type) || rejectedNotificationTypes.has(notification.type)).map(notification => {
           const isRejectedDecision = rejectedNotificationTypes.has(notification.type);
           const defaultTitle = notification.type === 'hrmu_trip_started' ? 'Trip started' : notification.type === 'hrmu_trip_completed' ? 'Faculty returned on time' : notification.type === 'hrmu_cssu_validated_exit' ? 'Exit clearance validated' : notification.type === 'hrmu_locator_slip_rejected' ? 'Locator slip rejected' : notification.type === 'hrmu_trip_arrived' ? 'Faculty arrived at destination' : notification.title || 'Verified activity';
+          const reportDate = notification.createdAt || notification.approvedAt;
           return {
             id: `${isRejectedDecision ? 'rejected' : 'verified'}-${notification.id}`,
             type: isRejectedDecision ? 'rejected' : 'verified',
+            notificationType: notification.type,
+            locatorSlipId: notification.locatorSlipId || null,
+            tripId: notification.tripId || null,
+            reportTarget: getReportMonthTargetFromDate(reportDate),
             title: defaultTitle,
             body: notification.message || (isRejectedDecision ? `${notification.facultyName} locator slip was rejected.` : `${notification.facultyName} locator slip approved.`),
-            time: formatRelativeAlertTime(notification.createdAt || notification.approvedAt),
-            sortDate: notification.createdAt || notification.approvedAt ? new Date(notification.createdAt || notification.approvedAt).getTime() : 0,
+            time: formatRelativeAlertTime(reportDate),
+            sortDate: reportDate ? new Date(reportDate).getTime() : 0,
             actionLabelPrimary: 'Open Dashboard',
             actionLabelSecondary: notification.type === 'hrmu_trip_started' || notification.type === 'hrmu_trip_completed' ? 'Open Reports' : 'Review Verification'
           };
@@ -2784,6 +2846,10 @@ export const HrmuNotificationsRealtimeView = ({
         const violationAlerts = flaggedRows.map(trip => ({
           id: `violation-${trip.tripId}`,
           type: 'violation',
+          notificationType: trip.type || trip.incidentType || 'violation',
+          locatorSlipId: trip.locatorSlipId || null,
+          tripId: trip.tripId || null,
+          reportTarget: getReportMonthTargetFromDate(trip.latestDetectedAt),
           title: (trip.incidentLabels?.[0] || 'Trip Incident Detected').replace('detected', '').trim() || 'Trip Incident Detected',
           body: `${trip.facultyName} has active incident conditions${trip.destination ? ` en route to ${trip.destination}` : ''}. Reasons: ${(trip.incidentLabels || []).join(', ') || 'Review required'}.`,
           time: formatRelativeAlertTime(trip.latestDetectedAt),
@@ -2838,6 +2904,32 @@ export const HrmuNotificationsRealtimeView = ({
       setDownloadBusy(false);
     }
   };
+  const openAlertVerificationTarget = alert => {
+    const target = {
+      locatorSlipId: alert?.locatorSlipId || null,
+      proofId: alert?.proofId || null,
+      tripId: alert?.tripId || null
+    };
+    if (target.locatorSlipId || target.proofId || target.tripId) {
+      window.localStorage.setItem(HRMU_PENDING_VERIFICATION_TARGET_KEY, JSON.stringify(target));
+    }
+    setView('hrmu-verification');
+  };
+  const handleAlertAction = (alert, label) => {
+    const normalizedLabel = String(label || '').toLowerCase();
+    if (normalizedLabel.includes('report')) {
+      if (alert?.reportTarget?.monthIndex && alert?.reportTarget?.year) {
+        window.localStorage.setItem(HRMU_PENDING_REPORT_MONTH_KEY, JSON.stringify(alert.reportTarget));
+      }
+      setView('hrmu-reports');
+      return;
+    }
+    if (normalizedLabel.includes('verification')) {
+      openAlertVerificationTarget(alert);
+      return;
+    }
+    setView('hrmu-dashboard');
+  };
   return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
       <section className="hrmu-alerts-page">
         <div className="hrmu-alerts-hero">
@@ -2887,11 +2979,11 @@ export const HrmuNotificationsRealtimeView = ({
                           <h2>{alert.title}</h2>
                           <p>{alert.body}</p>
                           <div className="hrmu-alert-feed-actions">
-                            <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => setView(primaryTarget)}>
+                            <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => handleAlertAction(alert, alert.actionLabelPrimary || (primaryTarget === 'hrmu-verification' ? 'Review Verification' : 'Open Dashboard'))}>
                             
                               {alert.actionLabelPrimary || 'Open Dashboard'}
                             </button>
-                            <button type="button" className="hrmu-alert-text-btn" onClick={() => setView(secondaryTarget)}>
+                            <button type="button" className="hrmu-alert-text-btn" onClick={() => handleAlertAction(alert, alert.actionLabelSecondary || (secondaryTarget === 'hrmu-reports' ? 'Open Reports' : 'Review Verification'))}>
                             
                               {alert.actionLabelSecondary || 'Review Verification'}
                             </button>

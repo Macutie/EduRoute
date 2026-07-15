@@ -33,7 +33,7 @@ import { LEGAL_DOCUMENTS, LegalDocumentModal, getPermissionSetupStorageKey } fro
 import { DEFAULT_PROFILE_IMAGE, GORDON_COLLEGE_EMAIL_DOMAIN, isEmailIdentifier, isGordonCollegeEmail, triggerBlobDownload } from "../shared/appUtils.js";
 import { APP_VIEWS, decodeJwtPayload, getDefaultViewForRole, getEduRouteDialogContent, getHashForView, getPortalAdministrationDescription, getPortalBadgeLabel, getPortalHomeViewForRole, getPortalMetaLabel, getPortalNotificationsViewForRole, getPortalPositionLabel, getViewFromUrlHash, isCollegeDeanDepartment, isDeanPortalAccount, supportsPortalPushNotifications } from "../routing/portalRouting.js";
 import { TripPathHistoryModal, formatPathHistoryDateTime } from "../../components/trips/TripPathHistoryModal.jsx";
-import { AUTH_ACCOUNT_ROLES, DesktopAuthShell, ForgotPasswordView, LOGIN_PORTAL_ROLES, LoginView, ResetCodeView, SetNewPasswordView, SignUpView } from "../auth/AuthViews.jsx";
+import { DesktopAuthShell, ForgotPasswordView, LOGIN_PORTAL_ROLES, LoginView, ResetCodeView, SetNewPasswordView, SignUpView } from "../auth/AuthViews.jsx";
 import { formatNotificationRelativeTime, getNotificationGroupLabel } from "../shared/dateDisplay.js";
 import { DEAN_DEPARTMENT_ABBREVIATIONS, DeanBottomNav, DeanDashboardView, DeanFacultyView, DeanNotificationsView, DeanProfileView, DeanRegistryView, DeanRequestDetailView, DeanRequestsModal, DeanRequestsView, DeanSignatureView, buildLocatorSlipReference, getDeanBadgeLabel, getDeanRoleLabel } from "../dean/DeanViews.jsx";
 import { ApprovedLocatorSlipSelectionView, BottomNav, DEPT_NAMES, DashboardView, LOCATOR_PURPOSE_OPTIONS, LOCATOR_SLIP_CANCEL_REASONS, LocatorSlipDetailView, LocatorSlipView, MapTrackingView, ProfileView, RouteApprovedView, STATUS_FILTERS, ScanView, SlipSubmittedView, StatusView, TRAVEL_PURPOSE_TYPES, UpdatesView, formatActivityFiledTime, formatDistanceLabel, formatStatusDate, formatStatusDateTime, formatTripDurationLabel, getCancellationReasonLabel, getCssuValidationStatus, getLocatorSlipActionState, getSlipDisplayStatus, getSlipTitle, toDateTimeLocalValue } from "../faculty/FacultyViews.jsx";
@@ -544,8 +544,9 @@ function App() {
     try {
       const data = await registerApi({
         ...registerForm,
+        account_role: 'faculty',
         email,
-        department_id: ['faculty', 'admin'].includes(registerForm.account_role) ? Number(registerForm.department_id) : null
+        department_id: Number(registerForm.department_id)
       });
       alert(formatApiMessage(data.message) || 'Registration successful.');
       setView('login');

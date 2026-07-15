@@ -58,19 +58,16 @@ console.log('API_BASE_URL:', API_BASE_URL);
 
 const getSocketTransports = () => {
   if (typeof window === 'undefined') {
-    return ['polling', 'websocket'];
+    return ['websocket', 'polling'];
   }
 
   const apiUrl = API_BASE_URL || window.location.origin;
 
   try {
-    const { hostname } = new URL(apiUrl, window.location.origin);
-    const isLocalSocket = ['localhost', '127.0.0.1'].includes(hostname)
-      || /^(192\.168|10\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname);
-
-    return isLocalSocket ? ['polling'] : ['polling', 'websocket'];
+    new URL(apiUrl, window.location.origin);
+    return ['websocket', 'polling'];
   } catch (error) {
-    return ['polling'];
+    return ['websocket', 'polling'];
   }
 };
 

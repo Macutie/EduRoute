@@ -656,6 +656,7 @@ const getNotificationsOverview = async (limit = 8) => {
             SELECT
                 CONCAT('validated-', log.id)::text AS notification_id,
                 ls.id AS locator_slip_id,
+                ls.locator_slip_code,
                 fu.id AS faculty_user_id,
                 fu.full_name AS faculty_name,
                 fu.employee_id,
@@ -679,6 +680,7 @@ const getNotificationsOverview = async (limit = 8) => {
             SELECT
                 CONCAT('flagged-', log.id)::text AS notification_id,
                 ls.id AS locator_slip_id,
+                ls.locator_slip_code,
                 fu.id AS faculty_user_id,
                 fu.full_name AS faculty_name,
                 fu.employee_id,
@@ -721,6 +723,7 @@ const getNotificationsOverview = async (limit = 8) => {
         SELECT
             nr.notification_id,
             nr.locator_slip_id,
+            nr.locator_slip_code,
             nr.faculty_user_id,
             nr.faculty_name,
             nr.employee_id,
