@@ -2576,36 +2576,43 @@ export const MapTrackingView = ({
     setMapLoading(true);
     setMapError('');
     try {
+      const storedTripOrigin = normalizeMapCoordinate(activeTrip.origin || tripStartOrigin);
+      const storedTripDestination = normalizeMapCoordinate(activeTrip.destination || destination);
       const trip = await startFacultyTripReturn(activeTrip.id);
-      setActiveTrip(trip);
-      if (tripStartOrigin && destination) {
-        const returnDestination = {
-          latitude: tripStartOrigin.latitude,
-          longitude: tripStartOrigin.longitude,
-          name: 'Starting location'
-        };
-        const returnOrigin = {
-          latitude: destination.latitude,
-          longitude: destination.longitude,
-          name: destination.name || 'Verified destination'
-        };
-        setDestination(returnDestination);
-        setDestinationMarker(returnDestination);
-        setOrigin(returnOrigin);
-        setOriginMarker(returnOrigin, {
-          recenter: true
-        });
-        lastAcceptedOriginRef.current = returnOrigin;
-        lastRouteOriginRef.current = returnOrigin;
-        const returnRoute = await fetchEncryptedDirections({
-          origin: returnOrigin,
-          destination: returnDestination,
-          profile: routeMode,
-          alternatives: false
-        }, 'Failed to prepare the return route.');
-        setRouteSummary(returnRoute);
-        drawRoute(returnRoute.geometry);
+      const tripOrigin = normalizeMapCoordinate(trip.origin) || storedTripOrigin;
+      const tripDestination = normalizeMapCoordinate(trip.destination) || storedTripDestination;
+      if (!tripOrigin || !tripDestination) {
+        throw new Error('Original trip route points are missing. Please refresh the trip route and try again.');
       }
+      const returnDestination = {
+        ...tripOrigin,
+        name: 'Starting location'
+      };
+      const returnOrigin = {
+        ...tripDestination,
+        name: tripDestination.name || destination?.name || 'Verified destination'
+      };
+      setDestination(returnDestination);
+      setDestinationMarker(returnDestination);
+      setOrigin(returnOrigin);
+      setOriginMarker(returnOrigin, {
+        recenter: true
+      });
+      lastAcceptedOriginRef.current = returnOrigin;
+      lastRouteOriginRef.current = returnOrigin;
+      setActiveTrip(trip);
+      const returnRoute = await fetchEncryptedDirections({
+        origin: returnOrigin,
+        destination: returnDestination,
+        profile: routeMode,
+        alternatives: false
+      }, 'Failed to prepare the return route.');
+      setRouteSummary(returnRoute);
+      setSelectedAlternativeIndex(-1);
+      setHighlightedStepIndex(-1);
+      clearHighlightedStep();
+      drawRoute(returnRoute.geometry);
+      setShowRouteTools(true);
     } catch (error) {
       setMapError(error.message);
     } finally {
@@ -2947,6 +2954,10 @@ export const MapTrackingView = ({
       recenter: false
     });
   }, [mapReady, destination?.latitude, destination?.longitude, destination?.lat, destination?.lng]);
+  useEffect(() => {
+    if (!mapReady || !routeSummary?.geometry) return;
+    drawRoute(routeSummary.geometry);
+  }, [mapReady, routeSummary?.geometry]);
   useEffect(() => {
     if (activeTrip && destination && ['ACTIVE', 'RETURNING'].includes(getTripPhase(activeTrip))) {
       startLiveLocationWatch();

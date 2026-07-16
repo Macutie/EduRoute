@@ -339,7 +339,7 @@ const buildHrmuTripNotificationMessage = (type, context = {}) => {
     const purpose = context.purpose ? ` for ${context.purpose}` : '';
 
     if (type === hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_ARRIVED) {
-        return `${facultyName} marked the trip as arrived${destination}. Awaiting location verification image.`;
+        return `${facultyName} marked the trip as arrived${destination}. Awaiting proof of compliance submission.`;
     }
 
     if (type === hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED) {
