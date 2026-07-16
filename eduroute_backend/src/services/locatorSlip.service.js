@@ -18,6 +18,20 @@ let cssuValidationColumnsExistsCache = null;
 let cssuExitLogsTableExistsCache = null;
 
 const LOCATOR_SLIP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const MANILA_UTC_OFFSET = '+08:00';
+
+const normalizeLocatorSlipScheduleForStorage = (value) => {
+    if (!value || typeof value !== 'string') return value;
+
+    const normalized = value.trim();
+    const localDateTimeMatch = normalized.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/);
+    const storageInput = localDateTimeMatch
+        ? `${localDateTimeMatch[1]}T${localDateTimeMatch[2]}:${localDateTimeMatch[3]}:${localDateTimeMatch[4] || '00'}${MANILA_UTC_OFFSET}`
+        : normalized;
+    const parsed = new Date(storageInput);
+
+    return Number.isNaN(parsed.getTime()) ? normalized : parsed.toISOString();
+};
 
 const formatPurposeDisplay = (purposeOfTravel, customPurpose) => {
     const normalizedPurpose = String(purposeOfTravel || '').trim();
@@ -381,6 +395,8 @@ const createLocatorSlip = async (facultyUserId, payload) => {
         : null;
     const additionalRemarks = payload.additional_remarks?.trim() || null;
     const isUrgent = payload.is_urgent === true;
+    const departureDatetime = normalizeLocatorSlipScheduleForStorage(payload.departure_datetime);
+    const expectedReturnDatetime = normalizeLocatorSlipScheduleForStorage(payload.expected_return_datetime);
     const client = await pool.connect();
 
     try {
@@ -433,8 +449,8 @@ const createLocatorSlip = async (facultyUserId, payload) => {
                 destination,
                 purposeOfTravel,
                 customPurpose,
-                payload.departure_datetime,
-                payload.expected_return_datetime,
+                departureDatetime,
+                expectedReturnDatetime,
                 additionalRemarks,
                 isUrgent,
                 'pending'
