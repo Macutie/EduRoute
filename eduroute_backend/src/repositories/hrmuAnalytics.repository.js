@@ -2,6 +2,7 @@ const pool = require('../db/pool');
 const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
 
 const APPROVED_ANALYTICS_STATUSES = ['approved', 'verified', 'completed'];
+const MANILA_CREATED_AT_EXPRESSION = "(ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')";
 let tripColumnCache = null;
 
 const getTripsColumnSet = async () => {
@@ -80,16 +81,16 @@ const getDailyFacultyMovementRows = async ({ start, endExclusive, collegeIds }) 
         ),
         daily_counts AS (
             SELECT
-                DATE(ls.created_at) AS day,
+                ${MANILA_CREATED_AT_EXPRESSION}::date AS day,
                 COUNT(*)::int AS locator_slip_count
             FROM locator_slips ls
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-            WHERE ls.created_at >= $1
-              AND ls.created_at < $2
+            WHERE ${MANILA_CREATED_AT_EXPRESSION}::date >= $1::date
+              AND ${MANILA_CREATED_AT_EXPRESSION}::date < $2::date
               AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
-            GROUP BY DATE(ls.created_at)
+            GROUP BY ${MANILA_CREATED_AT_EXPRESSION}::date
         )
         SELECT
             ds.day::date AS date,
@@ -477,14 +478,14 @@ const getSmartCollegeSummaryRows = async ({ start, endExclusive, collegeIds }) =
 const getPeakMovementRows = async ({ start, endExclusive, collegeIds }) => {
     const { rows } = await pool.query(
         `SELECT
-            UPPER(TO_CHAR(ls.created_at, 'DY')) AS day_label,
-            EXTRACT(ISODOW FROM ls.created_at)::int AS day_number,
-            EXTRACT(HOUR FROM ls.created_at)::int AS hour,
+            UPPER(TO_CHAR(${MANILA_CREATED_AT_EXPRESSION}, 'DY')) AS day_label,
+            EXTRACT(ISODOW FROM ${MANILA_CREATED_AT_EXPRESSION})::int AS day_number,
+            EXTRACT(HOUR FROM ${MANILA_CREATED_AT_EXPRESSION})::int AS hour,
             COUNT(*)::int AS movement_count
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         WHERE ls.created_at >= $1
-           AND ls.created_at < $2
+         WHERE ${MANILA_CREATED_AT_EXPRESSION}::date >= $1::date
+           AND ${MANILA_CREATED_AT_EXPRESSION}::date < $2::date
            AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
            AND fu.account_role = 'faculty'
            AND fu.status = 'active'
