@@ -26,6 +26,25 @@ const startServer = async () => {
             console.log('Running auto-migrations...');
             await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS expected_return_datetime TIMESTAMP;');
             await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP;');
+            await pool.query('ALTER TABLE locator_slips ADD COLUMN IF NOT EXISTS cancellation_reason VARCHAR(60);');
+            await pool.query(`
+                DO $$
+                BEGIN
+                    ALTER TABLE locator_slips
+                        ADD CONSTRAINT chk_locator_slips_cancellation_reason
+                        CHECK (
+                            cancellation_reason IS NULL
+                            OR cancellation_reason IN (
+                                'change_of_schedule',
+                                'trip_no_longer_needed',
+                                'meeting_event_cancelled',
+                                'incorrect_locator_slip_details'
+                            )
+                        );
+                EXCEPTION
+                    WHEN duplicate_object THEN NULL;
+                END $$;
+            `);
             await pool.query(`CREATE TABLE IF NOT EXISTS user_push_tokens (
                 id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                 user_id UUID NOT NULL REFERENCES faculty_users(id) ON DELETE CASCADE,

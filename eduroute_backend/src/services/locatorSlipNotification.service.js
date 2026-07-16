@@ -105,23 +105,25 @@ const notifyFacultyOfCssuExitDenial = async ({ recipientUserId, senderUserId, lo
     })
 );
 
-const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUserId, collegeId, facultyName, destination, cancellationReason }) => {
+const notifyDeansOfLocatorSlipCancellation = async ({ locatorSlipId, facultyUserId, collegeId, facultyName, destination, cancellationReason, cancellationReasonLabel }) => {
     const deans = await userRepository.getDeanUsersByCollegeId(collegeId);
     if (deans.length === 0) return [];
+    const displayReason = cancellationReasonLabel || cancellationReason || '';
 
     return notificationService.notifyUsers(
         deans.map((dean) => dean.id),
         {
             senderUserId: facultyUserId,
             locatorSlipId,
-            type: 'LOCATOR_SLIP_CANCELLED',
+            type: notificationService.NOTIFICATION_TYPES.LOCATOR_SLIP_CANCELLED,
             title: 'Locator Slip Cancelled',
-            message: cancellationReason
-                ? `${facultyName} cancelled the locator slip to ${destination}. Reason: ${cancellationReason}.`
+            message: displayReason
+                ? `${facultyName} cancelled the locator slip to ${destination}. Reason: ${displayReason}.`
                 : `${facultyName} cancelled the locator slip to ${destination}.`,
             data: {
                 locatorSlipId,
-                cancellationReason: cancellationReason || '',
+                cancellationReason: displayReason,
+                cancellationReasonKey: cancellationReason || '',
                 url: '/#/dean-registry'
             }
         }

@@ -726,7 +726,8 @@ const cancelLocatorSlip = async (facultyUserId, locatorSlipId, cancellationReaso
         collegeId: locatorSlip.college_id,
         facultyName,
         destination: locatorSlip.destination,
-        cancellationReason: reasonLabel
+        cancellationReason,
+        cancellationReasonLabel: reasonLabel
     }).catch((notificationError) => {
         console.error('Failed to notify deans about locator slip cancellation:', notificationError);
     });

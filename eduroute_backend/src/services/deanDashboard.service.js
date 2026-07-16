@@ -1136,6 +1136,7 @@ const getRegistryPage = async (deanUserId) => {
             ls.additional_remarks,
             COALESCE(
                 ${hasCancellationReasonColumn ? 'ls.cancellation_reason,' : 'NULL::text,'}
+                latest_cancel_notification.cancellation_reason_key,
                 latest_cancel_notification.cancellation_reason,
                 latest_cancel_notification.cancellation_reason_from_message
             ) AS cancellation_reason,
@@ -1159,6 +1160,7 @@ const getRegistryPage = async (deanUserId) => {
          LEFT JOIN dean_signature_settings ds ON ds.dean_user_id = reviewer.id
          LEFT JOIN LATERAL (
             SELECT
+                NULLIF(n.data ->> 'cancellationReasonKey', '') AS cancellation_reason_key,
                 NULLIF(n.data ->> 'cancellationReason', '') AS cancellation_reason,
                 CASE
                     WHEN n.message ILIKE '%Reason:%'

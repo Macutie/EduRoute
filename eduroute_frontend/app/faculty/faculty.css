@@ -602,6 +602,31 @@
   margin-top: 1px;
 }
 
+.status-slip-cancel-reason {
+  margin-top: 2px;
+  padding: 12px 14px;
+  border-left: 4px solid #dc2626;
+  border-radius: 14px;
+  background: #fff1f2;
+}
+
+.status-slip-cancel-reason span {
+  display: block;
+  color: #b91c1c;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+}
+
+.status-slip-cancel-reason strong {
+  display: block;
+  margin-top: 4px;
+  color: #7f1d1d;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .status-empty-card {
   background: #ffffff;
   border: 1px dashed #cdd8c9;

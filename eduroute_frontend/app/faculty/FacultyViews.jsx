@@ -323,6 +323,7 @@ export const getCancellationReasonLabel = reasonValue => {
   const matchedReason = LOCATOR_SLIP_CANCEL_REASONS.find(reason => reason.value === reasonValue);
   return matchedReason?.label || String(reasonValue);
 };
+const getSlipCancellationReason = slip => slip?.cancellation_reason || slip?.cancellationReason || slip?.cancellation_reason_key || slip?.cancellationReasonKey || '';
 export const getSlipDisplayStatus = slip => {
   const locatorSlipStatus = String(slip?.status || 'pending').toLowerCase();
   if (locatorSlipStatus === 'pending') {
@@ -1008,6 +1009,7 @@ export const StatusView = ({
 
           {!statusLoading && locatorSlips.map(slip => {
           const displayStatus = getSlipDisplayStatus(slip);
+          const cancellationReason = getSlipCancellationReason(slip);
           return <button key={slip.id} type="button" className={`status-slip-card ${displayStatus}`} onClick={() => {
             if (slip.status !== 'approved') {
               localStorage.removeItem('edurouteVerifySlipId');
@@ -1036,6 +1038,10 @@ export const StatusView = ({
                     <RefreshClockIcon color="var(--text-gray)" />
                     <span>Expected Return: {formatStatusDateTime(slip.expected_return_datetime)}</span>
                   </div>
+                  {displayStatus === 'cancelled' && cancellationReason && <div className="status-slip-cancel-reason">
+                      <span>Cancellation Reason</span>
+                      <strong>{getCancellationReasonLabel(cancellationReason)}</strong>
+                    </div>}
                 </div>
               </button>;
         })}
@@ -1067,6 +1073,7 @@ export const LocatorSlipDetailView = ({
     data: null
   });
   const slip = selectedSlip;
+  const cancellationReason = getSlipCancellationReason(slip);
   useEffect(() => {
     setShowLocationProof(false);
     setShowProofCompliance(false);
@@ -1361,9 +1368,9 @@ export const LocatorSlipDetailView = ({
             {cancelLoading ? 'CANCELLING...' : 'CANCEL REQUEST'}
           </button>}
 
-        {slip.status === 'cancelled' && slip.cancellation_reason && <div className="cancel-reason-card">
+        {slip.status === 'cancelled' && cancellationReason && <div className="cancel-reason-card">
             <span>CANCELLATION REASON</span>
-            <strong>{getCancellationReasonLabel(slip.cancellation_reason)}</strong>
+            <strong>{getCancellationReasonLabel(cancellationReason)}</strong>
           </div>}
 
         {(isApproved || isCompleted) && <div className="approved-detail-actions">
