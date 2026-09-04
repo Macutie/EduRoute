@@ -13,7 +13,8 @@ const HRMU_NOTIFICATION_TYPE_REJECTED = 'hrmu_locator_slip_rejected';
 const HRMU_NOTIFICATION_TYPE_TRIP_STARTED = 'hrmu_trip_started';
 const HRMU_NOTIFICATION_TYPE_ARRIVED = 'hrmu_trip_arrived';
 const HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED = 'hrmu_trip_completed';
-const HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT = 'hrmu_cssu_validated_exit';
+const HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT = 'hrmu_cssu_validated_exit';
+const HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT_LEGACY = 'hrmu_ISSU_validated_exit';
 const HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED = 'hrmu_location_verification_submitted';
 const HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION = 'hrmu_unverified_location';
 const HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED = 'hrmu_location_disconnected';
@@ -25,7 +26,8 @@ const HRMU_NOTIFICATION_TYPES = [
     HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
     HRMU_NOTIFICATION_TYPE_ARRIVED,
     HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
-    HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
+    HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT,
+    HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT_LEGACY,
     HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
     HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
     HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
@@ -33,16 +35,16 @@ const HRMU_NOTIFICATION_TYPES = [
     HRMU_NOTIFICATION_TYPE_LATE_RETURN
 ];
 const HRMU_ALLOWED_ROLES = ['hrmu', 'admin'];
-let cssuExitLogsTableExistsCache = null;
+let ISSUExitLogsTableExistsCache = null;
 
-const getCssuExitLogsTableExists = async () => {
-    if (cssuExitLogsTableExistsCache !== null) {
-        return cssuExitLogsTableExistsCache;
+const getISSUExitLogsTableExists = async () => {
+    if (ISSUExitLogsTableExistsCache !== null) {
+        return ISSUExitLogsTableExistsCache;
     }
 
     const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
-    cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
-    return cssuExitLogsTableExistsCache;
+    ISSUExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return ISSUExitLogsTableExistsCache;
 };
 
 const buildCollegeFilter = (filters = {}, startingIndex = 2) => {
@@ -321,7 +323,7 @@ const getHrmuNotificationsPage = async (_recipientUserId, { page = 1, limit = 20
             HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
             HRMU_NOTIFICATION_TYPE_ARRIVED,
             HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
-            HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
+            HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT,
             HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
             HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
             HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
@@ -385,7 +387,7 @@ const createHrmuTripEventNotifications = async (client = pool, { locatorSlipId, 
 };
 
 const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, collegeName = null, status = null, verification = null } = {}) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
     const safePage = Math.max(Number(page) || 1, 1);
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
     const offset = (safePage - 1) * safeLimit;
@@ -427,20 +429,20 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
 
     const countResult = await pool.query(countQuery, [ALLOWED_COLLEGE_NAMES, ...filterValues]);
 
-    const cssuExitJoin = hasCssuExitLogsTable
+    const ISSUExitJoin = hasISSUExitLogsTable
         ? `LEFT JOIN LATERAL (
             SELECT log.status, log.validation_method, log.validated_at
             FROM cssu_exit_logs log
             WHERE log.locator_slip_id = ls.id
             ORDER BY COALESCE(log.validated_at, log.created_at) DESC
             LIMIT 1
-        ) cssu_exit ON TRUE`
+        ) ISSU_exit ON TRUE`
         : `LEFT JOIN LATERAL (
             SELECT
                 NULL::text AS status,
                 NULL::text AS validation_method,
                 NULL::timestamp AS validated_at
-        ) cssu_exit ON TRUE`;
+        ) ISSU_exit ON TRUE`;
 
     const rowsQuery = `
         SELECT
@@ -461,9 +463,12 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             COALESCE(t.status, 'not_started') AS trip_status,
             COALESCE(t.ended_at, t.updated_at) AS actual_return_time,
             latest_location.recorded_at AS latest_location_at,
-            cssu_exit.status AS cssu_exit_status,
-            cssu_exit.validation_method AS cssu_validation_method,
-            cssu_exit.validated_at AS cssu_validated_at
+            ISSU_exit.status AS ISSU_exit_status,
+            ISSU_exit.status AS cssu_exit_status,
+            ISSU_exit.validation_method AS ISSU_validation_method,
+            ISSU_exit.validation_method AS cssu_validation_method,
+            ISSU_exit.validated_at AS ISSU_validated_at,
+            ISSU_exit.validated_at AS cssu_validated_at
         FROM locator_slips ls
         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
         JOIN departments d ON d.id = COALESCE(ls.college_id, fu.department_id)
@@ -491,7 +496,7 @@ const getRecentActivityPage = async ({ page = 1, limit = 20, collegeId = null, c
             ORDER BY verification.created_at DESC
             LIMIT 1
         ) location_verification ON TRUE
-        ${cssuExitJoin}
+        ${ISSUExitJoin}
         WHERE ${whereClauses.join(' AND ')}
         ORDER BY ls.departure_datetime DESC, ls.created_at DESC
         LIMIT $${parameterIndex} OFFSET $${parameterIndex + 1}
@@ -562,7 +567,7 @@ module.exports = {
     HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
     HRMU_NOTIFICATION_TYPE_ARRIVED,
     HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
-    HRMU_NOTIFICATION_TYPE_CSSU_VALIDATED_EXIT,
+    HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT,
     HRMU_NOTIFICATION_TYPE_LOCATION_VERIFIED,
     HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
     HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,

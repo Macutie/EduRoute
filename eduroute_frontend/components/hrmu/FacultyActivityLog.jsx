@@ -28,7 +28,7 @@ export const FacultyActivityLog = ({
     <div className="hrmu-live-activity-list">
       {loading && <div className="hrmu-live-empty">Loading live activity...</div>}
       {!loading && activity.length === 0 && (
-        <div className="hrmu-live-empty">No activity has been recorded for the selected faculty yet.</div>
+        <div className="hrmu-live-empty">No activity has been recorded for the selected employee yet.</div>
       )}
       {!loading && activity.map((item) => (
         <div key={item.id || `${item.type}-${item.occurredAt}`} className={`hrmu-live-activity-item ${toneByType(item.type)}`}>

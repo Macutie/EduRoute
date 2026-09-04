@@ -22,7 +22,7 @@ Returns the logged-in faculty account for the Faculty Credentials card.
 
 ### POST `/api/locator-slips`
 
-Creates a pending locator slip for the logged-in faculty member.
+Creates a pending locator slip for the logged-in employee.
 
 Request:
 
@@ -66,11 +66,11 @@ Response:
 
 ### GET `/api/locator-slips/my-slips`
 
-Returns the logged-in faculty member's slips, newest first.
+Returns the logged-in employee's slips, newest first.
 
 ### GET `/api/locator-slips/:id`
 
-Returns one slip only when it belongs to the logged-in faculty member.
+Returns one slip only when it belongs to the logged-in employee.
 
 ## React Integration Pattern
 

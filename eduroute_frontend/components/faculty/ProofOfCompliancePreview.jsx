@@ -42,6 +42,10 @@ const ProofOfCompliancePreview = ({
           <strong>{proof.focalPersonPosition || 'N/A'}</strong>
         </div>
         <div>
+          <span>Company</span>
+          <strong>{proof.focalPersonCompany || 'N/A'}</strong>
+        </div>
+        <div>
           <span>Submitted</span>
           <strong>{proof.submittedAt ? new Date(proof.submittedAt).toLocaleString() : 'N/A'}</strong>
         </div>

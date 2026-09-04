@@ -1,6 +1,7 @@
 import { Component } from 'react';
 import '../App.css';
 import LegacyApp from './legacy/LegacyApp.jsx';
+import LandingPage, { PublicLegalPage } from './public/LandingPage.jsx';
 
 class AppRecoveryBoundary extends Component {
   constructor(props) {
@@ -60,7 +61,15 @@ class AppRecoveryBoundary extends Component {
 // New portal routes should be extracted beside this file instead of growing
 // the legacy implementation further.
 export default function AppRoot() {
+  const normalizedPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
+  const isLandingRoute = normalizedPath === '/';
+  const isPrivacyRoute = normalizedPath === '/privacy-policy';
+  const isTermsRoute = normalizedPath === '/terms';
+
   return <AppRecoveryBoundary>
-      <LegacyApp />
+      {isLandingRoute && <LandingPage />}
+      {isPrivacyRoute && <PublicLegalPage type="privacy" />}
+      {isTermsRoute && <PublicLegalPage type="terms" />}
+      {!isLandingRoute && !isPrivacyRoute && !isTermsRoute && <LegacyApp />}
     </AppRecoveryBoundary>;
 }

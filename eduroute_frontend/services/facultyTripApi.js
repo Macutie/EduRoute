@@ -104,6 +104,25 @@ export const startFacultyTripReturn = async (tripId) => {
   return parseResponse(response, 'Failed to start the return route.');
 };
 
+export const requestFacultyReturnEntry = async (tripId) => {
+  const response = await fetch(`${API_BASE_URL}/api/faculty/trips/${tripId}/return-entry/request`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+
+  const payload = await parseResponse(response, 'Failed to generate the return-entry QR.');
+  const entryQrCode = payload?.entryQrCode || payload?.entry_qr_code || '';
+  const fallbackEntryCode = entryQrCode
+    ? `RE-${entryQrCode.replace(/^EDU-ENTRY-/i, '').slice(0, 6).toUpperCase()}`
+    : 'RE-------';
+
+  return {
+    ...payload,
+    entryQrCode,
+    entryCode: payload?.entryCode || payload?.entry_code || fallbackEntryCode,
+  };
+};
+
 export const markFacultyTripReturned = async (tripId, payload = {}) => {
   return withFreshAuthPayloadKeyRetry(async () => {
     const encryptedPayload = await encryptSensitivePayload(payload);

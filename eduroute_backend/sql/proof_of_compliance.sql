@@ -1,6 +1,7 @@
 ALTER TABLE arrival_verifications
     ADD COLUMN IF NOT EXISTS focal_person_name TEXT,
     ADD COLUMN IF NOT EXISTS focal_person_position TEXT,
+    ADD COLUMN IF NOT EXISTS focal_person_company TEXT,
     ADD COLUMN IF NOT EXISTS focal_person_signature_url TEXT,
     ADD COLUMN IF NOT EXISTS focal_person_signature_public_id TEXT,
     ADD COLUMN IF NOT EXISTS arrival_photo_url TEXT,

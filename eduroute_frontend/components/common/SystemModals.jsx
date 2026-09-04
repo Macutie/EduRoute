@@ -62,7 +62,7 @@ export const PermissionSetupModal = ({
             <span className="permission-modal-kicker">APPROVAL ALERTS</span>
             <h2 className="permission-modal-title">Allow EduRoute Notifications?</h2>
             <p className="permission-modal-copy">
-              You will receive faculty approval and request alerts on this device. EduRoute will not use notifications for ads or unrelated messages.
+              You will receive employee approval and request alerts on this device. EduRoute will not use notifications for ads or unrelated messages.
             </p>
             <div className="permission-modal-note">
               Your browser will show its own permission popup after you click Enable now.

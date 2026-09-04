@@ -108,7 +108,7 @@ const assertHrmuUser = async (userId) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['hrmu', 'admin', 'cssu']);
 
     if (!user) {
-        throw new AppError('Only HRMU, CSSU, and admin users can access live tracking.', 403);
+        throw new AppError('Only HRMU, ISSU, and admin users can access live tracking.', 403);
     }
 
     return user;
@@ -169,7 +169,7 @@ const getFacultyDetails = async (userId, facultyUserId) => {
     const row = await hrmuLiveTrackingRepository.getActiveFacultyRowByUserId(facultyUserId);
 
     if (!row) {
-        throw new AppError('Active faculty trip not found.', 404);
+        throw new AppError('Active employee trip not found.', 404);
     }
 
     return {

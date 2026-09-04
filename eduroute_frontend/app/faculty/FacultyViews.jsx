@@ -7,7 +7,7 @@ import { useProofOfCompliance } from "../../hooks/useProofOfCompliance";
 import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from "../../services/authPayloadEncryption";
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from "../../services/responseEncryption";
 import { getFacultyProofOfCompliance } from "../../services/proofComplianceApi";
-import { getApprovedFacultyLocatorSlips, getFacultyLocatorSlipDetails, getFacultyTripSummary, markFacultyTripArrived, markFacultyTripReturned, resolveFacultyLocatorSlipDestination, saveFacultyManualPin, startFacultyTrip, startFacultyTripReturn } from "../../services/facultyTripApi";
+import { getApprovedFacultyLocatorSlips, getFacultyLocatorSlipDetails, getFacultyTripSummary, markFacultyTripArrived, markFacultyTripReturned, requestFacultyReturnEntry, resolveFacultyLocatorSlipDestination, saveFacultyManualPin, startFacultyTrip, startFacultyTripReturn } from "../../services/facultyTripApi";
 import { getTripPathHistory } from "../../services/tripPathHistoryApi";
 import ProofOfComplianceForm from "../../components/faculty/ProofOfComplianceForm";
 import ProofOfCompliancePreview from "../../components/faculty/ProofOfCompliancePreview";
@@ -129,7 +129,7 @@ export const DashboardView = ({
   const greeting = localHour < 12 ? 'Good morning' : localHour < 18 ? 'Good afternoon' : 'Good evening';
   const registeredName = facultyProfile?.full_name || profileData.fullName || '';
   const firstName = registeredName.replace(/^(dr|prof|mr|mrs|ms)\.?\s+/i, '').trim().split(/\s+/)[0] || 'Professor';
-  const departmentLabel = facultyProfile?.department_name || profileData.department || 'Faculty Department';
+  const departmentLabel = facultyProfile?.department_name || profileData.department || 'Employee Department';
   return <div className="dashboard-wrapper">
       <div className="content fade-in dash-content">
 
@@ -147,7 +147,7 @@ export const DashboardView = ({
             <div className="dash-avatar" onClick={() => setView('profile')} style={{
             cursor: 'pointer'
           }}>
-              <img src={profileData.image} alt="Faculty Profile" style={{
+              <img src={profileData.image} alt="Employee Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'
@@ -158,7 +158,7 @@ export const DashboardView = ({
 
         <div className="dash-header">
           <p>{greeting}, Prof. {firstName}</p>
-          <h1>Faculty Dashboard</h1>
+          <h1>Employee Dashboard</h1>
           <div className="dept-pill">
             <CapIcon color="var(--green)" outline={true} /> {departmentLabel.toUpperCase()}
           </div>
@@ -349,6 +349,7 @@ export const getCssuValidationStatus = slip => {
   if (['allowed', 'denied', 'flagged'].includes(value)) return value;
   return 'pending';
 };
+export const getISSUValidationStatus = getCssuValidationStatus;
 export const getLocatorSlipActionState = (slip, currentTrip = null) => {
   const displayStatus = getSlipDisplayStatus(slip);
   const cssuValidationStatus = getCssuValidationStatus(slip);
@@ -369,11 +370,11 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
   if (hasTripInProgress) {
     return {
       showQr: false,
-      viewRoute: false,
+      viewRoute: cssuValidationStatus === 'allowed',
       startTrip: false,
       viewUploadedPhoto: true,
       showTripSummaryButton: false,
-      helperText: '',
+      helperText: cssuValidationStatus === 'allowed' ? 'ISSU validated. You can continue viewing the trip map.' : '',
       cssuValidationStatus
     };
   }
@@ -385,7 +386,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: true,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'CSSU validated. You can now access maps.',
+        helperText: 'ISSU validated. You can now access maps.',
         cssuValidationStatus
       };
     }
@@ -396,7 +397,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: false,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'Exit denied by CSSU.',
+        helperText: 'Exit denied by ISSU.',
         cssuValidationStatus
       };
     }
@@ -407,7 +408,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: false,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'Exit flagged by CSSU. Please contact CSSU or HRMU.',
+        helperText: 'Exit flagged by ISSU. Please contact ISSU or HRMU.',
         cssuValidationStatus
       };
     }
@@ -702,7 +703,7 @@ export const LocatorSlipView = ({
           <div className="dash-avatar" onClick={() => setView('profile')} style={{
           cursor: 'pointer'
         }}>
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -810,7 +811,7 @@ export const LocatorSlipView = ({
             <div className="section-icon green-circle-icon">
               <GlobeIcon color="white" />
             </div>
-            <h3>Faculty Credentials</h3>
+            <h3>Employee Credentials</h3>
           </div>
           <div className="credential-field">
             <span className="cred-label">FULL NAME</span>
@@ -984,7 +985,7 @@ export const StatusView = ({
             <div className="dash-avatar" onClick={() => setView('profile')} style={{
             cursor: 'pointer'
           }}>
-              <img src={profileData.image} alt="Faculty Profile" style={{
+              <img src={profileData.image} alt="Employee Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'
@@ -1009,7 +1010,6 @@ export const StatusView = ({
 
           {!statusLoading && locatorSlips.map(slip => {
           const displayStatus = getSlipDisplayStatus(slip);
-          const cancellationReason = getSlipCancellationReason(slip);
           return <button key={slip.id} type="button" className={`status-slip-card ${displayStatus}`} onClick={() => {
             if (slip.status !== 'approved') {
               localStorage.removeItem('edurouteVerifySlipId');
@@ -1038,10 +1038,6 @@ export const StatusView = ({
                     <RefreshClockIcon color="var(--text-gray)" />
                     <span>Expected Return: {formatStatusDateTime(slip.expected_return_datetime)}</span>
                   </div>
-                  {displayStatus === 'cancelled' && cancellationReason && <div className="status-slip-cancel-reason">
-                      <span>Cancellation Reason</span>
-                      <strong>{getCancellationReasonLabel(cancellationReason)}</strong>
-                    </div>}
                 </div>
               </button>;
         })}
@@ -1178,16 +1174,17 @@ export const LocatorSlipDetailView = ({
         <BottomNav active="status" setView={setView} />
       </div>;
   }
-  const isPending = slip.status === 'pending';
+  const normalizedSlipStatus = String(slip.status || '').toLowerCase();
+  const isPending = normalizedSlipStatus === 'pending';
   const isCompleted = getSlipDisplayStatus(slip) === 'completed';
-  const isApproved = ['approved', 'verified'].includes(String(slip.status || '').toLowerCase()) && !isCompleted;
-  const isRejected = slip.status === 'rejected';
-  const isCancelled = slip.status === 'cancelled';
+  const isApproved = ['approved', 'verified'].includes(normalizedSlipStatus) && !isCompleted;
+  const isRejected = normalizedSlipStatus === 'rejected';
+  const isCancelled = getSlipDisplayStatus(slip) === 'cancelled';
   const actionState = getLocatorSlipActionState(slip, slip.currentTrip || null);
   const cssuValidationStatus = getCssuValidationStatus(slip);
   const cssuValidatedByName = slip.cssu_validated_by_name || slip.cssuValidatedByName || '';
   const canShowQrCode = actionState.showQr && Boolean(slip.locator_slip_code);
-  const title = isPending ? 'Verification in' : isCompleted ? 'Trip' : isApproved || isRejected || isCancelled ? 'Verification' : `${slip.status.charAt(0).toUpperCase()}${slip.status.slice(1)}`;
+  const title = isPending ? 'Verification in' : isCompleted ? 'Trip' : isApproved || isRejected || isCancelled ? 'Verification' : `${normalizedSlipStatus.charAt(0).toUpperCase()}${normalizedSlipStatus.slice(1)}`;
   const referralId = `FAC-${String(slip.id).slice(0, 8).toUpperCase()}`;
   const openTripRoute = async () => {
     localStorage.setItem('edurouteMapSlipId', slip.id);
@@ -1262,7 +1259,7 @@ export const LocatorSlipDetailView = ({
           <div className="dash-avatar" onClick={() => setView('profile')} style={{
           cursor: 'pointer'
         }}>
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -1296,20 +1293,24 @@ export const LocatorSlipDetailView = ({
             {isCancelled && <span className="text-red">Cancelled</span>}
           </h2>
           <p>
-            {isPending ? 'Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.' : isCompleted ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.' : isApproved ? cssuValidationStatus === 'allowed' ? 'Your request has been reviewed, approved, and cleared by CSSU. You may now view your route and start the trip.' : 'Your request has been reviewed and approved by the dean. CSSU exit validation is still required before you can start the trip.' : isRejected ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.' : isCancelled ? 'This locator slip was cancelled by the faculty user before approval.' : `This locator slip request is currently marked as ${slip.status}.`}
+            {isPending ? 'Your request is being reviewed. The EduRoute administration is currently verifying your employee credentials.' : isCompleted ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.' : isApproved ? cssuValidationStatus === 'allowed' ? 'Your request has been reviewed, approved, and cleared by ISSU. You may now view your route and start the trip.' : 'Your request has been reviewed and approved by the supervisor. ISSU exit validation is still required before you can start the trip.' : isRejected ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.' : isCancelled ? 'This locator slip was cancelled by the employee before approval.' : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
           {isRejected && slip.additional_remarks && <div className="submitted-reason-card">
               <span>REJECTION REASON</span>
               <strong>{slip.additional_remarks}</strong>
             </div>}
+          {isCancelled && cancellationReason && <div className="submitted-reason-card cancellation-detail-reason">
+              <span>CANCELLATION REASON</span>
+              <strong>{getCancellationReasonLabel(cancellationReason)}</strong>
+            </div>}
           {isApproved && actionState.helperText && <p className="trip-search-state" style={{
           marginTop: '0.75rem'
         }}>
               {actionState.helperText}
-              {cssuValidationStatus === 'pending' ? ' CSSU must allow exit before you can start this trip.' : ''}
+              {cssuValidationStatus === 'pending' ? ' ISSU must allow exit before you can start this trip.' : ''}
             </p>}
           {cssuValidationStatus === 'allowed' && cssuValidatedByName && <div className="submitted-reason-card">
-              <span>CSSU VALIDATED BY</span>
+              <span>ISSU VALIDATED BY</span>
               <strong>{cssuValidatedByName}</strong>
             </div>}
         </div>
@@ -1367,11 +1368,6 @@ export const LocatorSlipDetailView = ({
         {isPending && <button className="cancel-request-btn" onClick={() => setShowCancelReasonModal(true)} disabled={cancelLoading}>
             {cancelLoading ? 'CANCELLING...' : 'CANCEL REQUEST'}
           </button>}
-
-        {slip.status === 'cancelled' && cancellationReason && <div className="cancel-reason-card">
-            <span>CANCELLATION REASON</span>
-            <strong>{getCancellationReasonLabel(cancellationReason)}</strong>
-          </div>}
 
         {(isApproved || isCompleted) && <div className="approved-detail-actions">
             {actionState.viewRoute && <button type="button" className="approved-view-route-btn" onClick={openTripRoute}>
@@ -1478,7 +1474,7 @@ export const LocatorSlipDetailView = ({
             <div className="qr-modal-card" onClick={event => event.stopPropagation()}>
               <span className="location-proof-kicker">LOCATOR SLIP QR</span>
               <h3>{slip.locator_slip_code}</h3>
-              <p>Present this QR code or locator slip code to CSSU while the locator slip is still pending or approved.</p>
+              <p>Present this QR code or locator slip code to ISSU for exit verification.</p>
               <img className="qr-modal-image" src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(slip.locator_slip_code)}`} alt={`QR code for ${slip.locator_slip_code}`} />
             
               <div className="qr-modal-code">{slip.locator_slip_code}</div>
@@ -1513,7 +1509,7 @@ export const UpdatesView = ({
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar">
-          <img src={profileData.image} alt="Faculty Profile" style={{
+          <img src={profileData.image} alt="Employee Profile" style={{
           width: '100%',
           height: '100%',
           objectFit: 'cover'
@@ -1536,7 +1532,7 @@ export const UpdatesView = ({
             <span className="update-time">2M<br />AGO</span>
           </div>
           <p className="update-desc">
-            Your personalized academic curriculum path for the Fall semester has been formally vetted and approved by the Dean.
+            Your personalized academic curriculum path for the Fall semester has been formally vetted and approved by the Supervisor.
           </p>
           <div className="update-tags">
             <span className="update-tag-pill">ACADEMIC PATH</span>
@@ -1563,7 +1559,7 @@ export const RouteApprovedView = ({
           <span className="dash-logo-text">EduRoute</span>
         </div>
         <div className="dash-avatar">
-          <img src={profileData.image} alt="Faculty Profile" style={{
+          <img src={profileData.image} alt="Employee Profile" style={{
           width: '100%',
           height: '100%',
           objectFit: 'cover'
@@ -1586,7 +1582,7 @@ export const RouteApprovedView = ({
         </div>
         <p className="auth-subtext">Approved with Digital Signature by</p>
         <h3 className="auth-name">Dr. Ronnie Luy</h3>
-        <p className="auth-role">Dean of Undergraduate Studies</p>
+        <p className="auth-role">Supervisor of Undergraduate Studies</p>
 
         <div className="signature-box">
           <DummySignature />
@@ -1684,7 +1680,7 @@ export const ApprovedLocatorSlipSelectionView = ({
           <div className="dash-avatar" onClick={() => setView('profile')} style={{
           cursor: 'pointer'
         }}>
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -1695,7 +1691,7 @@ export const ApprovedLocatorSlipSelectionView = ({
         <div className="submitted-status-text map-slip-selection-copy">
           <div className="status-pill-yellow status-pill-approved">TRIP ACCESS</div>
           <h2>Select an <span className="text-green">Approved Locator Slip</span></h2>
-          <p>Choose the approved locator slip you want to use before opening the faculty trip map.</p>
+          <p>Choose the approved locator slip you want to use before opening the employee trip map.</p>
         </div>
 
         {error && <div className="trip-map-error map-slip-selection-error">{error}</div>}
@@ -1733,18 +1729,11 @@ export const MapTrackingView = ({
   selectedSlip,
   setSelectedSlip
 }) => {
-  const LIVE_TRACKING_MAX_ACCEPTED_ACCURACY_METERS = 30;
-  const LIVE_TRACKING_MIN_MOVEMENT_METERS = 18;
-  const LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS = 28;
-  const LIVE_TRACKING_MIN_REROUTE_INTERVAL_MS = 5000;
-  const LIVE_TRACKING_STATIONARY_SPEED_MPS = 0.8;
   const TRIP_PROGRESS_STORAGE_KEY = 'edurouteActiveTripProgress';
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const originMarkerRef = useRef(null);
   const destinationMarkerRef = useRef(null);
-  const locationWatchRef = useRef(null);
-  const lastRerouteAtRef = useRef(0);
   const lastAcceptedOriginRef = useRef(null);
   const lastRouteOriginRef = useRef(null);
   const [mapReady, setMapReady] = useState(false);
@@ -1764,11 +1753,12 @@ export const MapTrackingView = ({
   const [showActionBoard, setShowActionBoard] = useState(true);
   const [actionBoardExpanded, setActionBoardExpanded] = useState(true);
   const [showTripMetrics, setShowTripMetrics] = useState(false);
-  const [showRouteTools, setShowRouteTools] = useState(true);
+  const [showRouteTools, setShowRouteTools] = useState(false);
   const [showProofPanel, setShowProofPanel] = useState(true);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
-  const [showTrackingConsent, setShowTrackingConsent] = useState(false);
+  const [showEntryQrCode, setShowEntryQrCode] = useState(false);
+  const [returnEntryState, setReturnEntryState] = useState(null);
   const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
   const [tripSummary, setTripSummary] = useState(null);
   const [overlayOffsets, setOverlayOffsets] = useState({
@@ -1884,6 +1874,9 @@ export const MapTrackingView = ({
   const activeSteps = displayedRoute?.steps || [];
   const tripLifecycleState = getTripPhase(activeTrip);
   const isCompletedSummaryMode = Boolean(tripSummary?.summary) || tripLifecycleState === 'COMPLETED' || locatorSlip?.trip_status === 'completed';
+  const returnEntryQrCode = returnEntryState?.entryQrCode || '';
+  const returnEntryDisplayCode = returnEntryState?.entryCode || 'RE-------';
+  const canShowEntryQrCode = tripLifecycleState === 'RETURNING' && Boolean(returnEntryQrCode);
   const selectedModeMeta = routeModes.find(mode => mode.key === routeMode) || routeModes[0];
   const activeModeEta = useMemo(() => modeEstimates.find(estimate => estimate.profile === routeMode) || null, [modeEstimates, routeMode]);
   useEffect(() => {
@@ -1898,6 +1891,10 @@ export const MapTrackingView = ({
     }
   }, [tripLifecycleState]);
   const toggleRoutePanel = panelKey => {
+    setShowSearchPanel(false);
+    setShowTripMetrics(false);
+    setShowProofPanel(false);
+    setShowRouteTools(true);
     setActiveRoutePanel(currentPanel => currentPanel === panelKey ? null : panelKey);
   };
   const getPointerPosition = event => {
@@ -2100,12 +2097,6 @@ export const MapTrackingView = ({
     if (map.getLayer('active-trip-route-casing')) map.removeLayer('active-trip-route-casing');
     if (map.getSource('active-trip-route')) map.removeSource('active-trip-route');
     clearHighlightedStep();
-  };
-  const stopLiveLocationWatch = () => {
-    if (locationWatchRef.current !== null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(locationWatchRef.current);
-      locationWatchRef.current = null;
-    }
   };
   const setOriginMarker = (coordinate, {
     recenter = true
@@ -2354,74 +2345,7 @@ export const MapTrackingView = ({
       });
     }
   };
-  const startLiveLocationWatch = () => {
-    if (!navigator.geolocation || !activeTrip || !destination) return;
-    stopLiveLocationWatch();
-    locationWatchRef.current = navigator.geolocation.watchPosition(async position => {
-      const nextOrigin = {
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        speed: position.coords.speed,
-        heading: position.coords.heading,
-        timestamp: position.timestamp
-      };
-      const lastAcceptedOrigin = lastAcceptedOriginRef.current;
-      const lastRouteOrigin = lastRouteOriginRef.current;
-      const movedDistanceMeters = getDistanceBetweenMeters(lastAcceptedOrigin, nextOrigin);
-      const movedSinceRerouteMeters = getDistanceBetweenMeters(lastRouteOrigin, nextOrigin);
-      const accuracyMeters = Number(position.coords.accuracy);
-      const speedMetersPerSecond = Number.isFinite(position.coords.speed) ? Number(position.coords.speed) : null;
-      const hasReliableAccuracy = Number.isFinite(accuracyMeters) ? accuracyMeters <= LIVE_TRACKING_MAX_ACCEPTED_ACCURACY_METERS : true;
-      const minimumAcceptedMovement = Math.max(LIVE_TRACKING_MIN_MOVEMENT_METERS, Number.isFinite(accuracyMeters) ? Math.min(accuracyMeters, 24) : LIVE_TRACKING_MIN_MOVEMENT_METERS);
-      const hasMeaningfulMovement = movedDistanceMeters >= minimumAcceptedMovement;
-      const isStationary = speedMetersPerSecond !== null ? speedMetersPerSecond < LIVE_TRACKING_STATIONARY_SPEED_MPS : !hasMeaningfulMovement;
-      if (!lastAcceptedOrigin || hasReliableAccuracy && hasMeaningfulMovement && !isStationary) {
-        lastAcceptedOriginRef.current = nextOrigin;
-        setOrigin(nextOrigin);
-        setOriginMarker(nextOrigin, {
-          recenter: false
-        });
-        if (activeTrip?.id) {
-          const encryptedLocationPayload = await encryptSensitivePayload({
-            facultyUserId: localStorage.getItem('userId') || undefined,
-            lat: nextOrigin.latitude,
-            lng: nextOrigin.longitude,
-            accuracy: nextOrigin.accuracy,
-            speed: nextOrigin.speed,
-            heading: nextOrigin.heading,
-            recordedAt: new Date(nextOrigin.timestamp || Date.now()).toISOString()
-          });
-          fetch(`${API_BASE_URL}/api/trips/${activeTrip.id}/location`, {
-            method: 'POST',
-            headers: authHeaders(),
-            body: JSON.stringify(encryptedLocationPayload)
-          }).catch(() => null);
-        }
-      } else {
-        return;
-      }
-      const now = Date.now();
-      if (now - lastRerouteAtRef.current < LIVE_TRACKING_MIN_REROUTE_INTERVAL_MS) return;
-      if (movedSinceRerouteMeters < LIVE_TRACKING_MIN_REROUTE_DISTANCE_METERS) return;
-      lastRerouteAtRef.current = now;
-      try {
-        await refreshRouteFromOrigin(nextOrigin);
-        lastRouteOriginRef.current = nextOrigin;
-        setMapError('');
-      } catch (error) {
-        setMapError(error.message);
-      }
-    }, error => {
-      setMapError(error.code === error.PERMISSION_DENIED ? 'Location permission was denied during live tracking. Re-enable it to keep the trip distance updated.' : 'Unable to refresh your live trip location.');
-    }, {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 0
-    });
-  };
-  const startTripAfterConsent = async () => {
-    setShowTrackingConsent(false);
+  const startTripFromCurrentLocation = async () => {
     setMapLoading(true);
     setMapError('');
     try {
@@ -2451,7 +2375,6 @@ export const MapTrackingView = ({
       setSelectedAlternativeIndex(-1);
       setHighlightedStepIndex(-1);
       drawRoute(data.route.geometry);
-      lastRerouteAtRef.current = Date.now();
       setActiveRoutePanel('summary');
     } catch (error) {
       const errorMessage = String(error.message || '').toLowerCase();
@@ -2526,7 +2449,7 @@ export const MapTrackingView = ({
   const startTrip = () => {
     const tripActionState = getLocatorSlipActionState(locatorSlip, activeTrip);
     if (!tripActionState.startTrip) {
-      setMapError(tripActionState.helperText || 'CSSU must allow exit before you can start this trip.');
+      setMapError(tripActionState.helperText || 'ISSU must allow exit before you can start this trip.');
       return;
     }
     if (!normalizeMapCoordinate(destination)) {
@@ -2539,7 +2462,7 @@ export const MapTrackingView = ({
       return;
     }
     setMapError('');
-    setShowTrackingConsent(true);
+    startTripFromCurrentLocation();
   };
   const markTripArrived = async () => {
     if (!activeTrip) return;
@@ -2660,7 +2583,6 @@ export const MapTrackingView = ({
       setShowProofPanel(false);
       setShowRouteTools(false);
       setActiveRoutePanel(null);
-      stopLiveLocationWatch();
       clearRoute();
       localStorage.removeItem('edurouteMapSlipId');
       clearStoredTripProgress();
@@ -2670,6 +2592,20 @@ export const MapTrackingView = ({
       }
     } catch (error) {
       setMapError(error.message);
+    } finally {
+      setMapLoading(false);
+    }
+  };
+  const confirmReturn = async () => {
+    if (!activeTrip || tripLifecycleState !== 'RETURNING' || mapLoading) return;
+    setMapLoading(true);
+    setMapError('');
+    try {
+      const entryState = await requestFacultyReturnEntry(activeTrip.id);
+      setReturnEntryState(entryState);
+      setShowEntryQrCode(true);
+    } catch (error) {
+      setMapError(error.message || 'Failed to generate the return-entry QR.');
     } finally {
       setMapLoading(false);
     }
@@ -2717,7 +2653,7 @@ export const MapTrackingView = ({
           const recoveredPhase = getTripPhase(slip.currentTrip);
           const isReturning = recoveredPhase === 'RETURNING';
 
-          // For a RETURNING trip the faculty is heading back from the trip
+          // For a RETURNING trip the employee is heading back from the trip
           // destination to the original start point, so swap origin/destination.
           if (isReturning && slip.currentTrip.origin && slip.currentTrip.destination) {
             const returnOrigin = {
@@ -2900,7 +2836,6 @@ export const MapTrackingView = ({
     }, 150);
     mapRef.current = map;
     return () => {
-      stopLiveLocationWatch();
       originMarkerRef.current?.remove();
       destinationMarkerRef.current?.remove();
       map.remove();
@@ -2966,14 +2901,6 @@ export const MapTrackingView = ({
     drawRoute(routeSummary.geometry);
   }, [mapReady, routeSummary?.geometry]);
   useEffect(() => {
-    if (activeTrip && destination && ['ACTIVE', 'RETURNING'].includes(getTripPhase(activeTrip))) {
-      startLiveLocationWatch();
-      return () => stopLiveLocationWatch();
-    }
-    stopLiveLocationWatch();
-    return undefined;
-  }, [activeTrip?.id, destination?.longitude, destination?.latitude]);
-  useEffect(() => {
     const handleMove = event => {
       if (!dragStateRef.current) return;
       if (event.cancelable) {
@@ -3038,6 +2965,17 @@ export const MapTrackingView = ({
         </div>
       </div>
 
+      <div className="trip-map-floating-actions" aria-label="Map controls">
+        <button type="button" className="trip-map-floating-btn" onClick={requestCurrentLocation} disabled={mapLoading} aria-label="Recenter map on my current location" title="Recenter on my location">
+          <span aria-hidden="true">◎</span>
+          <small>Recenter</small>
+        </button>
+        {destination?.latitude && destination?.longitude && <button type="button" className="trip-map-floating-btn" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.latitude},${destination.longitude}`)}`, '_blank', 'noopener,noreferrer')} aria-label="Open destination in an external maps app" title="Open external maps">
+          <span aria-hidden="true">↗</span>
+          <small>Open map</small>
+        </button>}
+      </div>
+
       {showSearchPanel ? <div className={`trip-search-panel ${activeTrip ? 'trip-search-panel-active' : ''}`} style={getOverlayStyle('search')}>
           <div className="overlay-card-head overlay-card-head-search">
             <label>Destination</label>
@@ -3046,7 +2984,6 @@ export const MapTrackingView = ({
                 Hide
               </button>
               <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('search')} onTouchStart={startOverlayDrag('search')}>
-              
                 Drag
               </button>
             </div>
@@ -3087,7 +3024,12 @@ export const MapTrackingView = ({
               {destination.isPinned ? ' • custom pin' : ''}
             </p>}
           {isPinMode && <p className="trip-search-state">Tap any point on the map to set a destination when Search Box does not find it.</p>}
-        </div> : <button type="button" className="trip-search-restore-btn fade-in" onClick={() => setShowSearchPanel(true)}>
+        </div> : <button type="button" className="trip-search-restore-btn fade-in" onClick={() => {
+          setShowTripMetrics(false);
+          setShowProofPanel(false);
+          setShowRouteTools(false);
+          setShowSearchPanel(true);
+        }}>
           Show Destination
         </button>}
 
@@ -3095,7 +3037,7 @@ export const MapTrackingView = ({
           <div className="tb-header">
             <div className="tb-header-left">
               <div className="tb-dot"></div>
-              <span>{activeTrip ? 'FACULTY TRIP FLOW' : 'READY TO ROUTE'}</span>
+              <span>{activeTrip ? 'EMPLOYEE TRIP FLOW' : 'READY TO ROUTE'}</span>
             </div>
             <div className="tb-header-actions">
               <div className="tb-status">{tripLifecycleState.replace(/_/g, ' ')}</div>
@@ -3106,7 +3048,6 @@ export const MapTrackingView = ({
                 Hide
               </button>
               <button type="button" className="overlay-drag-handle on-green" onMouseDown={startOverlayDrag('action')} onTouchStart={startOverlayDrag('action')}>
-              
                 Drag
               </button>
             </div>
@@ -3120,9 +3061,26 @@ export const MapTrackingView = ({
             <span className="trip-action-glance-metrics">
               <b>{formatDistance(routeSummary?.distance_meters || activeTrip?.distance_meters)}</b>
               <b>{formatDuration(routeSummary?.duration_seconds || activeTrip?.duration_seconds)}</b>
-              <b className="gps-live"><i /> GPS Live</b>
+              <b className="route-ready-indicator">Route ready</b>
             </span>
           </button>
+
+          <div className="trip-route-summary-inline" aria-label="Route summary">
+            <div className="trip-route-summary-inline-head">
+              <span>Route summary</span>
+              <strong>{selectedModeMeta.label}</strong>
+            </div>
+            <div className="trip-route-summary-inline-metrics">
+              <span><b>{formatDistance(routeSummary?.distance_meters || activeTrip?.distance_meters)}</b><small>Distance</small></span>
+              <span><b>{formatDuration(routeSummary?.duration_seconds || activeTrip?.duration_seconds)}</b><small>Estimated time</small></span>
+              <span><b>{activeSteps.length || 0}</b><small>Directions</small></span>
+            </div>
+            <div className="trip-next-direction" aria-live="polite">
+              <span className="trip-next-direction-index" aria-hidden="true">{activeSteps.length ? '1' : '•'}</span>
+              <span><small>NEXT DIRECTION</small><strong>{activeSteps[0]?.instruction || 'Route guidance will appear after a destination is selected.'}</strong></span>
+            </div>
+            {activeSteps.length > 1 && <button type="button" className="trip-directions-link" onClick={() => toggleRoutePanel('steps')}>View all directions</button>}
+          </div>
 
           {mapError && <div className="trip-map-error">{mapError}</div>}
 
@@ -3146,14 +3104,20 @@ export const MapTrackingView = ({
               </button> : tripLifecycleState === 'ARRIVED' ? <div className="trip-map-verification-stack">
                 <ProofOfComplianceForm initialValues={{
             focalPersonName: '',
-            focalPersonPosition: ''
+            focalPersonPosition: '',
+            focalPersonCompany: ''
           }} disabled={mapLoading || proofSubmitting} loading={proofSubmitting} error={proofError || mapError} onSubmit={submitProofOfCompliance} />
             
               </div> : tripLifecycleState === 'ARRIVAL_VERIFIED' ? <button type="button" className="trip-start-btn" onClick={beginReturnTrip} disabled={mapLoading}>
                 {mapLoading ? 'Preparing...' : 'Start Return Trip'}
-              </button> : tripLifecycleState === 'RETURNING' ? <button type="button" className="trip-start-btn" onClick={completeReturnedTrip} disabled={mapLoading}>
-                {mapLoading ? 'Saving...' : 'Returned'}
-              </button> : <button type="button" className="trip-location-btn" disabled>
+              </button> : tripLifecycleState === 'RETURNING' ? <div className="trip-map-verification-stack">
+                {canShowEntryQrCode && <button type="button" className="trip-location-btn" onClick={() => setShowEntryQrCode(true)} disabled={mapLoading}>
+                  Show Entry QR
+                </button>}
+                <button type="button" className="trip-start-btn" onClick={confirmReturn} disabled={mapLoading}>
+                  {mapLoading ? 'Preparing...' : 'Confirm Return'}
+                </button>
+              </div> : <button type="button" className="trip-location-btn" disabled>
                 Trip Completed
               </button>}
           </div>
@@ -3178,14 +3142,18 @@ export const MapTrackingView = ({
                 Hide
               </button>
               <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('proof')} onTouchStart={startOverlayDrag('proof')}>
-              
                 Drag
               </button>
             </div>
           </div>
           <ProofOfCompliancePreview proof={proofCompliance} title="Submitted Proof of Compliance" showFullCard={false} showArrivalPhoto={false} />
         
-        </div> : !isCompletedSummaryMode && proofCompliance ? <button type="button" className="trip-proof-restore-btn fade-in" onClick={() => setShowProofPanel(true)}>
+        </div> : !isCompletedSummaryMode && proofCompliance ? <button type="button" className="trip-proof-restore-btn fade-in" onClick={() => {
+          setShowSearchPanel(false);
+          setShowTripMetrics(false);
+          setShowRouteTools(false);
+          setShowProofPanel(true);
+        }}>
         
           Show Compliance
         </button> : null}
@@ -3209,25 +3177,32 @@ export const MapTrackingView = ({
           <div className="trip-metrics-head">
             <span>Trip Metrics</span>
             <div className="overlay-card-controls">
-              <button type="button" className="overlay-toggle-btn" onClick={() => setShowTripMetrics(currentValue => !currentValue)}>
+              <button type="button" className="overlay-toggle-btn" onClick={() => {
+                if (showTripMetrics) {
+                  setShowTripMetrics(false);
+                  return;
+                }
+                setShowSearchPanel(false);
+                setShowProofPanel(false);
+                setShowRouteTools(false);
+                setShowTripMetrics(true);
+              }}>
                 {showTripMetrics ? 'Hide' : 'Show'}
               </button>
               {showTripMetrics && <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('metrics')} onTouchStart={startOverlayDrag('metrics')}>
-              
-                  Drag
-                </button>}
+                Drag
+              </button>}
             </div>
           </div>
           {showTripMetrics && <div className="trip-stats-strip">
               <div className="trip-stat-pill"><span>Distance</span><strong>{formatDistance(routeSummary?.distance_meters || activeTrip?.distance_meters)}</strong></div>
               <div className="trip-stat-pill"><span>ETA</span><strong>{formatDuration(routeSummary?.duration_seconds || activeTrip?.duration_seconds)}</strong></div>
-              <div className="trip-stat-pill tracking"><span>Tracking</span><strong><i /> Live GPS</strong></div>
+              <div className="trip-stat-pill"><span>Route</span><strong>Planned guidance</strong></div>
             </div>}
         </div>}
 
       {(destination || routeSummary || activeTrip) && showRouteTools && <div className="trip-side-actions" style={getOverlayStyle('tools')}>
-          <button type="button" className="overlay-drag-handle small" onMouseDown={startOverlayDrag('tools')} onTouchStart={startOverlayDrag('tools')}>
-          
+          <button type="button" className="overlay-drag-handle small trip-side-drag-handle" onMouseDown={startOverlayDrag('tools')} onTouchStart={startOverlayDrag('tools')}>
             Drag
           </button>
           <button type="button" className={`trip-side-btn ${activeRoutePanel === 'summary' ? 'active' : ''}`} onClick={() => toggleRoutePanel('summary')}>
@@ -3247,9 +3222,27 @@ export const MapTrackingView = ({
           </button>
         </div>}
 
-      {activeTrip && !showRouteTools && <button type="button" className="trip-side-restore-btn fade-in" onClick={() => setShowRouteTools(true)}>
+      {activeTrip && !showRouteTools && <button type="button" className="trip-side-restore-btn fade-in" onClick={() => {
+        setShowSearchPanel(false);
+        setShowTripMetrics(false);
+        setShowProofPanel(false);
+        setShowRouteTools(true);
+      }}>
           Show Routes
         </button>}
+
+      {showEntryQrCode && canShowEntryQrCode && <div className="qr-modal-overlay" onClick={() => setShowEntryQrCode(false)}>
+          <div className="qr-modal-card" onClick={event => event.stopPropagation()}>
+            <span className="location-proof-kicker">RETURN ENTRY QR</span>
+            <h3>{returnEntryDisplayCode}</h3>
+            <p>Present this QR code to ISSU for return-entry verification. It expires at {returnEntryState?.expiresAt ? new Date(returnEntryState.expiresAt).toLocaleTimeString() : 'the stated time'}.</p>
+            <img className="qr-modal-image" src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(returnEntryQrCode)}`} alt={`Return entry QR code for ${returnEntryQrCode}`} />
+            <div className="qr-modal-code">{returnEntryDisplayCode}</div>
+            <button type="button" className="qr-modal-action" onClick={() => setShowEntryQrCode(false)}>
+              Close
+            </button>
+          </div>
+        </div>}
 
       {activeRoutePanel && <div className="trip-side-panel fade-in" style={getOverlayStyle('panel')}>
           {activeRoutePanel === 'summary' && <>
@@ -3257,10 +3250,7 @@ export const MapTrackingView = ({
                 <span>Best Route</span>
                 <div className="overlay-card-controls">
                   <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
-                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>
-                
-                    Drag
-                  </button>
+                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>Drag</button>
                 </div>
               </div>
               <div className="trip-mode-selector">
@@ -3286,10 +3276,7 @@ export const MapTrackingView = ({
                 <span>Alternative Routes</span>
                 <div className="overlay-card-controls">
                   <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
-                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>
-                
-                    Drag
-                  </button>
+                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>Drag</button>
                 </div>
               </div>
               <div className="trip-guidance-card compact">
@@ -3307,10 +3294,7 @@ export const MapTrackingView = ({
                 <span>Travel Steps</span>
                 <div className="overlay-card-controls">
                   <button type="button" onClick={() => setActiveRoutePanel(null)}>Close</button>
-                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>
-                
-                    Drag
-                  </button>
+                  <button type="button" className="overlay-drag-handle" onMouseDown={startOverlayDrag('panel')} onTouchStart={startOverlayDrag('panel')}>Drag</button>
                 </div>
               </div>
               <div className="trip-steps-panel side">
@@ -3332,35 +3316,6 @@ export const MapTrackingView = ({
                 </div>
               </div>
             </>}
-        </div>}
-
-      {showTrackingConsent && <div className="trip-consent-backdrop" role="presentation" onClick={() => setShowTrackingConsent(false)}>
-          <div className="trip-consent-modal" role="dialog" aria-modal="true" aria-labelledby="trip-consent-title" onClick={event => event.stopPropagation()}>
-            <div className="trip-consent-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none">
-                <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                <circle cx="12" cy="10" r="2.2" stroke="currentColor" strokeWidth="1.8" />
-              </svg>
-            </div>
-            <span className="trip-consent-kicker">LOCATION PRIVACY</span>
-            <h2 id="trip-consent-title">Start official trip tracking?</h2>
-            <p>EduRoute will record your location only while this approved trip is active.</p>
-            <div className="trip-consent-details">
-              <div><span className="trip-consent-check">✓</span><span>Used for route monitoring, arrival, and return verification.</span></div>
-              <div><span className="trip-consent-check">✓</span><span>Stops after the trip is returned, completed, cancelled, or expired.</span></div>
-              <div><span className="trip-consent-lock">●</span><span>Your location is not intended for continuous personal tracking.</span></div>
-            </div>
-            <div className="trip-consent-destination">
-              <span>TRIP DESTINATION</span>
-              <strong>{destination?.name || locatorSlip?.destination || 'Approved destination'}</strong>
-            </div>
-            <div className="trip-consent-actions">
-              <button type="button" className="trip-consent-secondary" onClick={() => setShowTrackingConsent(false)}>Not Now</button>
-              <button type="button" className="trip-consent-primary" onClick={startTripAfterConsent} disabled={mapLoading}>
-                {mapLoading ? 'Starting...' : 'Allow and Start Trip'}
-              </button>
-            </div>
-          </div>
         </div>}
 
       <BottomNav active="map" setView={setView} />
@@ -3425,7 +3380,7 @@ export const ProfileView = ({
             <span className="dash-logo-text">EduRoute</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -3439,13 +3394,13 @@ export const ProfileView = ({
           </div>
           <div className="profile-image-container">
             <div className="profile-image-wrapper">
-              <img src={profileData.image} alt="Faculty Profile" style={{
+              <img src={profileData.image} alt="Employee Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'
             }} />
             </div>
-            <div className="faculty-badge">FACULTY</div>
+            <div className="faculty-badge">EMPLOYEE</div>
           </div>
 
           <h1 className="profile-name">{displayName}</h1>
@@ -3526,7 +3481,7 @@ export const ProfileView = ({
 
             <h2 className="logout-modal-title">Are you sure you want<br />to logout?</h2>
             <p className="logout-modal-desc">
-              You will be securely logged out of the <span className="text-green">EduRoute Faculty Portal</span>. Any unsaved academic progress may be lost.
+              You will be securely logged out of the <span className="text-green">EduRoute Employee Portal</span>. Any unsaved academic progress may be lost.
             </p>
 
             <button className="logout-confirm-btn" onClick={onLogout}>
@@ -3745,7 +3700,7 @@ export const ScanView = ({
           <div className="dash-avatar" onClick={() => setView('profile')} style={{
           cursor: 'pointer'
         }}>
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -3839,7 +3794,7 @@ export const SlipSubmittedView = ({
         <div className="dash-avatar" onClick={() => setView('profile')} style={{
         cursor: 'pointer'
       }}>
-          <img src={profileData.image} alt="Faculty Profile" style={{
+          <img src={profileData.image} alt="Employee Profile" style={{
           width: '100%',
           height: '100%',
           objectFit: 'cover'
@@ -3863,7 +3818,7 @@ export const SlipSubmittedView = ({
           STATUS: PENDING APPROVAL
         </div>
         <h2>Verification in <span className="text-green">Progress</span></h2>
-        <p>Your request is being reviewed. The EduRoute administration is currently verifying your faculty credentials.</p>
+        <p>Your request is being reviewed. The EduRoute administration is currently verifying your employee credentials.</p>
       </div>
 
       <div className="progress-bar-container">
@@ -3905,7 +3860,7 @@ export const SlipSubmittedView = ({
           </div>
           <div className="info-text">
             <h4>Need Help?</h4>
-            <p>Contact support at faculty@eduroute.edu</p>
+            <p>Contact support at employee@eduroute.edu</p>
           </div>
         </div>
       </div>

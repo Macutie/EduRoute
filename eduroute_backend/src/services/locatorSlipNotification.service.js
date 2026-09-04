@@ -46,8 +46,8 @@ const notifyCssuOfLocatorSlipApproval = async ({ senderUserId, locatorSlipId, fa
             senderUserId,
             locatorSlipId,
             type: 'LOCATOR_SLIP_READY_FOR_EXIT',
-            title: 'Locator Slip Ready for CSSU',
-            message: `${facultyName || 'A faculty member'} has an approved locator slip${destination ? ` to ${destination}` : ''}${purpose ? ` for ${purpose}` : ''}.`,
+            title: 'Locator Slip Ready for ISSU',
+            message: `${facultyName || 'An employee'} has an approved locator slip${destination ? ` to ${destination}` : ''}${purpose ? ` for ${purpose}` : ''}.`,
             data: {
                 locatorSlipId,
                 url: '/#/cssu-dashboard'
@@ -80,7 +80,7 @@ const notifyFacultyOfCssuExitValidation = async ({ recipientUserId, senderUserId
         locatorSlipId,
         type: 'LOCATOR_SLIP_EXIT_ALLOWED',
         title: 'Exit Clearance Allowed',
-        message: `CSSU allowed your exit through ${gateLabel}${destination ? ` for ${destination}` : ''}.`,
+        message: `ISSU allowed your exit through ${gateLabel}${destination ? ` for ${destination}` : ''}.`,
         data: {
             locatorSlipId,
             url: '/#/status'
@@ -96,8 +96,8 @@ const notifyFacultyOfCssuExitDenial = async ({ recipientUserId, senderUserId, lo
         type: 'LOCATOR_SLIP_EXIT_DENIED',
         title: 'Exit Clearance Denied',
         message: remarks
-            ? `CSSU denied your exit through ${gateLabel}. ${remarks}`
-            : `CSSU denied your exit through ${gateLabel}. Your locator slip is now rejected.`,
+            ? `ISSU denied your exit through ${gateLabel}. ${remarks}`
+            : `ISSU denied your exit through ${gateLabel}. Your locator slip is now rejected.`,
         data: {
             locatorSlipId,
             url: '/#/status'
@@ -150,7 +150,7 @@ const notifyDeansOfProofComplianceSubmission = async ({
             locatorSlipId,
             type: notificationService.NOTIFICATION_TYPES.PROOF_OF_COMPLIANCE_SUBMITTED,
             title: 'Proof of compliance submitted',
-            message: `${facultyName || 'A faculty member'} submitted proof of compliance${destination ? ` for ${destination}` : ''}, confirmed by ${focalPersonName || 'the focal person'}${focalPersonPosition ? ` (${focalPersonPosition})` : ''}.`,
+            message: `${facultyName || 'An employee'} submitted proof of compliance${destination ? ` for ${destination}` : ''}, confirmed by ${focalPersonName || 'the focal person'}${focalPersonPosition ? ` (${focalPersonPosition})` : ''}.`,
             data: {
                 locatorSlipId,
                 proofId,
@@ -166,7 +166,9 @@ module.exports = {
     notifyDeansOfProofComplianceSubmission,
     notifyCssuOfLocatorSlipApproval,
     notifyFacultyOfCssuExitDenial,
+    notifyFacultyOfISSUExitDenial: notifyFacultyOfCssuExitDenial,
     notifyFacultyOfCssuExitValidation,
+    notifyFacultyOfISSUExitValidation: notifyFacultyOfCssuExitValidation,
     notifyFacultyOfLocatorSlipApproval,
     notifyFacultyOfLocatorSlipRejection
 };

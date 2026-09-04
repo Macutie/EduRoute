@@ -15,7 +15,7 @@ export const getDefaultViewForRole = role => {
   if (role === 'admin') return 'admin-dashboard';
   return 'dashboard';
 };
-export const APP_VIEWS = new Set(['login', 'forgot-password', 'reset-code', 'set-new-password', 'signup', 'dashboard', 'scan', 'status', 'locator-slip-detail', 'locator-slip', 'updates', 'route-approved', 'slip-submitted', 'map-slip-selection', 'map', 'profile', 'change-password', 'notifications', 'notification-settings', 'dean-notification-settings', 'edit-profile', 'privacy-security', 'dean-privacy-security', 'dean-dashboard', 'dean-notifications', 'dean-requests', 'dean-request-detail', 'dean-profile', 'dean-faculty', 'dean-registry', 'dean-signature', 'dean-change-password', 'dean-edit-profile', 'hrmu-dashboard', 'hrmu-verification', 'hrmu-analytics', 'hrmu-reports', 'hrmu-live', 'hrmu-notifications', 'hrmu-inbox', 'admin-dashboard', 'cssu-dashboard', 'cssu-map', 'cssu-scan', 'cssu-reports', 'cssu-notifications', 'admin-notifications', 'admin-approval-requests', 'admin-approval-detail', 'admin-registry', 'admin-faculty', 'admin-profile', 'admin-change-password', 'admin-edit-profile']);
+export const APP_VIEWS = new Set(['login', 'forgot-password', 'reset-code', 'set-new-password', 'dashboard', 'scan', 'status', 'locator-slip-detail', 'locator-slip', 'updates', 'route-approved', 'slip-submitted', 'map-slip-selection', 'map', 'profile', 'change-password', 'notifications', 'notification-settings', 'dean-notification-settings', 'edit-profile', 'privacy-security', 'dean-privacy-security', 'dean-dashboard', 'dean-notifications', 'dean-requests', 'dean-request-detail', 'dean-profile', 'dean-faculty', 'dean-registry', 'dean-signature', 'dean-change-password', 'dean-edit-profile', 'hrmu-dashboard', 'hrmu-verification', 'hrmu-analytics', 'hrmu-employee-analytics', 'hrmu-reports', 'hrmu-notifications', 'hrmu-inbox', 'admin-users', 'admin-dashboard', 'cssu-dashboard', 'cssu-scan', 'cssu-return', 'cssu-reports', 'cssu-notifications', 'admin-notifications', 'admin-approval-requests', 'admin-approval-detail', 'admin-registry', 'admin-faculty', 'admin-profile', 'admin-change-password', 'admin-edit-profile']);
 export const getViewFromUrlHash = () => {
   if (typeof window === 'undefined') return null;
   const rawHash = window.location.hash || '';
@@ -41,12 +41,12 @@ export const getPortalNotificationsViewForRole = role => {
 };
 export const getPortalBadgeLabel = role => {
   if (role === 'hrmu') return 'HRMU ADMIN';
-  if (role === 'cssu') return 'CSSU ADMIN';
+  if (role === 'cssu') return 'ISSU ADMIN';
   if (role === 'admin') return 'ADMIN';
   return 'PORTAL';
 };
 export const isCollegeDeanDepartment = (department = '') => /^College of\b/i.test(String(department || '').trim());
-export const isDeanPortalAccount = (profileData = {}) => ['assistant_dean', 'college_dean'].includes(profileData?.accountRole) || profileData?.accountRole === 'admin' && isCollegeDeanDepartment(profileData?.department);
+export const isDeanPortalAccount = (profileData = {}) => ['assistant_dean', 'college_dean'].includes(profileData?.accountRole);
 export const getPortalPositionLabel = (profileData = {}) => {
   if (profileData?.position) return profileData.position;
   if (profileData?.accountRole === 'hrmu') return 'Human Resources Management Unit';
@@ -55,7 +55,7 @@ export const getPortalPositionLabel = (profileData = {}) => {
   return 'Portal User';
 };
 export const getPortalMetaLabel = (profileData = {}) => {
-  if (profileData?.accountRole === 'cssu') return 'CSSU Administration';
+  if (profileData?.accountRole === 'cssu') return 'ISSU Administration';
   if (profileData?.accountRole === 'hrmu') return 'HRMU Administration';
   return profileData?.department || 'Portal Administration';
 };
@@ -71,7 +71,7 @@ export const supportsPortalPushNotifications = (accountRole = '', department = '
 };
 export const getPortalAdministrationDescription = (profileData = {}) => {
   if (profileData?.accountRole === 'cssu') {
-    return 'Manage your CSSU profile details and credential settings.';
+    return 'Manage your ISSU profile details and credential settings.';
   }
   if (profileData?.accountRole === 'hrmu') {
     return 'Manage your HRMU profile details and credential settings.';

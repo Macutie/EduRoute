@@ -3,21 +3,21 @@ import { AdminBadgeIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminPr
 import { LegalDocumentModal } from "../../components/legal/LegalDocuments.jsx";
 export const AUTH_ACCOUNT_ROLES = [{
   key: 'faculty',
-  label: 'Faculty',
-  title: 'Gordon College Faculty Portal',
+  label: 'Employee',
+  title: 'Gordon College Employee Portal',
   icon: FacultyRoleIcon
 }];
 export const LOGIN_PORTAL_ROLES = [{
   key: 'faculty',
-  label: 'Faculty',
-  title: 'Gordon College Faculty Portal',
+  label: 'Employee',
+  title: 'Gordon College Employee Portal',
   icon: FacultyRoleIcon,
   portalRole: 'faculty',
   viewports: ['mobile']
 }, {
   key: 'dean',
-  label: 'Dean',
-  title: 'Gordon College Dean Portal',
+  label: 'Supervisor',
+  title: 'Gordon College Supervisor Portal',
   icon: AdminRoleIcon,
   portalRole: 'admin',
   viewports: ['mobile']
@@ -30,8 +30,8 @@ export const LOGIN_PORTAL_ROLES = [{
   viewports: ['desktop']
 }, {
   key: 'cssu',
-  label: 'CSSU',
-  title: 'Gordon College CSSU Portal',
+  label: 'ISSU',
+  title: 'Gordon College ISSU Portal',
   icon: CssuRoleIcon,
   portalRole: 'cssu',
   viewports: ['mobile', 'desktop']
@@ -153,16 +153,6 @@ export const LoginView = ({
                     {loading ? 'Logging in...' : <>Login <ArrowRightIcon color="white" size="18" /></>}
                   </button>
 
-                  <div className="dlogin-divider">
-                    <hr />
-                    <span>OR</span>
-                    <hr />
-                  </div>
-
-                  <button type="button" className="dlogin-signup-btn" onClick={() => setView('signup')}>
-                    Sign Up
-                  </button>
-
                   <div className="dlogin-security-box">
                     <InfoIcon color="#92400E" size="20" />
                     <p>Security Advisory: Unauthorized access attempts are logged and reported to the institutional security board. Please ensure you are using a secure connection.</p>
@@ -241,16 +231,6 @@ export const LoginView = ({
 
               <button type="submit" className="primary-btn" disabled={loading}>
                 {loading ? 'Logging in...' : <>Login <ArrowRightIcon /></>}
-              </button>
-
-              <div className="divider">
-                <hr />
-                <span>NEW TO EDUROUTE?</span>
-                <hr />
-              </div>
-
-              <button type="button" className="secondary-btn" onClick={() => setView('signup')}>
-                Sign Up
               </button>
 
               <div className="login-security-version">
@@ -474,7 +454,7 @@ export const ResetCodeView = ({
           </button>
 
           <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
-            <LoginDoorIcon /> Back to Faculty Login
+            <LoginDoorIcon /> Back to Employee Login
           </button>
         </form>
 
@@ -492,7 +472,7 @@ export const ResetCodeView = ({
       <div className="auth-mobile-view content fade-in forgot-pw-content reset-code-content">
         <div className="recovery-header">
           <CapIcon />
-          <span>EduRoute Faculty</span>
+          <span>EduRoute Employee</span>
         </div>
 
         <div className="recovery-title-box reset-code-title-box">
@@ -501,7 +481,7 @@ export const ResetCodeView = ({
         </div>
 
         <p className="recovery-desc reset-code-desc">
-          Enter the six-digit PIN sent to your registered faculty email.
+          Enter the six-digit PIN sent to your registered employee email.
         </p>
 
         <form className="card recovery-card reset-code-card" onSubmit={onVerifyResetCode}>
@@ -524,7 +504,7 @@ export const ResetCodeView = ({
           </button>
 
           <button type="button" className="ghost-btn reset-back-btn" onClick={() => setView('login')}>
-            <LoginDoorIcon /> Back to Faculty Login
+            <LoginDoorIcon /> Back to Employee Login
           </button>
         </form>
 
@@ -553,7 +533,7 @@ export const SetNewPasswordView = ({
     return {
       minLength: password.length >= 10,
       symbolsNumbers: /[0-9]/.test(password) && /[^a-zA-Z0-9\s]/.test(password),
-      noPersonal: password.length > 0 && !['eduroute', 'password', 'faculty'].some(info => password.toLowerCase().includes(info))
+      noPersonal: password.length > 0 && !['eduroute', 'password', 'faculty', 'employee'].some(info => password.toLowerCase().includes(info))
     };
   }, [newPasswordForm.password]);
   const passwordsMatch = newPasswordForm.password.length > 0 && newPasswordForm.password === newPasswordForm.confirm_password;
@@ -645,7 +625,7 @@ export const SetNewPasswordView = ({
       <div className="auth-mobile-view content fade-in forgot-pw-content set-password-content">
         <div className="recovery-header">
           <CapIcon />
-          <span>EduRoute Faculty</span>
+          <span>EduRoute Employee</span>
         </div>
 
         <div className="recovery-title-box set-password-title-box">
@@ -817,7 +797,7 @@ export const SignUpView = ({
           <div className="input-group">
             <label>EMAIL ADDRESS</label>
             <div className="input-wrapper plain-input-wrapper">
-              <input type="email" placeholder="faculty@gordoncollege.edu.ph" value={registerForm.email} onChange={e => setRegisterForm(prev => ({
+              <input type="email" placeholder="employee@gordoncollege.edu.ph" value={registerForm.email} onChange={e => setRegisterForm(prev => ({
               ...prev,
               email: e.target.value
             }))} />
@@ -911,7 +891,7 @@ export const SignUpView = ({
           </button>
 
           <div className="signup-footer-link">
-            Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+            Already have a employee account? <span onClick={() => setView('login')}>Log In</span>
           </div>
         </form>
       </DesktopAuthShell>
@@ -967,7 +947,7 @@ export const SignUpView = ({
           <div className="input-group">
             <label>EMAIL ADDRESS</label>
             <div className="input-wrapper plain-input-wrapper">
-              <input type="email" placeholder="faculty@gordoncollege.edu.ph" value={registerForm.email} onChange={e => setRegisterForm(prev => ({
+              <input type="email" placeholder="employee@gordoncollege.edu.ph" value={registerForm.email} onChange={e => setRegisterForm(prev => ({
               ...prev,
               email: e.target.value
             }))} />
@@ -1061,7 +1041,7 @@ export const SignUpView = ({
           </button>
 
           <div className="signup-footer-link">
-            Already have a faculty account? <span onClick={() => setView('login')}>Log In</span>
+            Already have a employee account? <span onClick={() => setView('login')}>Log In</span>
           </div>
         </form>
 

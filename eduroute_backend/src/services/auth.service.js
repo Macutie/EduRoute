@@ -11,12 +11,25 @@ const { optimizeImage } = require('./imageOptimization.service');
 const { encryptNullableText } = require('../utils/fieldEncryption');
 
 const ROLE_LABELS = {
-    faculty: 'Faculty',
+    faculty: 'Employee',
     hrmu: 'HRMU',
-    cssu: 'CSSU',
+    cssu: 'ISSU',
+    issu: 'ISSU',
     admin: 'Admin',
-    assistant_dean: 'Assistant Dean',
-    college_dean: 'College Dean'
+    assistant_dean: 'Assistant Supervisor',
+    college_dean: 'College Supervisor'
+};
+
+const PORTAL_ROLE_ALIASES = {
+    ISSU: 'cssu',
+    issu: 'cssu',
+    CSSU: 'cssu',
+    cssu: 'cssu'
+};
+
+const normalizePortalRole = (role = 'faculty') => {
+    const normalizedRole = String(role || 'faculty').trim();
+    return PORTAL_ROLE_ALIASES[normalizedRole] || normalizedRole;
 };
 
 const getDepartments = async () => {
@@ -76,7 +89,7 @@ const registerFaculty = async (payload) => {
         const accountRole = payload.account_role || 'faculty';
         if (accountRole !== 'faculty') {
             throw new AppError(
-                'Self-registration is limited to faculty accounts. HRMU, CSSU, and Dean accounts must be assigned by an authorized administrator.',
+                'Self-registration is limited to employee accounts. HRMU, ISSU, and Supervisor accounts must be assigned by an authorized administrator.',
                 403
             );
         }
@@ -173,7 +186,7 @@ const registerFaculty = async (payload) => {
 
 const loginFaculty = async ({ email_or_employee_id, password, portal_role = 'faculty' }) => {
     const identifier = email_or_employee_id.trim();
-    const selectedPortalRole = portal_role || 'faculty';
+    const selectedPortalRole = normalizePortalRole(portal_role || 'faculty');
 
     const query = `
     SELECT
@@ -216,9 +229,11 @@ const loginFaculty = async ({ email_or_employee_id, password, portal_role = 'fac
 
     const adminPortalDeanRoles = ['assistant_dean', 'college_dean'];
     const isDeanUsingAdminPortal = selectedPortalRole === 'admin' && adminPortalDeanRoles.includes(user.account_role);
+    const isAdminUsingAnyPortal = user.account_role === 'admin';
+    const normalizedAccountRole = normalizePortalRole(user.account_role);
 
-    if (user.account_role !== selectedPortalRole && !isDeanUsingAdminPortal) {
-        const actualRole = ROLE_LABELS[user.account_role] || user.account_role;
+    if (normalizedAccountRole !== selectedPortalRole && !isDeanUsingAdminPortal && !isAdminUsingAnyPortal) {
+        const actualRole = ROLE_LABELS[normalizedAccountRole] || ROLE_LABELS[user.account_role] || user.account_role;
         const requestedRole = ROLE_LABELS[selectedPortalRole] || selectedPortalRole;
         throw new AppError(
             `Access denied. This account is registered for the ${actualRole} portal and cannot log in to the ${requestedRole} portal.`,
@@ -272,7 +287,7 @@ const getCurrentFaculty = async (facultyId) => {
     const { rows, rowCount } = await pool.query(query, [facultyId]);
 
     if (rowCount === 0) {
-        throw new AppError('Faculty user not found.', 404);
+        throw new AppError('Employee not found.', 404);
     }
 
     return sanitizeFaculty(rows[0]);
@@ -314,7 +329,7 @@ const updateCurrentFacultyProfile = async (facultyId, payload) => {
     );
 
     if (updateResult.rowCount === 0) {
-        throw new AppError('Faculty user not found.', 404);
+        throw new AppError('Employee not found.', 404);
     }
 
     return getCurrentFaculty(facultyId);
@@ -395,7 +410,7 @@ const changeCurrentFacultyPassword = async (facultyId, payload) => {
     );
 
     if (userResult.rowCount === 0) {
-        throw new AppError('Faculty user not found.', 404);
+        throw new AppError('Employee not found.', 404);
     }
 
     const user = userResult.rows[0];

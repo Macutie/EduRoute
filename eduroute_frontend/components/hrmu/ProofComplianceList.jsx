@@ -1,7 +1,7 @@
 const ProofComplianceList = ({ rows, loading, onOpen }) => (
   <div className="hrmu-verify-table">
     <div className="hrmu-verify-table-head">
-      <span>FACULTY MEMBER</span>
+      <span>EMPLOYEE</span>
       <span>DEPARTMENT</span>
       <span>TIME OUT</span>
       <span>DESTINATION</span>

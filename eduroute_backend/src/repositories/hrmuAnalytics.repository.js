@@ -74,7 +74,27 @@ const resolveAllowedColleges = async ({ collegeId = null, collegeName = null } =
     };
 };
 
-const getDailyFacultyMovementRows = async ({ start, endExclusive, collegeIds }) => {
+const getAnalyticsEmployees = async ({ collegeId = null } = {}) => {
+    const { rows } = await pool.query(
+        `SELECT fu.id, fu.employee_id, fu.full_name, d.department_name
+         FROM faculty_users fu
+         LEFT JOIN departments d ON d.id = fu.department_id
+         WHERE fu.account_role = 'faculty'
+           AND fu.status = 'active'
+           AND ($1::int IS NULL OR fu.department_id = $1)
+         ORDER BY fu.full_name ASC, fu.employee_id ASC`,
+        [collegeId ? Number(collegeId) : null]
+    );
+
+    return rows.map((row) => ({
+        id: row.id,
+        employeeId: row.employee_id,
+        name: row.full_name,
+        collegeName: row.department_name || 'Unknown college'
+    }));
+};
+
+const getDailyFacultyMovementRows = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `WITH date_series AS (
             SELECT generate_series($1::date, ($2::date - INTERVAL '1 day')::date, INTERVAL '1 day')::date AS day
@@ -88,6 +108,7 @@ const getDailyFacultyMovementRows = async ({ start, endExclusive, collegeIds }) 
             WHERE ${MANILA_CREATED_AT_EXPRESSION}::date >= $1::date
               AND ${MANILA_CREATED_AT_EXPRESSION}::date < $2::date
               AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+              AND ($4::uuid IS NULL OR ls.faculty_user_id = $4::uuid)
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
             GROUP BY ${MANILA_CREATED_AT_EXPRESSION}::date
@@ -99,13 +120,13 @@ const getDailyFacultyMovementRows = async ({ start, endExclusive, collegeIds }) 
         FROM date_series ds
         LEFT JOIN daily_counts dc ON dc.day = ds.day
         ORDER BY ds.day ASC`,
-        [start, endExclusive, collegeIds]
+        [start, endExclusive, collegeIds, facultyUserId]
     );
 
     return rows;
 };
 
-const getApprovalRateCounts = async ({ start, endExclusive, currentWeekStart, currentWeekEndExclusive, previousWeekStart, previousWeekEndExclusive, collegeIds }) => {
+const getApprovalRateCounts = async ({ start, endExclusive, currentWeekStart, currentWeekEndExclusive, previousWeekStart, previousWeekEndExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `SELECT
             COUNT(*) FILTER (
@@ -137,7 +158,8 @@ const getApprovalRateCounts = async ({ start, endExclusive, currentWeekStart, cu
             )::int AS previous_week_approved_count
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
-         WHERE COALESCE(ls.college_id, fu.department_id) = ANY($8::int[])
+           WHERE COALESCE(ls.college_id, fu.department_id) = ANY($8::int[])
+           AND ($9::uuid IS NULL OR ls.faculty_user_id = $9::uuid)
            AND fu.account_role = 'faculty'
            AND fu.status = 'active'`,
         [
@@ -148,14 +170,15 @@ const getApprovalRateCounts = async ({ start, endExclusive, currentWeekStart, cu
             previousWeekStart,
             previousWeekEndExclusive,
             APPROVED_ANALYTICS_STATUSES,
-            collegeIds
+            collegeIds,
+            facultyUserId
         ]
     );
 
     return rows[0] || {};
 };
 
-const getFrequentDestinationRows = async ({ start, endExclusive, collegeIds, limit = 200 }) => {
+const getFrequentDestinationRows = async ({ start, endExclusive, collegeIds, facultyUserId = null, limit = 200 }) => {
     const { rows } = await pool.query(
         `SELECT
             ls.destination,
@@ -165,19 +188,20 @@ const getFrequentDestinationRows = async ({ start, endExclusive, collegeIds, lim
          WHERE ls.created_at >= $1
            AND ls.created_at < $2
            AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+           AND ($5::uuid IS NULL OR ls.faculty_user_id = $5::uuid)
            AND fu.account_role = 'faculty'
            AND fu.status = 'active'
            AND COALESCE(BTRIM(ls.destination), '') <> ''
          GROUP BY ls.destination
          ORDER BY COUNT(*) DESC, ls.destination ASC
          LIMIT $4`,
-        [start, endExclusive, collegeIds, limit]
+        [start, endExclusive, collegeIds, limit, facultyUserId]
     );
 
     return rows;
 };
 
-const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart, previousMonthEndExclusive, collegeIds }) => {
+const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart, previousMonthEndExclusive, collegeIds, facultyUserId = null }) => {
     const distanceExpression = await getTripDistanceExpression();
     const { rows } = await pool.query(
         `WITH filtered_trips AS (
@@ -190,7 +214,8 @@ const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart,
                 ${distanceExpression} AS distance_meters
             FROM trips t
             JOIN faculty_users fu ON fu.id = t.user_id
-            WHERE fu.department_id = ANY($5::int[])
+             WHERE fu.department_id = ANY($5::int[])
+               AND ($6::uuid IS NULL OR t.user_id = $6::uuid)
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
         ),
@@ -211,7 +236,8 @@ const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart,
         eligible_faculty AS (
             SELECT COUNT(*)::int AS total_eligible_faculty
             FROM faculty_users fu
-            WHERE fu.department_id = ANY($5::int[])
+             WHERE fu.department_id = ANY($5::int[])
+               AND ($6::uuid IS NULL OR fu.id = $6::uuid)
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
         ),
@@ -233,13 +259,13 @@ const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart,
             (SELECT total_eligible_faculty FROM eligible_faculty) AS total_eligible_faculty,
             (SELECT peak_hour FROM peak_hour_data) AS peak_hour,
             (SELECT avg_minute FROM peak_hour_data) AS avg_minute`,
-        [start, endExclusive, previousMonthStart, previousMonthEndExclusive, collegeIds]
+        [start, endExclusive, previousMonthStart, previousMonthEndExclusive, collegeIds, facultyUserId]
     );
 
     return rows[0] || {};
 };
 
-const getSmartTripRows = async ({ start, endExclusive, collegeIds }) => {
+const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `WITH current_month_slips AS (
             SELECT
@@ -256,7 +282,8 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds }) => {
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
             WHERE ls.created_at >= $1
               AND ls.created_at < $2
-              AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+               AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+                AND ($4::uuid IS NULL OR ls.faculty_user_id = $4::uuid)
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
         ),
@@ -284,7 +311,8 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds }) => {
             JOIN faculty_users fu ON fu.id = t.user_id
             WHERE COALESCE(t.started_at, t.created_at) >= $1
               AND COALESCE(t.started_at, t.created_at) < $2
-              AND fu.department_id = ANY($3::int[])
+               AND fu.department_id = ANY($3::int[])
+                AND ($4::uuid IS NULL OR t.user_id = $4::uuid)
               AND fu.account_role = 'faculty'
               AND fu.status = 'active'
         )
@@ -305,7 +333,9 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds }) => {
             COALESCE(ls.id, fallback_ls.id) AS locator_slip_id,
             COALESCE(ls.destination, fallback_ls.destination, t.destination_name) AS destination,
             COALESCE(ls.custom_purpose, ls.purpose_of_travel, fallback_ls.custom_purpose, fallback_ls.purpose_of_travel, t.destination_name) AS purpose,
-            COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) AS expected_return_datetime,
+             COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) AS expected_return_datetime,
+             COALESCE(ls.created_at, fallback_ls.created_at) AS locator_slip_filed_at,
+             COALESCE(ls.departure_datetime, fallback_ls.departure_datetime) AS scheduled_departure_at,
             COALESCE(ll.recorded_at, t.updated_at, t.started_at) AS last_location_at,
             ll.lat::float8 AS current_lat,
             ll.lng::float8 AS current_lng,
@@ -403,13 +433,13 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds }) => {
               AND COALESCE(previous_trip.ended_at, previous_trip.returned_at, previous_trip.updated_at) > (previous_slip.expected_return_datetime + INTERVAL '60 minutes')
         ) previous_late_returns ON TRUE
         ORDER BY COALESCE(t.started_at, t.updated_at) DESC, fu.full_name ASC`,
-        [start, endExclusive, collegeIds]
+        [start, endExclusive, collegeIds, facultyUserId]
     );
 
     return rows;
 };
 
-const getSmartLocatorSlipCounts = async ({ start, endExclusive, collegeIds }) => {
+const getSmartLocatorSlipCounts = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `SELECT
             COUNT(*)::int AS total_filed,
@@ -421,15 +451,39 @@ const getSmartLocatorSlipCounts = async ({ start, endExclusive, collegeIds }) =>
          WHERE ls.created_at >= $1
            AND ls.created_at < $2
            AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+            AND ($4::uuid IS NULL OR ls.faculty_user_id = $4::uuid)
            AND fu.account_role = 'faculty'
            AND fu.status = 'active'`,
-        [start, endExclusive, collegeIds]
+        [start, endExclusive, collegeIds, facultyUserId]
     );
 
     return rows[0] || {};
 };
 
-const getSmartCollegeSummaryRows = async ({ start, endExclusive, collegeIds }) => {
+const getEmployeeLocatorSlipRecords = async ({ start, endExclusive, collegeIds, facultyUserId }) => {
+    if (!facultyUserId) return [];
+    const { rows } = await pool.query(
+        `SELECT ls.id AS locator_slip_id,
+                ls.created_at AS locator_slip_filed_at,
+                ls.departure_datetime AS scheduled_departure_at,
+                ls.expected_return_datetime,
+                ls.destination,
+                ls.status,
+                ls.purpose_of_travel,
+                ls.custom_purpose
+         FROM locator_slips ls
+         JOIN faculty_users fu ON fu.id = ls.faculty_user_id
+         WHERE ls.created_at >= $1
+           AND ls.created_at < $2
+           AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+           AND ls.faculty_user_id = $4::uuid
+         ORDER BY ls.created_at DESC`,
+        [start, endExclusive, collegeIds, facultyUserId]
+    );
+    return rows;
+};
+
+const getSmartCollegeSummaryRows = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `WITH allowed_colleges AS (
             SELECT id, department_name
@@ -455,6 +509,7 @@ const getSmartCollegeSummaryRows = async ({ start, endExclusive, collegeIds }) =
         LEFT JOIN faculty_users fu ON fu.department_id = ac.id
           AND fu.account_role = 'faculty'
           AND fu.status = 'active'
+          AND ($4::uuid IS NULL OR fu.id = $4::uuid)
         LEFT JOIN locator_slips ls ON ls.faculty_user_id = fu.id
           AND ls.created_at >= $1
           AND ls.created_at < $2
@@ -469,13 +524,13 @@ const getSmartCollegeSummaryRows = async ({ start, endExclusive, collegeIds }) =
           AND COALESCE(previous_t.started_at, previous_t.created_at) < $1
         GROUP BY ac.id, ac.department_name
         ORDER BY trip_count DESC, locator_slip_count DESC, ac.department_name ASC`,
-        [start, endExclusive, collegeIds]
+        [start, endExclusive, collegeIds, facultyUserId]
     );
 
     return rows;
 };
 
-const getPeakMovementRows = async ({ start, endExclusive, collegeIds }) => {
+const getPeakMovementRows = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
     const { rows } = await pool.query(
         `SELECT
             UPPER(TO_CHAR(${MANILA_CREATED_AT_EXPRESSION}, 'DY')) AS day_label,
@@ -487,11 +542,12 @@ const getPeakMovementRows = async ({ start, endExclusive, collegeIds }) => {
          WHERE ${MANILA_CREATED_AT_EXPRESSION}::date >= $1::date
            AND ${MANILA_CREATED_AT_EXPRESSION}::date < $2::date
            AND COALESCE(ls.college_id, fu.department_id) = ANY($3::int[])
+           AND ($4::uuid IS NULL OR ls.faculty_user_id = $4::uuid)
            AND fu.account_role = 'faculty'
            AND fu.status = 'active'
          GROUP BY day_label, day_number, hour
          ORDER BY day_number ASC, hour ASC`,
-        [start, endExclusive, collegeIds]
+        [start, endExclusive, collegeIds, facultyUserId]
     );
 
     return rows;
@@ -536,12 +592,14 @@ const upsertTripAnalyticsRows = async (riskRows = []) => {
 module.exports = {
     APPROVED_ANALYTICS_STATUSES,
     resolveAllowedColleges,
+    getAnalyticsEmployees,
     getDailyFacultyMovementRows,
     getApprovalRateCounts,
     getFrequentDestinationRows,
     getMonthlySummaryStats,
     getSmartTripRows,
     getSmartLocatorSlipCounts,
+    getEmployeeLocatorSlipRecords,
     getSmartCollegeSummaryRows,
     getPeakMovementRows,
     upsertTripAnalyticsRows

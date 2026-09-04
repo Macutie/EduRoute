@@ -33,6 +33,7 @@ export const submitFacultyProofOfCompliance = async (tripId, payload) => {
   const encryptedPayload = await encryptSensitivePayload({
     focalPersonName: payload.focalPersonName,
     focalPersonPosition: payload.focalPersonPosition,
+    focalPersonCompany: payload.focalPersonCompany,
     signatureDataUrl: payload.signatureDataUrl,
   });
   formData.append('encryptedPayload', JSON.stringify(encryptedPayload.encryptedPayload));

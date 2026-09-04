@@ -51,7 +51,7 @@ export const downloadCssuReportsPdf = async (params = {}) => {
   });
 
   if (!response.ok) {
-    let message = 'CSSU report download failed';
+    let message = 'ISSU report download failed';
     try {
       const data = await response.json();
       message = data.message || message;
@@ -87,7 +87,7 @@ export const sendCssuReportToHrmu = async (payload = {}) => {
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.message || 'CSSU report send failed');
+      throw new Error(data.message || 'ISSU report send failed');
     }
 
     return data.data;
@@ -118,3 +118,15 @@ export const updateCssuExitStatus = async (locatorSlipId, payload = {}) => {
     return data.data;
   });
 };
+
+export const getISSUDashboardSummary = getCssuDashboardSummary;
+export const getISSULiveExitMonitoring = getCssuLiveExitMonitoring;
+export const getISSUActivityTimeline = getCssuActivityTimeline;
+export const getISSUFacultyExitHistory = getCssuFacultyExitHistory;
+export const getISSUIncidentsOverview = getCssuIncidentsOverview;
+export const getISSUNotificationsOverview = getCssuNotificationsOverview;
+export const getISSUReportsOverview = getCssuReportsOverview;
+export const downloadISSUReportsPdf = downloadCssuReportsPdf;
+export const sendISSUReportToHrmu = sendCssuReportToHrmu;
+export const lookupISSUExitCandidate = lookupCssuExitCandidate;
+export const updateISSUExitStatus = updateCssuExitStatus;

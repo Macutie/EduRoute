@@ -110,7 +110,7 @@ export const TripPathHistoryModal = ({
   }, [hasMap, coordinateKey, plannedCoordinateKey, actualCoordinateKey, history?.destinationCoordinates?.lng, history?.destinationCoordinates?.lat]);
   const statCards = [{
     label: 'Saved Points',
-    value: stats.totalPoints ?? path.length
+    value: stats.totalPoints ?? (path.length || plannedPath.length)
   }, {
     label: 'Distance',
     value: `${Number(stats.estimatedDistanceKm || 0).toFixed(2)} km`
@@ -127,7 +127,7 @@ export const TripPathHistoryModal = ({
           <div>
             <span>TRIP PATH HISTORY</span>
             <h2>{history?.destination || 'Recorded Route'}</h2>
-            <p>{history?.facultyName || 'Faculty user'} {history?.collegeName ? `- ${history.collegeName}` : ''}</p>
+            <p>{history?.facultyName || 'Employee'} {history?.collegeName ? `- ${history.collegeName}` : ''}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close trip path history">x</button>
         </div>
@@ -155,8 +155,8 @@ export const TripPathHistoryModal = ({
               <strong>{formatPathHistoryDateTime(stats.startTime || history?.startedAt)}</strong>
             </div>
             <div className="trip-path-time-card">
-              <span>Last Update</span>
-              <strong>{stats.lastLocationUpdate ? formatPathHistoryDateTime(stats.lastLocationUpdate) : 'No GPS updates recorded'}</strong>
+              <span>Last Recorded Point</span>
+              <strong>{stats.lastLocationUpdate ? formatPathHistoryDateTime(stats.lastLocationUpdate) : 'Planned route only'}</strong>
             </div>
             <div className="trip-path-time-card">
               <span>Ended</span>
@@ -167,8 +167,8 @@ export const TripPathHistoryModal = ({
 
         <div className="trip-path-steps-panel">
           <div className="trip-path-steps-head">
-            <span>RECORDED PATH</span>
-            <h3>Actual GPS movement steps</h3>
+            <span>SAVED ROUTE HISTORY</span>
+            <h3>{recordedPathSteps.length ? 'Recorded movement steps' : 'Approved route steps'}</h3>
           </div>
           <div className="trip-path-steps-list">
             {recordedPathSteps.length ? recordedPathSteps.map((step, index) => <div key={`${step.title || 'recorded-path-step'}-${index}`} className="trip-path-step completed">
@@ -185,7 +185,7 @@ export const TripPathHistoryModal = ({
                     {step.recordedAt ? ` Recorded ${formatPathHistoryDateTime(step.recordedAt)}.` : ''}
                   </p>
                 </div>
-              </div>) : <div className="trip-path-empty small">No actual GPS movement steps were recorded for this trip.</div>}
+              </div>) : <div className="trip-path-empty small">The approved route is preserved for this completed trip. Live location points were not collected.</div>}
           </div>
         </div>
       </div>

@@ -7,7 +7,7 @@ const toTitleCase = (value) =>
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export const FacultyDetailCard = ({ faculty, detail, loading = false }) => {
-  const displayName = detail?.faculty?.facultyName || faculty?.facultyName || 'No active faculty';
+  const displayName = detail?.faculty?.facultyName || faculty?.facultyName || 'No active employee';
   const displayPosition = detail?.faculty?.position || faculty?.position || faculty?.facultyRoleOrPosition || 'Instructor';
   const displayCollege = detail?.faculty?.collegeName || faculty?.collegeName || 'Olongapo live tracking';
   const speedKmh = detail?.latestLocation?.speedKmh ?? faculty?.speedKmh ?? null;

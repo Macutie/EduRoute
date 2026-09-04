@@ -9,11 +9,6 @@ const { registerHrmuSocketHandlers } = require('./hrmu.socket');
 const { registerNotificationSocketHandlers } = require('./notification.socket');
 
 const SOCKET_EVENTS = {
-    subscribe: 'trip:subscribe',
-    unsubscribe: 'trip:unsubscribe',
-    updateLocation: 'trip:location:update',
-    facultyLocationUpdate: 'faculty:location:update',
-    locationBroadcast: 'trip:location:broadcast',
     error: 'trip:error'
 };
 
@@ -64,33 +59,9 @@ const createTripTrackingSocketServer = (httpServer) => {
     registerNotificationSocketHandlers(io);
 
     io.on('connection', (socket) => {
-        socket.on(SOCKET_EVENTS.subscribe, ({ tripId }) => {
-            if (!tripId) {
-                socket.emit(SOCKET_EVENTS.error, { message: 'Trip ID is required to subscribe.' });
-                return;
-            }
-
-            socket.join(`trip:${tripId}`);
-        });
-
-        socket.on(SOCKET_EVENTS.unsubscribe, ({ tripId }) => {
-            if (!tripId) return;
-            socket.leave(`trip:${tripId}`);
-        });
-
-        const handleLocationUpdate = async (payload, acknowledge) => {
-            try {
-                const update = await tripTrackingService.recordLiveLocation(socket.user.sub, payload);
-                io.to(`trip:${update.tripId}`).emit(SOCKET_EVENTS.locationBroadcast, update);
-                if (typeof acknowledge === 'function') acknowledge({ ok: true, data: update });
-            } catch (error) {
-                socket.emit(SOCKET_EVENTS.error, { message: error.message });
-                if (typeof acknowledge === 'function') acknowledge({ ok: false, message: error.message });
-            }
-        };
-
-        socket.on(SOCKET_EVENTS.updateLocation, handleLocationUpdate);
-        socket.on(SOCKET_EVENTS.facultyLocationUpdate, handleLocationUpdate);
+        // Location sockets are intentionally disabled. Socket.IO remains available
+        // for non-location notifications only; employee coordinates are never
+        // broadcast to HRMU, ISSU, admin, dean, or other users.
     });
 
     return io;

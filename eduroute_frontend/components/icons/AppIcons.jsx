@@ -926,7 +926,7 @@ export const AdminProfileChevronIcon = () => <svg width="14" height="14" viewBox
     <polyline points="9 18 15 12 9 6" />
   </svg>;
 // --------------------------------------------------------
-// CSSU DASHBOARD COMPONENTS
+// ISSU DASHBOARD COMPONENTS
 // --------------------------------------------------------
 
 export const CssuExitDoorIcon = ({
@@ -1009,6 +1009,17 @@ export const CssuReportsNavIcon = ({
     <path d="M6 20v-6" />
     <path d="M3 20h18" />
   </svg>;
+export const ISSURoleIcon = CssuRoleIcon;
+export const ISSUExitDoorIcon = CssuExitDoorIcon;
+export const ISSUTrendingUpIcon = CssuTrendingUpIcon;
+export const ISSURosetteCheckIcon = CssuRosetteCheckIcon;
+export const ISSUWarningTriangleIcon = CssuWarningTriangleIcon;
+export const ISSUChartIcon = CssuChartIcon;
+export const ISSUWarningCircleIcon = CssuWarningCircleIcon;
+export const ISSUMapNavIcon = CssuMapNavIcon;
+export const ISSUIncidentsNavIcon = CssuIncidentsNavIcon;
+export const ISSUScanNavIcon = CssuScanNavIcon;
+export const ISSUReportsNavIcon = CssuReportsNavIcon;
 export const PlayTriangleIcon = ({
   color = "#111827"
 }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

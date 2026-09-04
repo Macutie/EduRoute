@@ -52,6 +52,7 @@
 .hrmu-brand-lockup {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
 }
 
@@ -123,6 +124,12 @@
   font-weight: 700;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.hrmu-nav-item > span {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
 }
 
 .hrmu-nav-item.active {
@@ -2127,6 +2134,24 @@
   border: none;
 }
 
+.hrmu-analytics-select-wrap {
+  position: relative;
+}
+
+.hrmu-analytics-select-wrap .hrmu-analytics-select {
+  padding-right: 52px;
+}
+
+.hrmu-analytics-select-wrap > svg {
+  position: absolute;
+  top: 50%;
+  right: 18px;
+  width: 18px;
+  height: 18px;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .hrmu-analytics-select-input:focus {
   border-color: rgba(11, 150, 23, 0.45);
   box-shadow: 0 0 0 3px rgba(11, 150, 23, 0.12);
@@ -2142,8 +2167,7 @@
   padding: 0 18px;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 14px;
+  justify-content: space-between;
   color: #2F3435;
   font-family: inherit;
   font-size: 15px;
@@ -2155,6 +2179,17 @@
   outline: none;
   border-color: rgba(11, 150, 23, 0.45);
   box-shadow: 0 0 0 3px rgba(11, 150, 23, 0.12);
+}
+
+.hrmu-analytics-date-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
 }
 
 .hrmu-analytics-date-native {
@@ -4213,7 +4248,7 @@
   color: #c9191f;
 }
 
-/* Map-first faculty trip layout */
+/* Map-first employee trip layout */
 .map-trip-wrapper::after {
   content: "";
   position: absolute;
@@ -6063,7 +6098,262 @@
   font-weight: 700;
 }
 
-/* HRMU LIVE TRACKING */
+/* HRMU LIVE TRACKING is retired. Employee coordinates are never displayed. */
+
+.hrmu-status-monitor {
+  display: grid;
+  gap: 24px;
+  padding: 30px;
+}
+
+.hrmu-status-overview-list {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #F4FAF3;
+}
+
+.hrmu-status-panel .hrmu-panel-heading button {
+  display: none;
+}
+
+.hrmu-status-panel {
+  display: none;
+}
+
+.hrmu-attention-panel {
+  padding: 22px;
+}
+
+.hrmu-attention-panel .hrmu-panel-heading button,
+.hrmu-attention-panel .hrmu-status-overview-list,
+.hrmu-attention-panel .hrmu-status-overview-note {
+  display: none;
+}
+
+.hrmu-attention-intro {
+  margin: 0 0 16px;
+  color: #68756C;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.hrmu-attention-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hrmu-attention-item {
+  display: grid;
+  gap: 8px;
+  min-height: 96px;
+  padding: 16px;
+  border-left: 4px solid var(--green);
+  border-radius: 14px;
+  background: #F4FAF3;
+}
+
+.hrmu-attention-item.yellow {
+  border-left-color: #F4C400;
+  background: #FFF9E8;
+}
+
+.hrmu-attention-item.red {
+  border-left-color: #D62828;
+  background: #FFF0F0;
+}
+
+.hrmu-attention-item span {
+  color: #68756C;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .8px;
+}
+
+.hrmu-attention-item strong {
+  color: #17251B;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.hrmu-attention-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.hrmu-attention-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: var(--green);
+  color: #FFFFFF;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .5px;
+  cursor: pointer;
+}
+
+.hrmu-attention-actions button:last-child {
+  background: #EAF4E7;
+  color: var(--green);
+}
+
+.hrmu-status-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+
+.hrmu-status-overview-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.hrmu-status-overview-row strong {
+  color: #203126;
+}
+
+.hrmu-status-overview-row span {
+  color: #68756C;
+  font-size: 12px;
+}
+
+.hrmu-status-overview-row b {
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: .7px;
+}
+
+.hrmu-status-overview-row b.red {
+  color: #C81E1E;
+}
+
+.hrmu-status-overview-row b.yellow {
+  color: #A16F00;
+}
+
+.hrmu-status-overview-note {
+  margin: 12px 0 0;
+  color: #68756C;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.hrmu-status-monitor-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.hrmu-status-monitor-heading h1 {
+  margin: 8px 0;
+  color: var(--green);
+  font-size: clamp(28px, 3vw, 48px);
+  font-weight: 900;
+}
+
+.hrmu-status-monitor-heading p,
+.hrmu-status-monitor-privacy {
+  margin: 0;
+  color: #59675D;
+  font-weight: 700;
+}
+
+.hrmu-status-monitor-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.hrmu-status-monitor-stats article,
+.hrmu-status-monitor-card {
+  padding: 22px;
+  border: 1px solid #DFEBDD;
+  border-radius: 20px;
+  background: #FFFFFF;
+  box-shadow: 0 12px 28px rgba(60, 91, 67, 0.08);
+}
+
+.hrmu-status-monitor-stats span {
+  display: block;
+  color: #66736A;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 1.2px;
+}
+
+.hrmu-status-monitor-stats strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--green);
+  font-size: 34px;
+  font-weight: 900;
+}
+
+.hrmu-status-monitor-card .hrmu-panel-heading {
+  margin-bottom: 16px;
+}
+
+.hrmu-status-monitor-list {
+  display: grid;
+  gap: 10px;
+}
+
+.hrmu-status-monitor-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #F4FAF3;
+}
+
+.hrmu-status-monitor-row div {
+  display: grid;
+  gap: 4px;
+}
+
+.hrmu-status-monitor-row strong {
+  color: #1D2B22;
+}
+
+.hrmu-status-monitor-row span {
+  color: #68756C;
+  font-size: 13px;
+}
+
+.hrmu-status-monitor-row b {
+  color: var(--green);
+  font-size: 11px;
+  letter-spacing: .8px;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .hrmu-status-monitor {
+    padding: 18px;
+  }
+
+  .hrmu-status-monitor-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .hrmu-status-monitor-stats {
+    grid-template-columns: 1fr;
+  }
+}
 
 .hrmu-live-page {
   min-width: 0;
@@ -7867,5 +8157,515 @@
 
 .admin-nav-active span {
   color: var(--green);
+}
+
+/* Consolidated HRMU analytics flow. The older overlapping analytics blocks
+   remain in the component only as a compatibility fallback and are hidden. */
+.hrmu-analytics-legacy-duplicate {
+  display: none;
+}
+
+.hrmu-analytics-recommended-flow {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 32px;
+}
+
+.hrmu-analytics-flow-heading,
+.hrmu-analytics-recommended-panel .hrmu-analytics-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.hrmu-analytics-flow-heading > div > span {
+  display: block;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.8px;
+  margin-bottom: 7px;
+}
+
+.hrmu-analytics-flow-heading h2,
+.hrmu-analytics-recommended-panel h2 {
+  margin: 0;
+  color: #17351f;
+  font-size: 24px;
+}
+
+.hrmu-analytics-flow-heading p,
+.hrmu-analytics-recommended-panel p {
+  margin: 6px 0 0;
+  color: #64736a;
+  font-size: 14px;
+}
+
+.hrmu-analytics-flow-heading > strong,
+.hrmu-analytics-recommended-panel .hrmu-analytics-panel-head > span {
+  color: var(--green);
+  background: #edf8ef;
+  border: 1px solid #cde8d1;
+  border-radius: 999px;
+  padding: 9px 13px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.hrmu-analytics-executive-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hrmu-analytics-executive-grid article {
+  min-height: 112px;
+  padding: 18px;
+  border: 1px solid #dfeae1;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(25, 74, 35, 0.05);
+}
+
+.hrmu-analytics-executive-grid article.warning {
+  border-color: #f3d6d6;
+  background: #fffafa;
+}
+
+.hrmu-analytics-executive-grid span,
+.hrmu-analytics-executive-grid small {
+  display: block;
+  color: #65736a;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hrmu-analytics-executive-grid span {
+  text-transform: uppercase;
+  letter-spacing: .8px;
+}
+
+.hrmu-analytics-executive-grid strong {
+  display: block;
+  margin: 10px 0 5px;
+  color: var(--green);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.hrmu-analytics-executive-grid .warning strong {
+  color: #c81e1e;
+}
+
+.hrmu-analytics-recommended-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(340px, .75fr);
+  gap: 20px;
+}
+
+.hrmu-analytics-recommended-panel {
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #dfeae1;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(25, 74, 35, 0.05);
+}
+
+.hrmu-analytics-recommended-panel .hrmu-analytics-panel-head {
+  margin-bottom: 20px;
+}
+
+.hrmu-analytics-recommended-panel .hrmu-analytics-panel-head h2 {
+  font-size: 19px;
+}
+
+.hrmu-analytics-recommended-panel .hrmu-analytics-panel-head p {
+  font-size: 13px;
+}
+
+.hrmu-analytics-recommended-panel.trend,
+.hrmu-analytics-recommended-panel.outcome {
+  min-height: 320px;
+}
+
+.hrmu-analytics-recommended-panel.exceptions,
+.hrmu-analytics-recommended-panel.recommendations {
+  min-height: 300px;
+}
+
+.hrmu-analytics-recommended-panel.department,
+.hrmu-analytics-recommended-panel.destinations,
+.hrmu-analytics-recommended-panel.heatmap {
+  width: 100%;
+}
+
+.hrmu-analytics-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.hrmu-peak-heatmap {
+  display: grid;
+  gap: 5px;
+  overflow-x: auto;
+}
+
+.hrmu-peak-heatmap-row {
+  display: grid;
+  grid-template-columns: 58px repeat(7, minmax(72px, 1fr));
+  gap: 5px;
+  min-width: 575px;
+}
+
+.hrmu-peak-heatmap-row > * {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--green) calc(8% + var(--peak-intensity, 0) * 52%), #f2f7f2);
+  color: #3d5545;
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.hrmu-peak-heatmap-row strong {
+  background: transparent;
+  color: #53665a;
+  font-size: 11px;
+}
+
+.hrmu-peak-heatmap-row.labels > * {
+  min-height: 28px;
+  background: transparent;
+  color: #718078;
+  font-size: 9px;
+  letter-spacing: .3px;
+  line-height: 1.15;
+}
+
+.hrmu-smart-department-table {
+  display: grid;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.hrmu-smart-department-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) .6fr 1fr .5fr;
+  align-items: center;
+  gap: 14px;
+  min-width: 620px;
+  padding: 13px 0;
+  border-bottom: 1px solid #edf1ed;
+  color: #425048;
+  font-size: 13px;
+}
+
+.hrmu-smart-department-row.header {
+  color: #718078;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.hrmu-smart-department-row strong {
+  color: #24352a;
+}
+
+.hrmu-smart-department-row b {
+  color: #c77d00;
+}
+
+.hrmu-analytics-reports-note {
+  margin: 0;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: #f4f8f4;
+  color: #5e6e63;
+  font-size: 13px;
+  text-align: center;
+}
+
+.hrmu-employee-analytics-page {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 36px;
+}
+
+.hrmu-employee-analytics-header,
+.hrmu-employee-profile-card,
+.hrmu-employee-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.hrmu-employee-analytics-header > div > span,
+.hrmu-employee-profile-card span,
+.hrmu-employee-panel-head span {
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+}
+
+.hrmu-employee-analytics-header h1 {
+  margin: 6px 0 4px;
+  color: #078d1b;
+  font-size: 42px;
+}
+
+.hrmu-employee-analytics-header p,
+.hrmu-employee-profile-card p {
+  margin: 0;
+  color: #65736a;
+  font-size: 17px;
+}
+
+.hrmu-employee-analytics-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(170px, .7fr));
+  align-items: end;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d8e8da;
+  border-radius: 20px;
+  background: #fff;
+}
+
+.hrmu-employee-analytics-controls label {
+  display: grid;
+  gap: 7px;
+}
+
+.hrmu-employee-analytics-controls label > span {
+  color: #4D5751;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
+}
+
+.hrmu-employee-analytics-controls select,
+.hrmu-employee-analytics-controls input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #d7e5d9;
+  border-radius: 12px;
+  padding: 0 13px;
+  background: #f7faf7;
+  color: #24352a;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.hrmu-employee-analytics-controls select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 44px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2324352a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 13px center;
+  background-size: 18px 18px;
+}
+
+.hrmu-employee-date-field {
+  position: relative;
+}
+
+.hrmu-employee-date-toggle {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #d7e5d9;
+  border-radius: 12px;
+  padding: 0 13px;
+  background: #f7faf7;
+  color: #24352a;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.hrmu-employee-date-toggle:focus {
+  outline: none;
+  border-color: rgba(11, 150, 23, 0.45);
+  box-shadow: 0 0 0 3px rgba(11, 150, 23, 0.12);
+}
+
+.hrmu-employee-date-toggle > span {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.hrmu-employee-date-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.hrmu-employee-date-icon {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+  pointer-events: none;
+}
+
+.hrmu-employee-analytics-apply {
+  width: 100%;
+  min-height: 48px;
+  align-self: end;
+  margin-bottom: 8px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 20px;
+  background: var(--green);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.hrmu-employee-profile-card {
+  justify-content: flex-start;
+  padding: 24px;
+  border-radius: 22px;
+  background: linear-gradient(120deg, #087f19, #0ca327);
+  color: #fff;
+  box-shadow: 0 12px 26px rgba(10, 143, 25, .18);
+}
+
+.hrmu-employee-profile-avatar {
+  display: grid;
+  flex: 0 0 62px;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 3px solid rgba(255,255,255,.75);
+  border-radius: 50%;
+  background: #e4f5e7;
+  color: var(--green);
+  font-size: 20px;
+  font-weight: 900;
+}
+
+.hrmu-employee-profile-card > div:nth-child(2) { flex: 1; }
+.hrmu-employee-profile-card h2 { margin: 5px 0; font-size: 28px; }
+.hrmu-employee-profile-card span { color: #c9f1cf; }
+.hrmu-employee-profile-card p { color: #e5f7e7; }
+.hrmu-employee-profile-card > strong { font-size: 13px; white-space: nowrap; }
+
+.hrmu-employee-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.hrmu-employee-metric-grid article {
+  padding: 20px;
+  border: 1px solid #dce9de;
+  border-radius: 18px;
+  background: #fff;
+}
+
+.hrmu-employee-metric-grid article.alert { background: #fff8f8; border-color: #f0d2d2; }
+.hrmu-employee-metric-grid span,
+.hrmu-employee-metric-grid small { display: block; color: #68776d; font-size: 12px; font-weight: 700; }
+.hrmu-employee-metric-grid strong { display: block; margin: 10px 0 5px; color: var(--green); font-size: 32px; }
+.hrmu-employee-metric-grid .alert strong { color: #c81e1e; }
+
+.hrmu-employee-analytics-columns { display: grid; grid-template-columns: 1.2fr .8fr; gap: 20px; }
+.hrmu-employee-panel { padding: 22px; border: 1px solid #dce9de; border-radius: 20px; background: #fff; }
+.hrmu-employee-panel-head { margin-bottom: 18px; }
+.hrmu-employee-panel-head h2 { margin: 5px 0 0; color: #21352a; font-size: 23px; }
+.hrmu-employee-panel-head small { color: #748279; }
+.hrmu-employee-activity-list, .hrmu-employee-destination-list, .hrmu-employee-incident-list { display: grid; gap: 10px; }
+.hrmu-employee-activity-list > div, .hrmu-employee-destination-list > div, .hrmu-employee-incident-list > div { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #f5f9f5; color: #44544a; font-size: 15px; }
+.hrmu-employee-activity-list strong, .hrmu-employee-destination-list strong, .hrmu-employee-incident-list b { color: #25382a; }
+.hrmu-employee-activity-list b { min-width: 45px; color: var(--green); text-align: right; font-size: 14px; }
+.hrmu-employee-destination-list > div { grid-template-columns: 1fr auto; }
+.hrmu-employee-incident-list > div { grid-template-columns: auto 1fr; }
+.hrmu-employee-ledger-panel { overflow: hidden; }
+.hrmu-employee-ledger { overflow-x: auto; }
+.hrmu-employee-ledger-row { display: grid; grid-template-columns: 1.25fr 1.05fr 1.1fr 1.1fr .9fr 1fr; align-items: center; gap: 16px; min-width: 1100px; padding: 16px 0; border-bottom: 1px solid #e7efe8; color: #405047; font-size: 14px; }
+.hrmu-employee-ledger-row.header { padding-top: 0; color: #718078; font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
+.hrmu-employee-ledger-row span { display: grid; gap: 4px; }
+.hrmu-employee-ledger-row strong { color: #23382a; font-size: 15px; }
+.hrmu-employee-ledger-row small { color: #77857b; font-size: 12px; }
+.hrmu-employee-ledger-row b { font-size: 13px; }
+.hrmu-employee-ledger-row b.late { color: #c81e1e; }
+.hrmu-employee-ledger-row b.on-time { color: var(--green); }
+.hrmu-employee-summary-list,
+.hrmu-employee-stat-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.hrmu-employee-summary-list > div,
+.hrmu-employee-stat-list > div { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; background: #f5f9f5; }
+.hrmu-employee-summary-list span,
+.hrmu-employee-stat-list span { color: #68776d; font-size: 13px; font-weight: 700; }
+.hrmu-employee-summary-list strong,
+.hrmu-employee-stat-list strong { color: var(--green); font-size: 22px; }
+.hrmu-employee-stat-list { grid-template-columns: repeat(2, 1fr); }
+.hrmu-employee-metric-grid strong em { font-size: 14px; font-style: normal; }
+.hrmu-employee-muted { margin: 0; color: #78857d; font-size: 15px; }
+.hrmu-employee-analytics-empty { display: grid; min-height: 260px; place-items: center; padding: 30px; border: 1px dashed #c9dfcc; border-radius: 22px; background: #f8fbf8; text-align: center; }
+.hrmu-employee-analytics-empty h2 { margin: 0 0 8px; color: #21352a; }
+.hrmu-employee-analytics-empty p { margin: 0; color: #68776d; }
+
+@media (max-width: 900px) {
+  .hrmu-employee-analytics-controls { grid-template-columns: repeat(2, 1fr); }
+  .hrmu-employee-analytics-apply { grid-column: 1 / -1; margin-bottom: 0; }
+  .hrmu-employee-metric-grid { grid-template-columns: repeat(2, 1fr); }
+  .hrmu-employee-summary-list { grid-template-columns: repeat(3, 1fr); }
+  .hrmu-employee-analytics-columns { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 600px) {
+  .hrmu-employee-analytics-header, .hrmu-employee-profile-card { align-items: flex-start; flex-direction: column; }
+  .hrmu-employee-analytics-header h1 { font-size: 30px; }
+  .hrmu-employee-analytics-controls, .hrmu-employee-metric-grid, .hrmu-employee-summary-list, .hrmu-employee-stat-list { grid-template-columns: 1fr; }
+  .hrmu-employee-profile-card > strong { white-space: normal; }
+}
+
+@media (max-width: 1100px) {
+  .hrmu-analytics-executive-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .hrmu-analytics-flow-heading,
+  .hrmu-analytics-recommended-panel .hrmu-analytics-panel-head {
+    flex-direction: column;
+  }
+
+  .hrmu-analytics-executive-grid,
+  .hrmu-analytics-recommended-grid,
+  .hrmu-analytics-heatmap-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hrmu-analytics-recommended-panel {
+    padding: 18px;
+  }
 }
 

@@ -210,7 +210,7 @@ const mapProofToReportLogRow = (row) => {
         timestamp: getReportTimestamp(row),
         timestampLabel: formatTimestampLabel(getReportTimestamp(row)),
         location: row.destination || 'Unknown destination',
-        personnel: row.facultyName || 'Unknown faculty',
+        personnel: row.facultyName || 'Unknown employee',
         status: reportStatus,
         rawStatus: hasFlaggedReasons ? 'flagged' : normalizedStatus,
         flaggedReasons
@@ -278,7 +278,7 @@ const mapReportLogRow = (row) => ({
     timestamp: row.timestamp ? new Date(row.timestamp).toISOString() : null,
     timestampLabel: formatTimestampLabel(row.timestamp),
     location: row.location || 'Unknown destination',
-    personnel: row.personnel || 'Unknown faculty',
+    personnel: row.personnel || 'Unknown employee',
     status: row.report_status,
     rawStatus: row.raw_status,
     flaggedReasons: Array.isArray(row.flagged_reasons) ? row.flagged_reasons.map(mapFlaggedReason) : []
@@ -513,7 +513,7 @@ const getNotificationMonthlyLogDownload = async (userId) => {
 
     const rows = mergedNotificationRows.map((row) => ({
         dateTimeLabel: formatTimestampLabel(row.created_at),
-        facultyName: row.faculty_name || 'Unknown faculty',
+        facultyName: row.faculty_name || 'Unknown employee',
         actionLabel: getNotificationActionLabel(row.type || row.title),
         status: getNotificationStatusLabel(row.type)
     }));

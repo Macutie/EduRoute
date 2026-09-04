@@ -73,19 +73,19 @@ const getNotificationConfig = (incidentType, context, metadata = {}) => {
         return {
             type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LATE_RETURN,
             title: 'Late return detected',
-            message: `${context.faculty_name || 'A faculty member'} returned ${formatLateReturnDurationLabel(metadata.minutesLate)} after the expected return time of ${formatExpectedReturnClock(metadata.expectedReturnTime || context.expected_return_datetime) || 'the approved return time'}.`
+            message: `${context.faculty_name || 'An employee'} returned ${formatLateReturnDurationLabel(metadata.minutesLate)} after the expected return time of ${formatExpectedReturnClock(metadata.expectedReturnTime || context.expected_return_datetime) || 'the approved return time'}.`
         };
     case tripIncidentRepository.INCIDENT_TYPES.UNVERIFIED_LOCATION:
         return {
             type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_UNVERIFIED_LOCATION,
             title: 'Arrival verification failed review',
-            message: `${context.faculty_name || 'A faculty member'} has an arrival verification/signature that HRMU marked as unverified for ${context.destination || 'the approved destination'}.`
+            message: `${context.faculty_name || 'An employee'} has an arrival verification/signature that HRMU marked as unverified for ${context.destination || 'the approved destination'}.`
         };
     case tripIncidentRepository.INCIDENT_TYPES.LOCATION_DISCONNECTED:
         return {
             type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_LOCATION_DISCONNECTED,
             title: 'Live location disconnected',
-            message: `${context.faculty_name || 'A faculty member'} has stopped sharing live location updates for ${context.destination || 'the active trip'}.`
+            message: `${context.faculty_name || 'An employee'} has stopped sharing live location updates for ${context.destination || 'the active trip'}.`
         };
     default:
         return null;

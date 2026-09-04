@@ -122,8 +122,8 @@ const reviewArrivalVerification = async (reviewerId, verificationId, payload = {
         type: nextStatus === 'verified' ? HRMU_REVIEW_SUCCESS_TYPE : HRMU_REVIEW_FLAGGED_TYPE,
         title: nextStatus === 'verified' ? 'Successful trip review' : 'Trip flagged as unverified location/signature',
         message: nextStatus === 'verified'
-            ? `${verification.faculty_name || 'The faculty user'} completed the trip successfully after HRMU proof review.`
-            : `${verification.faculty_name || 'The faculty user'} was flagged by HRMU for unverified location/signature review.`
+            ? `${verification.faculty_name || 'The employee user'} completed the trip successfully after HRMU proof review.`
+            : `${verification.faculty_name || 'The employee user'} was flagged by HRMU for unverified location/signature review.`
     }).catch(() => []);
 
     const flaggedTrips = await tripIncidentRepository.getFlaggedTrips().catch(() => []);

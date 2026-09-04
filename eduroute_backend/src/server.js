@@ -59,6 +59,21 @@ const startServer = async () => {
             );`);
             await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_push_tokens_user_active
                 ON user_push_tokens(user_id, is_active, updated_at DESC);`);
+            await pool.query(`CREATE TABLE IF NOT EXISTS trip_return_entry_tokens (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                trip_id UUID NOT NULL UNIQUE REFERENCES trips(id) ON DELETE CASCADE,
+                entry_code VARCHAR(9) NOT NULL UNIQUE,
+                token_hash CHAR(64) NOT NULL UNIQUE,
+                expires_at TIMESTAMP NOT NULL,
+                consumed_at TIMESTAMP NULL,
+                confirmed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );`);
+            await pool.query(`ALTER TABLE trip_return_entry_tokens ADD COLUMN IF NOT EXISTS entry_code VARCHAR(9);`);
+            await pool.query(`ALTER TABLE trip_return_entry_tokens ADD COLUMN IF NOT EXISTS confirmed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;`);
+            await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_trip_return_entry_tokens_entry_code ON trip_return_entry_tokens(entry_code);`);
+            await pool.query(`CREATE INDEX IF NOT EXISTS idx_trip_return_entry_tokens_active
+                ON trip_return_entry_tokens(trip_id, expires_at, consumed_at);`);
             console.log('Auto-migrations completed successfully.');
         } catch (migrationError) {
             console.error('Auto-migration failed, but continuing:', migrationError);

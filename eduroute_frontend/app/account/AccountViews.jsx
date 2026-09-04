@@ -3,14 +3,14 @@ import { API_BASE_URL } from "../../config";
 import { changePassword } from "../../services/authApi";
 import { encryptSensitivePayload } from "../../services/authPayloadEncryption";
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from "../../services/responseEncryption";
-import { AdminBadgeIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, CssuChartIcon, CssuIncidentsNavIcon, CssuMapNavIcon, CssuReportsNavIcon, CssuRoleIcon, CssuRosetteCheckIcon, CssuScanNavIcon, CssuTrendingUpIcon, CssuWarningCircleIcon, CssuWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
+import { AdminBadgeIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, ISSUChartIcon, ISSUIncidentsNavIcon, ISSUMapNavIcon, ISSUReportsNavIcon, ISSURoleIcon, ISSURosetteCheckIcon, ISSUScanNavIcon, ISSUTrendingUpIcon, ISSUWarningCircleIcon, ISSUWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
 import { LegalDocumentModal } from "../../components/legal/LegalDocuments.jsx";
 import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
 import { getPortalPositionLabel, getPortalMetaLabel, getPortalBadgeLabel } from "../routing/portalRouting.js";
 import { registerPushNotificationsForCurrentBrowser } from "../shared/pushNotifications.js";
 import { BottomNav } from "../faculty/FacultyViews.jsx";
 import { DeanBottomNav } from "../dean/DeanViews.jsx";
-import { CSSUBottomNav, CSSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
+import { ISSUBottomNav, ISSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
 import { HrmuWorkspaceShell } from "../hrmu/HrmuViews.jsx";
 import { AdminBottomNav } from "../admin/AdminViews.jsx";
 export const ChangePasswordView = ({
@@ -162,15 +162,18 @@ export const ChangePasswordView = ({
         </div>
       </div>
     </section>;
+  if (accountRole === 'admin' && isDesktopViewport) {
+    return desktopChangePasswordContent;
+  }
   if ((accountRole === 'hrmu' || accountRole === 'cssu') && isDesktopViewport) {
     if (accountRole === 'hrmu') {
       return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={() => setView(backView)}>
-          <section className="cssu-desktop-page">{desktopChangePasswordContent}</section>
+          <section className="ISSU-desktop-page">{desktopChangePasswordContent}</section>
         </HrmuWorkspaceShell>;
     }
-    return <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView(backView)} hideHeader>
+    return <ISSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView(backView)} hideHeader>
         {desktopChangePasswordContent}
-      </CSSUDesktopPage>;
+      </ISSUDesktopPage>;
   }
   return <div className="dashboard-wrapper">
       <div className="content fade-in dash-content chpw-content">
@@ -181,7 +184,7 @@ export const ChangePasswordView = ({
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -193,7 +196,7 @@ export const ChangePasswordView = ({
 
         <div className="chpw-header">
           <h1 className="chpw-title">Security Credentials</h1>
-          <p className="chpw-subtitle">Update your password to ensure your faculty account remains secure and private.</p>
+          <p className="chpw-subtitle">Update your password to ensure your employee account remains secure and private.</p>
         </div>
 
         {/* Password Policy Card */}
@@ -395,7 +398,7 @@ export const NotificationSettingsView = ({
             getPushNotificationStatus
           } = await import('../../services/notificationApi');
           setPushStatus(await getPushNotificationStatus());
-          alert(isDeanMode ? 'Notifications are enabled for this dean panel. You can now receive locator slip alerts even while EduRoute is closed.' : 'Notifications are enabled for this device. EduRoute can now send approval alerts even while the site is closed.');
+          alert(isDeanMode ? 'Notifications are enabled for this supervisor panel. You can now receive locator slip alerts even while EduRoute is closed.' : 'Notifications are enabled for this device. EduRoute can now send approval alerts even while the site is closed.');
         } catch (pushError) {
           console.error('Failed to register push token from notification settings:', pushError);
           alert(pushError.message || 'Notifications were allowed, but EduRoute could not register this device yet.');
@@ -416,7 +419,7 @@ export const NotificationSettingsView = ({
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -622,7 +625,7 @@ export const EditProfileView = ({
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileImage} alt="Faculty Profile" style={{
+            <img src={profileImage} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -633,7 +636,7 @@ export const EditProfileView = ({
         <div className="chpw-divider-line" />
 
         <div className="editp-header">
-          <span className="editp-badge">FACULTY IDENTITY</span>
+          <span className="editp-badge">EMPLOYEE IDENTITY</span>
           <h1 className="editp-title">Edit Your Profile</h1>
           <p className="editp-subtitle">Manage your professional presence across the EduRoute academic ecosystem.</p>
         </div>
@@ -852,7 +855,7 @@ export const PrivacySecurityView = ({
         alert('Notifications are blocked for this browser. Open your browser site settings for EduRoute/localhost and allow Notifications.');
       } else if (notificationStatus === 'granted') {
         await registerPushNotificationsForCurrentBrowser();
-        alert(isDeanMode ? 'Notifications are enabled for this dean panel. You can now receive faculty locator slip request alerts even when EduRoute is closed.' : 'Notifications are enabled for this browser.');
+        alert(isDeanMode ? 'Notifications are enabled for this supervisor panel. You can now receive employee locator slip request alerts even when EduRoute is closed.' : 'Notifications are enabled for this browser.');
       } else if (notificationStatus === 'unsupported') {
         alert('This browser does not support web notifications.');
       } else {
@@ -871,7 +874,7 @@ export const PrivacySecurityView = ({
             <span className="dash-logo-text chpw-nav-title">Account Settings</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileData.image} alt="Faculty Profile" style={{
+            <img src={profileData.image} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -884,7 +887,7 @@ export const PrivacySecurityView = ({
         <div className="priv-header">
           <h1 className="priv-title">Privacy & Security</h1>
           <p className="priv-subtitle">
-            {isDeanMode ? 'Manage notification access for dean locator slip approvals and request alerts.' : 'Manage your digital footprint and data preferences across the EduRoute ecosystem.'}
+            {isDeanMode ? 'Manage notification access for supervisor locator slip approvals and request alerts.' : 'Manage your digital footprint and data preferences across the EduRoute ecosystem.'}
           </p>
         </div>
 
@@ -906,7 +909,7 @@ export const PrivacySecurityView = ({
           <PermissionsIcon color="var(--green)" />
           <h3>Permissions</h3>
           <p>
-            {isDeanMode ? `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Enable alerts so the dean panel can receive locator slip requests even while EduRoute is closed.` : `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Location: ${permissionPrefs?.location_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.`}
+            {isDeanMode ? `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Enable alerts so the supervisor panel can receive locator slip requests even while EduRoute is closed.` : `Notifications: ${permissionPrefs?.notifications_status || 'unknown'}. Location: ${permissionPrefs?.location_status || 'unknown'}. Location and camera/photos are requested only when a feature needs them.`}
           </p>
           <button type="button" className="priv-manage-btn" onClick={updateNotificationPermissionFromSettings} disabled={locationPermissionLoading}>
             {locationPermissionLoading ? 'UPDATING...' : 'MANAGE'}

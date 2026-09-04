@@ -8,12 +8,7 @@ const registerHrmuSocketHandlers = (io) => {
 
         socket.join('hrmu');
         socket.join('hrmu:dashboard');
-        socket.join('hrmu:live-tracking');
         socket.join('hrmu:verification');
-
-        socket.on('hrmu:live-tracking:join', () => {
-            socket.join('hrmu:live-tracking');
-        });
 
         socket.on('hrmu:dashboard:join', () => {
             socket.join('hrmu:dashboard');

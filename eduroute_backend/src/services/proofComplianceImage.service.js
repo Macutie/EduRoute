@@ -94,6 +94,7 @@ const generateProofComplianceImage = async ({
     purpose,
     focalPersonName,
     focalPersonPosition,
+    focalPersonCompany,
     submittedAt,
     signatureBuffer,
     arrivalPhotoBuffer
@@ -139,7 +140,7 @@ const generateProofComplianceImage = async ({
     });
 
     const facultyBlock = renderTextBlock({
-        label: 'FACULTY NAME',
+        label: 'EMPLOYEE NAME',
         value: facultyName,
         x: 80,
         y: 640,
@@ -190,10 +191,19 @@ const generateProofComplianceImage = async ({
         label: 'SUBMITTED AT',
         value: formatDisplayDateTime(submittedAt),
         x: 760,
-        y: 990,
+        y: 1090,
         maxChars: 24,
         maxLines: 2,
         valueFontSize: 30
+    });
+    const focalCompanyBlock = renderTextBlock({
+        label: 'COMPANY',
+        value: focalPersonCompany,
+        x: 80,
+        y: 1090,
+        maxChars: 32,
+        maxLines: 1,
+        valueFontSize: 28
     });
 
     const photoCardLabel = arrivalThumbBuffer
@@ -227,6 +237,7 @@ const generateProofComplianceImage = async ({
             ${purposeBlock.svg}
             ${focalNameBlock.svg}
             ${focalPositionBlock.svg}
+            ${focalCompanyBlock.svg}
             ${submittedBlock.svg}
             ${photoCardLabel}
             ${photoCardRect}

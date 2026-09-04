@@ -166,7 +166,7 @@ const buildTripStepTimeline = (events, trip) => {
         createTimelineStep({
             key: 'trip_started',
             label: 'Start Trip',
-            description: `Faculty started the official trip to ${destination}.`,
+            description: `Employee started the official trip to ${destination}.`,
             timestamp: startedAt,
             status: startedAt ? 'completed' : 'pending',
             source: startedEvent ? 'event' : 'trip'
@@ -175,8 +175,8 @@ const buildTripStepTimeline = (events, trip) => {
             key: 'arrival_marked',
             label: 'Arrived',
             description: arrivalVerifiedAt
-                ? 'Faculty arrived at the destination and submitted arrival verification.'
-                : `Faculty arrival at ${destination}.`,
+                ? 'Employee arrived at the destination and submitted arrival verification.'
+                : `Employee arrival at ${destination}.`,
             timestamp: arrivalVerifiedAt || arrivedAt,
             status: arrivalVerifiedAt || arrivedAt ? 'completed' : 'pending',
             source: arrivalVerifiedEvent || arrivedEvent ? 'event' : 'trip'
@@ -184,7 +184,7 @@ const buildTripStepTimeline = (events, trip) => {
         createTimelineStep({
             key: 'return_started',
             label: 'Returning',
-            description: 'Faculty started the return route back to the original starting location.',
+            description: 'Employee started the return route back to the original starting location.',
             timestamp: returningAt,
             status: returningAt ? 'completed' : 'pending',
             source: returningEvent ? 'event' : 'trip'
@@ -194,7 +194,7 @@ const buildTripStepTimeline = (events, trip) => {
             label: cancelledAt ? 'Cancelled' : 'Returned',
             description: cancelledAt
                 ? 'Trip was cancelled before completion.'
-                : 'Faculty returned to the original starting location and the trip was completed.',
+                : 'Employee returned to the original starting location and the trip was completed.',
             timestamp: cancelledAt || returnedAt,
             status: cancelledAt || returnedAt ? 'completed' : 'pending',
             source: cancelledEvent || returnedEvent ? 'event' : 'trip'

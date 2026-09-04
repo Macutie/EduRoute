@@ -9,6 +9,9 @@ ALTER TABLE arrival_verifications
     ADD COLUMN IF NOT EXISTS focal_person_position_encrypted TEXT,
     ADD COLUMN IF NOT EXISTS focal_person_position_iv TEXT,
     ADD COLUMN IF NOT EXISTS focal_person_position_auth_tag TEXT,
+    ADD COLUMN IF NOT EXISTS focal_person_company_encrypted TEXT,
+    ADD COLUMN IF NOT EXISTS focal_person_company_iv TEXT,
+    ADD COLUMN IF NOT EXISTS focal_person_company_auth_tag TEXT,
     ADD COLUMN IF NOT EXISTS review_remarks_encrypted TEXT,
     ADD COLUMN IF NOT EXISTS review_remarks_iv TEXT,
     ADD COLUMN IF NOT EXISTS review_remarks_auth_tag TEXT;

@@ -1,9 +1,9 @@
 const APPROVABLE_STATUSES = new Set(['approved', 'verified']);
 const ACTIVE_TRIP_STATUSES = new Set(['active', 'arrived', 'returning']);
 const COMPLETED_TRIP_STATUSES = new Set(['completed']);
-const CSSU_ALLOWED_STATUS = 'allowed';
+const ISSU_ALLOWED_STATUS = 'allowed';
 
-const normalizeCssuValidationStatus = (value) => {
+const normalizeISSUValidationStatus = (value) => {
     const normalized = String(value || '').toLowerCase();
     if (['allowed', 'denied', 'flagged'].includes(normalized)) {
         return normalized;
@@ -36,7 +36,7 @@ const hasBlockingTrip = (existingTrip = null) => {
 
 const canLocatorSlipStartTrip = (locatorSlip = {}, existingTrip = null) => {
     const locatorStatus = String(locatorSlip.status || '').toLowerCase();
-    const cssuValidationStatus = normalizeCssuValidationStatus(locatorSlip.cssu_validation_status);
+    const ISSUValidationStatus = normalizeISSUValidationStatus(locatorSlip.ISSU_validation_status);
     const locatorTripStatus = normalizeTripStatus(locatorSlip.trip_status || locatorSlip.tripStatus);
 
     if (!APPROVABLE_STATUSES.has(locatorStatus)) {
@@ -51,7 +51,7 @@ const canLocatorSlipStartTrip = (locatorSlip = {}, existingTrip = null) => {
         return false;
     }
 
-    if (cssuValidationStatus !== CSSU_ALLOWED_STATUS) {
+    if (ISSUValidationStatus !== ISSU_ALLOWED_STATUS) {
         return false;
     }
 
@@ -65,7 +65,7 @@ const canLocatorSlipStartTrip = (locatorSlip = {}, existingTrip = null) => {
 const getFacultyLocatorSlipActions = (locatorSlip = {}, existingTrip = null) => {
     const locatorStatus = String(locatorSlip.status || '').toLowerCase();
     const tripStatus = normalizeTripStatus(existingTrip?.status || locatorSlip.trip_status || locatorSlip.tripStatus);
-    const cssuValidationStatus = normalizeCssuValidationStatus(locatorSlip.cssu_validation_status);
+    const ISSUValidationStatus = normalizeISSUValidationStatus(locatorSlip.ISSU_validation_status);
     const isCompleted = isLocatorSlipCompleted(locatorSlip, existingTrip);
     const base = {
         showQr: false,
@@ -74,7 +74,7 @@ const getFacultyLocatorSlipActions = (locatorSlip = {}, existingTrip = null) => 
         viewUploadedPhoto: false,
         showTripSummary: false,
         helperText: '',
-        cssuValidationStatus,
+        ISSUValidationStatus,
         tripStatus,
     };
 
@@ -93,7 +93,7 @@ const getFacultyLocatorSlipActions = (locatorSlip = {}, existingTrip = null) => 
     }
 
     if (APPROVABLE_STATUSES.has(locatorStatus)) {
-        if (cssuValidationStatus === 'allowed') {
+        if (ISSUValidationStatus === 'allowed') {
             return {
                 ...base,
                 showQr: true,
@@ -103,26 +103,26 @@ const getFacultyLocatorSlipActions = (locatorSlip = {}, existingTrip = null) => 
             };
         }
 
-        if (cssuValidationStatus === 'denied') {
+        if (ISSUValidationStatus === 'denied') {
             return {
                 ...base,
                 showQr: true,
-                helperText: 'Exit denied by CSSU.',
+                helperText: 'Exit denied by ISSU.',
             };
         }
 
-        if (cssuValidationStatus === 'flagged') {
+        if (ISSUValidationStatus === 'flagged') {
             return {
                 ...base,
                 showQr: true,
-                helperText: 'Exit flagged by CSSU. Please contact CSSU or HRMU.',
+                helperText: 'Exit flagged by ISSU. Please contact ISSU or HRMU.',
             };
         }
 
         return {
             ...base,
             showQr: true,
-            helperText: 'Waiting for CSSU exit validation.',
+            helperText: 'Waiting for ISSU exit validation.',
         };
     }
 
@@ -136,6 +136,6 @@ module.exports = {
     getFacultyLocatorSlipActions,
     hasBlockingTrip,
     isLocatorSlipCompleted,
-    normalizeCssuValidationStatus,
+    normalizeISSUValidationStatus,
     normalizeTripStatus,
 };

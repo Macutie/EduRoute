@@ -311,14 +311,14 @@ const buildRepeatIncidents = (incidents = []) => {
     const groups = new Map();
 
     incidents.forEach((incident) => {
-        const facultyKey = `faculty|${String(incident.facultyName || 'Unknown faculty').toLowerCase()}|${String(incident.type || 'Incident').toLowerCase()}`;
+        const facultyKey = `faculty|${String(incident.facultyName || 'Unknown employee').toLowerCase()}|${String(incident.type || 'Incident').toLowerCase()}`;
         const collegeKey = `college|${String(incident.collegeName || 'Unknown college').toLowerCase()}|${String(incident.type || 'Incident').toLowerCase()}`;
 
         [facultyKey, collegeKey].forEach((key) => {
             const [scope, , type] = key.split('|');
             const current = groups.get(key) || {
                 scope,
-                name: scope === 'faculty' ? incident.facultyName || 'Unknown faculty' : incident.collegeName || 'Unknown college',
+                name: scope === 'faculty' ? incident.facultyName || 'Unknown employee' : incident.collegeName || 'Unknown college',
                 type: incident.type || 'Incident',
                 count: 0,
                 destinations: new Set()
@@ -342,18 +342,16 @@ const buildRepeatIncidents = (incidents = []) => {
 const buildCollegeRiskScores = (collegeSummary = [], incidents = []) => collegeSummary
     .map((college) => {
         const collegeIncidents = incidents.filter((incident) => incident.collegeName === college.collegeName);
-        const trackingGaps = collegeIncidents.filter((incident) => String(incident.type || '').toLowerCase().includes('tracking')).length;
         const missingProof = collegeIncidents.filter((incident) => String(incident.type || '').toLowerCase().includes('proof')).length;
         const lateReturns = Number(college.lateReturnCount || 0) + collegeIncidents.filter((incident) => String(incident.type || '').toLowerCase().includes('late')).length;
         const rejectedSlips = Number(college.rejectedSlipCount || 0);
-        const riskScore = Math.min((lateReturns * 30) + (rejectedSlips * 20) + (trackingGaps * 15) + (missingProof * 10), 100);
+        const riskScore = Math.min((lateReturns * 30) + (rejectedSlips * 20) + (missingProof * 10), 100);
 
         return {
             collegeId: college.collegeId,
             collegeName: college.collegeName,
             lateReturns,
             rejectedSlips,
-            trackingGaps,
             missingProof,
             riskScore,
             riskLevel: getRiskLevel(riskScore)
@@ -376,20 +374,11 @@ const buildTrendComparison = (collegeSummary = []) => collegeSummary.map((colleg
     };
 });
 
-const buildRecommendations = ({ summary, lateReturnPredictions, repeatIncidents, routeDeviationDetections, collegeRiskScores }) => {
+const buildRecommendations = ({ summary, repeatIncidents, collegeRiskScores }) => {
     const recommendations = [];
 
     if (summary.missingProof > 0) {
         recommendations.push('Follow up with faculty who still have missing proof after 24 hours.');
-    }
-
-    if (lateReturnPredictions.length) {
-        recommendations.push(`Monitor ${lateReturnPredictions[0].facultyName} because their active trip has the highest late-return probability.`);
-    }
-
-    const deviatedTrip = routeDeviationDetections.find((row) => row.status === 'Deviated');
-    if (deviatedTrip) {
-        recommendations.push(`Review route deviation for ${deviatedTrip.facultyName} before closing the trip record.`);
     }
 
     if (repeatIncidents.length) {
@@ -408,18 +397,15 @@ const buildRecommendations = ({ summary, lateReturnPredictions, repeatIncidents,
     return recommendations;
 };
 
-const buildMonthlyInsightText = ({ summary, mostVisitedDestination, collegeWithMostTrips, collegeRiskScores, peakMovementHeatmap }) => {
+const buildMonthlyInsightText = ({ summary, mostVisitedDestination, collegeWithMostTrips, collegeRiskScores }) => {
     const topCollege = collegeWithMostTrips?.collegeName || 'No college';
     const destination = mostVisitedDestination?.label || 'no dominant destination';
     const riskiestCollege = collegeRiskScores.find((college) => college.riskScore > 0);
-    const peakText = peakMovementHeatmap?.peak?.count
-        ? `${peakMovementHeatmap.peak.dayLabel} ${peakMovementHeatmap.peak.bucketLabel}`
-        : 'no clear peak period';
     const riskText = riskiestCollege
-        ? `${riskiestCollege.collegeName} currently has the highest risk score because of late returns, rejected slips, or tracking gaps.`
+        ? `${riskiestCollege.collegeName} currently has the highest risk score because of late returns, rejected slips, or missing compliance records.`
         : 'No college shows a concentrated risk pattern this period.';
 
-    return `${topCollege} had the highest trip activity this month, with frequent movement toward ${destination}. The busiest movement window was ${peakText}. ${riskText} HRMU should use the prediction and incident panels to decide which trips need early follow-up before they become late or incomplete records.`;
+    return `${topCollege} had the highest trip activity this month, with the most frequent destination being ${destination}. ${riskText} HRMU should use the incident and compliance panels to decide which records need follow-up.`;
 };
 
 const hasSubmittedProof = (row) => Boolean(row.proof_id);
@@ -430,12 +416,6 @@ const mapRiskTrip = (row, now = new Date()) => {
     const tripStatus = String(row.trip_status || '').toLowerCase();
     const startedAt = toDate(row.started_at);
     const expectedReturnTime = toDate(row.expected_return_datetime);
-    const lastLocationAt = toDate(row.last_location_at);
-    const currentLocation = {
-        lat: row.current_lat,
-        lng: row.current_lng
-    };
-    const distanceFromCampusKm = getDistanceKm(currentLocation, CAMPUS_COORDINATE);
     const reasons = [];
     let riskScore = 0;
 
@@ -448,29 +428,6 @@ const mapRiskTrip = (row, now = new Date()) => {
         ? (expectedReturnTime.getTime() - now.getTime()) / 60000
         : null;
 
-    if (
-        minutesUntilExpectedReturn !== null
-        && minutesUntilExpectedReturn >= 0
-        && minutesUntilExpectedReturn <= 30
-        && distanceFromCampusKm !== null
-        && distanceFromCampusKm > FAR_FROM_CAMPUS_KM
-    ) {
-        riskScore += 30;
-        reasons.push('Less than 30 minutes before return while still away from campus');
-    }
-
-    const minutesSinceLastLocation = lastLocationAt ? getMinutesBetween(lastLocationAt, now) : null;
-    if (minutesSinceLastLocation !== null && minutesSinceLastLocation > 30) {
-        riskScore += 40;
-        reasons.push('Last location update is older than 30 minutes');
-    } else if (minutesSinceLastLocation !== null && minutesSinceLastLocation > 15) {
-        riskScore += 25;
-        reasons.push('Last location update is older than 15 minutes');
-    } else if (!lastLocationAt && startedAt && getMinutesBetween(startedAt, now) > 15) {
-        riskScore += 25;
-        reasons.push('No live location update after trip start');
-    }
-
     if (['arrived', 'completed'].includes(tripStatus) && !hasSubmittedProof(row)) {
         riskScore += 20;
         reasons.push('Proof of compliance is missing after arrival');
@@ -478,7 +435,7 @@ const mapRiskTrip = (row, now = new Date()) => {
 
     if (Number(row.previous_late_return_count || 0) >= 2) {
         riskScore += 20;
-        reasons.push('Faculty has two or more previous late returns');
+        reasons.push('Employee has two or more previous late returns');
     }
 
     if (startedAt && ACTIVE_TRIP_STATUSES.has(tripStatus) && getHoursBetween(startedAt, now) > UNUSUALLY_LONG_ACTIVE_HOURS) {
@@ -497,16 +454,16 @@ const mapRiskTrip = (row, now = new Date()) => {
         destination: row.destination || row.destination_name || 'Unknown destination',
         purpose: row.purpose || 'Official travel',
         tripStatus: row.trip_status || 'unknown',
+        locatorSlipFiledAt: row.locator_slip_filed_at ? new Date(row.locator_slip_filed_at).toISOString() : null,
+        scheduledDepartureAt: row.scheduled_departure_at ? new Date(row.scheduled_departure_at).toISOString() : null,
         expectedReturnTime: expectedReturnTime ? expectedReturnTime.toISOString() : null,
         startedAt: startedAt ? startedAt.toISOString() : null,
-        lastLocationAt: lastLocationAt ? lastLocationAt.toISOString() : null,
-        distanceFromCampusKm,
+        actualReturnTime: row.ended_at || row.returned_at || null,
         riskScore,
         riskLevel: getRiskLevel(riskScore),
         reasons,
         missingProof: ['arrived', 'completed'].includes(tripStatus) && !hasSubmittedProof(row),
         missingArrivalVerification: tripStatus === 'arrived' && !hasArrivalVerification(row),
-        disconnectedTracking: reasons.some((reason) => reason.includes('location')),
         lateReturn: expectedReturnTime ? now > expectedReturnTime && tripStatus !== 'completed' : false
     };
 };
@@ -523,7 +480,7 @@ const buildSmartSummaryText = ({ summary, mostVisitedDestination, collegeWithMos
     const destinationText = mostVisitedDestination?.label || 'no dominant destination yet';
     const collegeText = collegeWithMostTrips?.collegeName || 'no single college';
 
-    return `For this month, EduRoute recorded ${summary.totalTripsThisMonth} official faculty trips. ${collegeText} had the highest number of trips. The most visited destination was ${destinationText}. The system detected ${summary.lateReturns} late returns, ${summary.disconnectedTracking} disconnected tracking cases, and ${summary.missingProof} missing proof submissions. There are currently ${summary.highRiskTrips} high-risk active trips that may require HRMU attention.`;
+    return `For this month, EduRoute recorded ${summary.totalTripsThisMonth} official employee trips. ${collegeText} had the highest number of trips. The most visited destination was ${destinationText}. The system detected ${summary.lateReturns} late returns and ${summary.missingProof} missing proof submissions.`;
 };
 
 const aggregateDailyMovement = (rows = []) => {
@@ -571,10 +528,25 @@ const buildAnalyticsContext = async (query = {}) => {
         collegeId: query.collegeId,
         collegeName: query.collegeName
     });
+    const employees = await hrmuAnalyticsRepository.getAnalyticsEmployees({
+        collegeId: collegeContext.selectedCollege?.id || null
+    });
+    const requestedEmployeeId = query.employeeId ? String(query.employeeId).trim() : null;
+    const selectedEmployee = requestedEmployeeId
+        ? employees.find((employee) => String(employee.id) === requestedEmployeeId) || null
+        : null;
+    if (requestedEmployeeId && !selectedEmployee) {
+        const error = new Error('Selected employee filter is invalid.');
+        error.statusCode = 400;
+        throw error;
+    }
 
     return {
         dateRange,
-        ...collegeContext
+        ...collegeContext,
+        employees,
+        selectedEmployee,
+        facultyUserId: selectedEmployee?.id || null
     };
 };
 
@@ -583,7 +555,8 @@ const getDailyMovement = async (query = {}) => {
     const rows = await hrmuAnalyticsRepository.getDailyFacultyMovementRows({
         start: context.dateRange.start,
         endExclusive: context.dateRange.endExclusive,
-        collegeIds: context.collegeIds
+        collegeIds: context.collegeIds,
+        facultyUserId: context.facultyUserId
     });
 
     return {
@@ -594,6 +567,8 @@ const getDailyMovement = async (query = {}) => {
         },
         selectedCollege: context.selectedCollege?.name || null,
         availableColleges: context.colleges,
+        availableEmployees: context.employees,
+        selectedEmployee: context.selectedEmployee,
         dailyFacultyMovement: aggregateDailyMovement(rows)
     };
 };
@@ -607,7 +582,8 @@ const getApprovalRate = async (query = {}) => {
         currentWeekEndExclusive: context.dateRange.currentWeekEndExclusive,
         previousWeekStart: context.dateRange.previousWeekStart,
         previousWeekEndExclusive: context.dateRange.previousWeekEndExclusive,
-        collegeIds: context.collegeIds
+        collegeIds: context.collegeIds,
+        facultyUserId: context.facultyUserId
     });
 
     const totalFiledCount = Number(counts.total_filed_count || 0);
@@ -644,7 +620,8 @@ const getFrequentDestinations = async (query = {}) => {
     const rows = await hrmuAnalyticsRepository.getFrequentDestinationRows({
         start: context.dateRange.start,
         endExclusive: context.dateRange.endExclusive,
-        collegeIds: context.collegeIds
+        collegeIds: context.collegeIds,
+        facultyUserId: context.facultyUserId
     });
 
     return {
@@ -665,7 +642,8 @@ const getMonthlySummary = async (query = {}) => {
         endExclusive: context.dateRange.endExclusive,
         previousMonthStart: context.dateRange.previousMonthStart,
         previousMonthEndExclusive: context.dateRange.previousMonthEndExclusive,
-        collegeIds: context.collegeIds
+        collegeIds: context.collegeIds,
+        facultyUserId: context.facultyUserId
     });
 
     const totalTripsCompleted = Number(stats.total_trips_completed || 0);
@@ -701,11 +679,12 @@ const getMonthlySummary = async (query = {}) => {
 
 const getOverview = async (query = {}) => {
     const context = await buildAnalyticsContext(query);
-    const [dailyRows, approvalCounts, frequentDestinationRows, monthlyStats, smartAnalyticsResult] = await Promise.all([
+    const [dailyRows, approvalCounts, frequentDestinationRows, monthlyStats, peakMovementRows, smartAnalyticsResult] = await Promise.all([
         hrmuAnalyticsRepository.getDailyFacultyMovementRows({
             start: context.dateRange.start,
             endExclusive: context.dateRange.endExclusive,
-            collegeIds: context.collegeIds
+            collegeIds: context.collegeIds,
+            facultyUserId: context.facultyUserId
         }),
         hrmuAnalyticsRepository.getApprovalRateCounts({
             start: context.dateRange.start,
@@ -714,19 +693,28 @@ const getOverview = async (query = {}) => {
             currentWeekEndExclusive: context.dateRange.currentWeekEndExclusive,
             previousWeekStart: context.dateRange.previousWeekStart,
             previousWeekEndExclusive: context.dateRange.previousWeekEndExclusive,
-            collegeIds: context.collegeIds
+            collegeIds: context.collegeIds,
+            facultyUserId: context.facultyUserId
         }),
         hrmuAnalyticsRepository.getFrequentDestinationRows({
             start: context.dateRange.start,
             endExclusive: context.dateRange.endExclusive,
-            collegeIds: context.collegeIds
+            collegeIds: context.collegeIds,
+            facultyUserId: context.facultyUserId
         }),
         hrmuAnalyticsRepository.getMonthlySummaryStats({
             start: context.dateRange.start,
             endExclusive: context.dateRange.endExclusive,
             previousMonthStart: context.dateRange.previousMonthStart,
             previousMonthEndExclusive: context.dateRange.previousMonthEndExclusive,
-            collegeIds: context.collegeIds
+            collegeIds: context.collegeIds,
+            facultyUserId: context.facultyUserId
+        }),
+        hrmuAnalyticsRepository.getPeakMovementRows({
+            start: context.dateRange.start,
+            endExclusive: context.dateRange.endExclusive,
+            collegeIds: context.collegeIds,
+            facultyUserId: context.facultyUserId
         }),
         getSmartAnalytics(query, { context }).then(
             (smartAnalytics) => ({ smartAnalytics, smartAnalyticsWarning: null }),
@@ -768,6 +756,8 @@ const getOverview = async (query = {}) => {
         },
         selectedCollege: context.selectedCollege?.name || null,
         availableColleges: context.colleges,
+        availableEmployees: context.employees,
+        selectedEmployee: context.selectedEmployee,
         dailyFacultyMovement,
         approvalRate: {
             percentage,
@@ -789,6 +779,7 @@ const getOverview = async (query = {}) => {
             peakHour: formatHourLabel(monthlyStats.peak_hour, monthlyStats.avg_minute),
             peakHourLabel: getPeakHourLabel(monthlyStats.peak_hour)
         },
+        peakMovementHeatmap: buildPeakMovementHeatmap(peakMovementRows),
         smartAnalytics,
         smartAnalyticsWarning
     };
@@ -796,31 +787,36 @@ const getOverview = async (query = {}) => {
 
 const buildSmartAnalytics = async (query = {}, { context = null, persist = false } = {}) => {
     const analyticsContext = context || await buildAnalyticsContext(query);
-    const [tripRows, locatorSlipCounts, frequentDestinationRows, collegeRows, peakMovementRows] = await Promise.all([
+    const [tripRows, locatorSlipCounts, frequentDestinationRows, collegeRows, employeeLocatorSlipRows] = await Promise.all([
         hrmuAnalyticsRepository.getSmartTripRows({
             start: analyticsContext.dateRange.start,
             endExclusive: analyticsContext.dateRange.endExclusive,
-            collegeIds: analyticsContext.collegeIds
+            collegeIds: analyticsContext.collegeIds,
+            facultyUserId: analyticsContext.facultyUserId
         }),
         hrmuAnalyticsRepository.getSmartLocatorSlipCounts({
             start: analyticsContext.dateRange.start,
             endExclusive: analyticsContext.dateRange.endExclusive,
-            collegeIds: analyticsContext.collegeIds
+            collegeIds: analyticsContext.collegeIds,
+            facultyUserId: analyticsContext.facultyUserId
         }),
         hrmuAnalyticsRepository.getFrequentDestinationRows({
             start: analyticsContext.dateRange.start,
             endExclusive: analyticsContext.dateRange.endExclusive,
-            collegeIds: analyticsContext.collegeIds
+            collegeIds: analyticsContext.collegeIds,
+            facultyUserId: analyticsContext.facultyUserId
         }),
         hrmuAnalyticsRepository.getSmartCollegeSummaryRows({
             start: analyticsContext.dateRange.start,
             endExclusive: analyticsContext.dateRange.endExclusive,
-            collegeIds: analyticsContext.collegeIds
+            collegeIds: analyticsContext.collegeIds,
+            facultyUserId: analyticsContext.facultyUserId
         }),
-        hrmuAnalyticsRepository.getPeakMovementRows({
+        hrmuAnalyticsRepository.getEmployeeLocatorSlipRecords({
             start: analyticsContext.dateRange.start,
             endExclusive: analyticsContext.dateRange.endExclusive,
-            collegeIds: analyticsContext.collegeIds
+            collegeIds: analyticsContext.collegeIds,
+            facultyUserId: analyticsContext.facultyUserId
         })
     ]);
     const now = new Date();
@@ -840,7 +836,6 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
         return expectedReturn && actualReturn && actualReturn > expectedReturn;
     });
     const activeLateReturns = risks.filter((row) => row.lateReturn);
-    const disconnectedTracking = risks.filter((row) => row.disconnectedTracking);
     const missingArrivalVerification = risks.filter((row) => row.missingArrivalVerification);
     const frequentDestinations = groupFrequentDestinations(frequentDestinationRows);
     const collegeSummary = collegeRows.map((row) => ({
@@ -857,7 +852,6 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
     }));
     const mostVisitedDestination = getMostVisitedDestination(frequentDestinations);
     const collegeWithMostTrips = getCollegeWithMostTrips(collegeSummary);
-    const highRiskTrips = risks.filter((row) => row.riskLevel === 'High');
     const incidents = [
         ...activeLateReturns.map((row) => ({
             tripId: row.tripId,
@@ -869,17 +863,6 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
             status: 'active',
             detectedAt: now.toISOString(),
             description: 'Trip is past the expected return time and has not been completed.'
-        })),
-        ...disconnectedTracking.map((row) => ({
-            tripId: row.tripId,
-            facultyName: row.facultyName,
-            collegeName: row.collegeName,
-            destination: row.destination,
-            type: 'Disconnected Tracking',
-            severity: row.riskScore >= 60 ? 'high' : 'medium',
-            status: 'active',
-            detectedAt: now.toISOString(),
-            description: 'Live location updates are stale or unavailable.'
         })),
         ...missingProofTrips.map((row) => ({
             tripId: row.trip_id,
@@ -904,34 +887,43 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
             description: 'Trip is marked arrived but still lacks HRMU arrival verification.'
         }))
     ];
-    const lateReturnPredictions = buildLateReturnPredictions(risks, now);
-    const routeDeviationDetections = buildRouteDeviationDetections(tripRows);
     const repeatIncidents = buildRepeatIncidents(incidents);
-    const peakMovementHeatmap = buildPeakMovementHeatmap(peakMovementRows);
     const collegeRiskScores = buildCollegeRiskScores(collegeSummary, incidents);
     const trendComparison = buildTrendComparison(collegeSummary);
+    const completedReturnRows = tripRows
+        .map((row) => {
+            const expected = toDate(row.expected_return_datetime);
+            const actual = toDate(row.ended_at || row.returned_at || row.trip_updated_at);
+            if (!expected || !actual || String(row.trip_status || '').toLowerCase() !== 'completed') return null;
+            return {
+                delayMinutes: Math.round((actual.getTime() - expected.getTime()) / 60000),
+                onTime: actual <= expected
+            };
+        })
+        .filter(Boolean);
+    const lateReturnCount = completedReturnRows.filter((row) => !row.onTime).length;
+    const onTimeReturnCount = completedReturnRows.filter((row) => row.onTime).length;
+    const averageReturnDelayMinutes = lateReturnCount
+        ? Math.round(completedReturnRows.filter((row) => !row.onTime).reduce((sum, row) => sum + row.delayMinutes, 0) / lateReturnCount)
+        : 0;
     const summary = {
         totalTripsThisMonth: tripRows.length,
         activeTrips: risks.length,
         completedTrips: tripRows.filter((row) => String(row.trip_status || '').toLowerCase() === 'completed').length,
         lateReturns: lateReturns.length + activeLateReturns.length,
-        disconnectedTracking: disconnectedTracking.length,
         missingProof: missingProofTrips.length,
         missingArrivalVerification: missingArrivalVerification.length,
-        highRiskTrips: highRiskTrips.length,
         totalFiled: Number(locatorSlipCounts.total_filed || 0),
         approvedCount: Number(locatorSlipCounts.approved_count || 0),
         rejectedCount: Number(locatorSlipCounts.rejected_count || 0),
         cancelledCount: Number(locatorSlipCounts.cancelled_count || 0),
+        lateReturnCount,
+        onTimeReturnCount,
+        averageReturnDelayMinutes,
         mostVisitedDestination: mostVisitedDestination?.label || null,
         collegeWithMostTrips: collegeWithMostTrips?.collegeName || null,
-        predictedLateReturns: lateReturnPredictions.length,
-        routeDeviations: routeDeviationDetections.filter((row) => row.status === 'Deviated').length,
         repeatIncidentGroups: repeatIncidents.length,
-        riskiestCollege: collegeRiskScores[0]?.collegeName || null,
-        peakMovementWindow: peakMovementHeatmap.peak?.count
-            ? `${peakMovementHeatmap.peak.dayLabel} ${peakMovementHeatmap.peak.bucketLabel}`
-            : null
+        riskiestCollege: collegeRiskScores[0]?.collegeName || null
     };
 
     const baseSummary = buildSmartSummaryText({
@@ -944,26 +936,21 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
         mostVisitedDestination,
         collegeWithMostTrips,
         collegeRiskScores,
-        peakMovementHeatmap
     });
     const recommendations = buildRecommendations({
         summary,
-        lateReturnPredictions,
         repeatIncidents,
-        routeDeviationDetections,
         collegeRiskScores
     });
     const generatedSummary = `${baseSummary} ${monthlyInsights}`;
     const exportSummary = [
         monthlyInsights,
-        `Prediction signals: ${lateReturnPredictions.length} possible late returns, ${summary.routeDeviations} route deviations, and ${repeatIncidents.length} repeat incident groups.`,
+        `Historical exception signals: ${summary.lateReturns} late returns and ${repeatIncidents.length} repeat incident groups.`,
         `Recommended action: ${recommendations[0]}`
     ].join(' ');
 
     if (persist) {
-        await tripIncidentService.detectDisconnectedActiveTrips().catch(() => []);
         await tripIncidentService.detectEndedTripsForIncidentScan().catch(() => []);
-        await hrmuAnalyticsRepository.upsertTripAnalyticsRows(risks).catch(() => []);
     }
 
     return {
@@ -980,17 +967,18 @@ const buildSmartAnalytics = async (query = {}, { context = null, persist = false
             monthlyInsights,
             exportSummary
         },
-        activeTripSummary: {
-            lowRisk: risks.filter((row) => row.riskLevel === 'Low').length,
-            mediumRisk: risks.filter((row) => row.riskLevel === 'Medium').length,
-            highRisk: highRiskTrips.length
-        },
-        highRiskTrips: risks,
         incidents,
-        lateReturnPredictions,
-        routeDeviationDetections,
+        employeeTripRecords: tripRows.map((row) => mapRiskTrip(row, now)),
+        employeeLocatorSlipRecords: employeeLocatorSlipRows.map((row) => ({
+            locatorSlipId: row.locator_slip_id,
+            locatorSlipFiledAt: row.locator_slip_filed_at,
+            scheduledDepartureAt: row.scheduled_departure_at,
+            expectedReturnTime: row.expected_return_datetime,
+            destination: row.destination || 'Destination unavailable',
+            status: row.status,
+            purpose: row.custom_purpose || row.purpose_of_travel || 'Official travel'
+        })),
         repeatIncidents,
-        peakMovementHeatmap,
         collegeRiskScores,
         trendComparison,
         recommendations,
@@ -1019,7 +1007,7 @@ const getSmartRiskTrips = async (query = {}) => {
     return {
         dateRange: analytics.dateRange,
         selectedCollege: analytics.selectedCollege,
-        riskTrips: analytics.highRiskTrips
+        riskTrips: []
     };
 };
 
@@ -1069,22 +1057,12 @@ const getSmartCollegeSummary = async (query = {}) => {
 const generateSmartAnalytics = async (query = {}) => buildSmartAnalytics(query, { persist: true });
 
 const generateSmartAnalyticsForTrip = async (tripId, query = {}) => {
-    const analytics = await buildSmartAnalytics(query, { persist: true });
-    const trip = analytics.highRiskTrips.find((row) => String(row.tripId) === String(tripId));
-
-    if (!trip) {
-        return {
-            tripId,
-            generatedAt: analytics.generatedAt,
-            message: 'Trip was not found in the active HRMU risk set for the selected period.',
-            riskTrip: null
-        };
-    }
-
+    const analytics = await buildSmartAnalytics(query);
     return {
         tripId,
         generatedAt: analytics.generatedAt,
-        riskTrip: trip
+        message: 'Per-trip real-time location risk analytics are no longer available.',
+        riskTrip: null
     };
 };
 

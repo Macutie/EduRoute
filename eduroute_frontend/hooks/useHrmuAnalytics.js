@@ -40,12 +40,14 @@ export const useHrmuAnalytics = () => {
     endDate: defaultEndDate,
     collegeId: '',
     collegeName: '',
+    employeeId: '',
   });
   const [appliedFilters, setAppliedFilters] = useState({
     startDate: defaultStartDate,
     endDate: defaultEndDate,
     collegeId: '',
     collegeName: '',
+    employeeId: '',
   });
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -122,6 +124,7 @@ export const useHrmuAnalytics = () => {
       [key]: value,
       ...(key === 'collegeId' ? { collegeName: '' } : {}),
       ...(key === 'collegeName' ? { collegeId: '' } : {}),
+      ...(key === 'collegeId' || key === 'collegeName' ? { employeeId: '' } : {}),
     }));
   }, []);
 
@@ -273,6 +276,7 @@ export const useHrmuAnalytics = () => {
       label: collegeName,
     })),
   ], []);
+  const employeeOptions = Array.isArray(analytics?.availableEmployees) ? analytics.availableEmployees : [];
 
   return {
     filters,
@@ -284,6 +288,7 @@ export const useHrmuAnalytics = () => {
     error,
     exportMessage,
     departmentOptions,
+    employeeOptions,
     updateFilter,
     applyFilters,
     reload: loadAnalytics,

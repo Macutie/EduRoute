@@ -48,7 +48,7 @@ const parseBrevoErrorMessage = async (response) => {
 const sendResetCodeEmail = async ({ to, fullName, resetCode }) => {
     assertEmailConfigured();
 
-    const safeName = escapeHtml(fullName || 'Faculty Member');
+    const safeName = escapeHtml(fullName || 'Employee');
     const sender = parseEmailFrom(env.emailFrom);
     const htmlContent = `
         <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #222;">

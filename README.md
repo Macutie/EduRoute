@@ -1,6 +1,6 @@
 # EduRoute
 
-EduRoute is a faculty trip management and monitoring platform for official locator slip processing, approval workflows, trip validation, live tracking, proof-of-compliance review, and institutional reporting.
+EduRoute is an employee trip management and monitoring platform for official locator slip processing, approval workflows, trip validation, live tracking, proof-of-compliance review, and institutional reporting.
 
 The project is split into:
 
@@ -9,9 +9,9 @@ The project is split into:
 
 ## Core Features
 
-- Faculty locator slip filing
+- Employee locator slip filing
 - Dean approval and rejection workflow
-- CSSU exit validation
+- ISSU exit validation
 - HRMU trip verification and review
 - Live trip tracking and route monitoring
 - Proof of compliance submission
@@ -229,7 +229,7 @@ node scripts/run-sql-file.js sql/cssu_scan_attempts.sql
 
 ### Latest database patches
 
-The current implementation phase added new database support for HRMU smart analytics, recorded trip path history, CSSU scan auditing, password reset PIN attempts, and field-level encryption. Apply these patches to any local or Railway database that was created before the latest changes.
+The current implementation phase added new database support for HRMU smart analytics, recorded trip path history, ISSU scan auditing, password reset PIN attempts, and field-level encryption. Apply these patches to any local or Railway database that was created before the latest changes.
 
 ```bash
 cd eduroute_backend
@@ -244,7 +244,7 @@ These patches add or update:
 
 - `trip_incidents` for HRMU incident signals such as late returns, missing proof, disconnected tracking, and unverified location issues.
 - `trip_analytics` for generated smart analytics and trip risk scoring.
-- `cssu_scan_attempts` for CSSU QR/manual scan history, rejected attempts, repeated attempts, and gate monitoring.
+- `cssu_scan_attempts` for ISSU QR/manual scan history, rejected attempts, repeated attempts, and gate monitoring.
 - `password_reset_tokens.attempts` for password reset PIN retry limits during password recovery.
 - `trip_location_logs.accuracy`, `trip_location_logs.source`, and `trip_location_logs.sync_status` for recorded GPS path history.
 - Encrypted proof and review fields on `arrival_verifications` and `locator_slip_location_verifications` using AES-256-GCM payload, IV, and authentication tag columns.
@@ -297,9 +297,9 @@ npm start
 
 EduRoute enforces role-based access. Each user only sees the workflows assigned to their institutional role.
 
-### Faculty
+### Employee
 
-Faculty users can:
+Employee users can:
 
 - create and submit locator slips
 - generate locator slip QR records
@@ -308,7 +308,7 @@ Faculty users can:
 - submit proof of compliance
 - view trip summaries, statuses, and notifications
 
-Faculty users should only access their own records.
+Employee users should only access their own records.
 
 ### Dean
 
@@ -318,31 +318,31 @@ Dean users can:
 - approve or reject locator slip requests
 - provide rejection reasons
 - manage dean digital signature consent and upload
-- view registry entries for their faculty members
+- view registry entries for their employees
 
 Deans only handle requests under their assigned college.
 
-### CSSU
+### ISSU
 
-CSSU users can:
+ISSU users can:
 
 - validate exit clearance
 - monitor live exit and active trip activity
 - view live map tracking for approved trips
 - generate reports and send report PDFs to HRMU
 
-CSSU focuses on validation, live monitoring, and operational reporting.
+ISSU focuses on validation, live monitoring, and operational reporting.
 
 ### HRMU
 
 HRMU users can:
 
-- monitor completed and active faculty trips
+- monitor completed and active employee trips
 - review proof of compliance
 - mark trips successful or flag issues
 - inspect incident summaries
 - access live tracking, analytics, and reports
-- receive CSSU-submitted report attachments
+- receive cssu-submitted report attachments
 
 HRMU acts as the central verification and reporting office.
 
@@ -362,7 +362,7 @@ EduRoute supports export workflows for:
 
 - HRMU reports
 - HRMU analytics
-- CSSU movement reports
+- ISSU movement reports
 - proof and verification PDF exports
 
 Some exports depend on backend PDF generation and configured assets.
@@ -433,7 +433,7 @@ To test manually:
 - Submit proof of compliance with focal person details
 - Review a proof or arrival verification with HRMU remarks
 - Confirm the encrypted columns contain base64 values while normal authorized API responses still show readable values
-- Confirm login/signup still works and `faculty_users.password_hash` remains bcrypt-hashed, not reversible AES
+- Confirm login/signup still works and employee account password hashes remain bcrypt-hashed, not reversible AES
 
 ## Troubleshooting
 

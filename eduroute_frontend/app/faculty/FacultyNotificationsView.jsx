@@ -75,7 +75,7 @@ export const FacultyNotificationsView = ({
           <div className="dash-avatar" onClick={() => setView('profile')} style={{
           cursor: 'pointer'
         }}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Faculty Profile" style={{
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Employee Profile" style={{
             width: '100%',
             height: '100%',
             objectFit: 'cover'
@@ -101,7 +101,7 @@ export const FacultyNotificationsView = ({
 
           {loading && <p className="dean-empty-text">Loading notifications...</p>}
           {error && <p className="dean-error-text">{error}</p>}
-          {!loading && !error && notifications.length === 0 && <p className="dean-empty-text">No faculty notifications yet.</p>}
+          {!loading && !error && notifications.length === 0 && <p className="dean-empty-text">No employee notifications yet.</p>}
 
           {!loading && orderedGroups.map(([groupLabel, items]) => <div key={groupLabel} className="dean-notification-group">
               {groupLabel !== 'Today' && <div className="dean-notification-divider">

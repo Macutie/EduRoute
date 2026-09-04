@@ -35,6 +35,7 @@ const ProofOfComplianceForm = ({
   const fileInputRef = useRef(null);
   const [focalPersonName, setFocalPersonName] = useState(initialValues?.focalPersonName || '');
   const [focalPersonPosition, setFocalPersonPosition] = useState(initialValues?.focalPersonPosition || '');
+  const [focalPersonCompany, setFocalPersonCompany] = useState(initialValues?.focalPersonCompany || '');
   const [arrivalPhotoFile, setArrivalPhotoFile] = useState(null);
   const [arrivalPhotoPreview, setArrivalPhotoPreview] = useState(initialValues?.arrivalPhotoUrl || '');
   const [hasSignature, setHasSignature] = useState(false);
@@ -60,8 +61,9 @@ const ProofOfComplianceForm = ({
     && !loading
     && focalPersonName.trim()
     && focalPersonPosition.trim()
+    && focalPersonCompany.trim()
     && hasSignature
-  ), [disabled, loading, focalPersonName, focalPersonPosition, hasSignature]);
+  ), [disabled, loading, focalPersonName, focalPersonPosition, focalPersonCompany, hasSignature]);
 
   const beginDraw = (event) => {
     if (disabled || loading) return;
@@ -138,6 +140,11 @@ const ProofOfComplianceForm = ({
       return;
     }
 
+    if (!focalPersonCompany.trim()) {
+      setLocalError('Focal person company is required.');
+      return;
+    }
+
     if (!hasSignature) {
       setLocalError('Focal person signature is required.');
       return;
@@ -147,6 +154,7 @@ const ProofOfComplianceForm = ({
     await onSubmit({
       focalPersonName: focalPersonName.trim(),
       focalPersonPosition: focalPersonPosition.trim(),
+      focalPersonCompany: focalPersonCompany.trim(),
       signatureDataUrl: canvas.toDataURL('image/png'),
       arrivalPhotoFile,
     });
@@ -181,6 +189,17 @@ const ProofOfComplianceForm = ({
             value={focalPersonPosition}
             onChange={(event) => setFocalPersonPosition(event.target.value)}
             placeholder="Enter the focal person position"
+            disabled={disabled || loading}
+          />
+        </label>
+
+        <label className="proof-form-field">
+          <span>Focal Person Company</span>
+          <input
+            type="text"
+            value={focalPersonCompany}
+            onChange={(event) => setFocalPersonCompany(event.target.value)}
+            placeholder="Enter the focal person company"
             disabled={disabled || loading}
           />
         </label>

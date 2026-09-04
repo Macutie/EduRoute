@@ -15,7 +15,7 @@ const getDailyMovement = async (req, res, next) => {
     try {
         await hrmuAnalyticsService.assertAnalyticsAccess(req.user.sub);
         const dailyMovement = await hrmuAnalyticsService.getDailyMovement(req.query);
-        return res.json(successResponse('HRMU daily faculty movement fetched successfully.', dailyMovement));
+        return res.json(successResponse('HRMU daily employee movement fetched successfully.', dailyMovement));
     } catch (error) {
         return next(error);
     }

@@ -12,8 +12,6 @@ router.post('/route', requireRole('faculty'), decryptSensitivePayload, tripContr
 router.get('/active', requireRole('faculty'), tripController.getActiveTrip);
 router.post('/start', requireRole('faculty'), decryptSensitivePayload, tripController.startTrip);
 router.post('/:id/end', requireRole('faculty'), decryptSensitivePayload, tripController.endTrip);
-router.post('/:id/location', requireRole('faculty'), decryptSensitivePayload, tripController.recordLocation);
-router.post('/:id/location/bulk', requireRole('faculty'), decryptSensitivePayload, tripController.recordLocationBulk);
-router.get('/:id/path-history', requireRole('faculty', 'hrmu', 'admin', 'assistant_dean', 'college_dean'), tripController.getPathHistory);
+router.get('/:id/path-history', requireRole('faculty'), tripController.getPathHistory);
 
 module.exports = router;

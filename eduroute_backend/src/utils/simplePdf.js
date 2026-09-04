@@ -158,7 +158,7 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
 
     const columns = [
         { label: 'DATE & TIME', width: 170 },
-        { label: 'FACULTY USER', width: 245 },
+        { label: 'EMPLOYEE', width: 245 },
         { label: 'STATUS', width: 96 },
     ];
     const tableWidth = columns.reduce((total, column) => total + column.width, 0);
@@ -274,7 +274,7 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
                 color: colorize(COLORS.ink),
             });
 
-            page.drawText(`${String(row.facultyName || 'Unknown faculty')} - ${String(row.actionLabel || 'update')}`, {
+            page.drawText(`${String(row.facultyName || 'Unknown employee')} - ${String(row.actionLabel || 'update')}`, {
                 x: PAGE.marginX + columns[0].width + 10,
                 y: rowY + 8,
                 size: 9,
@@ -373,7 +373,7 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
         color: colorize(COLORS.green),
     });
 
-    page.drawText('FACULTY MOVEMENT', {
+    page.drawText('EMPLOYEE MOVEMENT', {
         x: textX,
         y: headerCenterY - 14,
         size: 15,
@@ -491,7 +491,7 @@ const drawSummarySection = ({ page, fonts, summary, reportMeta, startY, colorize
 };
 
 const drawLogTitle = ({ page, fonts, y, colorize }) => {
-    page.drawText('Monthly Faculty Movement Log', {
+    page.drawText('Monthly Employee Movement Log', {
         x: PAGE.marginX,
         y,
         size: 15,
@@ -567,7 +567,7 @@ const drawCssuReportHeader = ({ page, fonts, logoImage, reportMeta, filters, col
         });
     }
 
-    page.drawText('EduRoute CSSU', {
+    page.drawText('EduRoute ISSU', {
         x: textX,
         y: headerCenterY + 8,
         size: 15,
@@ -592,7 +592,7 @@ const drawCssuReportHeader = ({ page, fonts, logoImage, reportMeta, filters, col
         color: colorize(COLORS.ink),
     });
 
-    page.drawText(`Report ID: ${reportMeta.reportId || 'CSSU-DRAFT'}`, {
+    page.drawText(`Report ID: ${reportMeta.reportId || 'cssu-DRAFT'}`, {
         x: rightMetaX,
         y: headerCenterY - 2,
         size: 8.5,
@@ -622,7 +622,7 @@ const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
         {
             label: 'EXIT CLEARANCES',
             value: String(summary.exitClearances || 0).padStart(2, '0'),
-            note: 'Validated CSSU departures',
+            note: 'Validated ISSU departures',
             accent: COLORS.green,
         },
         {
@@ -746,7 +746,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
         rows.forEach((row) => {
             const timestampLines = wrapTextByWidth(fonts.regular, row.timestampLabel || '--', bodyFontSize, columns[0].width - 18);
             const locationLines = wrapTextByWidth(fonts.regular, row.location || 'Unknown destination', bodyFontSize, columns[1].width - 18);
-            const personnelLines = wrapTextByWidth(fonts.regular, row.personnel || 'Unknown faculty', bodyFontSize, columns[2].width - 18);
+            const personnelLines = wrapTextByWidth(fonts.regular, row.personnel || 'Unknown employee', bodyFontSize, columns[2].width - 18);
             const maxLines = Math.max(timestampLines.length, locationLines.length, personnelLines.length, 1);
             const rowHeight = Math.max(36, 14 + maxLines * (bodyFontSize + bodyLineGap));
 
@@ -1441,7 +1441,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
         color: colorize(COLORS.ink),
     });
 
-    drawWrappedText(page, fonts.regular, 'Advanced insights into faculty movement and departmental flow across campus transit routes.', {
+    drawWrappedText(page, fonts.regular, 'Advanced insights into employee movement and departmental flow across campus transit routes.', {
         x: PAGE.marginX,
         y: y - 22,
         width: PAGE.width - PAGE.marginX * 2,
@@ -1464,7 +1464,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
     return Buffer.from(pdfBytes);
 };
 
-const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc', exportedBy = 'CSSU Administrator' }) => {
+const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc', exportedBy = 'ISSU Administrator' }) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -1472,7 +1472,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     try {
         ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
     } catch (error) {
-        error.message = 'CSSU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        error.message = 'ISSU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
         throw error;
     }
 
@@ -1495,7 +1495,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     const reportSubtitle = `Displaying data for ${filters.dateRangeLabel || '--'}`;
     const columns = [
         { key: 'occurredDateTimeLabel', label: 'VALIDATED AT', width: 112 },
-        { key: 'facultyName', label: 'FACULTY MEMBER', width: 104 },
+        { key: 'facultyName', label: 'EMPLOYEE', width: 104 },
         { key: 'details', label: 'DETAILS', width: 172 },
         { key: 'movementStatusLabel', label: 'STATUS', width: 70 },
         { key: 'validatedByName', label: 'VALIDATED BY', width: 90 },
@@ -1525,7 +1525,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     });
 
     const sortOrderLabel = `Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`;
-    const exportedByLabel = `Exported by: ${exportedBy || 'CSSU Administrator'}`;
+    const exportedByLabel = `Exported by: ${exportedBy || 'ISSU Administrator'}`;
     const rightMetaX = PAGE.width - PAGE.marginX - 150;
 
     page.drawText(sortOrderLabel, {
@@ -1594,7 +1594,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
             const detailsText = `${row.departmentName || '--'} • ${row.eventLabel || 'Movement'} • ${locationDetail}`;
             const validatedByText = row.validatedByName || '--';
             const timestampLines = wrapTextByWidth(fonts.regular, row.occurredDateTimeLabel || row.occurredTimeLabel || '--', bodyFontSize, columns[0].width - 18);
-            const facultyLines = wrapTextByWidth(fonts.regular, row.facultyName || 'Unknown faculty', bodyFontSize, columns[1].width - 18);
+            const facultyLines = wrapTextByWidth(fonts.regular, row.facultyName || 'Unknown employee', bodyFontSize, columns[1].width - 18);
             const detailLines = wrapTextByWidth(fonts.regular, detailsText, bodyFontSize, columns[2].width - 18);
             const validatedByLines = wrapTextByWidth(fonts.regular, validatedByText, bodyFontSize, columns[4].width - 18);
             const maxLines = Math.max(timestampLines.length, facultyLines.length, detailLines.length, validatedByLines.length, 1);
@@ -1688,5 +1688,6 @@ module.exports = {
     buildHrmuMonthlyReportPdf,
     buildHrmuAnalyticsReportPdf,
     buildCssuMovementReportPdf,
+    buildISSUMovementReportPdf: buildCssuMovementReportPdf,
     buildHrmuNotificationLogReportPdf,
 };

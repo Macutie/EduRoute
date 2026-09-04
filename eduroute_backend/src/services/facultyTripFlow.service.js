@@ -1,4 +1,5 @@
 const pool = require('../db/pool');
+const crypto = require('crypto');
 const AppError = require('../utils/appError');
 const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
@@ -14,7 +15,7 @@ const {
     canLocatorSlipStartTrip,
     getFacultyLocatorSlipActions,
     isLocatorSlipCompleted,
-    normalizeCssuValidationStatus,
+    normalizeISSUValidationStatus,
     normalizeTripStatus,
 } = require('../utils/locatorSlipActions');
 
@@ -81,22 +82,22 @@ const ensureApprovedLocatorSlip = (locatorSlip, existingTrip = null) => {
 };
 
 const createTripStartBlockedError = (locatorSlip, existingTrip = null) => {
-    const cssuValidationStatus = normalizeCssuValidationStatus(locatorSlip?.cssu_validation_status);
+    const cssuValidationStatus = normalizeISSUValidationStatus(locatorSlip?.cssu_validation_status);
 
     if (isLocatorSlipCompleted(locatorSlip, existingTrip)) {
         return new AppError('This locator slip has already been completed and cannot be used for another trip.', 409);
     }
 
     if (cssuValidationStatus === 'pending') {
-        return new AppError('This locator slip must be validated and allowed by CSSU before starting the trip.', 409);
+        return new AppError('This locator slip must be validated and allowed by ISSU before starting the trip.', 409);
     }
 
     if (cssuValidationStatus === 'denied') {
-        return new AppError('This locator slip was denied by CSSU and cannot start a trip.', 409);
+        return new AppError('This locator slip was denied by ISSU and cannot start a trip.', 409);
     }
 
     if (cssuValidationStatus === 'flagged') {
-        return new AppError('This locator slip was flagged by CSSU and cannot start a trip until resolved.', 409);
+        return new AppError('This locator slip was flagged by ISSU and cannot start a trip until resolved.', 409);
     }
 
     if (existingTrip) {
@@ -334,7 +335,7 @@ const hydrateTripWithSavedProofState = async (trip, facultyUserId) => {
 };
 
 const buildHrmuTripNotificationMessage = (type, context = {}) => {
-    const facultyName = context.faculty_name || 'A faculty member';
+    const facultyName = context.faculty_name || 'An employee';
     const destination = context.destination ? ` at ${context.destination}` : '';
     const purpose = context.purpose ? ` for ${context.purpose}` : '';
 
@@ -361,7 +362,7 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
             expectedReturnTime: locatorSlip.expected_return_time,
             status: locatorSlip.status,
             tripStatus: locatorSlip.trip_status,
-            cssuValidationStatus: normalizeCssuValidationStatus(locatorSlip.cssu_validation_status),
+            cssuValidationStatus: normalizeISSUValidationStatus(locatorSlip.cssu_validation_status),
             cssuValidatedAt: locatorSlip.cssu_validated_at,
             cssuValidationNotes: locatorSlip.cssu_validation_notes || null,
             canStartTrip: canLocatorSlipStartTrip(locatorSlip, null),
@@ -639,19 +640,6 @@ const startTrip = async (facultyUserId, payload) => {
             outboundDistanceMeters: Number(payload.outboundDistanceMeters) || route.distance_meters
         }, client);
 
-        await tripRepository.seedTripStartLocation(client, {
-            tripId: trip.id,
-            userId: facultyUserId,
-            lng: origin.lng,
-            lat: origin.lat,
-            accuracy: payload.originAccuracy === null || payload.originAccuracy === undefined ? null : Number(payload.originAccuracy),
-            speed: null,
-            heading: null,
-            recordedAt: trip.started_at || new Date(),
-            source: 'trip_start',
-            syncStatus: 'synced'
-        }).catch(() => null);
-
         await facultyTripRepository.updateLocatorSlipTripStatus(locatorSlipId, 'active', client);
         await tripRepository.insertTripEvent(client, {
             tripId: trip.id,
@@ -669,19 +657,14 @@ const startTrip = async (facultyUserId, payload) => {
             await hrmuDashboardRepository.createHrmuTripEventNotifications(client, {
                 locatorSlipId,
                 type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_TRIP_STARTED,
-                title: 'Faculty started trip',
-                message: `${hrmuTripStartContext.faculty_name || 'A faculty member'} started a trip${hrmuTripStartContext.destination ? ` to ${hrmuTripStartContext.destination}` : ''}${hrmuTripStartContext.purpose ? ` for ${hrmuTripStartContext.purpose}` : ''}.`
+                title: 'Employee started trip',
+                message: `${hrmuTripStartContext.faculty_name || 'An employee'} started a trip${hrmuTripStartContext.destination ? ` to ${hrmuTripStartContext.destination}` : ''}${hrmuTripStartContext.purpose ? ` for ${hrmuTripStartContext.purpose}` : ''}.`
             }).catch(() => null);
         }
 
         await client.query('COMMIT');
 
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
-            facultyUserId,
-            tripId: trip.id
-        }).catch(() => null);
 
         return {
             locatorSlip: {
@@ -741,19 +724,12 @@ const markArrived = async (facultyUserId, tripId) => {
             await hrmuDashboardRepository.createHrmuTripEventNotifications(client, {
                 locatorSlipId: trip.locator_slip_id,
                 type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_ARRIVED,
-                title: 'Faculty arrived at destination',
+                title: 'Employee arrived at destination',
                 message: buildHrmuTripNotificationMessage(hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_ARRIVED, hrmuArrivalContext)
             }).catch(() => null);
         }
         await client.query('COMMIT');
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
-            tripId
-        }).catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
-            facultyUserId,
-            tripId
-        }).catch(() => null);
         return applyLogicalTripStatus(updatedTrip, 'arrived');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -920,13 +896,6 @@ const startReturn = async (facultyUserId, tripId) => {
             occurredAt: new Date()
         }).catch(() => null);
         await client.query('COMMIT');
-        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
-            tripId
-        }).catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
-            facultyUserId,
-            tripId
-        }).catch(() => null);
         return applyLogicalTripStatus(updatedTrip, 'returning');
     } catch (error) {
         await client.query('ROLLBACK');
@@ -934,6 +903,38 @@ const startReturn = async (facultyUserId, tripId) => {
     } finally {
         client.release();
     }
+};
+
+const requestReturnEntry = async (facultyUserId, tripId) => {
+    const trip = await facultyTripRepository.getTripSummaryRow(tripId, facultyUserId);
+    if (!trip || getLogicalTripStatus(trip) !== 'returning') {
+        throw new AppError('Return entry can only be confirmed while the trip is returning.', 409);
+    }
+
+    const rawToken = `EDU-ENTRY-${crypto.randomBytes(24).toString('hex').toUpperCase()}`;
+    const entryCode = `RE-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+    await pool.query(
+        `INSERT INTO trip_return_entry_tokens (trip_id, entry_code, token_hash, expires_at, confirmed_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (trip_id) DO UPDATE SET
+             entry_code = EXCLUDED.entry_code,
+             token_hash = EXCLUDED.token_hash,
+             expires_at = EXCLUDED.expires_at,
+             consumed_at = NULL,
+             confirmed_at = CURRENT_TIMESTAMP,
+             created_at = CURRENT_TIMESTAMP`,
+        [tripId, entryCode, tokenHash, expiresAt]
+    );
+
+    return {
+        tripId,
+        entryCode,
+        entryQrCode: rawToken,
+        expiresAt: expiresAt.toISOString(),
+        expiresInSeconds: 300
+    };
 };
 
 const markReturned = async (facultyUserId, tripId, payload = {}) => {
@@ -957,6 +958,10 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         throw new AppError('Arrival verification must be completed before ending the trip.', 409);
     }
 
+    if (payload.source !== 'issu_return_entry' || (!payload.returnEntryToken && !payload.returnEntryCode)) {
+        throw new AppError('ISSU must validate the return-entry QR before the trip can be completed.', 409);
+    }
+
     const endedAt = new Date();
     const totalDistanceMeters = await getTrackedTripDistanceMeters(trip, facultyUserId);
     const outboundDistanceMeters = Number.isFinite(Number(trip.outbound_distance_meters))
@@ -972,6 +977,22 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
 
     try {
         await client.query('BEGIN');
+        const tokenHash = payload.returnEntryToken
+            ? crypto.createHash('sha256').update(String(payload.returnEntryToken)).digest('hex')
+            : null;
+        const tokenResult = await client.query(
+            `UPDATE trip_return_entry_tokens
+             SET consumed_at = CURRENT_TIMESTAMP
+             WHERE trip_id = $1
+               AND (${tokenHash ? 'token_hash = $2' : 'entry_code = $2'})
+               AND consumed_at IS NULL
+               AND expires_at > CURRENT_TIMESTAMP
+             RETURNING id`,
+            [tripId, tokenHash || String(payload.returnEntryCode).toUpperCase()]
+        );
+        if (tokenResult.rowCount === 0) {
+            throw new AppError('The return-entry QR is invalid, expired, or already used.', 410);
+        }
         const updatedTrip = await facultyTripRepository.updateTripLifecycle(tripId, facultyUserId, {
             status: 'completed',
             returned_at: endedAt,
@@ -1008,8 +1029,8 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
                 await hrmuDashboardRepository.createHrmuTripEventNotifications(client, {
                     locatorSlipId: trip.locator_slip_id,
                     type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_TRIP_COMPLETED,
-                    title: 'Faculty returned on time',
-                    message: `${hrmuCompletionContext.faculty_name || 'A faculty member'} successfully returned on time${hrmuCompletionContext.destination ? ` from ${hrmuCompletionContext.destination}` : ''}.`
+                    title: 'Employee returned on time',
+                    message: `${hrmuCompletionContext.faculty_name || 'An employee'} successfully returned on time${hrmuCompletionContext.destination ? ` from ${hrmuCompletionContext.destination}` : ''}.`
                 }).catch(() => null);
             }
         }
@@ -1019,11 +1040,6 @@ const markReturned = async (facultyUserId, tripId, payload = {}) => {
         await tripIncidentService.evaluateTripIncidents(tripId).catch(() => []);
 
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
-            facultyUserId,
-            tripId
-        }).catch(() => null);
 
         return {
             locatorSlip: {
@@ -1110,6 +1126,7 @@ module.exports = {
     markArrived,
     verifyArrival,
     startReturn,
+    requestReturnEntry,
     markReturned,
     getTripSummary
 };

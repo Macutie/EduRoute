@@ -40,59 +40,13 @@ const broadcastHrmuDashboardUpdate = async () => {
 };
 
 const broadcastHrmuLiveLocationUpdate = async (payload = null) => {
-    if (payload) {
-        const row = await hrmuDashboardRepository.getLiveFacultyRowByTripId(payload.tripId).catch(() => null);
-        const livePayload = row ? mapLiveFacultyRow(row) : payload;
-        emitToHrmu('hrmu:live-location:update', livePayload);
-        const activeFacultyRow = await hrmuLiveTrackingRepository.getActiveFacultyRowByTripId(payload.tripId).catch(() => null);
-        if (activeFacultyRow) {
-            emitToHrmu('hrmu:faculty-location:update', mapFacultyMarkerRow(activeFacultyRow));
-        }
-        return livePayload;
-    }
-
-    const liveFacultyRows = await hrmuDashboardRepository.getLiveFacultyRows().catch(() => null);
-    if (!liveFacultyRows) return null;
-
-    const liveFaculty = {
-        faculty: liveFacultyRows.map(mapLiveFacultyRow)
-    };
-
-    emitToHrmu('hrmu:live-location:update', liveFaculty);
-    const activeFacultyRows = await hrmuLiveTrackingRepository.getActiveFacultyRows().catch(() => null);
-    if (activeFacultyRows) {
-        emitToHrmu('hrmu:faculty-location:update', {
-            center: {
-                lat: 14.8386,
-                lng: 120.2828,
-                label: 'Olongapo City'
-            },
-            faculty: activeFacultyRows.map(mapFacultyMarkerRow)
-        });
-    }
-    return liveFaculty;
+    // Deprecated: live employee coordinates are no longer broadcast.
+    return null;
 };
 
 const broadcastHrmuLiveActivityUpdate = async ({ facultyUserId, tripId, limit = 1 } = {}) => {
-    if (!facultyUserId || !tripId) return null;
-
-    const result = await hrmuLiveTrackingRepository.getFacultyActivityRows({
-        facultyUserId,
-        tripId,
-        limit
-    }).catch(() => null);
-
-    const latestRow = result?.rows?.[0];
-    if (!latestRow) return null;
-
-    const payload = {
-        facultyUserId,
-        tripId,
-        activityItem: mapActivityItem(latestRow)
-    };
-
-    emitToHrmu('hrmu:faculty-activity:update', payload);
-    return payload;
+    // Deprecated: movement/activity feeds tied to live location are no longer broadcast.
+    return null;
 };
 
 const broadcastHrmuNotificationNew = async (payload) => {

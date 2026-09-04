@@ -17,7 +17,7 @@ const {
 const router = express.Router();
 
 router.get('/payload-public-key', authController.getPayloadPublicKey);
-router.post('/register', authLimiter, decryptAuthPayload, registerValidator, authController.register);
+router.post('/register', authLimiter, (req, res, next) => next(new (require('../utils/appError'))('Public account registration is disabled. Contact the system administrator.', 403)));
 router.post('/login', authLimiter, decryptAuthPayload, loginValidator, authController.login);
 router.post('/forgot-password', authLimiter, decryptAuthPayload, forgotPasswordValidator, authController.forgotPassword);
 router.post('/verify-reset-pin', authLimiter, decryptAuthPayload, verifyResetCodeValidator, authController.verifyResetCode);

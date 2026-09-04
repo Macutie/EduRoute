@@ -20,7 +20,7 @@ CREATE TABLE faculty_users (
     password_hash TEXT NOT NULL,
     profile_image_url TEXT,
     profile_image_public_id TEXT,
-    account_role VARCHAR(20) NOT NULL DEFAULT 'faculty' CHECK (account_role IN ('faculty', 'hrmu', 'cssu', 'admin')),
+    account_role VARCHAR(20) NOT NULL DEFAULT 'faculty' CHECK (account_role IN ('faculty', 'hrmu', 'cssu', 'assistant_dean', 'college_dean', 'admin')),
     status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'suspended')),
     terms_accepted BOOLEAN NOT NULL DEFAULT FALSE,
     last_login_at TIMESTAMP NULL,
@@ -28,7 +28,7 @@ CREATE TABLE faculty_users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT faculty_users_department_required_for_role_check
         CHECK (
-            account_role IN ('hrmu', 'cssu')
+            account_role IN ('hrmu', 'cssu', 'admin')
             OR department_id IS NOT NULL
         )
 );

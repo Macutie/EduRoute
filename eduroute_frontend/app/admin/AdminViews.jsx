@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { API_BASE_URL } from "../../config";
 import { encryptSensitivePayload } from "../../services/authPayloadEncryption";
 import { decryptSensitiveResponseJson, getSensitiveResponseHeaders } from "../../services/responseEncryption";
-import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileEditIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, AdminUserOutlineIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, CssuChartIcon, CssuIncidentsNavIcon, CssuMapNavIcon, CssuReportsNavIcon, CssuRoleIcon, CssuRosetteCheckIcon, CssuScanNavIcon, CssuTrendingUpIcon, CssuWarningCircleIcon, CssuWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultySearchIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryEyeIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
+import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileEditIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, AdminUserOutlineIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, ISSUChartIcon, ISSUIncidentsNavIcon, ISSUMapNavIcon, ISSUReportsNavIcon, ISSURoleIcon, ISSURosetteCheckIcon, ISSUScanNavIcon, ISSUTrendingUpIcon, ISSUWarningCircleIcon, ISSUWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultySearchIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryEyeIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
 import { LegalDocumentModal } from "../../components/legal/LegalDocuments.jsx";
 import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
 import { getCancellationReasonLabel } from "../faculty/FacultyViews.jsx";
 import { getPortalAdministrationDescription, getPortalHomeViewForRole, getPortalNotificationsViewForRole, getPortalPositionLabel, getPortalMetaLabel, getPortalBadgeLabel, isDeanPortalAccount } from "../routing/portalRouting.js";
-import { CSSUBottomNav, CSSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
+import { ISSUBottomNav, ISSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
 import { HrmuWorkspaceShell } from "../hrmu/HrmuViews.jsx";
+import { getAdminDashboard } from "../../services/adminUserApi";
 /* ======================================================== */
 /* ADMIN DASHBOARD VIEW (Strategic Oversight)               */
 /* ======================================================== */
@@ -21,19 +22,32 @@ export const AdminBottomNav = ({
       <DashboardNavIcon color={active === 'dashboard' ? 'var(--green)' : '#9CA3AF'} />
       <span>Dashboard</span>
     </div>
-    <div className={`admin-nav-item ${active === 'requests' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-approval-requests')}>
-      <RequestsNavIcon color={active === 'requests' ? 'var(--green)' : '#9CA3AF'} />
-      <span>Requests</span>
-    </div>
     <div className={`admin-nav-item ${active === 'registry' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-registry')}>
       <RegistryNavIcon color={active === 'registry' ? 'var(--green)' : '#9CA3AF'} />
       <span>Registry</span>
     </div>
-    <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-faculty')}>
+    <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('admin-users')}>
       <FacultyNavIcon color={active === 'faculty' ? 'var(--green)' : '#9CA3AF'} />
-      <span>Faculty</span>
+      <span>Employee</span>
     </div>
   </div>;
+
+export const AdminDesktopShell = ({ children, active = '', setView, onLogout }) => <div className="admin-desktop-shell">
+  <aside className="admin-desktop-sidebar">
+    <button type="button" className="admin-desktop-sidebar-brand" onClick={() => setView('admin-dashboard')}>
+      <img className="admin-desktop-sidebar-logo" src="/eduroute-logo-512.png?v=brand-hd-20260518" alt="EduRoute" />
+      <span><strong>EduRoute</strong><small>ADMIN PANEL</small></span>
+    </button>
+    <nav className="admin-desktop-sidebar-nav" aria-label="Admin panel navigation">
+      <button type="button" className={active === 'dashboard' ? 'active' : ''} onClick={() => setView('admin-dashboard')}><DashboardNavIcon color={active === 'dashboard' ? 'var(--green)' : '#536257'} /><span>Dashboard</span></button>
+      <button type="button" className={active === 'users' ? 'active' : ''} onClick={() => setView('admin-users')}><FacultyNavIcon color={active === 'users' ? 'var(--green)' : '#536257'} /><span>User Accounts</span></button>
+      <button type="button" className={active === 'profile' ? 'active' : ''} onClick={() => setView('admin-profile')}><AdminRoleIcon color={active === 'profile' ? 'var(--green)' : '#536257'} /><span>Profile</span></button>
+    </nav>
+    <button type="button" className="admin-desktop-sidebar-logout" onClick={onLogout}><AdminProfileLogoutIcon />Log Out</button>
+  </aside>
+  <div className="admin-desktop-shell-content">{children}</div>
+</div>;
+
 export const AdminDashboardView = ({
   setView,
   profileData
@@ -41,44 +55,25 @@ export const AdminDashboardView = ({
   if (isDeanPortalAccount(profileData)) {
     return <DeanDashboardView setView={setView} profileData={profileData} />;
   }
-  const notifications = [{
-    id: 1,
-    text: 'New budget proposal from Dept. of Humanities.',
-    time: '2 mins ago',
-    unread: true
-  }, {
-    id: 2,
-    text: 'Course curriculum revision needs signature.',
-    time: '45 mins ago',
-    unread: true
-  }, {
-    id: 3,
-    text: 'Monthly faculty meeting reminder.',
-    time: '3 hours ago',
-    unread: false
-  }];
-  const pendingApprovals = [{
-    initials: 'JA',
-    name: 'Dr. Julian Anderson',
-    dept: 'Dept. of Applied Science',
-    purpose: 'Locator Slip',
-    date: 'June 10, 2026',
-    color: '#16A34A'
-  }, {
-    initials: 'EM',
-    name: 'Elena Martinez',
-    dept: 'Human Resources',
-    purpose: 'Locator Slip',
-    date: 'June 11, 2026',
-    color: '#8B5CF6'
-  }, {
-    initials: 'WK',
-    name: 'Prof. William Kent',
-    dept: 'Global Relations',
-    purpose: 'Locator Slip',
-    date: 'June 11, 2026',
-    color: '#F59E0B'
-  }];
+  const [dashboard, setDashboard] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    getAdminDashboard()
+      .then((data) => { if (active) setDashboard(data); })
+      .catch((requestError) => { if (active) setError(requestError.message || 'Unable to load the admin dashboard.'); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  const accounts = dashboard?.accounts || {};
+  const slips = dashboard?.locatorSlips || {};
+  const recentActivity = dashboard?.recentActivity || [];
+  const formatDate = (value) => value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '--';
+  const formatStatus = (value) => String(value || 'pending').replace(/^./, (character) => character.toUpperCase());
   return <div className="admin-dash-wrapper">
       <div className="admin-dash-scroll">
 
@@ -86,10 +81,6 @@ export const AdminDashboardView = ({
         <div className="admin-header">
           <span className="admin-logo-text">EduRoute</span>
           <div className="admin-header-right">
-            <div className="admin-bell-wrapper" onClick={() => setView('admin-notifications')}>
-              <AdminBellIcon color="var(--text-dark)" />
-              <div className="admin-bell-dot" />
-            </div>
             <div className="admin-avatar" onClick={() => setView('admin-profile')}>
               <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Admin" />
             </div>
@@ -97,95 +88,88 @@ export const AdminDashboardView = ({
         </div>
 
         {/* Hero */}
-        <div className="admin-hero">
-          <h1>Strategic Oversight</h1>
-          <p>Reviewing institutional progress for March 2026</p>
+        <div className="admin-hero admin-live-hero">
+          <div>
+            <span className="admin-dashboard-kicker">SYSTEM ADMINISTRATION</span>
+            <h1>Admin Dashboard</h1>
+            <p>Monitor account health and locator-slip activity across EduRoute.</p>
+          </div>
+          <button type="button" className="admin-dashboard-users-btn" onClick={() => setView('admin-users')}>Manage users</button>
         </div>
 
         {/* Stats Grid */}
-        <div className="admin-stats-grid">
+        <div className="admin-stats-grid admin-data-stats-grid">
           <div className="admin-stat-card">
             <div className="admin-stat-info">
-              <span className="admin-stat-label">PENDING REQUESTS</span>
-              <span className="admin-stat-number">05</span>
+              <span className="admin-stat-label">TOTAL USERS</span>
+              <span className="admin-stat-number">{loading ? '--' : accounts.totalUsers || 0}</span>
+            </div>
+            <UsersAdminIcon color="var(--green)" />
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">EMPLOYEES</span>
+              <span className="admin-stat-number">{loading ? '--' : accounts.employees || 0}</span>
+            </div>
+            <FacultyNavIcon color="var(--green)" />
+          </div>
+          <div className="admin-stat-card">
+            <div className="admin-stat-info">
+              <span className="admin-stat-label">PENDING SLIPS</span>
+              <span className="admin-stat-number">{loading ? '--' : slips.pending || 0}</span>
             </div>
             <ClipboardClockIcon color="var(--green)" />
           </div>
           <div className="admin-stat-card">
             <div className="admin-stat-info">
-              <span className="admin-stat-label">APPROVED TODAY</span>
-              <span className="admin-stat-number">12</span>
+              <span className="admin-stat-label">COMPLETED TODAY</span>
+              <span className="admin-stat-number">{loading ? '--' : slips.completedToday || 0}</span>
             </div>
             <CheckCircleAdminIcon color="var(--green)" />
           </div>
-          <div className="admin-stat-card">
-            <div className="admin-stat-info">
-              <span className="admin-stat-label">REJECTED REQUESTS</span>
-              <span className="admin-stat-number">03</span>
-            </div>
-            <XCircleIcon color="#EF4444" />
-          </div>
-          <div className="admin-stat-card">
-            <div className="admin-stat-info">
-              <span className="admin-stat-label">TOTAL FACULTY</span>
-              <span className="admin-stat-number">26</span>
-            </div>
-            <UsersAdminIcon color="var(--green)" />
-          </div>
         </div>
 
-        {/* Notifications */}
-        <div className="admin-notif-card">
+        <div className="admin-data-summary-grid">
+          <section className="admin-notif-card admin-data-card">
           <div className="admin-notif-header">
-            <h2>Notifications</h2>
-            <span className="admin-notif-viewall" onClick={() => setView('admin-notifications')}>VIEW ALL</span>
+            <h2>Locator slip overview</h2>
+            <span className="admin-data-caption">All filed requests</span>
           </div>
-          {notifications.map((n, i) => <div key={n.id}>
-              <div className="admin-notif-row">
-                {n.unread && <div className="admin-notif-dot" />}
-                <div className={`admin-notif-content ${!n.unread ? 'no-dot' : ''}`}>
-                  <p className="admin-notif-text">{n.text}</p>
-                  <span className="admin-notif-time">{n.time}</span>
-                </div>
-              </div>
-              {i < notifications.length - 1 && <div className="admin-notif-divider" />}
-            </div>)}
+          <div className="admin-slip-status-grid">
+            {[["Filed", slips.totalFiled], ["Approved", slips.approved], ["Rejected", slips.rejected], ["Cancelled", slips.cancelled]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{loading ? '--' : value || 0}</strong></div>)}
+          </div>
+          <div className="admin-data-actions"><button type="button" onClick={() => setView('admin-users')}>View accounts</button></div>
+          </section>
+          <section className="admin-notif-card admin-data-card admin-attention-card">
+            <div className="admin-notif-header"><h2>Needs attention</h2><span className="admin-data-caption">Current system signals</span></div>
+            <div className="admin-attention-list"><div><span>Pending approvals</span><strong>{loading ? '--' : slips.pending || 0}</strong></div><div><span>Deactivated accounts</span><strong>{loading ? '--' : accounts.deactivated || 0}</strong></div><div><span>Approved today</span><strong>{loading ? '--' : slips.approvedToday || 0}</strong></div></div>
+          </section>
         </div>
 
-        {/* Pending Approvals */}
-        <div className="admin-approvals-card">
+        <section className="admin-approvals-card admin-activity-card">
           <div className="admin-approvals-header">
-            <h2>Pending Approvals</h2>
-            <button type="button" className="admin-action-queue-btn">Action Queue</button>
+            <div><h2>Recent locator-slip activity</h2><p className="admin-data-caption">Latest locator-slip records recorded in the system</p></div>
           </div>
 
-          <div className="admin-approvals-table">
+          {error && <div className="admin-dashboard-error">{error}</div>}
+          {!loading && !error && !recentActivity.length && <div className="admin-dashboard-empty">No locator-slip activity has been recorded yet.</div>}
+          {recentActivity.length > 0 && <div className="admin-approvals-table admin-activity-table">
             <div className="admin-approvals-thead">
-              <span>RECIPIENT</span>
-              <span>PURPOSE</span>
-              <span>DATE SUBMITTED</span>
+              <span>EMPLOYEE</span><span>DESTINATION</span><span>STATUS</span><span>SUBMITTED</span>
             </div>
-            {pendingApprovals.map(a => <div key={a.initials} className="admin-approvals-row">
+            {recentActivity.map(activity => <div key={activity.id} className="admin-approvals-row admin-activity-row">
                 <div className="admin-approval-recipient">
-                  <div className="admin-approval-avatar" style={{
-                background: a.color
-              }}>
-                    {a.initials}
-                  </div>
                   <div className="admin-approval-info">
-                    <span className="admin-approval-name">{a.name}</span>
-                    <span className="admin-approval-dept">{a.dept}</span>
+                    <span className="admin-approval-name">{activity.employeeName}</span>
+                    <span className="admin-approval-dept">{activity.employeeId} · {activity.department}</span>
                   </div>
                 </div>
-                <span className="admin-approval-purpose">{a.purpose}</span>
-                <span className="admin-approval-date">{a.date}</span>
+                <span className="admin-approval-purpose">{activity.destination}</span>
+                <span className={`admin-activity-status ${activity.statusKey}`}>{formatStatus(activity.status)}</span>
+                <span className="admin-approval-date">{formatDate(activity.createdAt)}</span>
               </div>)}
-          </div>
-
-          <div className="admin-approvals-viewall" onClick={() => setView('admin-approval-requests')}>
-            View All 24 Requests
-          </div>
-        </div>
+          </div>}
+        </section>
 
       </div>
       <AdminBottomNav active="dashboard" setView={setView} />
@@ -210,7 +194,7 @@ export const AdminNotificationsView = ({
     id: 2,
     type: 'pending',
     title: 'Request pending for approval',
-    body: 'The faculty locator Slip for May 23, 2026 requires your final signature before processing.',
+    body: 'The employee locator Slip for May 23, 2026 requires your final signature before processing.',
     time: '45m ago',
     hasActions: false
   }];
@@ -362,7 +346,7 @@ export const AdminApprovalRequestsView = ({
         {/* Title */}
         <div className="areq-hero">
           <h1>Approval Requests</h1>
-          <p>Review and manage pending faculty locator slips.</p>
+          <p>Review and manage pending employee locator slips.</p>
         </div>
 
         {/* Stats Grid */}
@@ -372,11 +356,11 @@ export const AdminApprovalRequestsView = ({
             <span className="areq-stat-number">12</span>
           </div>
           <div className="areq-stat-card">
-            <span className="areq-stat-label">ON-SITE FACULTY</span>
+            <span className="areq-stat-label">ON-SITE EMPLOYEES</span>
             <span className="areq-stat-number">08</span>
           </div>
           <div className="areq-stat-card">
-            <span className="areq-stat-label">OFF-SITE FACULTY</span>
+            <span className="areq-stat-label">OFF-SITE EMPLOYEES</span>
             <span className="areq-stat-number">04</span>
           </div>
           <div className="areq-stat-card">
@@ -480,10 +464,10 @@ export const AdminApprovalDetailView = ({
           </div>
         </div>
 
-        {/* Faculty Information */}
+        {/* Employee Information */}
         <div className="adet-section-title">
           <DetailPersonIcon />
-          <span>Faculty Information</span>
+          <span>Employee Information</span>
         </div>
         <div className="adet-info-card">
           <div className="adet-info-row">
@@ -496,7 +480,7 @@ export const AdminApprovalDetailView = ({
               <span className="adet-info-value">{request.department}</span>
             </div>
             <div className="adet-info-col">
-              <span className="adet-info-label">FACULTY ID</span>
+              <span className="adet-info-label">EMPLOYEE ID</span>
               <span className="adet-info-value">{request.facultyId}</span>
             </div>
           </div>
@@ -650,8 +634,8 @@ export const generateRegistryLocatorSlipPdf = async item => {
 
   const status = item.statusLabel || item.status || 'pending';
   const statusTitle = status === 'verified' ? 'VERIFIED REQUEST' : status === 'rejected' ? 'REJECTED REQUEST' : status === 'cancelled' ? 'CANCELLED REQUEST' : 'PENDING REQUEST';
-  const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Dean';
-  const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
+  const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Supervisor';
+  const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Supervisor';
   const signatureAsset = item.digitalSignature?.asset || null;
   const signatureTimestamp = item.digitalSignature?.signedAt ? `${new Date(item.digitalSignature.signedAt).toLocaleString('en-US', {
     timeZone: 'Asia/Manila',
@@ -673,7 +657,7 @@ export const generateRegistryLocatorSlipPdf = async item => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(95, 107, 107);
-  doc.text('Faculty Movement Locator Slip', margin + 42, y + 22);
+  doc.text('Employee Movement Locator Slip', margin + 42, y + 22);
   y += 46;
 
   doc.setFillColor(0, 150, 35);
@@ -689,8 +673,8 @@ export const generateRegistryLocatorSlipPdf = async item => {
   doc.text(`Reference: ${formatPdfValue(item.referenceNumber || item.locatorSlipId)}`, margin + 20, y + 76);
   y += 118;
 
-  addSectionTitle('Faculty Information');
-  addInfoRow('Faculty User', item.facultyName || item.name);
+  addSectionTitle('Employee Information');
+  addInfoRow('Employee', item.facultyName || item.name);
   addInfoRow('Employee ID', item.employeeId);
   addInfoRow('College / Department', item.collegeName);
   addInfoRow('Position', item.position);
@@ -715,7 +699,7 @@ export const generateRegistryLocatorSlipPdf = async item => {
   }
 
   addSectionTitle('Authorization');
-  addInfoRow('Assigned Dean', signatureName);
+  addInfoRow('Assigned Supervisor', signatureName);
   addInfoRow('Role', signatureRole);
   addInfoRow('Signature Status', item.digitalSignature ? 'Digitally signed' : 'Pending approval signature');
   addInfoRow('Signed At', signatureTimestamp);
@@ -795,8 +779,8 @@ export const RegistryDetailsModal = ({
   };
   const departureSchedule = splitDateTime(item.formattedDepartureDatetime, item.departureDatetime);
   const returnSchedule = splitDateTime(item.formattedExpectedReturnDatetime, item.expectedReturnDatetime);
-  const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Dean';
-  const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Dean';
+  const signatureName = item.digitalSignature?.name || item.assignedDean?.name || 'Assigned Supervisor';
+  const signatureRole = item.digitalSignature?.role || item.assignedDean?.role || 'Supervisor';
   const signatureAsset = item.digitalSignature?.asset || null;
   const signatureTimestamp = item.digitalSignature?.signedAt ? `${new Date(item.digitalSignature.signedAt).toLocaleString('sv-SE', {
     timeZone: 'Asia/Manila',
@@ -901,12 +885,12 @@ export const RegistryDetailsModal = ({
           <div className="rmodal-sig-divider" />
           <span className="rmodal-sig-label">AUTHORIZED DIGITAL SIGNATURE</span>
           {signatureAsset && (signatureAsset.mimeType === 'application/pdf' ? <div className="rmodal-sig-asset-card pdf">
-                <span className="rmodal-sig-asset-title">{signatureAsset.originalFilename || 'Dean signature PDF'}</span>
+                <span className="rmodal-sig-asset-title">{signatureAsset.originalFilename || 'Supervisor signature PDF'}</span>
                 <a className="rmodal-sig-asset-link" href={signatureAsset.url} target="_blank" rel="noreferrer">
                   Open PDF Signature
                 </a>
               </div> : <div className="rmodal-sig-asset-card">
-                <img className="rmodal-sig-image" src={signatureAsset.url} alt="Dean digital signature" />
+                <img className="rmodal-sig-image" src={signatureAsset.url} alt="Supervisor digital signature" />
               </div>)}
           <h4 className="rmodal-sig-name">{signatureName}</h4>
           <p className="rmodal-sig-role">{signatureRole}</p>
@@ -1099,7 +1083,7 @@ export const FacultyProfileModal = ({
             <div className="afac-id-left">
               <FacultyIdBadgeIcon />
               <div className="afac-id-texts">
-                <span className="afac-id-label">FACULTY ID</span>
+                <span className="afac-id-label">EMPLOYEE ID</span>
                 <span className="afac-id-number">{profile.idNumber || '202312291'}</span>
               </div>
             </div>
@@ -1197,7 +1181,7 @@ export const AdminFacultyView = ({
         {/* Stats */}
         <div className="afac-stats-grid">
           <div className="afac-stat-card">
-            <span className="afac-stat-label">TOTAL FACULTY</span>
+            <span className="afac-stat-label">TOTAL EMPLOYEES</span>
             <span className="afac-stat-number">24</span>
           </div>
           <div className="afac-stat-card">
@@ -1210,12 +1194,12 @@ export const AdminFacultyView = ({
         <div className="afac-search-bar">
           <div className="afac-search-input-wrapper">
             <FacultySearchIcon />
-            <input type="text" placeholder="Search faculty members..." className="afac-search-input" />
+            <input type="text" placeholder="Search employees..." className="afac-search-input" />
           </div>
         </div>
 
         {/* Title */}
-        <h2 className="afac-title">Faculty Overview</h2>
+        <h2 className="afac-title">Employee Overview</h2>
 
         {/* Cards */}
         <div className="afac-cards">
@@ -1278,7 +1262,7 @@ export const AdminFacultyView = ({
 };
 
 // --------------------------------------------------------
-// CSSU DASHBOARD COMPONENTS
+// ISSU DASHBOARD COMPONENTS
 // --------------------------------------------------------
 export const AdminProfileView = ({
   setView,
@@ -1438,10 +1422,40 @@ export const AdminProfileView = ({
           </div>
         </div>}
     </section>;
+  if (accountRole === 'admin' && isDesktopViewport) {
+    return <>
+      <div className="admin-profile-workspace">
+        <aside className="admin-profile-sidebar">
+          <button type="button" className="admin-profile-sidebar-brand" onClick={() => setView(homeView)}>
+            <img className="admin-profile-sidebar-logo" src="/eduroute-logo-512.png?v=brand-hd-20260518" alt="EduRoute" />
+            <span><strong>EduRoute</strong><small>ADMIN PANEL</small></span>
+          </button>
+          <nav className="admin-profile-sidebar-nav" aria-label="Admin panel navigation">
+            <button type="button" onClick={() => setView(homeView)}><DashboardNavIcon color="#536257" /><span>Dashboard</span></button>
+            <button type="button" onClick={() => setView('admin-users')}><FacultyNavIcon color="#536257" /><span>User Accounts</span></button>
+            <button type="button" className="active"><AdminRoleIcon color="var(--green)" /><span>Profile</span></button>
+          </nav>
+          <button type="button" className="admin-profile-sidebar-logout" onClick={onLogout}><AdminProfileLogoutIcon />Log Out</button>
+        </aside>
+        <div className="admin-profile-content-shell">
+          <header className="admin-header">
+            <span className="admin-logo-text">EduRoute</span>
+            <div className="admin-header-right">
+              <div className="admin-avatar"><img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={fullName} /></div>
+            </div>
+          </header>
+          <main className="admin-profile-main">
+            {desktopProfileContent}
+          </main>
+        </div>
+      </div>
+      <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
+    </>;
+  }
   if (accountRole === 'hrmu' && isDesktopViewport) {
     return <>
         <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
-          <section className="cssu-desktop-page">{desktopProfileContent}</section>
+          <section className="ISSU-desktop-page">{desktopProfileContent}</section>
         </HrmuWorkspaceShell>
         <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
         
@@ -1449,9 +1463,9 @@ export const AdminProfileView = ({
   }
   if (accountRole === 'cssu' && isDesktopViewport) {
     return <>
-        <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
+        <ISSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
           {desktopProfileContent}
-        </CSSUDesktopPage>
+        </ISSUDesktopPage>
         <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
         
       </>;
@@ -1472,7 +1486,7 @@ export const AdminProfileView = ({
                   <div className="admin-bell-dot" />
                 </div>
                 <div className="dash-avatar">
-                  <img src={profileData.image} alt="CSSU Profile" style={{
+                  <img src={profileData.image} alt="ISSU Profile" style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
@@ -1487,7 +1501,7 @@ export const AdminProfileView = ({
               </div>
               <div className="profile-image-container">
                 <div className="profile-image-wrapper">
-                  <img src={profileData.image} alt="CSSU Profile" style={{
+                  <img src={profileData.image} alt="ISSU Profile" style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
@@ -1552,7 +1566,7 @@ export const AdminProfileView = ({
             </button>
 
           </div>
-          <CSSUBottomNav active="" setView={setView} />
+          <ISSUBottomNav active="" setView={setView} />
         </div>
         <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
         
@@ -1585,7 +1599,7 @@ export const AdminProfileView = ({
 
           {profileContent}
         </div>
-        {accountRole === 'cssu' ? <CSSUBottomNav active="" setView={setView} /> : <AdminBottomNav active="" setView={setView} />}
+        {accountRole === 'cssu' ? <ISSUBottomNav active="" setView={setView} /> : <AdminBottomNav active="" setView={setView} />}
       </div>
       <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
       
@@ -1661,7 +1675,7 @@ export const AdminEditProfileView = ({
       isMounted = false;
     };
   }, [accountRole]);
-  const handleCssuSave = async () => {
+  const handleISSUSave = async () => {
     setEditProfileLoading(true);
     try {
       const profilePayload = {
@@ -1731,7 +1745,7 @@ export const AdminEditProfileView = ({
       setEditProfileLoading(false);
     }
   };
-  const handleCssuPhotoChange = event => {
+  const handleISSUPhotoChange = event => {
     const file = event.target.files?.[0];
     if (!file) return;
     const uploadProfileImage = async () => {
@@ -1825,15 +1839,18 @@ export const AdminEditProfileView = ({
         </div>
       </div>
     </section>;
+  if (accountRole === 'admin' && isDesktopViewport) {
+    return desktopEditContent;
+  }
   if ((accountRole === 'hrmu' || accountRole === 'cssu') && isDesktopViewport) {
     if (accountRole === 'hrmu') {
       return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')}>
-          <section className="cssu-desktop-page">{desktopEditContent}</section>
+          <section className="ISSU-desktop-page">{desktopEditContent}</section>
         </HrmuWorkspaceShell>;
     }
-    return <CSSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')} hideHeader>
+    return <ISSUDesktopPage activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')} hideHeader>
         {desktopEditContent}
-      </CSSUDesktopPage>;
+      </ISSUDesktopPage>;
   }
   if (accountRole === 'cssu') {
     return <div className="dashboard-wrapper">
@@ -1845,7 +1862,7 @@ export const AdminEditProfileView = ({
               <span className="dash-logo-text chpw-nav-title">Account Settings</span>
             </div>
             <div className="dash-avatar">
-              <img src={profileImage} alt="CSSU Profile" style={{
+              <img src={profileImage} alt="ISSU Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'
@@ -1870,7 +1887,7 @@ export const AdminEditProfileView = ({
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" style={{
               display: 'none'
-            }} onChange={handleCssuPhotoChange} />
+            }} onChange={handleISSUPhotoChange} />
               
             </div>
           </div>
@@ -1893,13 +1910,13 @@ export const AdminEditProfileView = ({
             </div>
           </div>
 
-          <button type="button" className="editp-save-btn" onClick={handleCssuSave} disabled={editProfileLoading || !fullName.trim() || !departmentId}>
+          <button type="button" className="editp-save-btn" onClick={handleISSUSave} disabled={editProfileLoading || !fullName.trim() || !departmentId}>
             
             {editProfileLoading ? 'SAVING...' : 'SAVE CHANGES'} <CheckCircleIcon />
           </button>
 
         </div>
-        <CSSUBottomNav active="" setView={setView} />
+        <ISSUBottomNav active="" setView={setView} />
       </div>;
   }
   return <div className="admin-dash-wrapper" style={{

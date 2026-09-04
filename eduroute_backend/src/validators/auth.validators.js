@@ -5,7 +5,8 @@ const ROLE_OPTIONS = ['faculty', 'hrmu', 'cssu', 'admin', 'assistant_dean', 'col
 const ALLOWED_EMAIL_DOMAIN = '@gordoncollege.edu.ph';
 
 const isGordonCollegeEmail = (value = '') =>
-    String(value).trim().toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);
+String(value).trim().toLowerCase().endsWith(ALLOWED_EMAIL_DOMAIN);
+const DEFAULT_ADMIN_EMAIL = 'admin.eduroute.system@gmail.com';
 
 const handleValidation = (req, res, next) => {
     const result = validationResult(req);
@@ -26,7 +27,7 @@ const registerValidator = [
     body('account_role')
         .optional()
         .custom((value) => String(value || 'faculty') === 'faculty')
-        .withMessage('Self-registration is limited to faculty accounts. HRMU, CSSU, and Dean accounts must be assigned by an authorized administrator.'),
+        .withMessage('Self-registration is limited to employee accounts. HRMU, ISSU, and Supervisor accounts must be assigned by an authorized administrator.'),
     body('full_name').trim().notEmpty().withMessage('Full name is required.'),
     body('employee_id').trim().notEmpty().withMessage('Employee ID is required.'),
     body('department_id')
@@ -43,7 +44,7 @@ const registerValidator = [
         .withMessage('A valid email address is required.')
         .bail()
         .custom((value) => {
-            if (!isGordonCollegeEmail(value)) {
+            if (String(value).trim().toLowerCase() !== DEFAULT_ADMIN_EMAIL && !isGordonCollegeEmail(value)) {
                 throw new Error('Only @gordoncollege.edu.ph email addresses are accepted.');
             }
 
@@ -69,7 +70,7 @@ const loginValidator = [
         .custom((value) => {
             const identifier = String(value || '').trim();
 
-            if (identifier.includes('@') && !isGordonCollegeEmail(identifier)) {
+            if (identifier.includes('@') && identifier.toLowerCase() !== DEFAULT_ADMIN_EMAIL && !isGordonCollegeEmail(identifier)) {
                 throw new Error('Only @gordoncollege.edu.ph email addresses are accepted.');
             }
 

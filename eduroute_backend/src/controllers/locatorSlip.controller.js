@@ -6,7 +6,7 @@ const getFacultyProfile = async (req, res, next) => {
     try {
         const profile = await locatorSlipService.getFacultyProfile(req.user.sub);
         return res.json(successResponse(
-            'Faculty profile fetched successfully.',
+            'Employee profile fetched successfully.',
             encryptSensitiveResponseData(req, profile)
         ));
     } catch (error) {

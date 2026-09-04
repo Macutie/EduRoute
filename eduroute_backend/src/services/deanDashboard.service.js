@@ -9,7 +9,7 @@ const socketBroadcasterService = require('./socketBroadcaster.service');
 const { uploadFileBuffer, destroyUploadedAsset } = require('./upload.service');
 
 const DEAN_ROLES = ['assistant_dean', 'college_dean', 'admin'];
-const DEAN_SIGNATURE_PERMISSION_TEXT = 'I authorize EduRoute to use my uploaded digital signature for approving locator slips filed by faculty members in my department. I understand that this signature will be attached to approved locator slips and may be viewed by HRMU as proof of dean approval.';
+const DEAN_SIGNATURE_PERMISSION_TEXT = 'I authorize EduRoute to use my uploaded digital signature for approving locator slips filed by employees in my department. I understand that this signature will be attached to approved locator slips and may be viewed by HRMU as proof of supervisor approval.';
 let deanSignatureTablesReadyPromise = null;
 
 const formatDateOnly = (value) => {
@@ -172,7 +172,7 @@ const getDeanContext = async (deanUserId) => {
     );
 
     if (rowCount === 0) {
-        throw new AppError('Only assistant deans and college deans can access this dashboard.', 403);
+        throw new AppError('Only assistant supervisors and college supervisors can access this dashboard.', 403);
     }
 
     return rows[0];
@@ -423,6 +423,7 @@ const serializeDeanProof = (proof) => ({
     locatorSlipCode: buildProofLocatorSlipCode(proof.locatorSlipId),
     focalPersonName: proof.focalPersonName || null,
     focalPersonPosition: proof.focalPersonPosition || null,
+    focalPersonCompany: proof.focalPersonCompany || null,
     focalPersonSignatureUrl: proof.focalPersonSignatureUrl || null,
     arrivalPhotoUrl: proof.arrivalPhotoUrl || null,
     proofComplianceImageUrl: proof.proofComplianceImageUrl || proof.imageUrl || null,
@@ -438,7 +439,7 @@ const serializeDeanProof = (proof) => ({
     flaggedReasons: Array.isArray(proof.flaggedReasons) ? proof.flaggedReasons : [],
     flaggedIncidentTypes: Array.isArray(proof.flaggedIncidentTypes) ? proof.flaggedIncidentTypes : [],
     digitalSignature: proof.deanSignatureUrl ? {
-        name: proof.deanName || 'Assigned Dean',
+        name: proof.deanName || 'Assigned Supervisor',
         role: formatSignatureRoleLabel(proof.deanRole || 'college_dean', proof.collegeName),
         signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
         asset: {
@@ -554,7 +555,7 @@ const addRequestIntelligence = (row) => {
     const riskIndicators = [];
 
     if (overlapCount > 0) riskIndicators.push(`${overlapCount} schedule conflict${overlapCount === 1 ? '' : 's'}`);
-    if (hasActiveTrip) riskIndicators.push('Faculty has an active trip');
+    if (hasActiveTrip) riskIndicators.push('Employee has an active trip');
     if (lateReturns > 0) riskIndicators.push(`${lateReturns} previous late return${lateReturns === 1 ? '' : 's'}`);
     if (priorRejections > 0) riskIndicators.push(`${priorRejections} previously rejected request${priorRejections === 1 ? '' : 's'}`);
 
@@ -1087,8 +1088,8 @@ const normalizeRegistryStatus = (status) => {
 };
 
 const formatSignatureRoleLabel = (role, collegeName) => {
-    if (role === 'assistant_dean') return `Assistant Dean of ${collegeName}`;
-    return `Dean of ${collegeName}`;
+    if (role === 'assistant_dean') return `Assistant Supervisor of ${collegeName}`;
+    return `Supervisor of ${collegeName}`;
 };
 
 const getRegistryPage = async (deanUserId) => {
@@ -1346,7 +1347,7 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
             destination: slip.destination,
             purpose: slip.custom_purpose || slip.purpose_of_travel
         }).catch((notificationError) => {
-            console.error('Failed to notify CSSU about approved locator slip:', notificationError);
+            console.error('Failed to notify ISSU about approved locator slip:', notificationError);
         });
 
         await socketBroadcasterService.broadcastHrmuNotificationNew(hrmuNotificationPayload).catch((broadcastError) => {
@@ -1384,7 +1385,7 @@ const approveLocatorSlipRequest = async (deanUserId, locatorSlipId) => {
         try {
             await client.query('ROLLBACK');
         } catch (rollbackError) {
-            console.error('Dean locator slip approval rollback failed:', rollbackError);
+            console.error('Supervisor locator slip approval rollback failed:', rollbackError);
         }
         throw error;
     } finally {
@@ -1466,7 +1467,7 @@ const rejectLocatorSlipRequest = async (deanUserId, locatorSlipId, remarks = '')
         try {
             await client.query('ROLLBACK');
         } catch (rollbackError) {
-            console.error('Dean locator slip rejection rollback failed:', rollbackError);
+            console.error('Supervisor locator slip rejection rollback failed:', rollbackError);
         }
         throw error;
     } finally {

@@ -7,24 +7,25 @@ const ALLOWED_COLLEGE_NAMES = [
     'College of Allied Health Studies',
     'College of Computer Studies'
 ];
-const CSSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
+const ISSU_FLAG_INCIDENT_NOTE_PREFIX = 'FLAG_INCIDENT:';
 
-let cssuExitLogsTableExistsCache = null;
-let cssuScanAttemptsTableReadyCache = null;
+let ISSUExitLogsTableExistsCache = null;
+let ISSUScanAttemptsTableReadyCache = null;
+let facultyTripsLocatorSlipIdColumnExistsCache = null;
 const locatorSlipColumnExistsCache = {};
 
-const getCssuExitLogsTableExists = async () => {
-    if (cssuExitLogsTableExistsCache !== null) {
-        return cssuExitLogsTableExistsCache;
+const getISSUExitLogsTableExists = async () => {
+    if (ISSUExitLogsTableExistsCache !== null) {
+        return ISSUExitLogsTableExistsCache;
     }
 
     const { rows } = await pool.query(`SELECT to_regclass('public.cssu_exit_logs') AS table_name`);
-    cssuExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
-    return cssuExitLogsTableExistsCache;
+    ISSUExitLogsTableExistsCache = Boolean(rows[0]?.table_name);
+    return ISSUExitLogsTableExistsCache;
 };
 
-const ensureCssuScanAttemptsTable = async () => {
-    if (cssuScanAttemptsTableReadyCache) {
+const ensureISSUScanAttemptsTable = async () => {
+    if (ISSUScanAttemptsTableReadyCache) {
         return true;
     }
 
@@ -48,7 +49,7 @@ const ensureCssuScanAttemptsTable = async () => {
         `CREATE INDEX IF NOT EXISTS idx_cssu_scan_attempts_faculty_created
          ON cssu_scan_attempts(faculty_user_id, created_at DESC)`
     );
-    cssuScanAttemptsTableReadyCache = true;
+    ISSUScanAttemptsTableReadyCache = true;
     return true;
 };
 
@@ -72,11 +73,48 @@ const getLocatorSlipColumnExists = async (columnName) => {
     return locatorSlipColumnExistsCache[columnName];
 };
 
+const getFacultyTripsLocatorSlipIdColumnExists = async () => {
+    if (facultyTripsLocatorSlipIdColumnExistsCache !== null) {
+        return facultyTripsLocatorSlipIdColumnExistsCache;
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'faculty_trips'
+              AND column_name = 'locator_slip_id'
+        ) AS exists`
+    );
+
+    facultyTripsLocatorSlipIdColumnExistsCache = Boolean(rows[0]?.exists);
+    return facultyTripsLocatorSlipIdColumnExistsCache;
+};
+
+const buildLatestTripJoinForLocatorSlip = (hasFacultyTripsLocatorSlipIdColumn) => (
+    hasFacultyTripsLocatorSlipIdColumn
+        ? `LEFT JOIN LATERAL (
+            SELECT
+                t.id AS trip_id,
+                t.status AS trip_status
+            FROM faculty_trips t
+            WHERE t.locator_slip_id = ls.id
+            ORDER BY t.started_at DESC NULLS LAST, t.created_at DESC NULLS LAST
+            LIMIT 1
+         ) trip ON TRUE`
+        : `LEFT JOIN LATERAL (
+            SELECT
+                NULL::uuid AS trip_id,
+                NULL::text AS trip_status
+         ) trip ON TRUE`
+);
+
 const getDashboardSummary = async () => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
-    await ensureCssuScanAttemptsTable();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
+    await ensureISSUScanAttemptsTable();
     
-    const logJoin = hasCssuExitLogsTable
+    const logJoin = hasISSUExitLogsTable
         ? `LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id`
         : `LEFT JOIN LATERAL (
             SELECT
@@ -118,10 +156,17 @@ const getDashboardSummary = async () => {
             )
         )
         SELECT
+            COUNT(DISTINCT id)::int AS total_locator_slips_filed,
             COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified', 'completed') OR exit_status IN ('validated', 'denied'))::int AS total_faculty_exiting,
             COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified', 'completed') AND COALESCE(exit_status, 'approved') <> 'denied')::int AS approved_locator_slips,
             COUNT(DISTINCT id) FILTER (WHERE status = 'rejected' OR exit_status = 'denied')::int AS rejected_locator_slips,
             COUNT(DISTINCT id) FILTER (WHERE status IN ('approved', 'verified') AND COALESCE(exit_status, 'approved') = 'approved')::int AS pending_exit_queue,
+            (SELECT COUNT(DISTINCT trip.id)::int
+             FROM trips trip
+             WHERE trip.status = 'completed'
+               AND COALESCE(trip.returned_at, trip.ended_at) IS NOT NULL
+               AND (COALESCE(trip.returned_at, trip.ended_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+            ) AS total_employees_returned,
             (SELECT COUNT(*)::int FROM today_attempts WHERE outcome IN ('denied_locked', 'repeated_denied')) AS repeat_attempts,
             (SELECT COUNT(*)::int FROM today_attempts WHERE outcome IN ('pending', 'rejected', 'denied_locked', 'repeated_denied', 'cancelled', 'completed')) AS suspicious_attempts,
             COALESCE((SELECT gate FROM gate_counts), 'main_gate') AS busiest_gate,
@@ -131,8 +176,10 @@ const getDashboardSummary = async () => {
 
     return rows[0] || {
         total_faculty_exiting: 0,
+        total_locator_slips_filed: 0,
         approved_locator_slips: 0,
         rejected_locator_slips: 0,
+        total_employees_returned: 0,
     };
 };
 
@@ -144,7 +191,7 @@ const recordScanAttempt = async ({
     outcome = 'lookup',
     notes = null,
 }) => {
-    await ensureCssuScanAttemptsTable();
+    await ensureISSUScanAttemptsTable();
 
     const { rows } = await pool.query(
         `INSERT INTO cssu_scan_attempts (
@@ -164,7 +211,7 @@ const recordScanAttempt = async ({
 };
 
 const getLocatorSlipAttemptStats = async (locatorSlipId) => {
-    await ensureCssuScanAttemptsTable();
+    await ensureISSUScanAttemptsTable();
 
     const { rows } = await pool.query(
         `SELECT
@@ -184,7 +231,7 @@ const getLocatorSlipAttemptStats = async (locatorSlipId) => {
 };
 
 const getDashboardActivityTimeline = async (limit = 12) => {
-    await ensureCssuScanAttemptsTable();
+    await ensureISSUScanAttemptsTable();
 
     const { rows } = await pool.query(
         `WITH decision_rows AS (
@@ -230,6 +277,7 @@ const getDashboardActivityTimeline = async (limit = 12) => {
                 CASE
                     WHEN attempt.outcome IN ('denied_locked', 'repeated_denied') THEN 'Repeated denied scan'
                     WHEN attempt.outcome = 'approved_ready' THEN 'Locator slip checked'
+                    WHEN attempt.outcome = 'entry_validated' THEN 'Allowed entry'
                     WHEN attempt.outcome = 'pending' THEN 'Pending slip scanned'
                     WHEN attempt.outcome = 'rejected' THEN 'Rejected slip scanned'
                     ELSE 'Lookup attempt'
@@ -255,7 +303,7 @@ const getDashboardActivityTimeline = async (limit = 12) => {
 };
 
 const getFacultyExitHistory = async (facultyUserId, limit = 10) => {
-    await ensureCssuScanAttemptsTable();
+    await ensureISSUScanAttemptsTable();
 
     const { rows } = await pool.query(
         `WITH decision_rows AS (
@@ -319,10 +367,10 @@ const buildReportsFilter = ({ startDate, endDate, departmentName } = {}) => {
 };
 
 const getReportsSummary = async ({ startDate, endDate, departmentName } = {}) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
     const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
 
-    const validatedExitJoin = hasCssuExitLogsTable
+    const validatedExitJoin = hasISSUExitLogsTable
         ? `LEFT JOIN cssu_exit_logs log
              ON log.locator_slip_id = fls.locator_slip_id
             AND log.status = 'validated'
@@ -331,11 +379,11 @@ const getReportsSummary = async ({ startDate, endDate, departmentName } = {}) =>
                 SELECT NULL::uuid AS locator_slip_id
             ) log ON TRUE`;
 
-    const flaggedExitJoin = hasCssuExitLogsTable
+    const flaggedExitJoin = hasISSUExitLogsTable
         ? `LEFT JOIN cssu_exit_logs flagged_log
              ON flagged_log.locator_slip_id = fls.locator_slip_id
             AND flagged_log.status = 'denied'
-            AND COALESCE(flagged_log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+            AND COALESCE(flagged_log.notes, '') LIKE '${ISSU_FLAG_INCIDENT_NOTE_PREFIX}%'
             AND COALESCE(flagged_log.validated_at::date, flagged_log.created_at::date) BETWEEN $2::date AND $3::date`
         : `LEFT JOIN LATERAL (
                 SELECT NULL::uuid AS locator_slip_id
@@ -376,10 +424,10 @@ const getReportsSummary = async ({ startDate, endDate, departmentName } = {}) =>
 };
 
 const getReportsActivityByDepartment = async ({ startDate, endDate, departmentName } = {}) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
     const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
 
-    if (!hasCssuExitLogsTable) {
+    if (!hasISSUExitLogsTable) {
         return [];
     }
 
@@ -423,10 +471,10 @@ const getReportsActivityByDepartment = async ({ startDate, endDate, departmentNa
 };
 
 const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {}) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
     const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
 
-    const validatedLogsCte = hasCssuExitLogsTable
+    const validatedLogsCte = hasISSUExitLogsTable
         ? `validated_logs AS (
                 SELECT
                     CONCAT('validated-', log.id)::text AS movement_id,
@@ -518,7 +566,7 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
             JOIN cssu_exit_logs log ON log.locator_slip_id = slip.locator_slip_id
             LEFT JOIN faculty_users validator ON validator.id = log.validated_by
             WHERE log.status = 'denied'
-              AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+              AND COALESCE(log.notes, '') LIKE '${ISSU_FLAG_INCIDENT_NOTE_PREFIX}%'
               AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
         ),
         movement_rows AS (
@@ -549,9 +597,9 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
 };
 
 const getIncidentOverview = async () => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
 
-    const flaggedLogsCte = hasCssuExitLogsTable
+    const flaggedLogsCte = hasISSUExitLogsTable
         ? `flagged_logs AS (
                 SELECT
                     CONCAT('flagged-', log.id)::text AS incident_id,
@@ -564,9 +612,9 @@ const getIncidentOverview = async () => {
                     COALESCE(ls.custom_purpose, ls.purpose_of_travel, 'Locator Slip Clearance') AS purpose,
                     'Flagged Exit Attempt'::text AS title,
                     CASE
-                        WHEN ls.status = 'pending' THEN 'CSSU flagged an exit attempt because the locator slip is still pending dean approval.'
-                        WHEN ls.status = 'rejected' THEN 'CSSU flagged an exit attempt because the locator slip was rejected.'
-                        ELSE 'CSSU flagged an exit attempt for review.'
+                        WHEN ls.status = 'pending' THEN 'ISSU flagged an exit attempt because the locator slip is still pending supervisor approval.'
+                        WHEN ls.status = 'rejected' THEN 'ISSU flagged an exit attempt because the locator slip was rejected.'
+                        ELSE 'ISSU flagged an exit attempt for review.'
                     END AS description,
                     CASE
                         WHEN ls.status = 'pending' THEN 'moderate'
@@ -583,7 +631,7 @@ const getIncidentOverview = async () => {
                 JOIN faculty_users fu ON fu.id = ls.faculty_user_id
                 LEFT JOIN departments d ON d.id = fu.department_id
                 WHERE log.status = 'denied'
-                  AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+                  AND COALESCE(log.notes, '') LIKE '${ISSU_FLAG_INCIDENT_NOTE_PREFIX}%'
                   AND (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
             ),`
         : `flagged_logs AS (
@@ -605,7 +653,7 @@ const getIncidentOverview = async () => {
                 WHERE FALSE
             ),`;
 
-    const validatedTodaySql = hasCssuExitLogsTable
+    const validatedTodaySql = hasISSUExitLogsTable
         ? `(SELECT COUNT(*)::int FROM cssu_exit_logs WHERE status = 'validated' AND (COALESCE(validated_at, created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date)`
         : `0`;
 
@@ -640,9 +688,9 @@ const getIncidentOverview = async () => {
 };
 
 const getNotificationsOverview = async (limit = 8) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
 
-    if (!hasCssuExitLogsTable) {
+    if (!hasISSUExitLogsTable) {
         return {
             notifications: [],
             validated_clearances: 0,
@@ -701,7 +749,7 @@ const getNotificationsOverview = async (limit = 8) => {
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
             LEFT JOIN departments d ON d.id = fu.department_id
             WHERE log.status = 'denied'
-              AND COALESCE(log.notes, '') LIKE '${CSSU_FLAG_INCIDENT_NOTE_PREFIX}%'
+              AND COALESCE(log.notes, '') LIKE '${ISSU_FLAG_INCIDENT_NOTE_PREFIX}%'
         ),
         summary AS (
             SELECT
@@ -755,9 +803,9 @@ const getNotificationsOverview = async (limit = 8) => {
 };
 
 const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
 
-    if (hasCssuExitLogsTable) {
+    if (hasISSUExitLogsTable) {
         const { rows } = await pool.query(
             `SELECT
                 ls.id AS locator_slip_id,
@@ -771,7 +819,15 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
                 ls.purpose_of_travel,
                 COALESCE(log.gate, 'main_gate') AS gate,
                 COALESCE(log.status, 'approved') AS monitoring_status,
-                COALESCE(log.validated_at, ls.approved_at, ls.updated_at, ls.created_at) AS status_timestamp
+                COALESCE(log.validated_at, ls.approved_at, ls.updated_at, ls.created_at) AS status_timestamp,
+                (
+                    SELECT token.entry_code
+                    FROM trips entry_trip
+                    JOIN trip_return_entry_tokens token ON token.trip_id = entry_trip.id
+                    WHERE entry_trip.locator_slip_id = ls.id
+                    ORDER BY token.created_at DESC
+                    LIMIT 1
+                ) AS return_entry_code
             FROM locator_slips ls
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
             LEFT JOIN departments d ON d.id = fu.department_id
@@ -786,6 +842,13 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
                   (COALESCE(ls.departure_datetime, ls.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
                   OR
                   (COALESCE(log.validated_at, log.created_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  OR EXISTS (
+                      SELECT 1
+                      FROM trips return_trip
+                      WHERE return_trip.locator_slip_id = ls.id
+                        AND COALESCE(return_trip.returned_at, return_trip.ended_at, return_trip.updated_at) IS NOT NULL
+                        AND (COALESCE(return_trip.returned_at, return_trip.ended_at, return_trip.updated_at) AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date = (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+                  )
               )
               AND COALESCE(log.gate, 'main_gate') = $1
             ORDER BY
@@ -836,16 +899,18 @@ const getLiveExitMonitoring = async (gate = 'main_gate', limit = 20) => {
 };
 
 const findLocatorSlipByCode = async (locatorSlipCode) => {
-    const hasCssuExitLogsTable = await getCssuExitLogsTableExists();
+    const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
+    const hasFacultyTripsLocatorSlipIdColumn = await getFacultyTripsLocatorSlipIdColumnExists();
 
-    const logJoin = hasCssuExitLogsTable
+    const logJoin = hasISSUExitLogsTable
         ? `LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id`
         : `LEFT JOIN LATERAL (
             SELECT
                 NULL::text AS gate,
                 NULL::text AS status,
                 NULL::text AS validation_method,
-                NULL::timestamp AS validated_at
+                NULL::timestamp AS validated_at,
+                NULL::text AS notes
         ) log ON TRUE`;
 
     const { rows } = await pool.query(
@@ -870,11 +935,14 @@ const findLocatorSlipByCode = async (locatorSlipCode) => {
             log.status AS exit_status,
             log.validation_method,
             log.validated_at,
-            log.notes AS exit_notes
+            log.notes AS exit_notes,
+            trip.trip_id,
+            trip.trip_status
          FROM locator_slips ls
          JOIN faculty_users fu ON fu.id = ls.faculty_user_id
          LEFT JOIN departments d ON d.id = fu.department_id
          ${logJoin}
+         ${buildLatestTripJoinForLocatorSlip(hasFacultyTripsLocatorSlipIdColumn)}
          WHERE ls.locator_slip_code = $1
          LIMIT 1`,
         [locatorSlipCode]
@@ -884,15 +952,20 @@ const findLocatorSlipByCode = async (locatorSlipCode) => {
 };
 
 const findLocatorSlipForExitStatus = async (locatorSlipId) => {
+    const hasFacultyTripsLocatorSlipIdColumn = await getFacultyTripsLocatorSlipIdColumnExists();
+
     const { rows } = await pool.query(
         `SELECT
             ls.id,
             ls.faculty_user_id,
             ls.status,
             log.status AS exit_status,
-            log.notes AS exit_notes
+            log.notes AS exit_notes,
+            trip.trip_id,
+            trip.trip_status
          FROM locator_slips ls
          LEFT JOIN cssu_exit_logs log ON log.locator_slip_id = ls.id
+         ${buildLatestTripJoinForLocatorSlip(hasFacultyTripsLocatorSlipIdColumn)}
          WHERE ls.id = $1
          LIMIT 1`,
         [locatorSlipId]
@@ -950,12 +1023,12 @@ const upsertExitLogStatus = async ({
     return rows[0];
 };
 
-const updateLocatorSlipCssuValidation = async ({
+const updateLocatorSlipISSUValidation = async ({
     locatorSlipId,
-    cssuValidationStatus,
-    cssuValidatedAt,
-    cssuValidatedBy,
-    cssuValidationNotes,
+    ISSUValidationStatus,
+    ISSUValidatedAt,
+    ISSUValidatedBy,
+    ISSUValidationNotes,
     locatorSlipStatus,
 }) => {
     const hasValidationStatusColumn = await getLocatorSlipColumnExists('cssu_validation_status');
@@ -968,25 +1041,25 @@ const updateLocatorSlipCssuValidation = async ({
 
     if (hasValidationStatusColumn) {
         assignments.push(`cssu_validation_status = $${index}`);
-        params.push(cssuValidationStatus);
+        params.push(ISSUValidationStatus);
         index += 1;
     }
 
     if (hasValidatedAtColumn) {
         assignments.push(`cssu_validated_at = $${index}`);
-        params.push(cssuValidatedAt);
+        params.push(ISSUValidatedAt);
         index += 1;
     }
 
     if (hasValidatedByColumn) {
         assignments.push(`cssu_validated_by = $${index}`);
-        params.push(cssuValidatedBy);
+        params.push(ISSUValidatedBy);
         index += 1;
     }
 
     if (hasValidationNotesColumn) {
         assignments.push(`cssu_validation_notes = $${index}`);
-        params.push(cssuValidationNotes);
+        params.push(ISSUValidationNotes);
         index += 1;
     }
 
@@ -1013,8 +1086,12 @@ const updateLocatorSlipCssuValidation = async ({
     return rows[0] || null;
 };
 
+const CSSU_FLAG_INCIDENT_NOTE_PREFIX = ISSU_FLAG_INCIDENT_NOTE_PREFIX;
+const updateLocatorSlipCssuValidation = updateLocatorSlipISSUValidation;
+
 module.exports = {
     CSSU_FLAG_INCIDENT_NOTE_PREFIX,
+    ISSU_FLAG_INCIDENT_NOTE_PREFIX,
     getDashboardSummary,
     getIncidentOverview,
     getLiveExitMonitoring,
@@ -1030,4 +1107,5 @@ module.exports = {
     findLocatorSlipForExitStatus,
     upsertExitLogStatus,
     updateLocatorSlipCssuValidation,
+    updateLocatorSlipISSUValidation,
 };

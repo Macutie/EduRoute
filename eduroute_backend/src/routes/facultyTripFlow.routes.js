@@ -25,6 +25,7 @@ router.post(
     facultyTripFlowController.verifyArrival
 );
 router.post('/trips/:tripId/start-return', facultyTripFlowController.startReturn);
+router.post('/trips/:tripId/return-entry/request', facultyTripFlowController.requestReturnEntry);
 router.post('/trips/:tripId/returned', decryptSensitivePayload, facultyTripFlowController.markReturned);
 router.get('/trips/:tripId/summary', facultyTripFlowController.getTripSummary);
 

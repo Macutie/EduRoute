@@ -72,7 +72,7 @@ const me = async (req, res, next) => {
     try {
         const user = await authService.getCurrentFaculty(req.user.sub);
         return res.status(200).json(successResponse(
-            'Faculty profile fetched successfully.',
+            'Employee profile fetched successfully.',
             encryptSensitiveResponseData(req, user)
         ));
     } catch (error) {

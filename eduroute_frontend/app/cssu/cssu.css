@@ -1,10 +1,10 @@
-﻿/*
-  EduRoute CSSU desktop and mobile command center styles.
+/*
+  EduRoute ISSU desktop and mobile command center styles.
   Split from the former monolithic stylesheet without changing declarations.
 */
 
 /* ========================================================= */
-/* CSSU SECURITY COMMAND DESKTOP                             */
+/* ISSU SECURITY COMMAND DESKTOP                             */
 /* ========================================================= */
 
 .cssu-workspace {
@@ -256,6 +256,12 @@
   max-width: 10.5ch;
 }
 
+.cssu-desktop-page-header h1.cssu-one-line-title {
+  font-size: clamp(30px, 2.3vw, 40px);
+  max-width: none;
+  white-space: nowrap;
+}
+
 .cssu-desktop-page-header p {
   margin: 10px 0 0;
   color: #4B5563;
@@ -275,7 +281,8 @@
   color: var(--green);
   font-size: clamp(34px, 2.7vw, 46px);
   line-height: 1;
-  max-width: 10.5ch;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .cssu-dashboard-hero-copy p {
@@ -311,7 +318,7 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #C81E1E;
+  background: #0A8F19;
 }
 
 .cssu-summary-btn,
@@ -461,9 +468,29 @@
 
 .cssu-desktop-stats {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(190px, 0.75fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
   align-items: stretch;
+}
+
+.cssu-desktop-stats > .cssu-desktop-hero-card,
+.cssu-desktop-stats > .cssu-desktop-mini-card {
+  grid-column: span 2;
+}
+
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card .cssu-desktop-mini-label,
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card strong,
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card small {
+  color: var(--green);
+}
+
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card .cssu-desktop-mini-label {
+  color: #4B5563;
+}
+
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card strong,
+.cssu-desktop-stats > .cssu-desktop-mini-card.repeat-card small {
+  color: #C81E1E;
 }
 
 .cssu-desktop-hero-card,
@@ -479,7 +506,9 @@
 .cssu-desktop-hero-card {
   position: relative;
   overflow: hidden;
+  height: 224px;
   min-height: 224px;
+  box-sizing: border-box;
   padding: 28px 32px;
   background: linear-gradient(145deg, #049B17 0%, #067E16 100%);
   color: white;
@@ -520,7 +549,9 @@
 }
 
 .cssu-desktop-mini-card {
+  height: 224px;
   min-height: 224px;
+  box-sizing: border-box;
   padding: 28px;
   border: 1px solid #E8F0E6;
   display: flex;
@@ -632,6 +663,30 @@
 .cssu-desktop-toggle-group button.active {
   background: var(--green);
   color: white;
+}
+
+.cssu-gate-assignment-toggle {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.cssu-assigned-gate-pill {
+  align-items: center;
+  background: #eef9ef;
+  border: 1px solid rgba(0, 150, 36, 0.16);
+  border-radius: 999px;
+  color: var(--green);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 8px 12px;
+  text-transform: uppercase;
+}
+
+.cssu-desktop-toggle-group button:disabled {
+  cursor: default;
+  opacity: 1;
 }
 
 .cssu-desktop-log-table {
@@ -1334,6 +1389,51 @@
   background: #F1F4F1;
 }
 
+.cssu-return-timeline-card {
+  margin-top: 18px;
+  padding: 22px 24px;
+  border: 1px solid #DCEBDD;
+  border-radius: 22px;
+  background: linear-gradient(180deg, #F7FCF6 0%, #FFFFFF 100%);
+}
+
+.cssu-return-timeline-note {
+  margin: 8px 0 16px;
+  color: #536154;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.cssu-return-timeline-list {
+  display: grid;
+  gap: 10px;
+}
+
+.cssu-return-timeline-list div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #EEF8EF;
+}
+
+.cssu-return-timeline-list span {
+  color: #263226;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.cssu-return-timeline-list strong {
+  color: #263226;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: right;
+}
+
 .cssu-checkpoint-slip-done.approved {
   opacity: 1;
 }
@@ -1398,7 +1498,7 @@
 }
 
 .cssu-checkpoint-log-row .time {
-  color: #4B5563;
+  color: #263226;
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
@@ -2913,7 +3013,7 @@
   }
 
   .cssu-desktop-stats {
-    grid-template-columns: minmax(0, 1.35fr) minmax(220px, 0.9fr) minmax(240px, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
   }
 
@@ -2947,8 +3047,13 @@
     grid-template-columns: minmax(0, 1fr) minmax(240px, 0.9fr);
   }
 
+  .cssu-desktop-stats > .cssu-desktop-hero-card,
+  .cssu-desktop-stats > .cssu-desktop-mini-card {
+    grid-column: span 1;
+  }
+
   .cssu-desktop-mini-card.flagged {
-    grid-column: 1 / -1;
+    grid-column: span 1;
     min-height: 188px;
   }
 
@@ -3077,7 +3182,7 @@
 }
 
 /* ========================================================= */
-/* CSSU SECURITY COMMAND MOBILE                              */
+/* ISSU SECURITY COMMAND MOBILE                              */
 /* ========================================================= */
 
 .cssu-wrapper {

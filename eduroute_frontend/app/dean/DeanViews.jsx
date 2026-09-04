@@ -35,7 +35,7 @@ export const DeanBottomNav = ({
     </div>
     <div className={`admin-nav-item ${active === 'faculty' ? 'admin-nav-active' : ''}`} onClick={() => setView && setView('dean-faculty')}>
       <FacultyNavIcon color={active === 'faculty' ? 'var(--green)' : '#9CA3AF'} />
-      <span>Faculty</span>
+      <span>Employees</span>
     </div>
   </div>;
 
@@ -102,7 +102,7 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
         <div className="dean-proof-sheet-header">
           <div>
             <span className="dean-proof-eyebrow">Proof of Compliance</span>
-            <h2>{proof.facultyName || 'Faculty member'}</h2>
+            <h2>{proof.facultyName || 'Employee'}</h2>
             <p>{proof.collegeName || 'Assigned college'}</p>
           </div>
           <button type="button" onClick={onClose} aria-label="Close proof details">x</button>
@@ -144,14 +144,14 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
             <div className="dean-proof-media-card">
               <span>Authorized Digital Signature</span>
               {deanSignature.asset?.mimeType === 'application/pdf' ? (
-                <p><a href={deanSignature.asset.url} target="_blank" rel="noreferrer">Open dean signature PDF</a></p>
+                <p><a href={deanSignature.asset.url} target="_blank" rel="noreferrer">Open supervisor signature PDF</a></p>
               ) : deanSignature.asset?.url ? (
-                <img src={deanSignature.asset.url} alt={`${deanSignature.name || 'Dean'} digital signature`} />
+                <img src={deanSignature.asset.url} alt={`${deanSignature.name || 'Supervisor'} digital signature`} />
               ) : (
-                <p>No dean signature image available.</p>
+                <p>No supervisor signature image available.</p>
               )}
-              <strong className="dean-proof-signature-name">{deanSignature.name || 'Assigned Dean'}</strong>
-              <p>{deanSignature.role || 'Dean'} • {formatDeanProofDateTime(deanSignature.signedAt)}</p>
+              <strong className="dean-proof-signature-name">{deanSignature.name || 'Assigned Supervisor'}</strong>
+              <p>{deanSignature.role || 'Supervisor'} • {formatDeanProofDateTime(deanSignature.signedAt)}</p>
             </div>
           )}
           <div className="dean-proof-media-card">
@@ -181,6 +181,7 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
               <span>Focal Person & Position</span>
               <strong>{proof.focalPersonName || 'Not provided'}</strong>
               <p>{proof.focalPersonPosition || 'Position not provided'}</p>
+              <p>{proof.focalPersonCompany || 'Company not provided'}</p>
             </div>
           </div>
         </div>
@@ -237,7 +238,7 @@ export const DeanDashboardView = ({
     value: summary.rejectedRequests,
     icon: <XCircleIcon color="#EF4444" />
   }, {
-    label: 'TOTAL FACULTY',
+    label: 'TOTAL EMPLOYEES',
     value: summary.totalFaculty,
     icon: <UsersAdminIcon color="var(--green)" />
   }];
@@ -251,13 +252,13 @@ export const DeanDashboardView = ({
               {notifications.some(n => !n.is_read) && <div className="admin-bell-dot" />}
             </div>
             <div className="admin-avatar" onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
 
         <div className="admin-hero dean-hero">
-          <h1>Dean Dashboard</h1>
+          <h1>Supervisor Dashboard</h1>
           <p>{summary.college?.name || profileData?.department || 'College'} locator slip oversight</p>
           {summaryError && <p className="dean-error-text">{summaryError}</p>}
         </div>
@@ -429,9 +430,9 @@ export const DeanNotificationsView = ({
       || notificationTitle.includes('proof verified')
       || notificationTitle.includes('proof rejected')
       || notificationTitle.includes('proof of compliance')
-      || notificationTitle.includes('faculty returned')
-      || notificationTitle.includes('faculty arrived')
-      || notificationTitle.includes('faculty started trip')
+      || notificationTitle.includes('employee returned')
+      || notificationTitle.includes('employee arrived')
+      || notificationTitle.includes('employee started trip')
       || notificationMessage.includes('proof of compliance')
       || notificationMessage.includes('returned on time')
       || notificationMessage.includes('marked the trip as arrived')
@@ -558,7 +559,7 @@ export const DeanNotificationsView = ({
             <div className="admin-avatar" style={{
             border: '3px solid var(--yellow)'
           }} onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
@@ -566,7 +567,7 @@ export const DeanNotificationsView = ({
         <div className="dean-notification-list">
           {loading && <p className="dean-empty-text">Loading notifications...</p>}
           {error && <p className="dean-error-text">{error}</p>}
-          {!loading && !error && notifications.length === 0 && <p className="dean-empty-text">No dean notifications yet.</p>}
+          {!loading && !error && notifications.length === 0 && <p className="dean-empty-text">No supervisor notifications yet.</p>}
 
           {!loading && orderedGroups.map(([groupLabel, items]) => <div key={groupLabel} className="dean-notification-group">
               {groupLabel !== 'Today' && <div className="dean-notification-divider">
@@ -694,11 +695,11 @@ export const DeanRequestsView = ({
     value: safeRequestSummary.pending,
     urgent: false
   }, {
-    label: 'ON-SITE FACULTY',
+    label: 'ON-SITE EMPLOYEES',
     value: safeRequestSummary.onsiteFaculty,
     urgent: false
   }, {
-    label: 'OFF-SITE FACULTY',
+    label: 'OFF-SITE EMPLOYEES',
     value: safeRequestSummary.offsiteFaculty,
     urgent: false
   }, {
@@ -723,14 +724,14 @@ export const DeanRequestsView = ({
             <div className="admin-avatar" style={{
             border: '3px solid var(--yellow)'
           }} onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
 
         <div className="dean-requests-hero">
           <h1>Approval Requests</h1>
-          <p>Review and manage pending faculty locator slips.</p>
+          <p>Review and manage pending employee locator slips.</p>
         </div>
 
         <div className="dean-requests-stats">
@@ -741,7 +742,7 @@ export const DeanRequestsView = ({
         </div>
 
         <div className="dean-request-tools">
-          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search faculty, ID, purpose, or destination" />
+          <input value={search} onChange={event => setSearch(event.target.value)} placeholder="Search employee, ID, purpose, or destination" />
           <select value={priorityFilter} onChange={event => setPriorityFilter(event.target.value)}>
             <option value="all">All priorities</option>
             <option value="urgent">Urgent only</option>
@@ -918,7 +919,7 @@ export const DeanRequestDetailView = ({
               <div className="admin-bell-dot" />
             </div>
             <div className="admin-avatar" onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
@@ -939,7 +940,7 @@ export const DeanRequestDetailView = ({
 
         <div className="adet-section-title">
           <DetailPersonIcon />
-          <span>Faculty Information</span>
+          <span>Employee Information</span>
         </div>
         <div className="adet-info-card">
           <div className="adet-info-row">
@@ -952,7 +953,7 @@ export const DeanRequestDetailView = ({
               <span className="adet-info-value">{request.collegeName}</span>
             </div>
             <div className="adet-info-col">
-              <span className="adet-info-label">FACULTY ID</span>
+              <span className="adet-info-label">EMPLOYEE ID</span>
               <span className="adet-info-value">{request.employeeId || 'Not assigned'}</span>
             </div>
           </div>
@@ -965,14 +966,14 @@ export const DeanRequestDetailView = ({
             <p>{requestInsights.riskIndicators?.length ? requestInsights.riskIndicators.join(' • ') : 'No schedule conflicts or recurring incidents detected.'}</p>
           </section>
           <section className="dean-intelligence-card">
-            <span>FACULTY SNAPSHOT</span>
+            <span>EMPLOYEE SNAPSHOT</span>
             <strong>{requestInsights.recentRequests?.length || 0} recent requests</strong>
             <p>{requestInsights.lateReturns || 0} late returns • {requestInsights.priorRejections || 0} rejected</p>
           </section>
         </div>
 
         {requestInsights.recentRequests?.length > 0 && <div className="dean-history-card">
-            <h3>Recent Faculty Activity</h3>
+            <h3>Recent Employee Activity</h3>
             {requestInsights.recentRequests.map(item => <div className="dean-history-row" key={item.locatorSlipId}>
                 <div><strong>{item.destination}</strong><span>{item.formattedCreatedAt}</span></div>
                 <span className={`dean-history-status ${item.status}`}>{item.status}</span>
@@ -1045,9 +1046,9 @@ export const DeanRequestDetailView = ({
             <div className="adet-modal-card" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
               <span className="adet-modal-kicker">REJECT LOCATOR SLIP</span>
               <h3>Reason for rejection</h3>
-              <p>Enter the reason so the faculty member can see why this locator slip was rejected.</p>
+              <p>Enter the reason so the employee can see why this locator slip was rejected.</p>
               <div className="adet-modal-field">
-                <label htmlFor="dean-rejection-remarks">Dean remarks</label>
+                <label htmlFor="dean-rejection-remarks">Supervisor remarks</label>
                 <div className="dean-remarks-templates">
                   {['Schedule conflict', 'Incomplete trip details', 'Official purpose needs clarification'].map(template => <button type="button" key={template} onClick={() => setRejectionRemarks(template)} disabled={rejecting}>{template}</button>)}
                 </div>
@@ -1094,7 +1095,7 @@ export const DeanRegistryView = ({
         setRegistryData(data);
       } catch (requestError) {
         if (!active) return;
-        setError(requestError.message || 'Failed to load dean registry.');
+        setError(requestError.message || 'Failed to load supervisor registry.');
       } finally {
         if (active) setLoading(false);
       }
@@ -1129,7 +1130,7 @@ export const DeanRegistryView = ({
   });
   const exportPrivacySafeRegistry = () => {
     const escapeCsv = value => `"${String(value ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Reference', 'Faculty', 'Faculty ID', 'Destination', 'Purpose', 'Status', 'Date submitted'], ...filteredItems.map(item => [item.referenceNumber || buildLocatorSlipReference(item), item.facultyName, item.employeeId, item.destination, item.purpose, item.statusLabel || item.status, item.dateValue || item.dateSubmitted])];
+    const rows = [['Reference', 'Employee', 'Employee ID', 'Destination', 'Purpose', 'Status', 'Date submitted'], ...filteredItems.map(item => [item.referenceNumber || buildLocatorSlipReference(item), item.facultyName, item.employeeId, item.destination, item.purpose, item.statusLabel || item.status, item.dateValue || item.dateSubmitted])];
     const csv = rows.map(row => row.map(escapeCsv).join(',')).join('\n');
     triggerBlobDownload(new Blob([csv], {
       type: 'text/csv;charset=utf-8'
@@ -1162,7 +1163,7 @@ export const DeanRegistryView = ({
               <div className="admin-bell-dot" />
             </div>
             <div className="admin-avatar" onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
@@ -1343,15 +1344,15 @@ export const DeanSignatureView = ({
               <div className="admin-bell-dot" />
             </div>
             <div className="admin-avatar" onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
 
         <div className="dean-signature-hero">
-          <span className="dean-signature-badge">DEAN CONSENT</span>
+          <span className="dean-signature-badge">SUPERVISOR CONSENT</span>
           <h1>Digital Signature</h1>
-          <p>Upload the official dean signature that EduRoute will attach to approved locator slips for your faculty members.</p>
+          <p>Upload the official supervisor signature that EduRoute will attach to approved locator slips for your employees.</p>
         </div>
 
         {loading && <p className="dean-empty-text dean-signature-message">Loading your signature settings...</p>}
@@ -1364,11 +1365,11 @@ export const DeanSignatureView = ({
                   <div className="permission-modal-icon">
                     <SignatureNavIcon color="var(--green)" />
                   </div>
-                  <span className="permission-modal-kicker">DEAN CONSENT</span>
+                  <span className="permission-modal-kicker">SUPERVISOR CONSENT</span>
                   <h3 className="permission-modal-title">Authorize Your Digital Signature</h3>
                   <p className="permission-modal-copy">{settings?.permissionText}</p>
                   <div className="permission-modal-note">
-                    HRMU will be able to see this attached signature as proof that the locator slip was accepted by the respective dean.
+                    HRMU will be able to see this attached signature as proof that the locator slip was accepted by the respective supervisor.
                   </div>
                   <button type="button" className="permission-primary-btn" onClick={handleApprovePermission}>
                     Approve and Continue
@@ -1417,7 +1418,7 @@ export const DeanSignatureView = ({
               </div>
 
               {hasCurrentImage && <div className="dean-signature-preview-card">
-                  <img src={selectedImagePreview || settings?.signatureUrl} alt="Dean signature preview" className="dean-signature-preview-image" />
+                  <img src={selectedImagePreview || settings?.signatureUrl} alt="Supervisor signature preview" className="dean-signature-preview-image" />
                 </div>}
 
               {hasCurrentPdf && <div className="dean-signature-pdf-card">
@@ -1475,13 +1476,13 @@ export const DeanRequestsModal = ({
         <div className="dean-modal-header">
           <div>
             <h2>Locator Slip Requests</h2>
-            <p>Only faculty from your assigned college are shown.</p>
+            <p>Only employees from your assigned college are shown.</p>
           </div>
           <button type="button" onClick={onClose}>Close</button>
         </div>
 
         <div className="dean-modal-tools">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search faculty, purpose, or destination" />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search employee, purpose, or destination" />
           
           <select value={status} onChange={e => setStatus(e.target.value)}>
             <option value="all">All</option>
@@ -1578,14 +1579,14 @@ export const DeanFacultyView = ({
             <div className="admin-avatar" style={{
             border: '3px solid var(--yellow)'
           }} onClick={() => setView('dean-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor" />
             </div>
           </div>
         </div>
 
         <div className="afac-stats-grid dean-faculty-stats">
           <div className="afac-stat-card">
-            <span className="afac-stat-label">TOTAL FACULTY</span>
+            <span className="afac-stat-label">TOTAL EMPLOYEES</span>
             <span className="afac-stat-number">{loading ? '...' : String(facultySummary.totalFaculty || 0).padStart(2, '0')}</span>
           </div>
           <div className="afac-stat-card">
@@ -1597,15 +1598,15 @@ export const DeanFacultyView = ({
         <div className="afac-search-bar">
           <div className="afac-search-input-wrapper">
             <FacultySearchIcon />
-            <input type="text" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search faculty members..." className="afac-search-input" />
+            <input type="text" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search employees..." className="afac-search-input" />
             
           </div>
         </div>
 
-        <h2 className="afac-title">Faculty Overview</h2>
+        <h2 className="afac-title">Employee Overview</h2>
         {error && <p className="dean-error-text dean-faculty-message">{error}</p>}
-        {loading && <p className="dean-empty-text dean-faculty-message">Loading registered faculty...</p>}
-        {!loading && facultyRows.length === 0 && <p className="dean-empty-text dean-faculty-message">No registered faculty found for your college.</p>}
+        {loading && <p className="dean-empty-text dean-faculty-message">Loading registered employees...</p>}
+        {!loading && facultyRows.length === 0 && <p className="dean-empty-text dean-faculty-message">No registered employees found for your college.</p>}
 
         <div className="afac-cards dean-faculty-cards">
           {!loading && facultyRows.map(member => <div key={member.id} className={`afac-card border-${member.borderColor}`}>
@@ -1670,7 +1671,7 @@ export const DeanFacultyView = ({
 /* ======================================================== */
 /* ADMIN PROFILE VIEW                                       */
 /* ======================================================== */
-export const getDeanRoleLabel = accountRole => accountRole === 'assistant_dean' ? 'Assistant Dean' : 'Dean';
+export const getDeanRoleLabel = accountRole => accountRole === 'assistant_dean' ? 'Assistant Supervisor' : 'Supervisor';
 export const DEAN_DEPARTMENT_ABBREVIATIONS = {
   'College of Computer Studies': 'CCS',
   'College of Hospitality and Tourism Management': 'CHTM',
@@ -1681,7 +1682,7 @@ export const DEAN_DEPARTMENT_ABBREVIATIONS = {
 export const getDeanBadgeLabel = (department = '', accountRole = '') => {
   const normalizedDepartment = String(department || '').trim();
   const acronym = DEAN_DEPARTMENT_ABBREVIATIONS[normalizedDepartment] || normalizedDepartment.replace(/^College of\s+/i, '').split(/\s+|,/).filter(Boolean).map(word => word[0]?.toUpperCase()).join('').slice(0, 4) || 'DEAN';
-  return `${acronym} ${accountRole === 'assistant_dean' ? 'ASST' : 'Dean'}`;
+  return `${acronym} ${accountRole === 'assistant_dean' ? 'ASST' : 'Supervisor'}`;
 };
 export const DeanProfileView = ({
   setView,
@@ -1692,7 +1693,7 @@ export const DeanProfileView = ({
   const roleLabel = getDeanRoleLabel(profileData?.accountRole);
   const department = profileData?.department || 'Assigned College';
   const badgeLabel = getDeanBadgeLabel(department, profileData?.accountRole);
-  const fullName = profileData?.fullName || 'Dean Account';
+  const fullName = profileData?.fullName || 'Supervisor Account';
   if (!isDesktopViewport) {
     return <div className="dashboard-wrapper">
         <div className="content fade-in dash-content profile-content">
@@ -1708,7 +1709,7 @@ export const DeanProfileView = ({
                 <div className="admin-bell-dot" />
               </div>
               <div className="dash-avatar">
-                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean profile" style={{
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor profile" style={{
                 width: '100%',
                 height: '100%',
                 objectFit: 'cover'
@@ -1810,7 +1811,7 @@ export const DeanProfileView = ({
               <div className="admin-bell-dot" />
             </div>
             <div className="admin-avatar dean-profile-top-avatar">
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Dean profile" />
+              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="Supervisor profile" />
             </div>
           </div>
         </div>
@@ -1820,7 +1821,7 @@ export const DeanProfileView = ({
             <div className="aprof-hero-bg-accent" />
             <div className="aprof-hero-content">
               <div className="aprof-avatar-wrapper dean-profile-avatar-wrapper">
-                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={profileData?.fullName || 'Dean'} />
+                <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt={profileData?.fullName || 'Supervisor'} />
                 <div className="aprof-avatar-badge dean-profile-badge">
                   {getDeanBadgeLabel(department, profileData?.accountRole)}
                 </div>
@@ -1883,5 +1884,5 @@ export const DeanProfileView = ({
 };
 
 // --------------------------------------------------------
-// CSSU DASHBOARD COMPONENTS
+// ISSU DASHBOARD COMPONENTS
 // --------------------------------------------------------

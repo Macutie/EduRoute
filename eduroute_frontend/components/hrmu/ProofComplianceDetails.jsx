@@ -22,11 +22,11 @@ const formatProofStatus = (status) => {
   return 'SUBMITTED';
 };
 
-const formatRoleLabel = (value, fallback = 'Dean') => {
+const formatRoleLabel = (value, fallback = 'Supervisor') => {
   const normalized = String(value || '').trim();
   if (!normalized) return fallback;
-  if (normalized === 'college_dean') return 'College Dean';
-  if (normalized === 'assistant_dean') return 'Assistant Dean';
+  if (normalized === 'college_dean') return 'College Supervisor';
+  if (normalized === 'assistant_dean') return 'Assistant Supervisor';
   return normalized
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
@@ -40,14 +40,14 @@ const buildStatusCopy = (proof) => {
 
   const normalized = String(proof?.verificationStatus || 'submitted').toLowerCase();
   if (normalized === 'verified') {
-    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU marked this as a successful trip.`;
+    return `${proof?.facultyName || 'The employee'} submitted a proof of compliance for this completed trip. HRMU marked this as a successful trip.`;
   }
 
   if (normalized === 'rejected') {
-    return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. HRMU flagged this trip as an unverified location/signature.`;
+    return `${proof?.facultyName || 'The employee'} submitted a proof of compliance for this completed trip. HRMU flagged this trip as an unverified location/signature.`;
   }
 
-  return `${proof?.facultyName || 'The faculty member'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location/signature.`;
+  return `${proof?.facultyName || 'The employee'} submitted a proof of compliance for this completed trip. Review the signature and focal person details before deciding whether to keep the trip successful or flag it as an unverified location/signature.`;
 };
 
 const getImageDataUrl = async (url) => {
@@ -106,6 +106,7 @@ const ProofComplianceDetails = ({
   const isFlaggedProof = normalizedStatus === 'rejected' || normalizedStatus === 'late_return';
   const focalPersonName = activeProof.focalPersonName || 'N/A';
   const focalPersonPosition = activeProof.focalPersonPosition || 'N/A';
+  const focalPersonCompany = activeProof.focalPersonCompany || 'N/A';
   const deanSignature = activeProof.digitalSignature || null;
   const isAutoLateReturn = isLateReturn;
   const effectiveReviewLocked = reviewLocked || isAutoLateReturn;
@@ -275,7 +276,7 @@ const ProofComplianceDetails = ({
         maxWidth: 90,
         lineGap: 9,
       });
-      writeText(row.roleLine || 'Faculty', margin + 68, y + 38, {
+      writeText(row.roleLine || 'Employee', margin + 68, y + 38, {
         size: 10,
         color: muted,
         weight: 'bold',
@@ -307,13 +308,14 @@ const ProofComplianceDetails = ({
         'Confirmed by focal person',
         focalPersonName,
         focalPersonPosition,
+        focalPersonCompany,
         formatDateTime(activeProof.submittedAt || row.submittedAt),
       ]);
 
       if (deanSignature) {
         await drawImageBox('Authorized Digital Signature', deanSignature.asset?.url, [
-          deanSignature.name || 'Assigned Dean',
-          formatRoleLabel(deanSignature.role, 'Dean'),
+          deanSignature.name || 'Assigned Supervisor',
+          formatRoleLabel(deanSignature.role, 'Supervisor'),
           deanSignature.signedAt ? formatDateTime(deanSignature.signedAt) : 'Approval time unavailable.',
         ]);
       }
@@ -340,7 +342,7 @@ const ProofComplianceDetails = ({
         isLateReturn ? formatDateTime(activeProof.actualReturnTime || row.actualReturnTime) : activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.',
         isFlaggedProof ? 'negative' : 'positive'
       );
-      checkCard(margin + cardWidth + cardGap, y, cardWidth, 'Focal Person & Position', focalPersonName, focalPersonPosition);
+      checkCard(margin + cardWidth + cardGap, y, cardWidth, 'Focal Person / Position / Company', focalPersonName, `${focalPersonPosition} · ${focalPersonCompany}`);
       y += 104;
 
       pdf.setFont('helvetica', 'normal');
@@ -415,6 +417,7 @@ const ProofComplianceDetails = ({
                     <strong>Confirmed by focal person</strong>
                     <span>{focalPersonName}</span>
                     <span>{focalPersonPosition}</span>
+                    <span>{focalPersonCompany}</span>
                     <span>{formatDateTime(activeProof.submittedAt || row.submittedAt)}</span>
                   </div>
                 </div>
@@ -428,22 +431,22 @@ const ProofComplianceDetails = ({
                       {deanSignature.asset?.mimeType === 'application/pdf' ? (
                         <div className="hrmu-verify-signature-empty">
                           <a href={deanSignature.asset?.url} target="_blank" rel="noreferrer">
-                            Open Dean Signature PDF
+                            Open Supervisor Signature PDF
                           </a>
                         </div>
                       ) : deanSignature.asset?.url ? (
                         <img
                           className="hrmu-verify-signature-image"
                           src={deanSignature.asset.url}
-                          alt={`${deanSignature.name || 'Dean'} digital signature`}
+                          alt={`${deanSignature.name || 'Supervisor'} digital signature`}
                         />
                       ) : (
-                        <div className="hrmu-verify-signature-empty">No dean signature uploaded.</div>
+                        <div className="hrmu-verify-signature-empty">No supervisor signature uploaded.</div>
                       )}
                     </div>
                     <div className="hrmu-verify-signature-copy">
-                      <strong>{deanSignature.name || 'Assigned Dean'}</strong>
-                      <span>{formatRoleLabel(deanSignature.role, 'Dean')}</span>
+                      <strong>{deanSignature.name || 'Assigned Supervisor'}</strong>
+                      <span>{formatRoleLabel(deanSignature.role, 'Supervisor')}</span>
                       <span>{deanSignature.signedAt ? formatDateTime(deanSignature.signedAt) : 'Approval time unavailable.'}</span>
                     </div>
                   </div>
@@ -468,9 +471,10 @@ const ProofComplianceDetails = ({
                 <small>{isLateReturn ? formatDateTime(activeProof.actualReturnTime || row.actualReturnTime) : activeProof.reviewedAt ? formatDateTime(activeProof.reviewedAt) : 'Awaiting HRMU review.'}</small>
               </div>
               <div className="hrmu-verify-check-card positive focal-summary">
-                <span>FOCAL PERSON & POSITION</span>
+                <span>FOCAL PERSON / POSITION / COMPANY</span>
                 <strong>{focalPersonName}</strong>
                 <small>{focalPersonPosition}</small>
+                <small>{focalPersonCompany}</small>
               </div>
             </div>
 

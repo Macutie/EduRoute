@@ -3,19 +3,19 @@ import { decodeJwtPayload } from "../../app/routing/portalRouting.js";
 export const LEGAL_DOCUMENTS = {
   terms: {
     title: 'Terms and Conditions',
-    body: 'By using EduRoute, you agree to use the system only for official faculty locator slip processing, trip validation, monitoring, and reporting.',
+    body: 'By using EduRoute, you agree to use the system only for official employee locator slip processing, trip validation, monitoring, and reporting.',
     sections: [{
       heading: '1. Authorized Use',
-      body: 'EduRoute is intended for authorized users only, including Faculty, Deans, CSSU, HRMU, and approved system administrators.'
+      body: 'EduRoute is intended for authorized users only, including Employees, Supervisors, ISSU, HRMU, and approved system administrators.'
     }, {
       heading: '2. User Responsibility',
       body: 'Users must provide accurate locator slip details, follow institutional policies, and use their own account only. Sharing login credentials or submitting false information is prohibited.'
     }, {
       heading: '3. Role-Based Access',
-      body: 'Each user can only access features and records allowed for their role. Faculty may access their own locator slips and trips. Deans may review requests from their assigned college. CSSU may validate exits. HRMU may monitor, verify, and generate reports.'
+      body: 'Each user can only access features and records allowed for their role. Employees may access their own locator slips and trips. Supervisors may review requests from their assigned college. ISSU may validate exits. HRMU may monitor, verify, and generate reports.'
     }, {
       heading: '4. Location and Trip Monitoring',
-      body: 'Location tracking is used only for approved official trips and monitoring purposes. Users must allow location access when starting and completing trips.'
+      body: 'Location access is used on the employee device only for route suggestions during approved trips. EduRoute does not provide real-time employee monitoring to HRMU, ISSU, administrators, deans, or other users.'
     }, {
       heading: '5. Proof of Compliance',
       body: 'Uploaded signatures, photos, focal person details, and related records must be truthful and submitted only for official verification.'
@@ -38,16 +38,16 @@ export const LEGAL_DOCUMENTS = {
     body: 'EduRoute processes personal and trip-related information only for official locator slip management, trip monitoring, reporting, and institutional compliance.',
     sections: [{
       heading: '1. Information We Collect',
-      body: 'EduRoute may collect account information such as the user’s name, email address, role, college, department, and position. It may also collect locator slip details, including the purpose of travel, destination, departure time, expected return time, locator slip code, and approval status. During official trips, EduRoute may process trip and location data such as current location, route records, trip start time, arrival time, return time, and completion timestamps. The system may also collect validation records, including QR or manual validation status, CSSU validation time, and validator details. For proof of compliance, EduRoute may collect the focal person’s name, position, signature, arrival photo, proof image, and verification remarks. It may also process notification data such as in-app alerts, push notification tokens, and device or browser information, as well as system logs related to login activity, record updates, approvals, rejections, and audit trail actions.'
+      body: 'EduRoute may collect account information such as the user’s name, email address, role, college, department, and position. It may also collect locator slip details, including the purpose of travel, destination, departure time, expected return time, locator slip code, and approval status. During official trips, EduRoute may process trip and location data such as current location, route records, trip start time, arrival time, return time, and completion timestamps. The system may also collect validation records, including QR or manual validation status, ISSU validation time, and validator details. For proof of compliance, EduRoute may collect the focal person’s name, position, signature, arrival photo, proof image, and verification remarks. It may also process notification data such as in-app alerts, push notification tokens, and device or browser information, as well as system logs related to login activity, record updates, approvals, rejections, and audit trail actions.'
     }, {
       heading: '2. Purpose of Collection',
-      body: 'The information is used to: process locator slip requests; approve or reject official trips; validate campus exit; monitor active faculty trips; verify arrival and proof of compliance; detect late return, disconnected location, or unverified proof; generate reports, analytics, and audit trails; and send system notifications.'
+      body: 'The information is used to: process locator slip requests; approve or reject official trips; validate campus exit and return; verify arrival and proof of compliance; detect late return or unverified proof; generate reports, analytics, and audit trails; and send system notifications. Trip monitoring is status-based and does not expose live employee coordinates.'
     }, {
       heading: '3. Location Data Use',
-      body: 'EduRoute uses location data only for official trip monitoring, route tracking, arrival verification, return confirmation, and HRMU reporting. Location access is required during active trip functions.'
+      body: 'EduRoute uses the employee device location only for personal route guidance to the declared destination or campus return point. Live coordinates are not broadcast to HRMU, ISSU, administrators, deans, or other users. Verification and reporting rely on official timestamps, QR scans, trip status, and submitted records.'
     }, {
       heading: '4. Who Can Access the Data',
-      body: 'Access to EduRoute data is limited according to user roles. Faculty members may access only their own locator slips, QR codes, trip records, and proof of compliance records. Deans may access locator slips submitted by faculty members under their assigned college. CSSU users may access locator slip validation records needed for exit checking. HRMU users may access monitoring records, proof verification records, reports, analytics, and incident records. System administrators may access necessary records only for technical maintenance and authorized account management.'
+      body: 'Access to EduRoute data is limited according to user roles. Employees may access only their own locator slips, QR codes, trip records, and proof of compliance records. Supervisors may access locator slips submitted by employees under their assigned college. ISSU users may access locator slip validation records needed for exit checking. HRMU users may access monitoring records, proof verification records, reports, analytics, and incident records. System administrators may access necessary records only for technical maintenance and authorized account management.'
     }, {
       heading: '5. Data Sharing',
       body: 'EduRoute does not sell personal information. Data may be processed through authorized service providers used for hosting, database, maps, notifications, and file storage, only for system operation and maintenance.'
@@ -73,7 +73,7 @@ export const LEGAL_DOCUMENTS = {
     body: 'Frequently asked questions about how EduRoute collects, uses, protects, and retains institutional trip and locator slip data.',
     sections: [{
       heading: '1. Why does EduRoute collect my information?',
-      body: 'EduRoute collects information to process faculty locator slips, approve requests, validate campus exits, monitor official trips, verify proof of compliance, generate reports, and maintain institutional records.'
+      body: 'EduRoute collects information to process employee locator slips, approve requests, validate campus exits, monitor official trips, verify proof of compliance, generate reports, and maintain institutional records.'
     }, {
       heading: '2. What personal information does EduRoute collect?',
       body: 'EduRoute may collect your name, email address, role, college, department, position, locator slip details, trip records, proof of compliance, and system activity logs.'
@@ -82,16 +82,16 @@ export const LEGAL_DOCUMENTS = {
       body: 'Yes. EduRoute collects location data only during official trip-related functions, such as starting a trip, route monitoring, arrival verification, return confirmation, and HRMU reporting.'
     }, {
       heading: '4. Is EduRoute always tracking my location?',
-      body: 'No. EduRoute should only use location access during official approved trips and related trip actions. It is not intended for continuous personal tracking outside EduRoute trip activities.'
+      body: 'No. The employee may grant location access for route guidance, but current location is not shared for live monitoring. Other users see only status and official verification records.'
     }, {
       heading: '5. Who can see my data?',
-      body: 'Access depends on user role. Faculty can view their own records. Deans can view locator slips from their assigned college. CSSU can view validation details. HRMU can view monitoring, proof, reports, and incident records. Admins can access records only for authorized system maintenance.'
+      body: 'Access depends on user role. Employees can view their own records. Supervisors can view locator slips from their assigned college. ISSU can view validation details. HRMU can view monitoring, proof, reports, and incident records. Admins can access records only for authorized system maintenance.'
     }, {
       heading: '6. What proof of compliance data is collected?',
       body: 'EduRoute may collect the focal person’s name, position, signature, optional arrival photo, proof image, verification status, and HRMU remarks.'
     }, {
       heading: '7. Why does EduRoute use QR codes?',
-      body: 'QR codes help CSSU quickly verify if a locator slip is valid and if the faculty member is allowed to exit for an approved official trip.'
+      body: 'QR codes help ISSU quickly verify if a locator slip is valid and if the employee is allowed to exit for an approved official trip.'
     }, {
       heading: '8. Are my records shared outside the institution?',
       body: 'EduRoute does not sell personal data. Records may only be processed through authorized system services for hosting, database, maps, notifications, and file storage.'
@@ -152,10 +152,10 @@ export const LegalDocumentModal = ({
                 </section>)}
             </div> : <>
               <p>
-                Authorized access is limited to registered Gordon College faculty users. Keep your password secure, submit accurate account and locator slip information, and use EduRoute only for official school-related coordination.
+                Authorized access is limited to registered Gordon College employees. Keep your password secure, submit accurate account and locator slip information, and use EduRoute only for official school-related coordination.
               </p>
               <p>
-                EduRoute may update these guidelines as the academic portal grows. Continued use of the portal means you agree to follow current faculty data, security, and acceptable-use rules.
+                EduRoute may update these guidelines as the academic portal grows. Continued use of the portal means you agree to follow current employee data, security, and acceptable-use rules.
               </p>
             </>}
         </div>

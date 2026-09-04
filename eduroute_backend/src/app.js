@@ -3,6 +3,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const path = require('path');
 const authRoutes = require('./routes/auth.routes');
+const adminUserRoutes = require('./routes/adminUser.routes');
 const departmentRoutes = require('./routes/department.routes');
 const locatorSlipRoutes = require('./routes/locatorSlip.routes');
 const notificationRoutes = require('./routes/notification.routes');
@@ -50,6 +51,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminUserRoutes);
 app.use('/api/departments', departmentRoutes);
 app.use('/api/locator-slips', locatorSlipRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -62,6 +64,7 @@ app.use('/api', proofComplianceRoutes);
 app.use('/api/dean', deanDashboardRoutes);
 app.use('/api/hrmu', hrmuDashboardRoutes);
 app.use('/api/cssu', cssuDashboardRoutes);
+app.use('/api/issu', cssuDashboardRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

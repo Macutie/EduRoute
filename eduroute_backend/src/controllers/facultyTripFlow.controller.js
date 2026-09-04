@@ -82,6 +82,15 @@ const markReturned = async (req, res, next) => {
     }
 };
 
+const requestReturnEntry = async (req, res, next) => {
+    try {
+        const payload = await facultyTripFlowService.requestReturnEntry(req.user.sub, req.params.tripId);
+        return res.json(successResponse('Return confirmation QR generated successfully.', payload));
+    } catch (error) {
+        return next(error);
+    }
+};
+
 const getTripSummary = async (req, res, next) => {
     try {
         const payload = await facultyTripFlowService.getTripSummary(req.user.sub, req.params.tripId);
@@ -101,5 +110,6 @@ module.exports = {
     verifyArrival,
     startReturn,
     markReturned,
+    requestReturnEntry,
     getTripSummary
 };

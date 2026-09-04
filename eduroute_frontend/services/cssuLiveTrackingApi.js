@@ -19,7 +19,7 @@ const request = async (endpoint, options = {}) => {
   const data = await decryptSensitiveResponseJson(await response.json());
 
   if (!response.ok) {
-    throw new Error(data.message || 'CSSU live tracking request failed');
+    throw new Error(data.message || 'ISSU live tracking request failed');
   }
 
   return data.data;
@@ -46,3 +46,7 @@ export const getCssuFacultyLiveDetail = (facultyUserId) =>
 
 export const getCssuFacultyActivity = (facultyUserId, params = {}) =>
   request(withQuery(`/api/cssu/live-tracking/faculty/${facultyUserId}/activity`, params));
+
+export const getISSUActiveFaculty = getCssuActiveFaculty;
+export const getISSUFacultyLiveDetail = getCssuFacultyLiveDetail;
+export const getISSUFacultyActivity = getCssuFacultyActivity;

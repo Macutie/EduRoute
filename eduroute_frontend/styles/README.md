@@ -10,7 +10,7 @@ large `App.css` file.
 - `../app/admin/admin.css` contains shared admin/dean dashboard mobile styles.
 - `../app/hrmu/hrmu.css` contains HRMU dashboard, verification, analytics, reports, notifications, and live tracking styles.
 - `../app/shared/workspace.css` contains shared admin/dean pages, desktop auth, registry modal, profile, edit profile, and workspace styles.
-- `../app/cssu/cssu.css` contains CSSU desktop and mobile command/reporting styles.
+- `../app/cssu/cssu.css` contains ISSU desktop and mobile command/reporting styles.
 
 When extracting a page from `app/legacy/LegacyApp.jsx`, move its styles into
 the closest feature stylesheet beside its JSX, then import it from `index.css`

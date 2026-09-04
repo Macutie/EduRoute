@@ -8,9 +8,10 @@ const formatTimestampLabel = (value) => {
         timeZone: 'Asia/Manila',
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: false
+        hour12: true
     });
 };
 

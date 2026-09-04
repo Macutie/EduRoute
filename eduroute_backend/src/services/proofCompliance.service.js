@@ -83,6 +83,7 @@ const normalizeProofResponse = (proof, context = {}) => {
         facultyId: context.facultyId || null,
         focalPersonName: proof.focalPersonName,
         focalPersonPosition: proof.focalPersonPosition,
+        focalPersonCompany: proof.focalPersonCompany,
         focalPersonSignatureUrl: proof.focalPersonSignatureUrl,
         arrivalPhotoUrl: proof.arrivalPhotoUrl,
         proofComplianceImageUrl: proof.proofComplianceImageUrl || proof.imageUrl,
@@ -136,6 +137,7 @@ const getFacultyProof = async (facultyUserId, tripId) => {
 const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {}) => {
     const focalPersonName = String(payload.focalPersonName || '').trim();
     const focalPersonPosition = String(payload.focalPersonPosition || '').trim();
+    const focalPersonCompany = String(payload.focalPersonCompany || '').trim();
 
     if (!focalPersonName) {
         throw new AppError('Focal person name is required.', 422);
@@ -143,6 +145,10 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
 
     if (!focalPersonPosition) {
         throw new AppError('Focal person position is required.', 422);
+    }
+
+    if (!focalPersonCompany) {
+        throw new AppError('Focal person company is required.', 422);
     }
 
     const trip = await facultyTripRepository.getTripSummaryRow(tripId, facultyUserId);
@@ -165,7 +171,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
                 arrival_verified_at: trip.arrival_verified_at || existingProof.submittedAt || new Date()
             },
             proof: normalizeProofResponse(existingProof, {
-                facultyName: payload.facultyName || trip.faculty_name || 'Faculty member',
+                facultyName: payload.facultyName || trip.faculty_name || 'Employee',
                 destination: trip.destination || trip.destination_name || 'Destination',
                 purpose: trip.custom_purpose || trip.purpose_of_travel || 'Official travel',
                 locatorSlipCode: buildLocatorSlipCode(trip.locator_slip_id)
@@ -203,7 +209,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
         : null;
     const submittedAt = new Date();
     const locatorSlipCode = buildLocatorSlipCode(trip.locator_slip_id);
-    const facultyName = payload.facultyName || trip.faculty_name || 'Faculty member';
+    const facultyName = payload.facultyName || trip.faculty_name || 'Employee';
     const destination = trip.destination || trip.destination_name || linkedLocatorSlip.destination || 'Destination';
     const purpose = trip.custom_purpose || trip.purpose_of_travel || linkedLocatorSlip.purpose || 'Official travel';
 
@@ -230,6 +236,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
         purpose: escapeDisplayValue(purpose),
         focalPersonName: focalPersonName,
         focalPersonPosition: focalPersonPosition,
+        focalPersonCompany: focalPersonCompany,
         submittedAt,
         signatureBuffer: optimizedSignature,
         arrivalPhotoBuffer: optimizedArrivalPhoto?.buffer || null
@@ -265,6 +272,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             imagePublicId: proofImageUpload.publicId,
             focalPersonName,
             focalPersonPosition,
+            focalPersonCompany,
             focalPersonSignatureUrl: signatureUpload.url,
             focalPersonSignaturePublicId: signatureUpload.publicId,
             arrivalPhotoUrl: arrivalPhotoUpload?.url || null,
@@ -301,7 +309,7 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
                 locatorSlipId: trip.locator_slip_id,
                 type: PROOF_NOTIFICATION_TYPE,
                 title: 'Proof of compliance submitted',
-                message: `${hrmuProofContext.faculty_name || 'A faculty member'} submitted a proof of compliance for ${hrmuProofContext.destination || 'the trip destination'}, confirmed by ${focalPersonName} (${focalPersonPosition}).`
+                message: `${hrmuProofContext.faculty_name || 'An employee'} submitted a proof of compliance for ${hrmuProofContext.destination || 'the trip destination'}, confirmed by ${focalPersonName} (${focalPersonPosition}).`
             }).catch(() => null);
         }
 
@@ -332,13 +340,6 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
 
         await client.query('COMMIT');
         await socketBroadcasterService.broadcastHrmuDashboardUpdate().catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveLocationUpdate({
-            tripId
-        }).catch(() => null);
-        await socketBroadcasterService.broadcastHrmuLiveActivityUpdate({
-            facultyUserId,
-            tripId
-        }).catch(() => null);
 
         return {
             trip: {
@@ -383,8 +384,8 @@ const listHrmuProofs = async (userId) => {
             flaggedReasons: proof.flaggedReasons,
             flaggedIncidentTypes: proof.flaggedIncidentTypes,
             digitalSignature: proof.deanSignatureUrl ? {
-                name: proof.deanName || 'Assigned Dean',
-                role: proof.deanRole || 'Dean',
+                name: proof.deanName || 'Assigned Supervisor',
+                role: proof.deanRole || 'Supervisor',
                 signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
                 asset: {
                     url: proof.deanSignatureUrl,
@@ -421,8 +422,8 @@ const getHrmuProofDetails = async (proofId, userId) => {
         flaggedReasons: proof.flaggedReasons,
         flaggedIncidentTypes: proof.flaggedIncidentTypes,
         digitalSignature: proof.deanSignatureUrl ? {
-            name: proof.deanName || 'Assigned Dean',
-            role: proof.deanRole || 'Dean',
+            name: proof.deanName || 'Assigned Supervisor',
+            role: proof.deanRole || 'Supervisor',
             signedAt: proof.deanApprovedAt || proof.deanSignatureAttachedAt || null,
             asset: {
                 url: proof.deanSignatureUrl,
@@ -481,8 +482,8 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
                 : HRMU_REVIEW_FLAGGED_TYPE,
             title: normalizedStatus === 'verified' ? 'Proof verified by HRMU' : 'Proof rejected by HRMU',
             message: normalizedStatus === 'verified'
-                ? `${existingProof.facultyName || 'The faculty user'} submitted a valid proof of compliance for this trip.`
-                : `${existingProof.facultyName || 'The faculty user'} submitted a proof of compliance that HRMU rejected.`
+                ? `${existingProof.facultyName || 'The employee user'} submitted a valid proof of compliance for this trip.`
+                : `${existingProof.facultyName || 'The employee user'} submitted a proof of compliance that HRMU rejected.`
         }).catch(() => null);
 
         await client.query('COMMIT');
@@ -501,8 +502,8 @@ const reviewHrmuProof = async (reviewerId, proofId, payload = {}) => {
             expectedReturnTime: existingProof.expectedReturnTime,
             tripStartedAt: existingProof.tripStartedAt,
             digitalSignature: existingProof.deanSignatureUrl ? {
-                name: existingProof.deanName || 'Assigned Dean',
-                role: existingProof.deanRole || 'Dean',
+                name: existingProof.deanName || 'Assigned Supervisor',
+                role: existingProof.deanRole || 'Supervisor',
                 signedAt: existingProof.deanApprovedAt || existingProof.deanSignatureAttachedAt || null,
                 asset: {
                     url: existingProof.deanSignatureUrl,
