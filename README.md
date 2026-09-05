@@ -158,7 +158,7 @@ The Firebase messaging service worker lives in `public/firebase-messaging-sw.js`
 
 Set these values in the deployed frontend environment:
 
-- `VITE_API_BASE_URL=https://eduroute-production.up.railway.app`
+- `VITE_API_BASE_URL=https://eduroute-production-2449.up.railway.app`
 - `VITE_MAPBOX_PUBLIC_TOKEN`
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`

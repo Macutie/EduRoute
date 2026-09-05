@@ -1,4 +1,4 @@
-const PRODUCTION_API_URL = 'https://eduroute-production.up.railway.app';
+const PRODUCTION_API_URL = 'https://eduroute-production-2449.up.railway.app';
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || '';
 
 const normalizeApiBaseUrl = (value) => {
