@@ -72,6 +72,7 @@ export default function AppRoot() {
 
   const normalizedPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
   const isPortalHashRoute = Boolean(getViewFromUrlHash());
+  const isPortalPathRoute = normalizedPath === '/login';
   const isLandingRoute = normalizedPath === '/' && !isPortalHashRoute;
   const isPrivacyRoute = normalizedPath === '/privacy-policy';
   const isTermsRoute = normalizedPath === '/terms';
@@ -80,6 +81,6 @@ export default function AppRoot() {
       {isLandingRoute && <LandingPage />}
       {isPrivacyRoute && <PublicLegalPage type="privacy" />}
       {isTermsRoute && <PublicLegalPage type="terms" />}
-      {!isLandingRoute && !isPrivacyRoute && !isTermsRoute && <LegacyApp />}
+      {(isPortalPathRoute || (!isLandingRoute && !isPrivacyRoute && !isTermsRoute)) && <LegacyApp />}
     </AppRecoveryBoundary>;
 }

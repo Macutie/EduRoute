@@ -160,7 +160,7 @@ const LandingHeader = ({ onInstall }) => (
     <nav className="landing-nav" aria-label="Landing page navigation">
       <LandingLogo />
       <div className="landing-nav-actions">
-        <a className="landing-login-link" href="/#/login">Portal Login</a>
+        <a className="landing-login-link" href="/login">Portal Login</a>
         <button className="landing-download-btn" type="button" onClick={onInstall}>Download App</button>
       </div>
     </nav>
@@ -184,7 +184,7 @@ const HeroSection = ({ onInstall }) => {
           Secure digital requests, QR code verification, and paperless approval workflow. A unified platform for institutional logistics and accountability.
         </p>
         <div className="landing-hero-actions">
-          <a className="landing-primary-btn" href="/#/login">Get Started Today</a>
+          <a className="landing-primary-btn" href="/login">Get Started Today</a>
           <button className="landing-outline-btn" type="button" onClick={scrollToCapabilities}>View Documentation</button>
         </div>
       </div>
@@ -262,7 +262,7 @@ const DownloadPortalSection = ({ installMessage, onInstall }) => (
             'QR Code Verification',
             'Automated monthly HRMU Report'
           ]} />
-          <a className="landing-white-btn landing-full-btn" href="/#/login">Open Web Portal</a>
+          <a className="landing-white-btn landing-full-btn" href="/login">Open Web Portal</a>
         </article>
       </div>
       {installMessage && <p className="landing-install-message" role="status">{installMessage}</p>}
