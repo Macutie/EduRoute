@@ -2,6 +2,7 @@ import { Component } from 'react';
 import '../App.css';
 import LegacyApp from './legacy/LegacyApp.jsx';
 import LandingPage, { PublicLegalPage } from './public/LandingPage.jsx';
+import { getViewFromUrlHash } from './routing/portalRouting.js';
 
 class AppRecoveryBoundary extends Component {
   constructor(props) {
@@ -62,7 +63,8 @@ class AppRecoveryBoundary extends Component {
 // the legacy implementation further.
 export default function AppRoot() {
   const normalizedPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
-  const isLandingRoute = normalizedPath === '/';
+  const isPortalHashRoute = Boolean(getViewFromUrlHash());
+  const isLandingRoute = normalizedPath === '/' && !isPortalHashRoute;
   const isPrivacyRoute = normalizedPath === '/privacy-policy';
   const isTermsRoute = normalizedPath === '/terms';
 
