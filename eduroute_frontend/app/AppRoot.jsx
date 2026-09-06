@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { Component, useEffect, useState } from 'react';
 import '../App.css';
 import LegacyApp from './legacy/LegacyApp.jsx';
 import LandingPage, { PublicLegalPage } from './public/LandingPage.jsx';
@@ -62,6 +62,14 @@ class AppRecoveryBoundary extends Component {
 // New portal routes should be extracted beside this file instead of growing
 // the legacy implementation further.
 export default function AppRoot() {
+  const [, setRouteRevision] = useState(0);
+
+  useEffect(() => {
+    const handleHashChange = () => setRouteRevision(revision => revision + 1);
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
   const normalizedPath = (window.location.pathname || '/').replace(/\/+$/, '') || '/';
   const isPortalHashRoute = Boolean(getViewFromUrlHash());
   const isLandingRoute = normalizedPath === '/' && !isPortalHashRoute;
