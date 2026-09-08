@@ -38,8 +38,13 @@ const ensureISSUScanAttemptsTable = async () => {
             lookup_method VARCHAR(24) NOT NULL DEFAULT 'manual',
             outcome VARCHAR(40) NOT NULL,
             notes TEXT,
+            validated_by UUID REFERENCES faculty_users(id) ON DELETE SET NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )`
+    );
+    await pool.query(
+        `ALTER TABLE cssu_scan_attempts
+         ADD COLUMN IF NOT EXISTS validated_by UUID REFERENCES faculty_users(id) ON DELETE SET NULL`
     );
     await pool.query(
         `CREATE INDEX IF NOT EXISTS idx_cssu_scan_attempts_locator_created
@@ -190,6 +195,7 @@ const recordScanAttempt = async ({
     lookupMethod = 'manual',
     outcome = 'lookup',
     notes = null,
+    validatedBy = null,
 }) => {
     await ensureISSUScanAttemptsTable();
 
@@ -200,11 +206,12 @@ const recordScanAttempt = async ({
             gate,
             lookup_method,
             outcome,
-            notes
+            notes,
+            validated_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *`,
-        [locatorSlipId, facultyUserId, gate, lookupMethod, outcome, notes]
+        [locatorSlipId, facultyUserId, gate, lookupMethod, outcome, notes, validatedBy]
     );
 
     return rows[0] || null;
@@ -471,6 +478,7 @@ const getReportsActivityByDepartment = async ({ startDate, endDate, departmentNa
 };
 
 const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {}) => {
+    await ensureISSUScanAttemptsTable();
     const hasISSUExitLogsTable = await getISSUExitLogsTableExists();
     const { values, departmentClause } = buildReportsFilter({ startDate, endDate, departmentName });
 
@@ -569,10 +577,48 @@ const getReportsMovementLogs = async ({ startDate, endDate, departmentName } = {
               AND COALESCE(log.notes, '') LIKE '${ISSU_FLAG_INCIDENT_NOTE_PREFIX}%'
               AND COALESCE(log.validated_at::date, log.created_at::date) BETWEEN $2::date AND $3::date
         ),
+        return_logs AS (
+            SELECT
+                CONCAT('return-', trip.id)::text AS movement_id,
+                slip.locator_slip_id,
+                slip.faculty_name,
+                slip.employee_id,
+                slip.department_name,
+                slip.purpose,
+                slip.destination,
+                COALESCE(trip.returned_at, trip.ended_at) AS occurred_at,
+                'verified'::text AS movement_status,
+                CASE
+                    WHEN return_scan.gate = 'back_gate' THEN 'Back Gate'
+                    WHEN return_scan.gate = 'main_gate' THEN 'Main Gate'
+                    ELSE 'Gate not recorded'
+                END AS location_label,
+                'Return Verification'::text AS event_label,
+                NULL::text AS investigation_label,
+                return_scan.validated_by_name
+            FROM trips trip
+            JOIN filtered_locator_slips slip ON slip.locator_slip_id = trip.locator_slip_id
+            LEFT JOIN LATERAL (
+                SELECT
+                    attempt.gate,
+                    attempt.validated_by,
+                    officer.full_name AS validated_by_name
+                FROM cssu_scan_attempts attempt
+                LEFT JOIN faculty_users officer ON officer.id = attempt.validated_by
+                WHERE attempt.locator_slip_id = trip.locator_slip_id
+                  AND attempt.outcome = 'entry_validated'
+                ORDER BY attempt.created_at DESC
+                LIMIT 1
+            ) return_scan ON TRUE
+            WHERE COALESCE(trip.returned_at, trip.ended_at) IS NOT NULL
+              AND COALESCE(trip.returned_at::date, trip.ended_at::date) BETWEEN $2::date AND $3::date
+        ),
         movement_rows AS (
             SELECT * FROM validated_logs
             UNION ALL
             SELECT * FROM flagged_logs
+            UNION ALL
+            SELECT * FROM return_logs
         )
         SELECT
             movement_id,

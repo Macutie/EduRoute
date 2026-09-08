@@ -155,14 +155,16 @@ export const HrmuLiveMapPanel = ({
           marker.remove();
         } catch {
 
-          /* ignore map cleanup race */}
+          /* ignore map cleanup race */
+        }
       });
       markersRef.current = [];
       try {
         map.remove();
       } catch {
 
-        /* ignore map cleanup race */}
+        /* ignore map cleanup race */
+      }
       mapRef.current = null;
     };
   }, [compact]);
@@ -174,7 +176,8 @@ export const HrmuLiveMapPanel = ({
         marker.remove();
       } catch {
 
-        /* ignore marker cleanup race */}
+        /* ignore marker cleanup race */
+      }
     });
     markersRef.current = [];
     const validFaculty = faculty.filter(item => Number.isFinite(item?.lat) && Number.isFinite(item?.lng));
@@ -416,12 +419,12 @@ export const HrmuLiveMapPanel = ({
     };
   }, [compact, mapReady, runMapOperation, selectedFaculty, selectedFacultyDetail]);
   return <div className={`hrmu-live-map-frame ${className}`.trim()}>
-      <div ref={mapContainerRef} className="hrmu-live-mapbox-canvas" />
-      {(!mapReady || mapLoadFailed) && <div className="hrmu-live-map-fallback">
-          <strong>{mapLoadFailed ? 'Map failed to load' : 'Map unavailable'}</strong>
-          <span>{mapLoadFailed ? 'Check the Mapbox token or connection, then refresh live tracking.' : 'Add a valid Mapbox public token to display live employees around Olongapo.'}</span>
-        </div>}
-    </div>;
+    <div ref={mapContainerRef} className="hrmu-live-mapbox-canvas" />
+    {(!mapReady || mapLoadFailed) && <div className="hrmu-live-map-fallback">
+      <strong>{mapLoadFailed ? 'Map failed to load' : 'Map unavailable'}</strong>
+      <span>{mapLoadFailed ? 'Check the Mapbox token or connection, then refresh live tracking.' : 'Add a valid Mapbox public token to display live employees around Olongapo.'}</span>
+    </div>}
+  </div>;
 };
 export const REPORT_SEQUENCE_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const HrmuWorkspaceShell = ({
@@ -430,33 +433,9 @@ export const HrmuWorkspaceShell = ({
   profileData,
   onLogout,
   bellActive = false,
-  inboxActive = false,
   forceDesktop = false,
   children
 }) => {
-  const [inboxCount, setInboxCount] = useState(0);
-  useEffect(() => {
-    let isMounted = true;
-    const loadInboxCount = async () => {
-      try {
-        const data = await getHrmuReportInbox({
-          limit: 1
-        });
-        if (!isMounted) return;
-        setInboxCount(Number(data?.total || 0));
-      } catch (error) {
-        if (isMounted) {
-          setInboxCount(0);
-        }
-      }
-    };
-    loadInboxCount();
-    const intervalId = window.setInterval(loadInboxCount, 20000);
-    return () => {
-      isMounted = false;
-      window.clearInterval(intervalId);
-    };
-  }, []);
   const sidebarItems = [{
     key: 'dashboard',
     label: 'Dashboard',
@@ -484,61 +463,57 @@ export const HrmuWorkspaceShell = ({
     target: 'hrmu-reports'
   }];
   return <div className={`hrmu-workspace ${forceDesktop ? 'force-desktop' : ''}`}>
-      <aside className="hrmu-sidebar">
-        <div className="hrmu-sidebar-top">
-          <div className="hrmu-brand-lockup">
-            <div className="hrmu-brand-badge" />
-            <div className="hrmu-brand-text">
-              <strong>EduRoute</strong>
-              <span>HRMU ADMIN</span>
-            </div>
+    <aside className="hrmu-sidebar">
+      <div className="hrmu-sidebar-top">
+        <div className="hrmu-brand-lockup">
+          <div className="hrmu-brand-badge" />
+          <div className="hrmu-brand-text">
+            <strong>EduRoute</strong>
+            <span>HRMU ADMIN</span>
           </div>
+        </div>
 
-          <nav className="hrmu-sidebar-nav">
-            {sidebarItems.map(item => {
+        <nav className="hrmu-sidebar-nav">
+          {sidebarItems.map(item => {
             const Icon = item.icon;
             const isActive = item.key === activeKey;
             return <button key={item.key} type="button" className={`hrmu-nav-item ${isActive ? 'active' : ''}`} onClick={() => item.target && setView(item.target)}>
-                  
-                  <Icon color={isActive ? 'var(--green)' : '#4B5563'} />
-                  <span>{item.label}</span>
-                </button>;
+
+              <Icon color={isActive ? 'var(--green)' : '#4B5563'} />
+              <span>{item.label}</span>
+            </button>;
           })}
-          </nav>
-        </div>
+        </nav>
+      </div>
 
-        <div className="hrmu-sidebar-bottom">
-          <button type="button" className="hrmu-logout-btn" onClick={onLogout}>Log Out</button>
-        </div>
-      </aside>
+      <div className="hrmu-sidebar-bottom">
+        <button type="button" className="hrmu-logout-btn" onClick={onLogout}>Log Out</button>
+      </div>
+    </aside>
 
-      <main className="hrmu-main">
-        <header className="hrmu-topbar">
-          <span className="hrmu-topbar-logo">EduRoute</span>
-          <div className="hrmu-topbar-right">
-            <div className={`admin-bell-wrapper hrmu-bell-wrapper ${inboxActive ? 'active' : ''}`} onClick={() => setView('hrmu-inbox')}>
-              <InboxArchiveIcon color="var(--text-dark)" />
-              {inboxCount > 0 ? <div className="admin-bell-dot" /> : null}
-            </div>
-            <div className={`admin-bell-wrapper hrmu-bell-wrapper ${bellActive ? 'active' : ''}`} onClick={() => setView('hrmu-notifications')}>
-              <AdminBellIcon color="var(--text-dark)" />
-              <div className="admin-bell-dot" />
-            </div>
-            <div className="hrmu-manager-copy">
-              <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
-              <span>HRMU Administrator</span>
-            </div>
-            <div className="admin-avatar" onClick={() => setView('admin-profile')}>
-              <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
-            </div>
+    <main className="hrmu-main">
+      <header className="hrmu-topbar">
+        <span className="hrmu-topbar-logo">EduRoute</span>
+        <div className="hrmu-topbar-right">
+          <div className={`admin-bell-wrapper hrmu-bell-wrapper ${bellActive ? 'active' : ''}`} onClick={() => setView('hrmu-notifications')}>
+            <AdminBellIcon color="var(--text-dark)" />
+            <div className="admin-bell-dot" />
           </div>
-        </header>
-
-        <div className="hrmu-main-scroll">
-          {children}
+          <div className="hrmu-manager-copy">
+            <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
+            <span>HRMU Administrator</span>
+          </div>
+          <div className="admin-avatar" onClick={() => setView('admin-profile')}>
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
+          </div>
         </div>
-      </main>
-    </div>;
+      </header>
+
+      <div className="hrmu-main-scroll">
+        {children}
+      </div>
+    </main>
+  </div>;
 };
 export const HrmuDashboardView = ({
   setView,
@@ -801,128 +776,128 @@ export const HrmuDashboardView = ({
     };
   }, [recentActivityRows]);
   return <HrmuWorkspaceShell activeKey="dashboard" setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-stats-grid">
-        {stats.map(stat => <article key={stat.label} className={`hrmu-stat-card ${stat.accent}`}>
-            <span className="hrmu-stat-label">{stat.label}</span>
-            <strong className="hrmu-stat-value">{stat.value}</strong>
-            {stat.meta && <div className="hrmu-stat-meta-row">
-                <span className={`hrmu-stat-chip ${stat.accent}`}>{stat.meta}</span>
-                {stat.submeta && <small>{stat.submeta}</small>}
-              </div>}
+    <section className="hrmu-stats-grid">
+      {stats.map(stat => <article key={stat.label} className={`hrmu-stat-card ${stat.accent}`}>
+        <span className="hrmu-stat-label">{stat.label}</span>
+        <strong className="hrmu-stat-value">{stat.value}</strong>
+        {stat.meta && <div className="hrmu-stat-meta-row">
+          <span className={`hrmu-stat-chip ${stat.accent}`}>{stat.meta}</span>
+          {stat.submeta && <small>{stat.submeta}</small>}
+        </div>}
+      </article>)}
+    </section>
+
+    <section className="hrmu-overview-grid">
+      <article className="hrmu-route-panel hrmu-attention-panel">
+        <div className="hrmu-panel-heading">
+          <h2>Attention Required</h2>
+        </div>
+        <div className="hrmu-attention-content">
+          <p className="hrmu-attention-intro">Review items that may need action from HRMU.</p>
+          <div className="hrmu-attention-grid">
+            <div className="hrmu-attention-item yellow">
+              <span>PENDING REVIEW</span>
+              <strong>{attentionSummary.pending}</strong>
+            </div>
+            <div className="hrmu-attention-item red">
+              <span>FLAGGED RECORDS</span>
+              <strong>{attentionSummary.flagged}</strong>
+            </div>
+            <div className="hrmu-attention-item green">
+              <span>WAITING FOR RETURN SCAN</span>
+              <strong>{attentionSummary.returnScan}</strong>
+            </div>
+          </div>
+          <div className="hrmu-attention-actions">
+            <button type="button" onClick={() => setView('hrmu-verification')}>OPEN VERIFICATION</button>
+            <button type="button" onClick={() => setView('hrmu-reports')}>VIEW REPORTS</button>
+          </div>
+        </div>
+        <div className="hrmu-status-overview-list">
+          {recentActivityRows.length === 0 && <div className="hrmu-notification-empty">No active trip statuses available.</div>}
+          {recentActivityRows.slice(0, 5).map(row => <div className="hrmu-status-overview-row" key={row.key}>
+            <div><strong>{row.name}</strong><span>{row.dept} • {row.purpose}</span></div>
+            <b className={row.statusTone}>{row.status}</b>
+          </div>)}
+        </div>
+        <p className="hrmu-status-overview-note">Employee live locations and movement maps are not available to HRMU.</p>
+      </article>
+
+      <aside className="hrmu-notifications-panel">
+        <div className="hrmu-panel-heading notifications">
+          <h2>Notifications</h2>
+          <span className="hrmu-alert-pill">{String(notificationRows.length).padStart(2, '0')} ALERTS</span>
+        </div>
+        <div className="hrmu-notification-list">
+          {notificationLoading && <div className="hrmu-notification-empty">Loading verification updates...</div>}
+          {!notificationLoading && notificationRows.length === 0 && <div className="hrmu-notification-empty">No verified locator slip notifications yet.</div>}
+          {!notificationLoading && notificationRows.map(note => <article key={note.id} className={`hrmu-notification-card ${note.tone}`}>
+            <div className="hrmu-notification-icon">{note.icon}</div>
+            <div className="hrmu-notification-copy">
+              <h3>{note.title}</h3>
+              <p>{note.body}</p>
+              <span>{note.meta}</span>
+            </div>
           </article>)}
-      </section>
-
-      <section className="hrmu-overview-grid">
-        <article className="hrmu-route-panel hrmu-attention-panel">
-          <div className="hrmu-panel-heading">
-            <h2>Attention Required</h2>
-          </div>
-          <div className="hrmu-attention-content">
-            <p className="hrmu-attention-intro">Review items that may need action from HRMU.</p>
-            <div className="hrmu-attention-grid">
-              <div className="hrmu-attention-item yellow">
-                <span>PENDING REVIEW</span>
-                <strong>{attentionSummary.pending}</strong>
-              </div>
-              <div className="hrmu-attention-item red">
-                <span>FLAGGED RECORDS</span>
-                <strong>{attentionSummary.flagged}</strong>
-              </div>
-              <div className="hrmu-attention-item green">
-                <span>WAITING FOR RETURN SCAN</span>
-                <strong>{attentionSummary.returnScan}</strong>
-              </div>
-            </div>
-            <div className="hrmu-attention-actions">
-              <button type="button" onClick={() => setView('hrmu-verification')}>OPEN VERIFICATION</button>
-              <button type="button" onClick={() => setView('hrmu-reports')}>VIEW REPORTS</button>
-            </div>
-          </div>
-          <div className="hrmu-status-overview-list">
-            {recentActivityRows.length === 0 && <div className="hrmu-notification-empty">No active trip statuses available.</div>}
-            {recentActivityRows.slice(0, 5).map(row => <div className="hrmu-status-overview-row" key={row.key}>
-              <div><strong>{row.name}</strong><span>{row.dept} • {row.purpose}</span></div>
-              <b className={row.statusTone}>{row.status}</b>
-            </div>)}
-          </div>
-          <p className="hrmu-status-overview-note">Employee live locations and movement maps are not available to HRMU.</p>
-        </article>
-
-        <aside className="hrmu-notifications-panel">
-          <div className="hrmu-panel-heading notifications">
-            <h2>Notifications</h2>
-            <span className="hrmu-alert-pill">{String(notificationRows.length).padStart(2, '0')} ALERTS</span>
-          </div>
-          <div className="hrmu-notification-list">
-            {notificationLoading && <div className="hrmu-notification-empty">Loading verification updates...</div>}
-            {!notificationLoading && notificationRows.length === 0 && <div className="hrmu-notification-empty">No verified locator slip notifications yet.</div>}
-            {!notificationLoading && notificationRows.map(note => <article key={note.id} className={`hrmu-notification-card ${note.tone}`}>
-                <div className="hrmu-notification-icon">{note.icon}</div>
-                <div className="hrmu-notification-copy">
-                  <h3>{note.title}</h3>
-                  <p>{note.body}</p>
-                  <span>{note.meta}</span>
-                </div>
-              </article>)}
-          </div>
-          <button type="button" className="hrmu-history-link" onClick={() => setView('hrmu-notifications')}>VIEW ALL HISTORY</button>
-        </aside>
-      </section>
-
-      <section className="hrmu-log-section">
-        <div className="hrmu-log-header">
-          <div>
-            <h2>Recent Activity Log</h2>
-            <p>Detailed record of campus entries and exits</p>
-          </div>
-          <div className="hrmu-log-actions">
-            <label className="hrmu-filter-control">
-              <HrmuFilterIcon />
-              <select value={selectedCollegeFilter} onChange={event => setSelectedCollegeFilter(event.target.value)} aria-label="Filter recent activity by college">
-                
-                {HRMU_COLLEGE_OPTIONS.map(option => <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>)}
-              </select>
-            </label>
-          </div>
         </div>
+        <button type="button" className="hrmu-history-link" onClick={() => setView('hrmu-notifications')}>VIEW ALL HISTORY</button>
+      </aside>
+    </section>
 
-        <div className="hrmu-log-card">
-          <div className="hrmu-log-table">
-            <div className="hrmu-log-head">
-              <span>EMPLOYEE</span>
-              <span>DEPARTURE</span>
-              <span>EXPECTED RETURN</span>
-              <span>PURPOSE</span>
-              <span>VERIFICATION</span>
-              <span>STATUS</span>
-            </div>
-
-            {activityLoading && <div className="hrmu-log-empty-state">Loading recent activity...</div>}
-
-            {!activityLoading && recentActivityRows.length === 0 && <div className="hrmu-log-empty-state">No recent activity found for the selected college.</div>}
-
-            {!activityLoading && recentActivityRows.map(row => <div key={row.key} className="hrmu-log-row">
-                <div className="hrmu-faculty-cell">
-                  {row.profileImageUrl ? <div className="hrmu-faculty-avatar">
-                      <img src={row.profileImageUrl} alt={row.name} />
-                    </div> : <div className="hrmu-initials-badge">{row.initials}</div>}
-                  <div>
-                    <strong>{row.name}</strong>
-                    <span>{row.dept}</span>
-                  </div>
-                </div>
-                <span>{row.departure}</span>
-                <span>{row.returnTime}</span>
-                <span>{row.purpose}</span>
-                <span className={`hrmu-verification ${row.verificationTone}`}>{row.verification}</span>
-                <span className={`hrmu-status-pill ${row.statusTone}`}>{row.status}</span>
-              </div>)}
-          </div>
+    <section className="hrmu-log-section">
+      <div className="hrmu-log-header">
+        <div>
+          <h2>Recent Activity Log</h2>
+          <p>Detailed record of campus entries and exits</p>
         </div>
-      </section>
-    </HrmuWorkspaceShell>;
+        <div className="hrmu-log-actions">
+          <label className="hrmu-filter-control">
+            <HrmuFilterIcon />
+            <select value={selectedCollegeFilter} onChange={event => setSelectedCollegeFilter(event.target.value)} aria-label="Filter recent activity by college">
+
+              {HRMU_COLLEGE_OPTIONS.map(option => <option key={option.value} value={option.value}>
+                {option.label}
+              </option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="hrmu-log-card">
+        <div className="hrmu-log-table">
+          <div className="hrmu-log-head">
+            <span>EMPLOYEE</span>
+            <span>DEPARTURE</span>
+            <span>EXPECTED RETURN</span>
+            <span>PURPOSE</span>
+            <span>VERIFICATION</span>
+            <span>STATUS</span>
+          </div>
+
+          {activityLoading && <div className="hrmu-log-empty-state">Loading recent activity...</div>}
+
+          {!activityLoading && recentActivityRows.length === 0 && <div className="hrmu-log-empty-state">No recent activity found for the selected college.</div>}
+
+          {!activityLoading && recentActivityRows.map(row => <div key={row.key} className="hrmu-log-row">
+            <div className="hrmu-faculty-cell">
+              {row.profileImageUrl ? <div className="hrmu-faculty-avatar">
+                <img src={row.profileImageUrl} alt={row.name} />
+              </div> : <div className="hrmu-initials-badge">{row.initials}</div>}
+              <div>
+                <strong>{row.name}</strong>
+                <span>{row.dept}</span>
+              </div>
+            </div>
+            <span>{row.departure}</span>
+            <span>{row.returnTime}</span>
+            <span>{row.purpose}</span>
+            <span className={`hrmu-verification ${row.verificationTone}`}>{row.verification}</span>
+            <span className={`hrmu-status-pill ${row.statusTone}`}>{row.status}</span>
+          </div>)}
+        </div>
+      </div>
+    </section>
+  </HrmuWorkspaceShell>;
 };
 export const HrmuVerificationView = ({
   setView,
@@ -1177,66 +1152,66 @@ export const HrmuVerificationView = ({
     }
   };
   return <HrmuWorkspaceShell activeKey="verification" setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-verification-hero">
-        <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
-        <h1>External Employee Verification</h1>
-        <p>Review completed trips, inspect the submitted proof of compliance, and decide whether each trip remains successful or should be flagged as an unverified location/signature.</p>
-      </section>
+    <section className="hrmu-verification-hero">
+      <span className="hrmu-verification-eyebrow">ACADEMIC LOGISTICS</span>
+      <h1>External Employee Verification</h1>
+      <p>Review completed trips, inspect the submitted proof of compliance, and decide whether each trip remains successful or should be flagged as an unverified location/signature.</p>
+    </section>
 
-      <section className="hrmu-verification-stats">
-        {verificationStats.map(card => <article key={card.label} className={`hrmu-verify-stat-card ${card.tone}`}>
-            <span className="hrmu-verify-stat-label">{card.label}</span>
-            <strong className="hrmu-verify-stat-value">{card.value}</strong>
-            {card.decorate && <div className="hrmu-verify-card-mark" aria-hidden="true" />}
-          </article>)}
-        <article className="hrmu-verify-rate-card">
-          <span className="hrmu-verify-stat-label inverse">VERIFICATION RATE</span>
-          <div className="hrmu-verify-rate-row">
-            <strong>{summary.verificationRate.toFixed(1)}%</strong>
-            <div className="hrmu-verify-bars" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="hrmu-verify-registry-card">
-        <div className="hrmu-verify-registry-header">
-          <div className="hrmu-verify-registry-title">
-            <span className="hrmu-verify-registry-accent" aria-hidden="true" />
-            <h2>Completed Trips Registry</h2>
-          </div>
-          <div className="hrmu-verify-registry-tools">
-            <label className="hrmu-filter-control hrmu-verify-department-filter">
-              <HrmuFilterIcon />
-              <select value={registryDepartmentFilter} onChange={event => setRegistryDepartmentFilter(event.target.value)}>
-                {HRMU_COLLEGE_OPTIONS.map(option => <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>)}
-              </select>
-            </label>
+    <section className="hrmu-verification-stats">
+      {verificationStats.map(card => <article key={card.label} className={`hrmu-verify-stat-card ${card.tone}`}>
+        <span className="hrmu-verify-stat-label">{card.label}</span>
+        <strong className="hrmu-verify-stat-value">{card.value}</strong>
+        {card.decorate && <div className="hrmu-verify-card-mark" aria-hidden="true" />}
+      </article>)}
+      <article className="hrmu-verify-rate-card">
+        <span className="hrmu-verify-stat-label inverse">VERIFICATION RATE</span>
+        <div className="hrmu-verify-rate-row">
+          <strong>{summary.verificationRate.toFixed(1)}%</strong>
+          <div className="hrmu-verify-bars" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
           </div>
         </div>
+      </article>
+    </section>
 
-        <ProofComplianceList rows={filteredRegistryRows} loading={loading} onOpen={openRegistryRow} />
+    <section className="hrmu-verify-registry-card">
+      <div className="hrmu-verify-registry-header">
+        <div className="hrmu-verify-registry-title">
+          <span className="hrmu-verify-registry-accent" aria-hidden="true" />
+          <h2>Completed Trips Registry</h2>
+        </div>
+        <div className="hrmu-verify-registry-tools">
+          <label className="hrmu-filter-control hrmu-verify-department-filter">
+            <HrmuFilterIcon />
+            <select value={registryDepartmentFilter} onChange={event => setRegistryDepartmentFilter(event.target.value)}>
+              {HRMU_COLLEGE_OPTIONS.map(option => <option key={option.value} value={option.value}>
+                {option.label}
+              </option>)}
+            </select>
+          </label>
+        </div>
+      </div>
 
-        <button type="button" className="hrmu-verify-footer-link">
-          View All {filteredRegistryRows.length} Submitted Proofs
-        </button>
-      </section>
+      <ProofComplianceList rows={filteredRegistryRows} loading={loading} onOpen={openRegistryRow} />
 
-      {selectedRegistryRow && <ProofComplianceDetails row={selectedRegistryRow} details={selectedProofDetails} reviewMessage={reviewMessage} reviewing={reviewing} reviewLocked={reviewLocked || Boolean(selectedProofDetails?.isLateReturn || selectedRegistryRow?.isLateReturn) || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'} onClose={closeRegistryRow} onReview={handleProofReview} />}
+      <button type="button" className="hrmu-verify-footer-link">
+        View All {filteredRegistryRows.length} Submitted Proofs
+      </button>
+    </section>
 
-      {pathHistoryState.open && <TripPathHistoryModal history={pathHistoryState.data} loading={pathHistoryState.loading} error={pathHistoryState.error} onClose={() => setPathHistoryState({
+    {selectedRegistryRow && <ProofComplianceDetails row={selectedRegistryRow} details={selectedProofDetails} reviewMessage={reviewMessage} reviewing={reviewing} reviewLocked={reviewLocked || Boolean(selectedProofDetails?.isLateReturn || selectedRegistryRow?.isLateReturn) || String(selectedProofDetails?.verificationStatus || selectedRegistryRow?.verificationStatus || '').toLowerCase() !== 'submitted'} onClose={closeRegistryRow} onReview={handleProofReview} />}
+
+    {pathHistoryState.open && <TripPathHistoryModal history={pathHistoryState.data} loading={pathHistoryState.loading} error={pathHistoryState.error} onClose={() => setPathHistoryState({
       open: false,
       loading: false,
       error: '',
       data: null
     })} />}
-    </HrmuWorkspaceShell>;
+  </HrmuWorkspaceShell>;
 };
 export const HrmuAnalyticsReportsView = ({
   setView,
@@ -1517,107 +1492,107 @@ export const HrmuAnalyticsReportsView = ({
     });
   };
   return <HrmuWorkspaceShell activeKey={activeKey} setView={setView} profileData={profileData} onLogout={onLogout}>
-      <div ref={analyticsExportRef} className="hrmu-analytics-export-surface">
-        <section className="hrmu-analytics-hero">
-          <div className="hrmu-analytics-copy">
-            <h1>{employeeOnly ? 'Employee Analytics' : 'Analytics & Reporting'}</h1>
-              <p>{employeeOnly ? 'Review one employee’s recorded movement, approvals, returns, compliance, and incidents.' : 'Historical insights into trips, approvals, returns, incidents, and departmental activity.'}</p>
-          </div>
-          <div className="hrmu-analytics-actions" data-html2canvas-ignore="true">
-            <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf} disabled={exporting}>
-              <HrmuReportIcon color="white" />
-              <span>{exporting ? 'Exporting...' : 'Export PDF'}</span>
-            </button>
-          </div>
-        </section>
-
-        <section className="hrmu-analytics-filter-card">
-          <div className="hrmu-analytics-filter-group">
-            <span>START DATE</span>
-            <button type="button" className="hrmu-analytics-date-toggle" onClick={() => openAnalyticsDatePicker(analyticsStartDateInputRef)}>
-              <span>{formatAnalyticsFilterDate(filters.startDate)}</span>
-              <svg className="hrmu-analytics-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg>
-            </button>
-            <input ref={analyticsStartDateInputRef} type="date" className="hrmu-analytics-date-native" value={filters.startDate} onChange={event => updateFilter('startDate', event.target.value)} aria-label="Analytics start date" />
-            
-          </div>
-          <div className="hrmu-analytics-filter-group">
-            <span>END DATE</span>
-            <button type="button" className="hrmu-analytics-date-toggle" onClick={() => openAnalyticsDatePicker(analyticsEndDateInputRef)}>
-              <span>{formatAnalyticsFilterDate(filters.endDate)}</span>
-              <svg className="hrmu-analytics-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg>
-            </button>
-            <input ref={analyticsEndDateInputRef} type="date" className="hrmu-analytics-date-native" value={filters.endDate} onChange={event => updateFilter('endDate', event.target.value)} aria-label="Analytics end date" />
-            
-          </div>
-          <div className="hrmu-analytics-filter-group">
-            <span>DEPARTMENT</span>
-            <div className="hrmu-analytics-select-wrap"><select className="hrmu-analytics-select hrmu-analytics-select-input" value={filters.collegeName} onChange={event => updateFilter('collegeName', event.target.value)}>
-              
-              {departmentOptions.map(option => <option key={option.value || 'all'} value={option.value}>
-                  {option.label}
-                </option>)}
-            </select><ChevronDownIcon color="#2F3438" /></div>
-          </div>
-          {employeeOnly && <div className="hrmu-analytics-filter-group">
-            <span>EMPLOYEE</span>
-            <div className="hrmu-analytics-select-wrap"><select className="hrmu-analytics-select hrmu-analytics-select-input" value={filters.employeeId} onChange={event => updateFilter('employeeId', event.target.value)}>
-              <option value="">All employees</option>
-              {employeeOptions.map(employee => <option key={employee.id} value={employee.id}>{employee.name} • {employee.employeeId || employee.collegeName}</option>)}
-            </select><ChevronDownIcon color="#2F3438" /></div>
-          </div>}
-          <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters} disabled={loading || smartGenerating}>
-            {smartGenerating ? 'Generating...' : 'Generate Analytics'}
+    <div ref={analyticsExportRef} className="hrmu-analytics-export-surface">
+      <section className="hrmu-analytics-hero">
+        <div className="hrmu-analytics-copy">
+          <h1>{employeeOnly ? 'Employee Analytics' : 'Analytics & Reporting'}</h1>
+          <p>{employeeOnly ? 'Review one employee’s recorded movement, approvals, returns, compliance, and incidents.' : 'Historical insights into trips, approvals, returns, incidents, and departmental activity.'}</p>
+        </div>
+        <div className="hrmu-analytics-actions" data-html2canvas-ignore="true">
+          <button type="button" className="hrmu-analytics-export primary" onClick={handleExportPdf} disabled={exporting}>
+            <HrmuReportIcon color="white" />
+            <span>{exporting ? 'Exporting...' : 'Export PDF'}</span>
           </button>
-        </section>
+        </div>
+      </section>
 
-        {(error || exportMessage) && <div className="hrmu-analytics-feedback" data-html2canvas-ignore="true">
-            {error ? <span>{error}</span> : null}
-            {exportMessage ? <span>{exportMessage}</span> : null}
-          </div>}
+      <section className="hrmu-analytics-filter-card">
+        <div className="hrmu-analytics-filter-group">
+          <span>START DATE</span>
+          <button type="button" className="hrmu-analytics-date-toggle" onClick={() => openAnalyticsDatePicker(analyticsStartDateInputRef)}>
+            <span>{formatAnalyticsFilterDate(filters.startDate)}</span>
+            <svg className="hrmu-analytics-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg>
+          </button>
+          <input ref={analyticsStartDateInputRef} type="date" className="hrmu-analytics-date-native" value={filters.startDate} onChange={event => updateFilter('startDate', event.target.value)} aria-label="Analytics start date" />
 
-        <section className="hrmu-analytics-recommended-flow">
-          <div className="hrmu-analytics-flow-heading">
-            <div><span>HISTORICAL HRMU INSIGHTS</span><h2>Executive Summary</h2><p>One view of movement volume, outcomes, compliance, and recorded exceptions for the selected period.</p></div>
-            <strong>{selectedEmployeeLabel} • {selectedCollegeLabel}</strong>
-          </div>
-          <div className="hrmu-analytics-executive-grid">
-            <article><span>Filed locator slips</span><strong>{numberFormatter.format(smartSummary.totalFiled || 0)}</strong><small>{numberFormatter.format(approvalRate.approvedCount || 0)} approved</small></article>
-            <article><span>Approval rate</span><strong>{percentFormatter.format(approvalRatePercentage)}%</strong><small>{numberFormatter.format(approvalRate.totalFiledCount || 0)} filed</small></article>
-            <article><span>Completed trips</span><strong>{numberFormatter.format(smartCompletedTrips)}</strong><small>{numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0)} employees</small></article>
-            <article><span>Compliance rate</span><strong>{percentFormatter.format(smartTotalTrips ? smartCompletedTrips / smartTotalTrips * 100 : 0)}%</strong><small>Completed of recorded trips</small></article>
-            <article className="warning"><span>Rejected / cancelled</span><strong>{numberFormatter.format(smartRejectedTrips + smartCancelledTrips)}</strong><small>{numberFormatter.format(smartSummary.rejectedCount || 0)} rejected • {numberFormatter.format(smartSummary.cancelledCount || 0)} cancelled</small></article>
-            <article className="warning"><span>Flagged cases</span><strong>{numberFormatter.format(smartIncidentBars.reduce((sum, item) => sum + item.value, 0))}</strong><small>{numberFormatter.format(smartSummary.lateReturns || 0)} late • {numberFormatter.format(smartSummary.missingProof || 0)} missing proof</small></article>
-          </div>
+        </div>
+        <div className="hrmu-analytics-filter-group">
+          <span>END DATE</span>
+          <button type="button" className="hrmu-analytics-date-toggle" onClick={() => openAnalyticsDatePicker(analyticsEndDateInputRef)}>
+            <span>{formatAnalyticsFilterDate(filters.endDate)}</span>
+            <svg className="hrmu-analytics-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg>
+          </button>
+          <input ref={analyticsEndDateInputRef} type="date" className="hrmu-analytics-date-native" value={filters.endDate} onChange={event => updateFilter('endDate', event.target.value)} aria-label="Analytics end date" />
 
-          <div className="hrmu-analytics-recommended-grid">
-            <article className="hrmu-analytics-recommended-panel trend">
-              <div className="hrmu-analytics-panel-head"><div><h2>Movement Trend</h2><p>Weekly locator-slip volume across the selected period.</p></div><span>{analytics?.dateRange?.label || 'Selected period'}</span></div>
-              {loading ? <div className="hrmu-analytics-loading">Loading analytics...</div> : <div className="hrmu-analytics-chart">{chartLabels.map((label, index) => { const currentValue = Number(chartValues[index] || 0); const height = maxChartValue > 0 ? Math.max(currentValue / maxChartValue * 100, 12) : 12; return <div key={label} className="hrmu-analytics-chart-col"><strong className="hrmu-analytics-bar-value">{numberFormatter.format(currentValue)}</strong><div className="hrmu-analytics-bar" style={{height: `${height}%`}} title={`${label}: ${currentValue}`} /><span>{label}</span></div>; })}</div>}
-            </article>
-            <article className="hrmu-analytics-recommended-panel outcome">
-              <div className="hrmu-analytics-panel-head"><div><h2>Outcome Breakdown</h2><p>Recorded trip outcomes, without duplicating the summary cards.</p></div><span>{numberFormatter.format(smartTotalTrips)} trips</span></div>
-              <div className="hrmu-smart-donut-row"><div className={`hrmu-smart-donut ${smartTotalTrips > 0 ? '' : 'empty'}`}><svg className="hrmu-smart-donut-svg" viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-track" />{smartTotalTrips > 0 ? tripDonutSegments.map(segment => { const dashLength = segment.value / 100 * donutCircumference; const dashOffset = -tripDonutOffset; tripDonutOffset += dashLength; return <circle key={segment.label} cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-progress" stroke={segment.color} strokeDasharray={`${dashLength} ${donutCircumference - dashLength}`} strokeDashoffset={dashOffset} />; }) : null}</svg><div><strong>{numberFormatter.format(smartTotalTrips)}</strong><span>Trips</span></div></div><div className="hrmu-smart-donut-legend">{smartTripDistribution.map(item => <div key={item.label} className="hrmu-smart-donut-legend-row"><span className={item.tone} /><strong>{item.label}</strong><em>{numberFormatter.format(item.value)}</em></div>)}</div></div>
-            </article>
-          </div>
+        </div>
+        <div className="hrmu-analytics-filter-group">
+          <span>DEPARTMENT</span>
+          <div className="hrmu-analytics-select-wrap"><select className="hrmu-analytics-select hrmu-analytics-select-input" value={filters.collegeName} onChange={event => updateFilter('collegeName', event.target.value)}>
 
-          <div className="hrmu-analytics-recommended-grid">
-            <article className="hrmu-analytics-recommended-panel exceptions"><div className="hrmu-analytics-panel-head"><div><h2>Operational Exceptions</h2><p>Historical cases requiring review. Live monitoring is intentionally excluded.</p></div><span>{numberFormatter.format(smartIncidentBars.reduce((sum, item) => sum + item.value, 0))} cases</span></div><div className="hrmu-smart-histogram">{smartIncidentBars.map(item => { const height = `${Math.max(item.value / maxSmartIncidentCount * 100, item.value > 0 ? 16 : 5)}%`; return <div key={item.label} className="hrmu-smart-histogram-col"><strong>{numberFormatter.format(item.value)}</strong><div className="hrmu-smart-histogram-track"><div className={`hrmu-smart-histogram-fill ${item.tone}`} style={{height}} /></div><span>{item.label}</span></div>; })}</div>{uniqueSmartIncidents.length ? <div className="hrmu-smart-mini-list">{uniqueSmartIncidents.slice(0, 5).map((incident, index) => <div key={`${incident.tripId || index}-${incident.type}`} className="hrmu-smart-incident-item"><strong>{incident.type}</strong><span>{incident.facultyName || 'Employee'} - {incident.destination || 'Destination unavailable'}</span></div>)}</div> : <div className="hrmu-smart-empty small">No incident signals found for this period.</div>}</article>
-            <article className="hrmu-analytics-recommended-panel recommendations"><div className="hrmu-analytics-panel-head"><div><h2>Recommendations</h2><p>Actions based on the selected historical period.</p></div></div><p className="hrmu-smart-summary-text">{smartAnalytics.generatedSummary || 'No summary is available for this period.'}</p>{recommendations.length ? recommendations.slice(0, 5).map(recommendation => <div key={recommendation} className="hrmu-smart-recommendation-item">{recommendation}</div>) : <div className="hrmu-smart-empty small">No recommendations are available.</div>}<div className="hrmu-smart-mini-list"><h4>Repeat Incident Patterns</h4>{repeatIncidents.length ? repeatIncidents.slice(0, 4).map(incident => <div key={`${incident.scope}-${incident.name}-${incident.type}`} className="hrmu-smart-compact-row"><div><strong>{incident.name}</strong><span>{incident.scope} • {incident.type}</span></div><b>{numberFormatter.format(incident.count)}x</b></div>) : <div className="hrmu-smart-empty small">No repeated incident pattern was found.</div>}</div></article>
-          </div>
+            {departmentOptions.map(option => <option key={option.value || 'all'} value={option.value}>
+              {option.label}
+            </option>)}
+          </select><ChevronDownIcon color="#2F3438" /></div>
+        </div>
+        {employeeOnly && <div className="hrmu-analytics-filter-group">
+          <span>EMPLOYEE</span>
+          <div className="hrmu-analytics-select-wrap"><select className="hrmu-analytics-select hrmu-analytics-select-input" value={filters.employeeId} onChange={event => updateFilter('employeeId', event.target.value)}>
+            <option value="">All employees</option>
+            {employeeOptions.map(employee => <option key={employee.id} value={employee.id}>{employee.name} • {employee.employeeId || employee.collegeName}</option>)}
+          </select><ChevronDownIcon color="#2F3438" /></div>
+        </div>}
+        <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters} disabled={loading || smartGenerating}>
+          {smartGenerating ? 'Generating...' : 'Generate Analytics'}
+        </button>
+      </section>
 
-          <article className="hrmu-analytics-recommended-panel department"><div className="hrmu-analytics-panel-head"><div><h2>Department Comparison</h2><p>Compare volume, completion, and recorded risk in one place.</p></div><span>{selectedCollegeLabel}</span></div>{smartCollegeSummary.length ? <div className="hrmu-smart-department-table"><div className="hrmu-smart-department-row header"><span>Department</span><span>Trips</span><span>Completed</span><span>Risk</span></div>{smartCollegeSummary.map(college => { const risk = topCollegeRiskScores.find(row => String(row.collegeId || row.collegeName) === String(college.collegeId || college.collegeName)); const tripCount = Number(college.tripCount || 0); const completedCount = Number(college.completedTripCount || 0); return <div key={college.collegeId || college.collegeName} className="hrmu-smart-department-row"><strong>{college.collegeName}</strong><span>{numberFormatter.format(tripCount)}</span><span>{numberFormatter.format(completedCount)} ({percentFormatter.format(tripCount ? completedCount / tripCount * 100 : 0)}%)</span><b>{numberFormatter.format(risk?.riskScore || 0)}</b></div>; })}</div> : <div className="hrmu-smart-empty">No department comparison is available for this period.</div>}</article>
+      {(error || exportMessage) && <div className="hrmu-analytics-feedback" data-html2canvas-ignore="true">
+        {error ? <span>{error}</span> : null}
+        {exportMessage ? <span>{exportMessage}</span> : null}
+      </div>}
 
-          <div className="hrmu-analytics-heatmap-grid">
-            <article className="hrmu-analytics-recommended-panel heatmap"><div className="hrmu-analytics-panel-head"><div><h2>Trip Activity Calendar</h2><p>Historical locator-slip volume by day. This is not live location tracking.</p></div><span>{calendarMonthLabel}</span></div>{calendarDays.length ? <div className="hrmu-smart-calendar-heatmap" aria-label={`Historical trip activity calendar for ${calendarMonthLabel}`}><div className="hrmu-smart-calendar-weekdays">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayLabel => <strong key={dayLabel}>{dayLabel}</strong>)}</div><div className="hrmu-smart-calendar-grid">{calendarDays.map(day => { const intensity = day.inMonth ? Number(day.count || 0) / maxCalendarTripCount : 0; return <div key={day.date.toISOString()} className={`hrmu-smart-calendar-day ${day.inMonth ? '' : 'outside'}`} style={day.inMonth ? {'--calendar-intensity': intensity} : undefined} title={`${day.date.toLocaleDateString('en-US', {month: 'short', day: 'numeric'})}: ${numberFormatter.format(day.count || 0)} trips`}><span>{day.date.getDate()}</span>{day.inMonth && day.count > 0 ? <em>{numberFormatter.format(day.count)}</em> : null}</div>; })}</div></div> : <div className="hrmu-smart-empty small">No calendar trip data is available for this period.</div>}</article>
-            <article className="hrmu-analytics-recommended-panel heatmap"><div className="hrmu-analytics-panel-head"><div><h2>Weekly Peak Movement</h2><p>Historical filing activity by weekday and time window.</p></div><span>{peakMovementHeatmap.peak ? `${peakMovementHeatmap.peak.dayLabel} • ${peakMovementHeatmap.peak.bucketLabel}` : 'No peak recorded'}</span></div>{peakHeatmapMatrix.length ? <div className="hrmu-peak-heatmap" aria-label="Weekly peak movement heatmap"><div className="hrmu-peak-heatmap-row labels"><span>Day</span>{(peakMovementHeatmap.buckets || []).map(bucket => <span key={bucket.key}>{bucket.label}</span>)}</div>{peakHeatmapMatrix.map(day => <div key={day.dayLabel} className="hrmu-peak-heatmap-row"><strong>{day.dayLabel}</strong>{day.buckets.map(bucket => <span key={bucket.key} style={{'--peak-intensity': Number(bucket.count || 0) / peakHeatmapMax}} title={`${day.dayLabel}, ${bucket.label}: ${numberFormatter.format(bucket.count || 0)} locator slips`}>{numberFormatter.format(bucket.count || 0)}</span>)}</div>)}</div> : <div className="hrmu-smart-empty small">No weekly peak movement data is available for this period.</div>}</article>
-          </div>
+      <section className="hrmu-analytics-recommended-flow">
+        <div className="hrmu-analytics-flow-heading">
+          <div><span>HISTORICAL HRMU INSIGHTS</span><h2>Executive Summary</h2><p>One view of movement volume, outcomes, compliance, and recorded exceptions for the selected period.</p></div>
+          <strong>{selectedEmployeeLabel} • {selectedCollegeLabel}</strong>
+        </div>
+        <div className="hrmu-analytics-executive-grid">
+          <article><span>Filed locator slips</span><strong>{numberFormatter.format(smartSummary.totalFiled || 0)}</strong><small>{numberFormatter.format(approvalRate.approvedCount || 0)} approved</small></article>
+          <article><span>Approval rate</span><strong>{percentFormatter.format(approvalRatePercentage)}%</strong><small>{numberFormatter.format(approvalRate.totalFiledCount || 0)} filed</small></article>
+          <article><span>Completed trips</span><strong>{numberFormatter.format(smartCompletedTrips)}</strong><small>{numberFormatter.format(monthlySummary.uniqueUsersCompletedTrips || 0)} employees</small></article>
+          <article><span>Compliance rate</span><strong>{percentFormatter.format(smartTotalTrips ? smartCompletedTrips / smartTotalTrips * 100 : 0)}%</strong><small>Completed of recorded trips</small></article>
+          <article className="warning"><span>Rejected / cancelled</span><strong>{numberFormatter.format(smartRejectedTrips + smartCancelledTrips)}</strong><small>{numberFormatter.format(smartSummary.rejectedCount || 0)} rejected • {numberFormatter.format(smartSummary.cancelledCount || 0)} cancelled</small></article>
+          <article className="warning"><span>Flagged cases</span><strong>{numberFormatter.format(smartIncidentBars.reduce((sum, item) => sum + item.value, 0))}</strong><small>{numberFormatter.format(smartSummary.lateReturns || 0)} late • {numberFormatter.format(smartSummary.missingProof || 0)} missing proof</small></article>
+        </div>
 
-          <article className="hrmu-analytics-recommended-panel destinations"><div className="hrmu-analytics-panel-head"><div><h2>Most Frequent Destinations</h2><p>Recorded destination volume for the selected period.</p></div></div><div className="hrmu-analytics-destination-list">{frequentDestinations.length ? frequentDestinations.slice(0, 5).map(row => { const topCount = frequentDestinations[0]?.count || 1; const width = `${Math.max(Number(row.count || 0) / topCount * 100, 10)}%`; return <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item"><div className="hrmu-analytics-rank">{row.rank}</div><div className="hrmu-analytics-destination-copy"><strong title={row.label}>{row.label}</strong><div className="hrmu-analytics-destination-bar-track"><div className="hrmu-analytics-destination-bar-fill" style={{width}} /></div></div><span>{numberFormatter.format(row.count || 0)}</span></div>; }) : <div className="hrmu-analytics-empty">No destination history found for this period.</div>}</div></article>
-          <p className="hrmu-analytics-reports-note">For individual movement records, proof details, path history, and official documents, open Reports.</p>
-        </section>
+        <div className="hrmu-analytics-recommended-grid">
+          <article className="hrmu-analytics-recommended-panel trend">
+            <div className="hrmu-analytics-panel-head"><div><h2>Movement Trend</h2><p>Weekly locator-slip volume across the selected period.</p></div><span>{analytics?.dateRange?.label || 'Selected period'}</span></div>
+            {loading ? <div className="hrmu-analytics-loading">Loading analytics...</div> : <div className="hrmu-analytics-chart">{chartLabels.map((label, index) => { const currentValue = Number(chartValues[index] || 0); const height = maxChartValue > 0 ? Math.max(currentValue / maxChartValue * 100, 12) : 12; return <div key={label} className="hrmu-analytics-chart-col"><strong className="hrmu-analytics-bar-value">{numberFormatter.format(currentValue)}</strong><div className="hrmu-analytics-bar" style={{ height: `${height}%` }} title={`${label}: ${currentValue}`} /><span>{label}</span></div>; })}</div>}
+          </article>
+          <article className="hrmu-analytics-recommended-panel outcome">
+            <div className="hrmu-analytics-panel-head"><div><h2>Outcome Breakdown</h2><p>Recorded trip outcomes, without duplicating the summary cards.</p></div><span>{numberFormatter.format(smartTotalTrips)} trips</span></div>
+            <div className="hrmu-smart-donut-row"><div className={`hrmu-smart-donut ${smartTotalTrips > 0 ? '' : 'empty'}`}><svg className="hrmu-smart-donut-svg" viewBox="0 0 150 150" aria-hidden="true"><circle cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-track" />{smartTotalTrips > 0 ? tripDonutSegments.map(segment => { const dashLength = segment.value / 100 * donutCircumference; const dashOffset = -tripDonutOffset; tripDonutOffset += dashLength; return <circle key={segment.label} cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-progress" stroke={segment.color} strokeDasharray={`${dashLength} ${donutCircumference - dashLength}`} strokeDashoffset={dashOffset} />; }) : null}</svg><div><strong>{numberFormatter.format(smartTotalTrips)}</strong><span>Trips</span></div></div><div className="hrmu-smart-donut-legend">{smartTripDistribution.map(item => <div key={item.label} className="hrmu-smart-donut-legend-row"><span className={item.tone} /><strong>{item.label}</strong><em>{numberFormatter.format(item.value)}</em></div>)}</div></div>
+          </article>
+        </div>
 
-        <div className="hrmu-analytics-legacy-duplicate" aria-hidden="true">
+        <div className="hrmu-analytics-recommended-grid">
+          <article className="hrmu-analytics-recommended-panel exceptions"><div className="hrmu-analytics-panel-head"><div><h2>Operational Exceptions</h2><p>Historical cases requiring review. Live monitoring is intentionally excluded.</p></div><span>{numberFormatter.format(smartIncidentBars.reduce((sum, item) => sum + item.value, 0))} cases</span></div><div className="hrmu-smart-histogram">{smartIncidentBars.map(item => { const height = `${Math.max(item.value / maxSmartIncidentCount * 100, item.value > 0 ? 16 : 5)}%`; return <div key={item.label} className="hrmu-smart-histogram-col"><strong>{numberFormatter.format(item.value)}</strong><div className="hrmu-smart-histogram-track"><div className={`hrmu-smart-histogram-fill ${item.tone}`} style={{ height }} /></div><span>{item.label}</span></div>; })}</div>{uniqueSmartIncidents.length ? <div className="hrmu-smart-mini-list">{uniqueSmartIncidents.slice(0, 5).map((incident, index) => <div key={`${incident.tripId || index}-${incident.type}`} className="hrmu-smart-incident-item"><strong>{incident.type}</strong><span>{incident.facultyName || 'Employee'} - {incident.destination || 'Destination unavailable'}</span></div>)}</div> : <div className="hrmu-smart-empty small">No incident signals found for this period.</div>}</article>
+          <article className="hrmu-analytics-recommended-panel recommendations"><div className="hrmu-analytics-panel-head"><div><h2>Recommendations</h2><p>Actions based on the selected historical period.</p></div></div><p className="hrmu-smart-summary-text">{smartAnalytics.generatedSummary || 'No summary is available for this period.'}</p>{recommendations.length ? recommendations.slice(0, 5).map(recommendation => <div key={recommendation} className="hrmu-smart-recommendation-item">{recommendation}</div>) : <div className="hrmu-smart-empty small">No recommendations are available.</div>}<div className="hrmu-smart-mini-list"><h4>Repeat Incident Patterns</h4>{repeatIncidents.length ? repeatIncidents.slice(0, 4).map(incident => <div key={`${incident.scope}-${incident.name}-${incident.type}`} className="hrmu-smart-compact-row"><div><strong>{incident.name}</strong><span>{incident.scope} • {incident.type}</span></div><b>{numberFormatter.format(incident.count)}x</b></div>) : <div className="hrmu-smart-empty small">No repeated incident pattern was found.</div>}</div></article>
+        </div>
+
+        <article className="hrmu-analytics-recommended-panel department"><div className="hrmu-analytics-panel-head"><div><h2>Department Comparison</h2><p>Compare volume, completion, and recorded risk in one place.</p></div><span>{selectedCollegeLabel}</span></div>{smartCollegeSummary.length ? <div className="hrmu-smart-department-table"><div className="hrmu-smart-department-row header"><span>Department</span><span>Trips</span><span>Completed</span><span>Risk</span></div>{smartCollegeSummary.map(college => { const risk = topCollegeRiskScores.find(row => String(row.collegeId || row.collegeName) === String(college.collegeId || college.collegeName)); const tripCount = Number(college.tripCount || 0); const completedCount = Number(college.completedTripCount || 0); return <div key={college.collegeId || college.collegeName} className="hrmu-smart-department-row"><strong>{college.collegeName}</strong><span>{numberFormatter.format(tripCount)}</span><span>{numberFormatter.format(completedCount)} ({percentFormatter.format(tripCount ? completedCount / tripCount * 100 : 0)}%)</span><b>{numberFormatter.format(risk?.riskScore || 0)}</b></div>; })}</div> : <div className="hrmu-smart-empty">No department comparison is available for this period.</div>}</article>
+
+        <div className="hrmu-analytics-heatmap-grid">
+          <article className="hrmu-analytics-recommended-panel heatmap"><div className="hrmu-analytics-panel-head"><div><h2>Trip Activity Calendar</h2><p>Historical locator-slip volume by day. This is not live location tracking.</p></div><span>{calendarMonthLabel}</span></div>{calendarDays.length ? <div className="hrmu-smart-calendar-heatmap" aria-label={`Historical trip activity calendar for ${calendarMonthLabel}`}><div className="hrmu-smart-calendar-weekdays">{['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayLabel => <strong key={dayLabel}>{dayLabel}</strong>)}</div><div className="hrmu-smart-calendar-grid">{calendarDays.map(day => { const intensity = day.inMonth ? Number(day.count || 0) / maxCalendarTripCount : 0; return <div key={day.date.toISOString()} className={`hrmu-smart-calendar-day ${day.inMonth ? '' : 'outside'}`} style={day.inMonth ? { '--calendar-intensity': intensity } : undefined} title={`${day.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${numberFormatter.format(day.count || 0)} trips`}><span>{day.date.getDate()}</span>{day.inMonth && day.count > 0 ? <em>{numberFormatter.format(day.count)}</em> : null}</div>; })}</div></div> : <div className="hrmu-smart-empty small">No calendar trip data is available for this period.</div>}</article>
+          <article className="hrmu-analytics-recommended-panel heatmap"><div className="hrmu-analytics-panel-head"><div><h2>Weekly Peak Movement</h2><p>Historical filing activity by weekday and time window.</p></div><span>{peakMovementHeatmap.peak ? `${peakMovementHeatmap.peak.dayLabel} • ${peakMovementHeatmap.peak.bucketLabel}` : 'No peak recorded'}</span></div>{peakHeatmapMatrix.length ? <div className="hrmu-peak-heatmap" aria-label="Weekly peak movement heatmap"><div className="hrmu-peak-heatmap-row labels"><span>Day</span>{(peakMovementHeatmap.buckets || []).map(bucket => <span key={bucket.key}>{bucket.label}</span>)}</div>{peakHeatmapMatrix.map(day => <div key={day.dayLabel} className="hrmu-peak-heatmap-row"><strong>{day.dayLabel}</strong>{day.buckets.map(bucket => <span key={bucket.key} style={{ '--peak-intensity': Number(bucket.count || 0) / peakHeatmapMax }} title={`${day.dayLabel}, ${bucket.label}: ${numberFormatter.format(bucket.count || 0)} locator slips`}>{numberFormatter.format(bucket.count || 0)}</span>)}</div>)}</div> : <div className="hrmu-smart-empty small">No weekly peak movement data is available for this period.</div>}</article>
+        </div>
+
+        <article className="hrmu-analytics-recommended-panel destinations"><div className="hrmu-analytics-panel-head"><div><h2>Most Frequent Destinations</h2><p>Recorded destination volume for the selected period.</p></div></div><div className="hrmu-analytics-destination-list">{frequentDestinations.length ? frequentDestinations.slice(0, 5).map(row => { const topCount = frequentDestinations[0]?.count || 1; const width = `${Math.max(Number(row.count || 0) / topCount * 100, 10)}%`; return <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item"><div className="hrmu-analytics-rank">{row.rank}</div><div className="hrmu-analytics-destination-copy"><strong title={row.label}>{row.label}</strong><div className="hrmu-analytics-destination-bar-track"><div className="hrmu-analytics-destination-bar-fill" style={{ width }} /></div></div><span>{numberFormatter.format(row.count || 0)}</span></div>; }) : <div className="hrmu-analytics-empty">No destination history found for this period.</div>}</div></article>
+        <p className="hrmu-analytics-reports-note">For individual movement records, open Employee Analytics.</p>
+      </section>
+
+      <div className="hrmu-analytics-legacy-duplicate" aria-hidden="true">
 
         <section className="hrmu-analytics-overview-grid">
           <article className="hrmu-smart-panel hrmu-smart-chart-panel">
@@ -1630,11 +1605,11 @@ export const HrmuAnalyticsReportsView = ({
                 <svg className="hrmu-smart-donut-svg" viewBox="0 0 150 150" aria-hidden="true">
                   <circle cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-track" />
                   {smartTotalTrips > 0 ? tripDonutSegments.map(segment => {
-                  const dashLength = segment.value / 100 * donutCircumference;
-                  const dashOffset = -tripDonutOffset;
-                  tripDonutOffset += dashLength;
-                  return <circle key={segment.label} cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-progress" stroke={segment.color} strokeDasharray={`${dashLength} ${donutCircumference - dashLength}`} strokeDashoffset={dashOffset} />;
-                }) : null}
+                    const dashLength = segment.value / 100 * donutCircumference;
+                    const dashOffset = -tripDonutOffset;
+                    tripDonutOffset += dashLength;
+                    return <circle key={segment.label} cx="75" cy="75" r={donutRadius} className="hrmu-smart-donut-progress" stroke={segment.color} strokeDasharray={`${dashLength} ${donutCircumference - dashLength}`} strokeDashoffset={dashOffset} />;
+                  }) : null}
                 </svg>
                 <div>
                   <strong>{numberFormatter.format(smartTotalTrips)}</strong>
@@ -1643,10 +1618,10 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-donut-legend">
                 {smartTripDistribution.map(item => <div key={item.label} className="hrmu-smart-donut-legend-row">
-                    <span className={item.tone} />
-                    <strong>{item.label}</strong>
-                    <em>{numberFormatter.format(item.value)}</em>
-                  </div>)}
+                  <span className={item.tone} />
+                  <strong>{item.label}</strong>
+                  <em>{numberFormatter.format(item.value)}</em>
+                </div>)}
               </div>
             </div>
             <div className="hrmu-smart-metric-strip compact">
@@ -1668,7 +1643,7 @@ export const HrmuAnalyticsReportsView = ({
               <svg className="hrmu-analytics-ring-svg" viewBox="0 0 180 180" aria-hidden="true">
                 <circle cx="90" cy="90" r={approvalRingRadius} className="hrmu-analytics-ring-track" />
                 <circle cx="90" cy="90" r={approvalRingRadius} className="hrmu-analytics-ring-progress" strokeDasharray={`${approvalStrokeLength} ${approvalRingCircumference - approvalStrokeLength}`} />
-                
+
               </svg>
               <div>
                 <strong>{percentFormatter.format(approvalRatePercentage)}%</strong>
@@ -1687,10 +1662,10 @@ export const HrmuAnalyticsReportsView = ({
             <h2>Monthly Performance Summary</h2>
             <div className="hrmu-analytics-summary-grid compact">
               {summaryCards.map(card => <div key={card.label} className={`hrmu-analytics-mini-card ${card.tone}`}>
-                  <span>{card.label}</span>
-                  <strong>{card.value}</strong>
-                  <small>{card.note}</small>
-                </div>)}
+                <span>{card.label}</span>
+                <strong>{card.value}</strong>
+                <small>{card.note}</small>
+              </div>)}
             </div>
           </article>
         </section>
@@ -1712,17 +1687,17 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-histogram" aria-label="Monitoring flags histogram">
                 {smartIncidentBars.map(item => {
-                const height = `${Math.max(item.value / maxSmartIncidentCount * 100, item.value > 0 ? 16 : 5)}%`;
-                return <div key={item.label} className="hrmu-smart-histogram-col">
-                      <strong>{numberFormatter.format(item.value)}</strong>
-                      <div className="hrmu-smart-histogram-track">
-                        <div className={`hrmu-smart-histogram-fill ${item.tone}`} style={{
-                      height
-                    }} />
-                      </div>
-                      <span>{item.label}</span>
-                    </div>;
-              })}
+                  const height = `${Math.max(item.value / maxSmartIncidentCount * 100, item.value > 0 ? 16 : 5)}%`;
+                  return <div key={item.label} className="hrmu-smart-histogram-col">
+                    <strong>{numberFormatter.format(item.value)}</strong>
+                    <div className="hrmu-smart-histogram-track">
+                      <div className={`hrmu-smart-histogram-fill ${item.tone}`} style={{
+                        height
+                      }} />
+                    </div>
+                    <span>{item.label}</span>
+                  </div>;
+                })}
               </div>
             </article>
 
@@ -1733,9 +1708,9 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-label-table">
                 {smartLabelRows.map(row => <div key={row.label} className="hrmu-smart-label-row">
-                    <span>{row.label}</span>
-                    <strong title={String(row.value)}>{row.value}</strong>
-                  </div>)}
+                  <span>{row.label}</span>
+                  <strong title={String(row.value)}>{row.value}</strong>
+                </div>)}
               </div>
             </article>
           </div>
@@ -1748,14 +1723,14 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-prediction-list">
                 {lateReturnPredictions.length ? lateReturnPredictions.slice(0, 4).map(trip => <div key={`late-${trip.tripId}`} className="hrmu-smart-prediction-item">
-                    <div>
-                      <strong>{trip.facultyName}</strong>
-                      <span>{trip.destination} • {trip.minutesUntilReturn === null ? 'No expected return' : `${trip.minutesUntilReturn} mins before expected return`}</span>
-                    </div>
-                    <em className={String(trip.predictionLevel || '').toLowerCase()}>
-                      {numberFormatter.format(trip.predictionScore || 0)}%
-                    </em>
-                  </div>) : <div className="hrmu-smart-empty small">No active trip is predicted to return late yet.</div>}
+                  <div>
+                    <strong>{trip.facultyName}</strong>
+                    <span>{trip.destination} • {trip.minutesUntilReturn === null ? 'No expected return' : `${trip.minutesUntilReturn} mins before expected return`}</span>
+                  </div>
+                  <em className={String(trip.predictionLevel || '').toLowerCase()}>
+                    {numberFormatter.format(trip.predictionScore || 0)}%
+                  </em>
+                </div>) : <div className="hrmu-smart-empty small">No active trip is predicted to return late yet.</div>}
               </div>
             </article>
 
@@ -1773,15 +1748,15 @@ export const HrmuAnalyticsReportsView = ({
               <div className="hrmu-smart-mini-list">
                 <h4>Recommendations</h4>
                 {recommendations.length ? recommendations.slice(0, 4).map(recommendation => <div key={recommendation} className="hrmu-smart-recommendation-item">
-                    {recommendation}
-                  </div>) : <div className="hrmu-smart-empty small">Recommendations will appear once analytics data is available.</div>}
+                  {recommendation}
+                </div>) : <div className="hrmu-smart-empty small">Recommendations will appear once analytics data is available.</div>}
               </div>
               <div className="hrmu-smart-mini-list">
                 <h4>Incident Signals</h4>
                 {uniqueSmartIncidents.length ? uniqueSmartIncidents.slice(0, 5).map((incident, index) => <div key={`${incident.tripId || index}-${incident.type}`} className="hrmu-smart-incident-item">
-                    <strong>{incident.type}</strong>
-                    <span>{incident.facultyName || 'Employee'} - {incident.destination || 'Destination unavailable'}</span>
-                  </div>) : <div className="hrmu-smart-empty small">No incident signals found for this period.</div>}
+                  <strong>{incident.type}</strong>
+                  <span>{incident.facultyName || 'Employee'} - {incident.destination || 'Destination unavailable'}</span>
+                </div>) : <div className="hrmu-smart-empty small">No incident signals found for this period.</div>}
               </div>
             </article>
           </div>
@@ -1793,25 +1768,25 @@ export const HrmuAnalyticsReportsView = ({
                 <span>{calendarMonthLabel}</span>
               </div>
               {calendarDays.length ? <div className="hrmu-smart-calendar-heatmap" aria-label={`Trip counts calendar heatmap for ${calendarMonthLabel}`}>
-                  <div className="hrmu-smart-calendar-weekdays">
-                    {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayLabel => <strong key={dayLabel}>{dayLabel}</strong>)}
-                  </div>
-                  <div className="hrmu-smart-calendar-grid">
-                    {calendarDays.map(day => {
-                  const intensity = day.inMonth ? Number(day.count || 0) / maxCalendarTripCount : 0;
-                  return <div key={day.date.toISOString()} className={`hrmu-smart-calendar-day ${day.inMonth ? '' : 'outside'}`} style={day.inMonth ? {
-                    '--calendar-intensity': intensity
-                  } : undefined} title={`${day.date.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric'
-                  })}: ${numberFormatter.format(day.count || 0)} trips`}>
-                        
-                          <span>{day.date.getDate()}</span>
-                          {day.inMonth && day.count > 0 ? <em>{numberFormatter.format(day.count)}</em> : null}
-                        </div>;
-                })}
-                  </div>
-                </div> : <div className="hrmu-smart-empty small">No calendar trip data is available for this period.</div>}
+                <div className="hrmu-smart-calendar-weekdays">
+                  {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(dayLabel => <strong key={dayLabel}>{dayLabel}</strong>)}
+                </div>
+                <div className="hrmu-smart-calendar-grid">
+                  {calendarDays.map(day => {
+                    const intensity = day.inMonth ? Number(day.count || 0) / maxCalendarTripCount : 0;
+                    return <div key={day.date.toISOString()} className={`hrmu-smart-calendar-day ${day.inMonth ? '' : 'outside'}`} style={day.inMonth ? {
+                      '--calendar-intensity': intensity
+                    } : undefined} title={`${day.date.toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric'
+                    })}: ${numberFormatter.format(day.count || 0)} trips`}>
+
+                      <span>{day.date.getDate()}</span>
+                      {day.inMonth && day.count > 0 ? <em>{numberFormatter.format(day.count)}</em> : null}
+                    </div>;
+                  })}
+                </div>
+              </div> : <div className="hrmu-smart-empty small">No calendar trip data is available for this period.</div>}
             </article>
 
             <article className="hrmu-smart-panel">
@@ -1821,11 +1796,11 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-compact-list">
                 {repeatIncidents.length ? repeatIncidents.slice(0, 5).map(incident => <div key={`${incident.scope}-${incident.name}-${incident.type}`} className="hrmu-smart-compact-row">
-                    <div>
-                      <strong>{incident.name}</strong>
-                      <span>{incident.scope} • {incident.type}</span>
-                    </div>
-                    <b>{numberFormatter.format(incident.count)}x</b>
+                  <div>
+                    <strong>{incident.name}</strong>
+                    <span>{incident.scope} • {incident.type}</span>
+                  </div>
+                  <b>{numberFormatter.format(incident.count)}x</b>
                 </div>) : <div className="hrmu-smart-empty small">No repeated missing proof or late return pattern was found.</div>}
               </div>
             </article>
@@ -1839,17 +1814,17 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-risk-score-list">
                 {topCollegeRiskScores.length ? topCollegeRiskScores.map(college => <div key={`risk-${college.collegeId || college.collegeName}`} className="hrmu-smart-risk-score-row">
-                    <div>
-                      <strong>{college.collegeName}</strong>
-                      <span>{college.lateReturns} late • {college.rejectedSlips} rejected • {college.missingProof} missing proof</span>
-                    </div>
-                    <div className="hrmu-smart-risk-score-meter">
-                      <span style={{
-                    width: `${Math.max(college.riskScore || 0, college.riskScore > 0 ? 6 : 2)}%`
-                  }} />
-                    </div>
-                    <b>{numberFormatter.format(college.riskScore || 0)}</b>
-                  </div>) : <div className="hrmu-smart-empty small">No college risk score is available for this period.</div>}
+                  <div>
+                    <strong>{college.collegeName}</strong>
+                    <span>{college.lateReturns} late • {college.rejectedSlips} rejected • {college.missingProof} missing proof</span>
+                  </div>
+                  <div className="hrmu-smart-risk-score-meter">
+                    <span style={{
+                      width: `${Math.max(college.riskScore || 0, college.riskScore > 0 ? 6 : 2)}%`
+                    }} />
+                  </div>
+                  <b>{numberFormatter.format(college.riskScore || 0)}</b>
+                </div>) : <div className="hrmu-smart-empty small">No college risk score is available for this period.</div>}
               </div>
             </article>
 
@@ -1860,12 +1835,12 @@ export const HrmuAnalyticsReportsView = ({
               </div>
               <div className="hrmu-smart-compact-list">
                 {topTrendRows.length ? topTrendRows.map(college => <div key={`trend-${college.collegeId || college.collegeName}`} className="hrmu-smart-compact-row">
-                    <div>
-                      <strong>{college.collegeName}</strong>
-                      <span>{numberFormatter.format(college.currentTrips)} current / {numberFormatter.format(college.previousTrips)} previous</span>
-                    </div>
-                    <b className={college.direction}>{college.direction === 'increase' ? '+' : college.direction === 'decrease' ? '-' : ''}{percentFormatter.format(college.changePercent || 0)}%</b>
-                  </div>) : <div className="hrmu-smart-empty small">No college trend comparison is available for this period.</div>}
+                  <div>
+                    <strong>{college.collegeName}</strong>
+                    <span>{numberFormatter.format(college.currentTrips)} current / {numberFormatter.format(college.previousTrips)} previous</span>
+                  </div>
+                  <b className={college.direction}>{college.direction === 'increase' ? '+' : college.direction === 'decrease' ? '-' : ''}{percentFormatter.format(college.changePercent || 0)}%</b>
+                </div>) : <div className="hrmu-smart-empty small">No college trend comparison is available for this period.</div>}
               </div>
             </article>
           </div>
@@ -1884,39 +1859,39 @@ export const HrmuAnalyticsReportsView = ({
               <span>{selectedCollegeLabel}</span>
             </div>
             {smartCollegeSummary.length ? <div className="hrmu-smart-college-chart" aria-label="College-based trip summary bar chart">
-                {smartCollegeSummary.map(college => {
-              const tripCount = Number(college.tripCount || 0);
-              const activeCount = Number(college.activeTripCount || 0);
-              const completedCount = Number(college.completedTripCount || 0);
-              const width = `${Math.max(tripCount / maxCollegeTripCount * 100, tripCount > 0 ? 10 : 2)}%`;
-              const activeWidth = tripCount > 0 ? `${Math.min(activeCount / tripCount * 100, 100)}%` : '0%';
-              const completedWidth = tripCount > 0 ? `${Math.min(completedCount / tripCount * 100, 100)}%` : '0%';
-              return <div key={college.collegeId || college.collegeName} className="hrmu-smart-college-chart-row">
-                      <div className="hrmu-smart-college-chart-label">
-                        <strong>{college.collegeName}</strong>
-                        <span>{numberFormatter.format(tripCount)} trips</span>
+              {smartCollegeSummary.map(college => {
+                const tripCount = Number(college.tripCount || 0);
+                const activeCount = Number(college.activeTripCount || 0);
+                const completedCount = Number(college.completedTripCount || 0);
+                const width = `${Math.max(tripCount / maxCollegeTripCount * 100, tripCount > 0 ? 10 : 2)}%`;
+                const activeWidth = tripCount > 0 ? `${Math.min(activeCount / tripCount * 100, 100)}%` : '0%';
+                const completedWidth = tripCount > 0 ? `${Math.min(completedCount / tripCount * 100, 100)}%` : '0%';
+                return <div key={college.collegeId || college.collegeName} className="hrmu-smart-college-chart-row">
+                  <div className="hrmu-smart-college-chart-label">
+                    <strong>{college.collegeName}</strong>
+                    <span>{numberFormatter.format(tripCount)} trips</span>
+                  </div>
+                  <div className="hrmu-smart-college-chart-body">
+                    <div className="hrmu-smart-college-bar-shell">
+                      <div className="hrmu-smart-college-bar-total" style={{
+                        width
+                      }}>
+                        <span className="active" style={{
+                          width: activeWidth
+                        }} />
+                        <span className="completed" style={{
+                          width: completedWidth
+                        }} />
                       </div>
-                      <div className="hrmu-smart-college-chart-body">
-                        <div className="hrmu-smart-college-bar-shell">
-                          <div className="hrmu-smart-college-bar-total" style={{
-                      width
-                    }}>
-                            <span className="active" style={{
-                        width: activeWidth
-                      }} />
-                            <span className="completed" style={{
-                        width: completedWidth
-                      }} />
-                          </div>
-                        </div>
-                        <div className="hrmu-smart-college-chart-meta">
-                          <span><i className="active" />{numberFormatter.format(activeCount)} active</span>
-                          <span><i className="completed" />{numberFormatter.format(completedCount)} completed</span>
-                        </div>
-                      </div>
-                    </div>;
-            })}
-              </div> : <div className="hrmu-smart-empty">No college summary is available for this period.</div>}
+                    </div>
+                    <div className="hrmu-smart-college-chart-meta">
+                      <span><i className="active" />{numberFormatter.format(activeCount)} active</span>
+                      <span><i className="completed" />{numberFormatter.format(completedCount)} completed</span>
+                    </div>
+                  </div>
+                </div>;
+              })}
+            </div> : <div className="hrmu-smart-empty">No college summary is available for this period.</div>}
           </article>
         </section>
 
@@ -1935,18 +1910,18 @@ export const HrmuAnalyticsReportsView = ({
               </div>
             </div>
             {loading ? <div className="hrmu-analytics-loading">Loading analytics...</div> : <div className="hrmu-analytics-chart">
-                {chartLabels.map((label, index) => {
-              const currentValue = Number(chartValues[index] || 0);
-              const height = maxChartValue > 0 ? Math.max(currentValue / maxChartValue * 100, 12) : 12;
-              return <div key={label} className="hrmu-analytics-chart-col">
-                      <strong className="hrmu-analytics-bar-value">{numberFormatter.format(currentValue)}</strong>
-                      <div className="hrmu-analytics-bar" style={{
-                  height: `${height}%`
-                }} title={`${label}: ${currentValue}`} />
-                      <span>{label}</span>
-                    </div>;
-            })}
-              </div>}
+              {chartLabels.map((label, index) => {
+                const currentValue = Number(chartValues[index] || 0);
+                const height = maxChartValue > 0 ? Math.max(currentValue / maxChartValue * 100, 12) : 12;
+                return <div key={label} className="hrmu-analytics-chart-col">
+                  <strong className="hrmu-analytics-bar-value">{numberFormatter.format(currentValue)}</strong>
+                  <div className="hrmu-analytics-bar" style={{
+                    height: `${height}%`
+                  }} title={`${label}: ${currentValue}`} />
+                  <span>{label}</span>
+                </div>;
+              })}
+            </div>}
           </article>
 
         </section>
@@ -1956,32 +1931,39 @@ export const HrmuAnalyticsReportsView = ({
             <h2>Frequent Destinations</h2>
             <div className="hrmu-analytics-destination-list">
               {frequentDestinations.length ? frequentDestinations.slice(0, 5).map(row => {
-              const topCount = frequentDestinations[0]?.count || 1;
-              const width = `${Math.max(Number(row.count || 0) / topCount * 100, 10)}%`;
-              return <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item">
-                      <div className="hrmu-analytics-rank">{row.rank}</div>
-                      <div className="hrmu-analytics-destination-copy">
-                        <strong title={row.label}>{row.label}</strong>
-                        <div className="hrmu-analytics-destination-bar-track">
-                          <div className="hrmu-analytics-destination-bar-fill" style={{
-                      width
-                    }} />
-                        </div>
-                      </div>
-                      <span>{numberFormatter.format(row.count || 0)}</span>
-                    </div>;
-            }) : <div className="hrmu-analytics-empty">No destination history found for this month.</div>}
+                const topCount = frequentDestinations[0]?.count || 1;
+                const width = `${Math.max(Number(row.count || 0) / topCount * 100, 10)}%`;
+                return <div key={`${row.rank}-${row.label}`} className="hrmu-analytics-destination-item">
+                  <div className="hrmu-analytics-rank">{row.rank}</div>
+                  <div className="hrmu-analytics-destination-copy">
+                    <strong title={row.label}>{row.label}</strong>
+                    <div className="hrmu-analytics-destination-bar-track">
+                      <div className="hrmu-analytics-destination-bar-fill" style={{
+                        width
+                      }} />
+                    </div>
+                  </div>
+                  <span>{numberFormatter.format(row.count || 0)}</span>
+                </div>;
+              }) : <div className="hrmu-analytics-empty">No destination history found for this month.</div>}
             </div>
           </article>
         </section>
-        </div>
       </div>
-    </HrmuWorkspaceShell>;
+    </div>
+  </HrmuWorkspaceShell>;
 };
 export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) => {
   const analyticsExportRef = useRef(null);
   const employeeStartDateRef = useRef(null);
   const employeeEndDateRef = useRef(null);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
+  const [employeeProofRows, setEmployeeProofRows] = useState([]);
+  const [selectedEmployeeProof, setSelectedEmployeeProof] = useState(null);
+  const [selectedEmployeeProofDetails, setSelectedEmployeeProofDetails] = useState(null);
+  const [employeeProofLoading, setEmployeeProofLoading] = useState(false);
+  const [employeeProofMessage, setEmployeeProofMessage] = useState('');
   const formatEmployeeFilterDate = value => {
     if (!value) return 'mm/dd/yyyy';
     const date = new Date(`${value}T00:00:00`);
@@ -2004,6 +1986,22 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     exportPdf
   } = useHrmuAnalytics();
   const selectedEmployee = analytics?.selectedEmployee || null;
+  useEffect(() => {
+    let active = true;
+    if (!selectedEmployee?.id) {
+      setEmployeeProofRows([]);
+      return () => { active = false; };
+    }
+    getHrmuProofComplianceList().then(data => {
+      if (!active) return;
+      const proofs = Array.isArray(data?.proofs) ? data.proofs : [];
+      const employeeId = String(selectedEmployee.id);
+      setEmployeeProofRows(proofs.filter(proof => [proof.facultyId, proof.facultyUserId, proof.employeeId].filter(Boolean).some(value => String(value) === employeeId)));
+    }).catch(error => {
+      if (active) setEmployeeProofMessage(error.message || 'Verification details are unavailable.');
+    });
+    return () => { active = false; };
+  }, [selectedEmployee?.id]);
   const smart = analytics?.smartAnalytics || {};
   const summary = smart.summary || {};
   const approval = analytics?.approvalRate || {};
@@ -2024,10 +2022,27 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     const remainder = minutes % 60;
     return hours ? `${hours}h ${remainder}m` : `${remainder}m`;
   };
+  const getWholeMinuteDifference = (fromValue, toValue) => {
+    const start = new Date(fromValue);
+    const end = new Date(toValue);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    start.setSeconds(0, 0);
+    end.setSeconds(0, 0);
+    const minutes = Math.floor((end.getTime() - start.getTime()) / 60000);
+    return Number.isFinite(minutes) && minutes >= 0 ? minutes : null;
+  };
+  const getSignedMinuteDifference = (fromValue, toValue) => {
+    const start = new Date(fromValue);
+    const end = new Date(toValue);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+    start.setSeconds(0, 0);
+    end.setSeconds(0, 0);
+    const minutes = (end.getTime() - start.getTime()) / 60000;
+    return Number.isFinite(minutes) ? minutes : null;
+  };
   const getActualDurationMinutes = record => {
     if (!record?.startedAt || !record?.actualReturnTime) return null;
-    const minutes = Math.round((new Date(record.actualReturnTime).getTime() - new Date(record.startedAt).getTime()) / 60000);
-    return Number.isFinite(minutes) && minutes >= 0 ? minutes : null;
+    return getWholeMinuteDifference(record.startedAt, record.actualReturnTime);
   };
   const durationValues = tripRecords.map(getActualDurationMinutes).filter(value => value !== null);
   const durationTotalMinutes = durationValues.reduce((sum, value) => sum + value, 0);
@@ -2046,8 +2061,81 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     return counts;
   }, {});
   const monthlyRows = Object.entries(monthlyCounts).slice(0, 6);
+  const selectedEmployeeOption = employeeOptions.find(employee => String(employee.id) === String(filters.employeeId));
+  const filteredEmployeeOptions = employeeOptions.filter(employee => {
+    const query = employeeSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [employee.name, employee.employeeId, employee.collegeName].filter(Boolean).some(value => String(value).toLowerCase().includes(query));
+  }).slice(0, 12);
+  const filingToExitValues = tripRecords.map(record => getWholeMinuteDifference(record.locatorSlipFiledAt, record.startedAt)).filter(value => value !== null);
+  const averageFilingToExit = filingToExitValues.length ? Math.floor(filingToExitValues.reduce((sum, value) => sum + value, 0) / filingToExitValues.length) : null;
+  const getPeakTimeWindow = (field) => {
+    const buckets = tripRecords.reduce((counts, record) => {
+      const date = record?.[field] ? new Date(record[field]) : null;
+      if (!date || Number.isNaN(date.getTime())) return counts;
+      const hour = date.getHours();
+      counts[hour] = (counts[hour] || 0) + 1;
+      return counts;
+    }, {});
+    const peakHour = Object.entries(buckets).sort((left, right) => right[1] - left[1] || Number(left[0]) - Number(right[0]))[0]?.[0];
+    if (peakHour === undefined) return '--';
+    const start = new Date(2000, 0, 1, Number(peakHour), 0, 0, 0);
+    const end = new Date(start);
+    end.setHours(end.getHours() + 1);
+    const formatHour = value => value.toLocaleTimeString('en-US', { hour: 'numeric' });
+    return `${formatHour(start)}–${formatHour(end)}`;
+  };
+  const peakExitWindow = getPeakTimeWindow('startedAt');
+  const peakReturnWindow = getPeakTimeWindow('actualReturnTime');
+  const exitScheduleVariances = tripRecords.map(record => getSignedMinuteDifference(record.scheduledDepartureAt, record.startedAt)).filter(value => value !== null);
+  const returnScheduleVariances = tripRecords.map(record => getSignedMinuteDifference(record.expectedReturnTime, record.actualReturnTime)).filter(value => value !== null);
+  const formatScheduleVariance = minutes => {
+    if (minutes === null) return '--';
+    if (minutes === 0) return 'On schedule';
+    return `${formatDuration(Math.abs(minutes))} ${minutes < 0 ? 'early' : 'late'}`;
+  };
+  const earlyExitCount = exitScheduleVariances.filter(value => value < 0).length;
+  const lateExitCount = exitScheduleVariances.filter(value => value > 0).length;
+  const earlyReturnCount = returnScheduleVariances.filter(value => value < 0).length;
+  const lateReturnCount = returnScheduleVariances.filter(value => value > 0).length;
   const returnScanCount = tripRecords.filter(record => record.actualReturnTime).length;
   const missingReturnScanCount = Math.max(tripRecords.length - returnScanCount, 0);
+  const verificationBySlip = new Map(employeeProofRows.map(proof => [String(proof.locatorSlipId), proof]));
+  const openEmployeeVerification = async record => {
+    const proof = verificationBySlip.get(String(record.locatorSlipId));
+    if (!proof?.id) {
+      setEmployeeProofMessage('No proof of compliance is attached to this locator slip.');
+      return;
+    }
+    setEmployeeProofLoading(true);
+    setEmployeeProofMessage('');
+    setSelectedEmployeeProof({
+      ...proof,
+      proofId: proof.id,
+      name: proof.facultyName || selectedEmployee?.name || 'Employee',
+      roleLine: `Employee - ${proof.collegeName || selectedEmployee?.collegeName || 'Unknown college'}`,
+      slipNumber: `LS-${String(proof.locatorSlipId || '').replace(/-/g, '').slice(0, 8).toUpperCase()}`,
+      destination: proof.destination || record.destination,
+      verificationStatus: String(proof.verificationStatus || 'submitted').toLowerCase(),
+      flaggedReasons: Array.isArray(proof.flaggedReasons) ? proof.flaggedReasons : [],
+      purpose: proof.purpose || record.purpose || 'Official travel',
+      expectedReturnTime: proof.expectedReturnTime || record.expectedReturnTime,
+      actualReturnTime: proof.actualReturnTime || record.actualReturnTime
+    });
+    try {
+      const details = await getHrmuProofComplianceDetails(proof.id);
+      setSelectedEmployeeProofDetails(details);
+    } catch (error) {
+      setEmployeeProofMessage(error.message || 'Failed to load proof details.');
+    } finally {
+      setEmployeeProofLoading(false);
+    }
+  };
+  const closeEmployeeVerification = () => {
+    setSelectedEmployeeProof(null);
+    setSelectedEmployeeProofDetails(null);
+    setEmployeeProofMessage('');
+  };
   const handleExport = async () => {
     if (selectedEmployee) await exportPdf({ element: analyticsExportRef.current });
   };
@@ -2064,21 +2152,24 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
         <button type="button" className="hrmu-analytics-export primary" onClick={handleExport} disabled={!selectedEmployee || exporting}><HrmuReportIcon color="white" />{exporting ? 'Exporting...' : 'Export PDF'}</button>
       </section>
       <section className="hrmu-employee-analytics-controls">
-        <label><span>EMPLOYEE</span><select value={filters.employeeId} onChange={event => updateFilter('employeeId', event.target.value)}><option value="">Select an employee</option>{employeeOptions.map(employee => <option key={employee.id} value={employee.id}>{employee.name} • {employee.employeeId || employee.collegeName}</option>)}</select></label>
+        <label className="hrmu-employee-picker-field"><span>EMPLOYEE</span><div className="hrmu-employee-picker"><input type="search" value={employeeSearch || (selectedEmployeeOption ? `${selectedEmployeeOption.name} • ${selectedEmployeeOption.employeeId || selectedEmployeeOption.collegeName}` : '')} onChange={event => { setEmployeeSearch(event.target.value); setEmployeePickerOpen(true); if (filters.employeeId) updateFilter('employeeId', ''); }} onFocus={() => setEmployeePickerOpen(true)} placeholder="Search employee or ID" aria-label="Search employee" /><span className="hrmu-employee-picker-icon">⌕</span>{employeePickerOpen && <div className="hrmu-employee-picker-menu">{filteredEmployeeOptions.length ? filteredEmployeeOptions.map(employee => <button key={employee.id} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { updateFilter('employeeId', employee.id); setEmployeeSearch(`${employee.name} • ${employee.employeeId || employee.collegeName}`); setEmployeePickerOpen(false); }}><strong>{employee.name}</strong><small>{employee.employeeId || 'Employee ID unavailable'}{employee.collegeName ? ` • ${employee.collegeName}` : ''}</small></button>) : <p>No matching employees found.</p>}</div>}</div></label>
         <label><span>START DATE</span><div className="hrmu-employee-date-field"><button type="button" className="hrmu-employee-date-toggle" onClick={() => openEmployeeDatePicker(employeeStartDateRef)}><span>{formatEmployeeFilterDate(filters.startDate)}</span><svg className="hrmu-employee-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg></button><input ref={employeeStartDateRef} type="date" className="hrmu-employee-date-native" value={filters.startDate} onChange={event => updateFilter('startDate', event.target.value)} aria-label="Employee analytics start date" /></div></label>
         <label><span>END DATE</span><div className="hrmu-employee-date-field"><button type="button" className="hrmu-employee-date-toggle" onClick={() => openEmployeeDatePicker(employeeEndDateRef)}><span>{formatEmployeeFilterDate(filters.endDate)}</span><svg className="hrmu-employee-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg></button><input ref={employeeEndDateRef} type="date" className="hrmu-employee-date-native" value={filters.endDate} onChange={event => updateFilter('endDate', event.target.value)} aria-label="Employee analytics end date" /></div></label>
         <button type="button" className="hrmu-employee-analytics-apply" onClick={applyFilters} disabled={loading}>{loading ? 'Loading...' : 'View Analytics'}</button>
       </section>
       {!selectedEmployee ? <section className="hrmu-employee-analytics-empty"><div><h2>Select an employee</h2><p>Choose an employee above to view their recorded movement, approval, return, and compliance history.</p></div></section> : <>
         <section className="hrmu-employee-profile-card"><div className="hrmu-employee-profile-avatar">{selectedEmployee.name?.split(' ').map(part => part[0]).slice(0, 2).join('')}</div><div><span>EMPLOYEE PROFILE</span><h2>{selectedEmployee.name}</h2><p>{selectedEmployee.employeeId || 'Employee ID unavailable'} • {selectedEmployee.collegeName}</p></div><strong>{formatDate(analytics?.dateRange?.startDate)} – {formatDate(analytics?.dateRange?.endDate)}</strong></section>
-        <section className="hrmu-employee-metric-grid"><article><span>Filed slips</span><strong>{summary.totalFiled || 0}</strong><small>{summary.approvedCount || 0} approved</small></article><article><span>Approval rate</span><strong>{Number(approval.percentage || 0).toFixed(1)}%</strong><small>{approval.approvedCount || 0} approved of {approval.totalFiledCount || 0} filed</small></article><article><span>Completed trips</span><strong>{completedTrips}</strong><small>{complianceRate.toFixed(1)}% completion rate</small></article><article><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong><small>{summary.lateReturnCount || 0} late completed return{summary.lateReturnCount === 1 ? '' : 's'}</small></article><article className="alert"><span>Exceptions</span><strong>{Number(summary.lateReturns || 0) + Number(summary.missingProof || 0)}</strong><small>{summary.lateReturns || 0} late • {summary.missingProof || 0} missing proof</small></article><article className="alert"><span>Average late delay</span><strong>{summary.averageReturnDelayMinutes || 0}<em> min</em></strong><small>Across late completed returns</small></article></section>
+        <section className="hrmu-employee-metric-grid"><article><span>Filed slips</span><strong>{summary.totalFiled || 0}</strong><small>{summary.approvedCount || 0} approved</small></article><article><span>Approval rate</span><strong>{Number(approval.percentage || 0).toFixed(1)}%</strong><small>{approval.approvedCount || 0} approved of {approval.totalFiledCount || 0} filed</small></article><article><span>Completed trips</span><strong>{completedTrips}</strong><small>{complianceRate.toFixed(1)}% completion rate</small></article><article><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong><small>{summary.lateReturnCount || 0} late completed return{summary.lateReturnCount === 1 ? '' : 's'}</small></article><article className="alert"><span>Exceptions</span><strong>{Number(summary.lateReturns || 0) + Number(summary.missingProof || 0)}</strong><small>{summary.lateReturns || 0} late • {summary.missingProof || 0} missing proof</small></article><article className="alert"><span>Average late delay</span><strong>{formatDuration(Number(summary.averageReturnDelayMinutes || 0))}</strong><small>Across late completed returns</small></article></section>
         <section className="hrmu-employee-panel hrmu-employee-summary-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP SUMMARY</span><h2>Locator slip outcomes</h2></div><small>Selected period</small></div><div className="hrmu-employee-summary-list"><div><span>Total locator slips</span><strong>{summary.totalFiled || 0}</strong></div><div><span>Approved trips</span><strong>{summary.approvedCount || 0}</strong></div><div><span>Rejected trips</span><strong>{summary.rejectedCount || 0}</strong></div><div><span>Completed trips</span><strong>{completedTrips}</strong></div><div><span>Cancelled trips</span><strong>{summary.cancelledCount || 0}</strong></div></div></section>
-        <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>ACTIVITY</span><h2>Recorded trip activity</h2></div><small>{analytics?.dateRange?.label || 'Selected period'}</small></div>{dailyItems.length ? <div className="hrmu-employee-activity-list">{dailyItems.map(item => <div key={item.date}><strong>{formatDate(item.date)}</strong><span>{item.locatorSlipCount} locator slip{item.locatorSlipCount === 1 ? '' : 's'}</span><b>{Math.min(Number(item.locatorSlipCount || 0) * 18, 100)}%</b></div>)}</div> : <p className="hrmu-employee-muted">No recorded activity for this period.</p>}</article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>DESTINATIONS</span><h2>Most visited</h2></div></div>{destinations.length ? <div className="hrmu-employee-destination-list">{destinations.map(row => <div key={`${row.rank}-${row.label}`}><strong>{row.label}</strong><span>{row.count} trip{row.count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No destinations recorded.</p>}</article></section>
+        <section className="hrmu-employee-panel hrmu-employee-timing-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP TIMING</span><h2>Request and movement timing</h2></div><small>Recorded timestamps</small></div><div className="hrmu-employee-stat-list"><div><span>Average filing to exit</span><strong>{averageFilingToExit === null ? '--' : formatDuration(averageFilingToExit)}</strong></div><div><span>Peak exit window</span><strong>{peakExitWindow}</strong></div><div><span>Peak return window</span><strong>{peakReturnWindow}</strong></div></div></section>
+        <section className="hrmu-employee-panel hrmu-employee-schedule-panel"><div className="hrmu-employee-panel-head"><div><span>SCHEDULE ADHERENCE</span><h2>Filed and expected times vs actual scans</h2></div><small>Compared per locator slip</small></div><div className="hrmu-employee-schedule-grid"><div><strong>Exit timing</strong><span>Early and late exits</span><b>{earlyExitCount} early</b><small>{lateExitCount} late</small></div><div><strong>Return timing</strong><span>Early and late returns</span><b>{earlyReturnCount} early</b><small>{lateReturnCount} late</small></div></div><div className="hrmu-employee-schedule-ledger"><div className="hrmu-employee-schedule-row header"><span>Locator slip</span><span>Filed departure</span><span>Actual exit</span><span>Exit variance</span><span>Expected return</span><span>Actual return</span><span>Return variance</span></div>{tripRecords.map(record => { const exitVariance = getSignedMinuteDifference(record.scheduledDepartureAt, record.startedAt); const returnVariance = getSignedMinuteDifference(record.expectedReturnTime, record.actualReturnTime); return <div key={`schedule-${record.tripId || record.locatorSlipId}`} className="hrmu-employee-schedule-row"><span><strong>{record.locatorSlipId ? `LS-${String(record.locatorSlipId).replace(/-/g, '').slice(0, 8).toUpperCase()}` : 'Locator slip'}</strong><small>{record.destination || 'Destination unavailable'}</small></span><span>{formatDateTime(record.scheduledDepartureAt)}</span><span>{formatDateTime(record.startedAt)}</span><b className={exitVariance > 0 ? 'late' : ''}>{formatScheduleVariance(exitVariance)}</b><span>{formatDateTime(record.expectedReturnTime)}</span><span>{formatDateTime(record.actualReturnTime)}</span><b className={returnVariance > 0 ? 'late' : ''}>{formatScheduleVariance(returnVariance)}</b></div>; })}</div></section>
+        <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>ACTIVITY</span><h2>Recorded trip activity</h2></div><small>{analytics?.dateRange?.label || 'Selected period'}</small></div>{dailyItems.length ? <div className="hrmu-employee-activity-list">{dailyItems.map(item => <div key={item.date}><strong>{formatDate(item.date)}</strong><span>{item.locatorSlipCount} locator slip{item.locatorSlipCount === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No recorded activity for this period.</p>}</article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>DESTINATIONS</span><h2>Most visited</h2></div></div>{destinations.length ? <div className="hrmu-employee-destination-list">{destinations.map(row => <div key={`${row.rank}-${row.label}`}><strong>{row.label}</strong><span>{row.count} trip{row.count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No destinations recorded.</p>}</article></section>
         <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>ACTUAL TRIP DURATION</span><h2>Time outside campus</h2></div><small>Exit to return scans</small></div><div className="hrmu-employee-stat-list"><div><span>Average duration</span><strong>{durationValues.length ? formatDuration(Math.round(durationTotalMinutes / durationValues.length)) : '--'}</strong></div><div><span>Shortest trip</span><strong>{durationValues.length ? formatDuration(Math.min(...durationValues)) : '--'}</strong></div><div><span>Longest trip</span><strong>{durationValues.length ? formatDuration(Math.max(...durationValues)) : '--'}</strong></div><div><span>Total time outside</span><strong>{durationValues.length ? formatDuration(durationTotalMinutes) : '--'}</strong></div></div></article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>PURPOSE / AGENDA</span><h2>Common trip reasons</h2></div><small>{purposeRows.length ? `${purposeRows[0][0]} most common` : 'No purpose data'}</small></div>{purposeRows.length ? <div className="hrmu-employee-destination-list">{purposeRows.map(([purpose, count]) => <div key={purpose}><strong>{purpose}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No purpose records available.</p>}</article></section>
         <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>RETURN SCANS</span><h2>Return scan completion</h2></div><small>Historical records only</small></div><div className="hrmu-employee-stat-list"><div><span>Trips with return scan</span><strong>{returnScanCount} / {tripRecords.length}</strong></div><div><span>Trips without return scan</span><strong>{missingReturnScanCount}</strong></div><div><span>Late returns</span><strong>{summary.lateReturnCount || 0}</strong></div><div><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong></div></div></article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>MONTHLY TREND</span><h2>Trips filed by month</h2></div><small>Selected period</small></div>{monthlyRows.length ? <div className="hrmu-employee-destination-list">{monthlyRows.map(([month, count]) => <div key={month}><strong>{month}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No monthly trend data available.</p>}</article></section>
-        <section className="hrmu-employee-panel hrmu-employee-ledger-panel"><div className="hrmu-employee-panel-head"><div><span>ATTENDANCE / MOVEMENT LOG</span><h2>Recorded exit and return scans</h2></div><small>{tripRecords.length} recorded slip{tripRecords.length === 1 ? '' : 's'}</small></div>{tripRecords.length ? <div className="hrmu-employee-ledger"><div className="hrmu-employee-ledger-row header"><span>Locator slip filed</span><span>Destination</span><span>Exit scan</span><span>Return scan</span><span>Actual duration</span><span>Status</span></div>{tripRecords.map(record => { const late = Boolean(record.lateReturn) || (record.actualReturnTime && record.expectedReturnTime && new Date(record.actualReturnTime) > new Date(record.expectedReturnTime)); const duration = getActualDurationMinutes(record); return <div key={record.tripId || record.locatorSlipId} className="hrmu-employee-ledger-row"><span><strong>{formatDateTime(record.locatorSlipFiledAt)}</strong><small>{record.locatorSlipId ? `LS-${String(record.locatorSlipId).replace(/-/g, '').slice(0, 8).toUpperCase()}` : 'Locator slip'}</small></span><span>{record.destination || '--'}</span><span>{formatDateTime(record.startedAt)}</span><span>{formatDateTime(record.actualReturnTime)}</span><span>{formatDuration(duration)}</span><b className={late ? 'late' : 'on-time'}>{late ? 'Late return' : record.actualReturnTime ? 'Completed' : 'No return scan'}</b></div>; })}</div> : <p className="hrmu-employee-muted">No locator slip records are available for this period.</p>}</section>
+        <section className="hrmu-employee-panel hrmu-employee-ledger-panel"><div className="hrmu-employee-panel-head"><div><span>ATTENDANCE / MOVEMENT LOG</span><h2>Recorded exit and return scans</h2></div><small>{tripRecords.length} recorded slip{tripRecords.length === 1 ? '' : 's'}</small></div>{tripRecords.length ? <div className="hrmu-employee-ledger"><div className="hrmu-employee-ledger-row header"><span>Locator slip filed</span><span>Destination</span><span>Exit scan</span><span>Return scan</span><span>Actual duration</span><span>Status</span><span>Verification</span></div>{tripRecords.map(record => { const recordStatus = String(record.status || record.tripStatus || '').toLowerCase(); const rejected = ['rejected', 'denied'].includes(recordStatus); const late = Boolean(record.lateReturn) || (record.actualReturnTime && record.expectedReturnTime && new Date(record.actualReturnTime) > new Date(record.expectedReturnTime)); const duration = getActualDurationMinutes(record); const hasProof = Boolean(verificationBySlip.get(String(record.locatorSlipId))?.id); return <div key={record.tripId || record.locatorSlipId} className="hrmu-employee-ledger-row"><span><strong>{formatDateTime(record.locatorSlipFiledAt)}</strong><small>{record.locatorSlipId ? `LS-${String(record.locatorSlipId).replace(/-/g, '').slice(0, 8).toUpperCase()}` : 'Locator slip'}</small></span><span>{record.destination || '--'}</span><span>{formatDateTime(record.startedAt)}</span><span>{formatDateTime(record.actualReturnTime)}</span><span>{formatDuration(duration)}</span><b className={rejected || late ? 'late' : 'on-time'}>{rejected ? 'Rejected' : late ? 'Late return' : record.actualReturnTime ? 'Completed' : 'No return scan'}</b><button type="button" className="hrmu-employee-verification-button" onClick={() => openEmployeeVerification(record)} disabled={!hasProof}>{hasProof ? 'View proof' : 'No proof'}</button></div>; })}</div> : <p className="hrmu-employee-muted">No locator slip records are available for this period.</p>}{employeeProofMessage && <p className="hrmu-employee-verification-message">{employeeProofMessage}</p>}</section>
         <section className="hrmu-employee-panel hrmu-employee-exceptions-panel"><div className="hrmu-employee-panel-head"><div><span>COMPLIANCE</span><h2>Recorded exceptions</h2></div><small>Historical records only</small></div>{incidents.length ? <div className="hrmu-employee-incident-list">{incidents.map((incident, index) => <div key={`${incident.type}-${incident.tripId || index}`}><b>{incident.type}</b><span>{incident.destination || 'Destination unavailable'}</span></div>)}</div> : <p className="hrmu-employee-muted">No exceptions recorded for this employee in the selected period.</p>}</section>
       </>}
+      {selectedEmployeeProof && <ProofComplianceDetails row={selectedEmployeeProof} details={selectedEmployeeProofDetails} reviewMessage={employeeProofLoading ? 'Loading verification details…' : employeeProofMessage} reviewLocked closeLabel="Close details" onClose={closeEmployeeVerification} />}
     </div>
   </HrmuWorkspaceShell>;
 };
@@ -2298,113 +2389,113 @@ export const HrmuReportsView = ({
     }
   };
   return <HrmuWorkspaceShell activeKey="reports" setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-reports-page">
-        <div className="hrmu-reports-toolbar no-print">
-          <div className="hrmu-reports-titlebar">
-            <button type="button" className="hrmu-reports-back-btn" aria-label="Back to dashboard" onClick={() => setView('hrmu-dashboard')}>
-              <BackArrowIcon color="currentColor" />
-            </button>
-            <strong>{reportMeta.title || 'Monthly Security Report'}</strong>
-            <span className="hrmu-reports-badge">CONFIDENTIAL</span>
-          </div>
-
-          <div className="hrmu-reports-tools">
-            <div className="hrmu-reports-pager">
-              <button type="button" aria-label="Previous page" onClick={goPrevious} disabled={reportMeta.isFirst}>
-                <span className="hrmu-reports-chevron-prev">
-                  <ChevronRightIcon color="currentColor" />
-                </span>
-              </button>
-              <strong>{monthIndex}</strong>
-              <span>/ 12</span>
-              <button type="button" aria-label="Next page" onClick={goNext} disabled={reportMeta.isLast}>
-                <span className="hrmu-reports-chevron-next">
-                  <ChevronRightIcon color="currentColor" />
-                </span>
-              </button>
-            </div>
-            <button type="button" className="hrmu-reports-action-btn primary" aria-label="Download report as PDF" onClick={handleDownloadReport} disabled={downloadLoading || loading}>
-              <RegistryDownloadIcon />
-              <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
-            </button>
-            <button type="button" className="hrmu-reports-action-btn" aria-label="Print report" onClick={handlePrintReport} disabled={loading}>
-              <ReportPrintIcon />
-              <span>Print</span>
-            </button>
-          </div>
+    <section className="hrmu-reports-page">
+      <div className="hrmu-reports-toolbar no-print">
+        <div className="hrmu-reports-titlebar">
+          <button type="button" className="hrmu-reports-back-btn" aria-label="Back to dashboard" onClick={() => setView('hrmu-dashboard')}>
+            <BackArrowIcon color="currentColor" />
+          </button>
+          <strong>{reportMeta.title || 'Monthly Security Report'}</strong>
+          <span className="hrmu-reports-badge">CONFIDENTIAL</span>
         </div>
 
-        <div className="hrmu-reports-canvas">
-          <article className="hrmu-reports-sheet" id="hrmu-monthly-report-print-area">
-            <div className="hrmu-reports-sheet-head">
-              <div className="hrmu-reports-brand-block">
-                <div className="hrmu-reports-brand-icon">
-                  <TogaLogoIcon size={36} />
-                </div>
-                <div>
-                  <strong>EduRoute HRMU</strong>
-                  <span>EMPLOYEE MOVEMENT</span>
-                </div>
-              </div>
-
-              <div className="hrmu-reports-doc-meta">
-                <strong>OFFICIAL DOCUMENT</strong>
-                <span>{`Report Sequence: ${monthIndex} / 12`}</span>
-                <span>{`Coverage: ${reportMeta.monthName || sequenceMonthName}, ${reportMeta.year || baseYear}`}</span>
-              </div>
-            </div>
-
-            <div className="hrmu-reports-divider" />
-
-            <div className="hrmu-reports-section">
-              <h1>Monthly Movement &amp; Violation Summary</h1>
-              <div className="hrmu-reports-subdivider" />
-              <p>
-                This report provides a comprehensive overview of logistical activities, security transitions,
-                and flagged trip incidents within the HRMU jurisdiction for month of {reportMeta.monthName || sequenceMonthName}.
-              </p>
-            </div>
-
-            <div className="hrmu-reports-summary-grid">
-              {summaryCards.map(card => <article key={card.label} className={`hrmu-reports-summary-card ${card.tone}`}>
-                  <span>{card.label}</span>
-                  <strong>{loading ? '--' : card.value}</strong>
-                  <small>{loading ? 'Loading...' : card.note}</small>
-                </article>)}
-            </div>
-
-            <div className="hrmu-reports-log-head">
-              <div className="hrmu-reports-log-title">
-                <span className="hrmu-reports-log-icon">
-                  <DocumentIcon color="currentColor" width="24" height="24" />
-                </span>
-                <h2>Monthly Employee Movement Log</h2>
-              </div>
-            </div>
-
-            <div className="hrmu-reports-table-wrap">
-              <div className="hrmu-reports-table-head">
-                <span>TIMESTAMP</span>
-                <span>DESTINATION</span>
-                <span>PERSONNEL</span>
-                <span>STATUS</span>
-                <span>ACTION</span>
-              </div>
-              {loading && <div className="hrmu-reports-table-row"><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span></div>}
-              {!loading && reportRows.length === 0 && <div className="hrmu-reports-table-row"><span>No data</span><span>No logs found for this month.</span><span>--</span><span>--</span><span>--</span></div>}
-              {!loading && reportRows.map(row => <div key={`${row.timestamp}-${row.personnel}-${row.status}`} className="hrmu-reports-table-row">
-                  <span>{row.timestampLabel}</span>
-                  <span>{row.location}</span>
-                  <span>{row.personnel}</span>
-                  <span><em className={`hrmu-reports-status-pill ${mapStatusTone(row.status)}`}>{getReportStatusLabel(row.status)}</em></span>
-                  <button type="button" className="hrmu-reports-detail-link" onClick={() => handleOpenReportDetails(row)}>Details</button>
-                </div>)}
-            </div>
-            {error && <p className="hrmu-reports-inline-error">{error}</p>}
-          </article>
+        <div className="hrmu-reports-tools">
+          <div className="hrmu-reports-pager">
+            <button type="button" aria-label="Previous page" onClick={goPrevious} disabled={reportMeta.isFirst}>
+              <span className="hrmu-reports-chevron-prev">
+                <ChevronRightIcon color="currentColor" />
+              </span>
+            </button>
+            <strong>{monthIndex}</strong>
+            <span>/ 12</span>
+            <button type="button" aria-label="Next page" onClick={goNext} disabled={reportMeta.isLast}>
+              <span className="hrmu-reports-chevron-next">
+                <ChevronRightIcon color="currentColor" />
+              </span>
+            </button>
+          </div>
+          <button type="button" className="hrmu-reports-action-btn primary" aria-label="Download report as PDF" onClick={handleDownloadReport} disabled={downloadLoading || loading}>
+            <RegistryDownloadIcon />
+            <span>{downloadLoading ? 'Exporting...' : 'Export PDF'}</span>
+          </button>
+          <button type="button" className="hrmu-reports-action-btn" aria-label="Print report" onClick={handlePrintReport} disabled={loading}>
+            <ReportPrintIcon />
+            <span>Print</span>
+          </button>
         </div>
+      </div>
 
-        {selectedDetail && selectedDetail.isProof && !detailLoading && <ProofComplianceDetails row={{
+      <div className="hrmu-reports-canvas">
+        <article className="hrmu-reports-sheet" id="hrmu-monthly-report-print-area">
+          <div className="hrmu-reports-sheet-head">
+            <div className="hrmu-reports-brand-block">
+              <div className="hrmu-reports-brand-icon">
+                <TogaLogoIcon size={36} />
+              </div>
+              <div>
+                <strong>EduRoute HRMU</strong>
+                <span>EMPLOYEE MOVEMENT</span>
+              </div>
+            </div>
+
+            <div className="hrmu-reports-doc-meta">
+              <strong>OFFICIAL DOCUMENT</strong>
+              <span>{`Report Sequence: ${monthIndex} / 12`}</span>
+              <span>{`Coverage: ${reportMeta.monthName || sequenceMonthName}, ${reportMeta.year || baseYear}`}</span>
+            </div>
+          </div>
+
+          <div className="hrmu-reports-divider" />
+
+          <div className="hrmu-reports-section">
+            <h1>Monthly Movement &amp; Violation Summary</h1>
+            <div className="hrmu-reports-subdivider" />
+            <p>
+              This report provides a comprehensive overview of logistical activities, security transitions,
+              and flagged trip incidents within the HRMU jurisdiction for month of {reportMeta.monthName || sequenceMonthName}.
+            </p>
+          </div>
+
+          <div className="hrmu-reports-summary-grid">
+            {summaryCards.map(card => <article key={card.label} className={`hrmu-reports-summary-card ${card.tone}`}>
+              <span>{card.label}</span>
+              <strong>{loading ? '--' : card.value}</strong>
+              <small>{loading ? 'Loading...' : card.note}</small>
+            </article>)}
+          </div>
+
+          <div className="hrmu-reports-log-head">
+            <div className="hrmu-reports-log-title">
+              <span className="hrmu-reports-log-icon">
+                <DocumentIcon color="currentColor" width="24" height="24" />
+              </span>
+              <h2>Monthly Employee Movement Log</h2>
+            </div>
+          </div>
+
+          <div className="hrmu-reports-table-wrap">
+            <div className="hrmu-reports-table-head">
+              <span>TIMESTAMP</span>
+              <span>DESTINATION</span>
+              <span>PERSONNEL</span>
+              <span>STATUS</span>
+              <span>ACTION</span>
+            </div>
+            {loading && <div className="hrmu-reports-table-row"><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span><span>Loading...</span></div>}
+            {!loading && reportRows.length === 0 && <div className="hrmu-reports-table-row"><span>No data</span><span>No logs found for this month.</span><span>--</span><span>--</span><span>--</span></div>}
+            {!loading && reportRows.map(row => <div key={`${row.timestamp}-${row.personnel}-${row.status}`} className="hrmu-reports-table-row">
+              <span>{row.timestampLabel}</span>
+              <span>{row.location}</span>
+              <span>{row.personnel}</span>
+              <span><em className={`hrmu-reports-status-pill ${mapStatusTone(row.status)}`}>{getReportStatusLabel(row.status)}</em></span>
+              <button type="button" className="hrmu-reports-detail-link" onClick={() => handleOpenReportDetails(row)}>Details</button>
+            </div>)}
+          </div>
+          {error && <p className="hrmu-reports-inline-error">{error}</p>}
+        </article>
+      </div>
+
+      {selectedDetail && selectedDetail.isProof && !detailLoading && <ProofComplianceDetails row={{
         key: selectedReportRow?.proofId || selectedDetail.id,
         proofId: selectedReportRow?.proofId || selectedDetail.id,
         name: selectedDetail.facultyName || selectedReportRow?.personnel || 'Employee',
@@ -2420,40 +2511,40 @@ export const HrmuReportsView = ({
         submittedAt: selectedDetail.submittedAt || null
       }} details={selectedDetail} reviewMessage={reviewMessage} reviewing={reviewing} reviewLocked={reviewLocked || Boolean(selectedDetail?.isLateReturn) || String(selectedDetail?.verificationStatus || '').toLowerCase() !== 'submitted'} onClose={handleCloseReportDetails} onReview={handleReportProofReview} />}
 
-        {selectedDetail && !selectedDetail.isProof && <div className="hrmu-reports-detail-overlay" role="presentation" onClick={handleCloseReportDetails}>
-            <div className="hrmu-reports-detail-modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
-              <div className="hrmu-reports-detail-head">
-                <h3>{selectedDetail.facultyName}</h3>
-                <button type="button" className="hrmu-reports-detail-close" onClick={handleCloseReportDetails} aria-label="Close details">
-                  <RegistryModalCloseIcon />
-                </button>
-              </div>
-              {detailLoading ? <p>Loading details...</p> : <div className="hrmu-reports-detail-grid">
-                  <p><strong>College:</strong> {selectedDetail.collegeName}</p>
-                  <p><strong>Destination:</strong> {selectedDetail.destination}</p>
-                  <p><strong>Purpose:</strong> {selectedDetail.purpose}</p>
-                  <p><strong>Locator Status:</strong> {selectedDetail.locatorStatus}</p>
-                  <p><strong>Trip Status:</strong> {selectedDetail.tripStatus || 'No linked trip'}</p>
-                  <p><strong>Verification:</strong> {selectedDetail.verificationStatus || 'missing'}</p>
-                  <div className="hrmu-reports-detail-reasons">
-                    <strong>Flagged Reasons</strong>
-                    {Array.isArray(selectedDetail.flaggedReasons) && selectedDetail.flaggedReasons.length > 0 ? selectedDetail.flaggedReasons.map(reason => <div key={`${reason.type}-${reason.detectedAt || ''}`} className="hrmu-reports-detail-reason">
-                        <span>{reason.label}</span>
-                        <small>{reason.severity}</small>
-                      </div>) : <p>No flagged incidents attached.</p>}
-                  </div>
-                </div>}
+      {selectedDetail && !selectedDetail.isProof && <div className="hrmu-reports-detail-overlay" role="presentation" onClick={handleCloseReportDetails}>
+        <div className="hrmu-reports-detail-modal" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
+          <div className="hrmu-reports-detail-head">
+            <h3>{selectedDetail.facultyName}</h3>
+            <button type="button" className="hrmu-reports-detail-close" onClick={handleCloseReportDetails} aria-label="Close details">
+              <RegistryModalCloseIcon />
+            </button>
+          </div>
+          {detailLoading ? <p>Loading details...</p> : <div className="hrmu-reports-detail-grid">
+            <p><strong>College:</strong> {selectedDetail.collegeName}</p>
+            <p><strong>Destination:</strong> {selectedDetail.destination}</p>
+            <p><strong>Purpose:</strong> {selectedDetail.purpose}</p>
+            <p><strong>Locator Status:</strong> {selectedDetail.locatorStatus}</p>
+            <p><strong>Trip Status:</strong> {selectedDetail.tripStatus || 'No linked trip'}</p>
+            <p><strong>Verification:</strong> {selectedDetail.verificationStatus || 'missing'}</p>
+            <div className="hrmu-reports-detail-reasons">
+              <strong>Flagged Reasons</strong>
+              {Array.isArray(selectedDetail.flaggedReasons) && selectedDetail.flaggedReasons.length > 0 ? selectedDetail.flaggedReasons.map(reason => <div key={`${reason.type}-${reason.detectedAt || ''}`} className="hrmu-reports-detail-reason">
+                <span>{reason.label}</span>
+                <small>{reason.severity}</small>
+              </div>) : <p>No flagged incidents attached.</p>}
             </div>
           </div>}
-      </section>
+        </div>
+      </div>}
+    </section>
 
-      {pathHistoryState.open && <TripPathHistoryModal history={pathHistoryState.data} loading={pathHistoryState.loading} error={pathHistoryState.error} onClose={() => setPathHistoryState({
+    {pathHistoryState.open && <TripPathHistoryModal history={pathHistoryState.data} loading={pathHistoryState.loading} error={pathHistoryState.error} onClose={() => setPathHistoryState({
       open: false,
       loading: false,
       error: '',
       data: null
     })} />}
-    </HrmuWorkspaceShell>;
+  </HrmuWorkspaceShell>;
 };
 export const HrmuNotificationsView = ({
   setView,
@@ -2474,74 +2565,74 @@ export const HrmuNotificationsView = ({
     }
   };
   return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
-      <section className="hrmu-alerts-page">
-        <div className="hrmu-alerts-hero">
-          <div className="hrmu-alerts-copy">
-            <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
-            <h1>System Alerts</h1>
-            <p>Real-time monitoring and security notifications for HRMU employee and campus operations.</p>
-          </div>
-          <div className="hrmu-alerts-actions">
-            <button type="button" className="hrmu-alerts-btn primary"><span aria-hidden="true">⌁</span><span>Filters</span></button>
-          </div>
+    <section className="hrmu-alerts-page">
+      <div className="hrmu-alerts-hero">
+        <div className="hrmu-alerts-copy">
+          <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
+          <h1>System Alerts</h1>
+          <p>Real-time monitoring and security notifications for HRMU employee and campus operations.</p>
         </div>
+        <div className="hrmu-alerts-actions">
+          <button type="button" className="hrmu-alerts-btn primary"><span aria-hidden="true">⌁</span><span>Filters</span></button>
+        </div>
+      </div>
 
-        <section className="hrmu-alerts-grid">
-          <article className="hrmu-alert-main-card">
-            <div className="hrmu-alert-main-accent" aria-hidden="true" />
-            <div className="hrmu-alert-main-body">
-              <div className="hrmu-alert-main-icon">
-                <HrmuWarningIcon />
+      <section className="hrmu-alerts-grid">
+        <article className="hrmu-alert-main-card">
+          <div className="hrmu-alert-main-accent" aria-hidden="true" />
+          <div className="hrmu-alert-main-body">
+            <div className="hrmu-alert-main-icon">
+              <HrmuWarningIcon />
+            </div>
+            <div className="hrmu-alert-main-copy">
+              <div className="hrmu-alert-main-head">
+                <div className="hrmu-alert-main-badges">
+                  <span className="hrmu-alert-critical-pill">CRITICAL</span>
+                </div>
+                <span className="hrmu-alert-main-time">2 mins ago</span>
               </div>
-              <div className="hrmu-alert-main-copy">
-                <div className="hrmu-alert-main-head">
-                  <div className="hrmu-alert-main-badges">
-                    <span className="hrmu-alert-critical-pill">CRITICAL</span>
-                  </div>
-                  <span className="hrmu-alert-main-time">2 mins ago</span>
-                </div>
-                <h2>Employee outside without verification</h2>
-                <p>System detected Dr. Rey Gun exited Main Gate. No Locator Slip verification found in the last 15 minutes.</p>
-                <div className="hrmu-alert-main-actions">
-                  <button type="button" className="hrmu-alert-primary-btn">Initiate Contact</button>
-                  <button type="button" className="hrmu-alert-text-btn">Review Maps</button>
-                </div>
+              <h2>Employee outside without verification</h2>
+              <p>System detected Dr. Rey Gun exited Main Gate. No Locator Slip verification found in the last 15 minutes.</p>
+              <div className="hrmu-alert-main-actions">
+                <button type="button" className="hrmu-alert-primary-btn">Initiate Contact</button>
+                <button type="button" className="hrmu-alert-text-btn">Review Maps</button>
               </div>
             </div>
+          </div>
+        </article>
+
+        <aside className="hrmu-alerts-side-column">
+          <article className="hrmu-alert-summary-card">
+            <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
+            <div className="hrmu-alert-summary-row">
+              <span>Critical Issues</span>
+              <strong>01</strong>
+            </div>
+            <div className="hrmu-alert-summary-row">
+              <span>Active Warnings</span>
+              <strong>03</strong>
+            </div>
+            <div className="hrmu-alert-summary-row">
+              <span>Verified Cleared</span>
+              <strong className="yellow">88%</strong>
+            </div>
+            <div className="hrmu-alert-summary-mark" aria-hidden="true" />
           </article>
 
-          <aside className="hrmu-alerts-side-column">
-            <article className="hrmu-alert-summary-card">
-              <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
-              <div className="hrmu-alert-summary-row">
-                <span>Critical Issues</span>
-                <strong>01</strong>
-              </div>
-              <div className="hrmu-alert-summary-row">
-                <span>Active Warnings</span>
-                <strong>03</strong>
-              </div>
-              <div className="hrmu-alert-summary-row">
-                <span>Verified Cleared</span>
-                <strong className="yellow">88%</strong>
-              </div>
-              <div className="hrmu-alert-summary-mark" aria-hidden="true" />
-            </article>
-
-            <article className="hrmu-alert-report-card">
-              <div className="hrmu-alert-report-icon">
-                <HrmuSyncIcon />
-              </div>
-              <h3>Monthly Log Report</h3>
-              <p>30-days summary is ready for download.</p>
-              <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
-                {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
-              </button>
-            </article>
-          </aside>
-        </section>
+          <article className="hrmu-alert-report-card">
+            <div className="hrmu-alert-report-icon">
+              <HrmuSyncIcon />
+            </div>
+            <h3>Monthly Log Report</h3>
+            <p>30-days summary is ready for download.</p>
+            <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
+              {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
+            </button>
+          </article>
+        </aside>
       </section>
-    </HrmuWorkspaceShell>;
+    </section>
+  </HrmuWorkspaceShell>;
 };
 export const HrmuReportInboxView = ({
   setView,
@@ -2661,106 +2752,106 @@ export const HrmuReportInboxView = ({
   };
   const unreadCount = items.filter(item => !item.isRead).length;
   const latestItem = items[0] || null;
-  return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} inboxActive forceDesktop>
-      <section className="hrmu-inbox-page">
-        <div className="hrmu-inbox-hero">
-          <div className="hrmu-inbox-copy">
-            <span className="hrmu-alerts-kicker">HRMU REPORT HUB</span>
-            <h1>Inbox</h1>
-            <p>Received ISSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
-          </div>
-          <div className="hrmu-inbox-hero-badges">
-            <span className="hrmu-inbox-pill neutral">{items.length} Total Reports</span>
-            <span className="hrmu-inbox-pill active">{unreadCount} Unread</span>
-          </div>
+  return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} forceDesktop>
+    <section className="hrmu-inbox-page">
+      <div className="hrmu-inbox-hero">
+        <div className="hrmu-inbox-copy">
+          <span className="hrmu-alerts-kicker">HRMU REPORT HUB</span>
+          <h1>Inbox</h1>
+          <p>Received ISSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
         </div>
+        <div className="hrmu-inbox-hero-badges">
+          <span className="hrmu-inbox-pill neutral">{items.length} Total Reports</span>
+          <span className="hrmu-inbox-pill active">{unreadCount} Unread</span>
+        </div>
+      </div>
 
-        <div className="hrmu-inbox-layout">
-          <section className="hrmu-inbox-feed-panel">
-            <div className="hrmu-inbox-feed-head">
-              <div>
-                <h2>Received Attachments</h2>
-                <p>Most recent ISSU submissions are shown first.</p>
-              </div>
+      <div className="hrmu-inbox-layout">
+        <section className="hrmu-inbox-feed-panel">
+          <div className="hrmu-inbox-feed-head">
+            <div>
+              <h2>Received Attachments</h2>
+              <p>Most recent ISSU submissions are shown first.</p>
             </div>
+          </div>
 
-            {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
-            {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
-            {!loading && !error && items.length === 0 ? <div className="hrmu-alert-feed-empty">No ISSU reports have been sent to the HRMU inbox yet.</div> : null}
+          {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
+          {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
+          {!loading && !error && items.length === 0 ? <div className="hrmu-alert-feed-empty">No ISSU reports have been sent to the HRMU inbox yet.</div> : null}
 
-            {!loading && !error && items.length > 0 ? <div className="hrmu-alert-feed-list">
-                {items.map(item => <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
-                    <div className="hrmu-alert-feed-accent" aria-hidden="true" />
-                    <div className="hrmu-alert-feed-body">
-                      <div className="hrmu-alert-feed-icon verified">
-                        <DocumentIcon color="currentColor" width="24" height="24" />
-                      </div>
-                      <div className="hrmu-alert-feed-copy">
-                        <div className="hrmu-alert-feed-head">
-                          <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
-                          <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
-                        </div>
-                        <h2>{item.title || 'ISSU Report Attachment'}</h2>
-                        <p>{item.subtitle || 'ISSU sent a movement report PDF to the HRMU inbox.'}</p>
-                        <div className="hrmu-inbox-meta-row">
-                          <span><strong>From:</strong> {item.senderName || 'ISSU Administrator'}</span>
-                          <span><strong>Attachment:</strong> {item.filename}</span>
-                        </div>
-                        <div className="hrmu-alert-feed-actions">
-                          <button type="button" className="hrmu-alert-primary-btn verified" onClick={() => handlePreviewAttachment(item)} disabled={previewLoading}>
-                            {previewLoading ? 'Opening...' : 'View PDF'}
-                          </button>
-                          <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(item)}>
-                            Download PDF
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </article>)}
-              </div> : null}
-          </section>
-
-          <aside className="hrmu-inbox-side-column">
-            <article className="hrmu-inbox-summary-card primary">
-              <span className="hrmu-inbox-summary-kicker">Inbox Summary</span>
-              <strong>{String(items.length).padStart(2, '0')}</strong>
-              <p>PDF report attachments currently stored in the HRMU inbox.</p>
-            </article>
-
-            <article className="hrmu-inbox-summary-card">
-              <span className="hrmu-inbox-summary-kicker">Latest Sender</span>
-              <h3>{latestItem?.senderName || 'Awaiting ISSU reports'}</h3>
-              <p>{latestItem ? formatInboxDateTime(latestItem.createdAt) : 'No report has been delivered yet.'}</p>
-            </article>
-
-            <article className="hrmu-inbox-summary-card">
-              <span className="hrmu-inbox-summary-kicker">Quick Note</span>
-              <p>Open a report to preview it inside the portal, then download the same PDF if you need an offline copy.</p>
-            </article>
-          </aside>
-        </div>
-
-        {previewItem ? <div className="hrmu-inbox-preview-overlay" onClick={closePreview}>
-            <div className="hrmu-inbox-preview-modal" onClick={event => event.stopPropagation()}>
-              <div className="hrmu-inbox-preview-head">
-                <div>
-                  <h3>{previewItem.title}</h3>
-                  <p>{previewItem.filename} • {formatInboxDateTime(previewItem.createdAt)}</p>
+          {!loading && !error && items.length > 0 ? <div className="hrmu-alert-feed-list">
+            {items.map(item => <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
+              <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+              <div className="hrmu-alert-feed-body">
+                <div className="hrmu-alert-feed-icon verified">
+                  <DocumentIcon color="currentColor" width="24" height="24" />
                 </div>
-                <div className="hrmu-inbox-preview-tools">
-                  <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(previewItem)}>
-                    Download
-                  </button>
-                  <button type="button" className="hrmu-reports-detail-close" onClick={closePreview} aria-label="Close preview">
-                    <span aria-hidden="true">×</span>
-                  </button>
+                <div className="hrmu-alert-feed-copy">
+                  <div className="hrmu-alert-feed-head">
+                    <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
+                    <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
+                  </div>
+                  <h2>{item.title || 'ISSU Report Attachment'}</h2>
+                  <p>{item.subtitle || 'ISSU sent a movement report PDF to the HRMU inbox.'}</p>
+                  <div className="hrmu-inbox-meta-row">
+                    <span><strong>From:</strong> {item.senderName || 'ISSU Administrator'}</span>
+                    <span><strong>Attachment:</strong> {item.filename}</span>
+                  </div>
+                  <div className="hrmu-alert-feed-actions">
+                    <button type="button" className="hrmu-alert-primary-btn verified" onClick={() => handlePreviewAttachment(item)} disabled={previewLoading}>
+                      {previewLoading ? 'Opening...' : 'View PDF'}
+                    </button>
+                    <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(item)}>
+                      Download PDF
+                    </button>
+                  </div>
                 </div>
               </div>
-              <iframe title={previewItem.filename} src={previewItem.objectUrl} className="hrmu-inbox-preview-frame" />
-            </div>
+            </article>)}
           </div> : null}
-      </section>
-    </HrmuWorkspaceShell>;
+        </section>
+
+        <aside className="hrmu-inbox-side-column">
+          <article className="hrmu-inbox-summary-card primary">
+            <span className="hrmu-inbox-summary-kicker">Inbox Summary</span>
+            <strong>{String(items.length).padStart(2, '0')}</strong>
+            <p>PDF report attachments currently stored in the HRMU inbox.</p>
+          </article>
+
+          <article className="hrmu-inbox-summary-card">
+            <span className="hrmu-inbox-summary-kicker">Latest Sender</span>
+            <h3>{latestItem?.senderName || 'Awaiting ISSU reports'}</h3>
+            <p>{latestItem ? formatInboxDateTime(latestItem.createdAt) : 'No report has been delivered yet.'}</p>
+          </article>
+
+          <article className="hrmu-inbox-summary-card">
+            <span className="hrmu-inbox-summary-kicker">Quick Note</span>
+            <p>Open a report to preview it inside the portal, then download the same PDF if you need an offline copy.</p>
+          </article>
+        </aside>
+      </div>
+
+      {previewItem ? <div className="hrmu-inbox-preview-overlay" onClick={closePreview}>
+        <div className="hrmu-inbox-preview-modal" onClick={event => event.stopPropagation()}>
+          <div className="hrmu-inbox-preview-head">
+            <div>
+              <h3>{previewItem.title}</h3>
+              <p>{previewItem.filename} • {formatInboxDateTime(previewItem.createdAt)}</p>
+            </div>
+            <div className="hrmu-inbox-preview-tools">
+              <button type="button" className="hrmu-alert-text-btn" onClick={() => handleDownloadAttachment(previewItem)}>
+                Download
+              </button>
+              <button type="button" className="hrmu-reports-detail-close" onClick={closePreview} aria-label="Close preview">
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
+          </div>
+          <iframe title={previewItem.filename} src={previewItem.objectUrl} className="hrmu-inbox-preview-frame" />
+        </div>
+      </div> : null}
+    </section>
+  </HrmuWorkspaceShell>;
 };
 export const HrmuNotificationsRealtimeView = ({
   setView,
@@ -2923,103 +3014,103 @@ export const HrmuNotificationsRealtimeView = ({
     setView('hrmu-dashboard');
   };
   return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout} bellActive>
-      <section className="hrmu-alerts-page">
-        <div className="hrmu-alerts-hero">
-          <div className="hrmu-alerts-copy">
-            <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
-            <h1>System Alerts</h1>
-            <p>Real-time monitoring and security notifications for HRMU employee and campus operations.</p>
-          </div>
-          <div className="hrmu-alerts-actions">
-            <label className="hrmu-alerts-filter">
-              <StatusGraphIcon color="currentColor" />
-              <select value={alertFilter} onChange={event => setAlertFilter(event.target.value)} aria-label="Filter alerts">
-                <option value="all">All</option>
-                <option value="verified">Verified</option>
-                <option value="flagged">Flagged</option>
-              </select>
-            </label>
-          </div>
+    <section className="hrmu-alerts-page">
+      <div className="hrmu-alerts-hero">
+        <div className="hrmu-alerts-copy">
+          <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
+          <h1>System Alerts</h1>
+          <p>Real-time monitoring and security notifications for HRMU employee and campus operations.</p>
         </div>
+        <div className="hrmu-alerts-actions">
+          <label className="hrmu-alerts-filter">
+            <StatusGraphIcon color="currentColor" />
+            <select value={alertFilter} onChange={event => setAlertFilter(event.target.value)} aria-label="Filter alerts">
+              <option value="all">All</option>
+              <option value="verified">Verified</option>
+              <option value="flagged">Flagged</option>
+            </select>
+          </label>
+        </div>
+      </div>
 
-        <section className="hrmu-alerts-grid">
-          <div className="hrmu-alert-feed-column">
-            {alertsLoading ? <div className="hrmu-alert-feed-empty">Loading system alerts...</div> : null}
+      <section className="hrmu-alerts-grid">
+        <div className="hrmu-alert-feed-column">
+          {alertsLoading ? <div className="hrmu-alert-feed-empty">Loading system alerts...</div> : null}
 
-            {!alertsLoading && !alertsError && filteredAlerts.length === 0 ? <div className="hrmu-alert-feed-empty">No alerts available for this filter right now.</div> : null}
+          {!alertsLoading && !alertsError && filteredAlerts.length === 0 ? <div className="hrmu-alert-feed-empty">No alerts available for this filter right now.</div> : null}
 
-            {!alertsLoading && filteredAlerts.length > 0 ? <div className="hrmu-alert-feed-list">
-                {filteredAlerts.map(alert => {
+          {!alertsLoading && filteredAlerts.length > 0 ? <div className="hrmu-alert-feed-list">
+            {filteredAlerts.map(alert => {
               const tone = alert.type === 'verified' ? 'verified' : 'incident';
               const isViolation = alert.type === 'violation';
               const isRejected = alert.type === 'rejected';
               const primaryTarget = alert.type === 'verified' ? 'hrmu-dashboard' : 'hrmu-verification';
               const secondaryTarget = isViolation ? 'hrmu-reports' : 'hrmu-verification';
               return <article key={alert.id} className={`hrmu-alert-feed-card ${tone}`}>
-                      <div className="hrmu-alert-feed-accent" aria-hidden="true" />
-                      <div className="hrmu-alert-feed-body">
-                        <div className={`hrmu-alert-feed-icon ${tone}`}>
-                          {alert.type === 'verified' ? <NotifSlipIcon /> : <HrmuWarningIcon />}
-                        </div>
-                        <div className="hrmu-alert-feed-copy">
-                          <div className="hrmu-alert-feed-head">
-                            <span className={`hrmu-alert-critical-pill ${tone}`}>
-                              {isViolation ? 'VIOLATION' : isRejected ? 'REJECTED' : 'VERIFIED'}
-                            </span>
-                            <span className="hrmu-alert-feed-time">{alert.time}</span>
-                          </div>
-                          <h2>{alert.title}</h2>
-                          <p>{alert.body}</p>
-                          <div className="hrmu-alert-feed-actions">
-                            <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => handleAlertAction(alert, alert.actionLabelPrimary || (primaryTarget === 'hrmu-verification' ? 'Review Verification' : 'Open Dashboard'))}>
-                            
-                              {alert.actionLabelPrimary || 'Open Dashboard'}
-                            </button>
-                            <button type="button" className="hrmu-alert-text-btn" onClick={() => handleAlertAction(alert, alert.actionLabelSecondary || (secondaryTarget === 'hrmu-reports' ? 'Open Reports' : 'Review Verification'))}>
-                            
-                              {alert.actionLabelSecondary || 'Review Verification'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </article>;
+                <div className="hrmu-alert-feed-accent" aria-hidden="true" />
+                <div className="hrmu-alert-feed-body">
+                  <div className={`hrmu-alert-feed-icon ${tone}`}>
+                    {alert.type === 'verified' ? <NotifSlipIcon /> : <HrmuWarningIcon />}
+                  </div>
+                  <div className="hrmu-alert-feed-copy">
+                    <div className="hrmu-alert-feed-head">
+                      <span className={`hrmu-alert-critical-pill ${tone}`}>
+                        {isViolation ? 'VIOLATION' : isRejected ? 'REJECTED' : 'VERIFIED'}
+                      </span>
+                      <span className="hrmu-alert-feed-time">{alert.time}</span>
+                    </div>
+                    <h2>{alert.title}</h2>
+                    <p>{alert.body}</p>
+                    <div className="hrmu-alert-feed-actions">
+                      <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => handleAlertAction(alert, alert.actionLabelPrimary || (primaryTarget === 'hrmu-verification' ? 'Review Verification' : 'Open Dashboard'))}>
+
+                        {alert.actionLabelPrimary || 'Open Dashboard'}
+                      </button>
+                      <button type="button" className="hrmu-alert-text-btn" onClick={() => handleAlertAction(alert, alert.actionLabelSecondary || (secondaryTarget === 'hrmu-reports' ? 'Open Reports' : 'Review Verification'))}>
+
+                        {alert.actionLabelSecondary || 'Review Verification'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>;
             })}
-              </div> : null}
-          </div>
+          </div> : null}
+        </div>
 
-          <aside className="hrmu-alerts-side-column">
-            <article className="hrmu-alert-summary-card">
-              <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
-              <div className="hrmu-alert-summary-row">
-                <span>Late Return</span>
-                <strong>{String(incidentSummary.lateReturns || 0).padStart(2, '0')}</strong>
-              </div>
-              <div className="hrmu-alert-summary-row">
-                <span>Unverified Location/Signature</span>
-                <strong>{String(incidentSummary.unverifiedLocations || 0).padStart(2, '0')}</strong>
-              </div>
-              <div className="hrmu-alert-summary-row">
-                <span>Disconnected Location</span>
-                <strong>{String(incidentSummary.disconnectedLocations || 0).padStart(2, '0')}</strong>
-              </div>
-              <div className="hrmu-alert-summary-mark" aria-hidden="true" />
-            </article>
+        <aside className="hrmu-alerts-side-column">
+          <article className="hrmu-alert-summary-card">
+            <span className="hrmu-alert-summary-kicker">INCIDENT SUMMARY</span>
+            <div className="hrmu-alert-summary-row">
+              <span>Late Return</span>
+              <strong>{String(incidentSummary.lateReturns || 0).padStart(2, '0')}</strong>
+            </div>
+            <div className="hrmu-alert-summary-row">
+              <span>Unverified Location/Signature</span>
+              <strong>{String(incidentSummary.unverifiedLocations || 0).padStart(2, '0')}</strong>
+            </div>
+            <div className="hrmu-alert-summary-row">
+              <span>Disconnected Location</span>
+              <strong>{String(incidentSummary.disconnectedLocations || 0).padStart(2, '0')}</strong>
+            </div>
+            <div className="hrmu-alert-summary-mark" aria-hidden="true" />
+          </article>
 
-            <article className="hrmu-alert-report-card">
-              <div className="hrmu-alert-report-icon">
-                <HrmuSyncIcon />
-              </div>
-              <h3>Monthly Log Report</h3>
-              <p>30-days summary is ready for download.</p>
-              <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
-                {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
-              </button>
-            </article>
-          </aside>
-        </section>
-        {alertsError ? <p className="hrmu-alerts-inline-error">{alertsError}</p> : null}
+          <article className="hrmu-alert-report-card">
+            <div className="hrmu-alert-report-icon">
+              <HrmuSyncIcon />
+            </div>
+            <h3>Monthly Log Report</h3>
+            <p>30-days summary is ready for download.</p>
+            <button type="button" className="hrmu-alert-download-btn" onClick={handleDownloadMonthlyLogReport} disabled={downloadBusy}>
+              {downloadBusy ? 'DOWNLOADING...' : 'DOWNLOAD PDF'}
+            </button>
+          </article>
+        </aside>
       </section>
-    </HrmuWorkspaceShell>;
+      {alertsError ? <p className="hrmu-alerts-inline-error">{alertsError}</p> : null}
+    </section>
+  </HrmuWorkspaceShell>;
 };
 const HrmuStatusDashboardView = ({
   setView,
@@ -3103,34 +3194,34 @@ export const HrmuLiveTrackingView = ({
   const mapCenter = useMemo(() => [Number(center?.lng || OLONGAPO_CENTER[0]), Number(center?.lat || OLONGAPO_CENTER[1])], [center?.lat, center?.lng]);
   const [mapFocusRequest, setMapFocusRequest] = useState(0);
   return <HrmuWorkspaceShell activeKey="live" setView={setView} profileData={profileData} onLogout={onLogout}>
-      <section className="hrmu-live-page">
-        <div className="hrmu-live-map-stage">
-          <HrmuLiveMapPanel faculty={facultyLocations} center={mapCenter} selectedFacultyUserId={selectedFaculty?.facultyUserId || null} selectedFacultyDetail={selectedFacultyDetail} selectedFaculty={selectedFaculty} onMarkerSelect={selectFaculty} focusOnOlongapo focusRequest={mapFocusRequest} className="hrmu-live-stage-map" />
-          
+    <section className="hrmu-live-page">
+      <div className="hrmu-live-map-stage">
+        <HrmuLiveMapPanel faculty={facultyLocations} center={mapCenter} selectedFacultyUserId={selectedFaculty?.facultyUserId || null} selectedFacultyDetail={selectedFacultyDetail} selectedFaculty={selectedFaculty} onMarkerSelect={selectFaculty} focusOnOlongapo focusRequest={mapFocusRequest} className="hrmu-live-stage-map" />
 
-          <div className="hrmu-live-controls">
-            <button type="button" className="hrmu-live-control-btn" aria-label="Refresh active employee" onClick={reload}>
-              <span className="hrmu-live-control-label">Refresh</span>
-              <span className="hrmu-live-control-subtext">Live data</span>
-            </button>
-            <button type="button" className="hrmu-live-control-pill" aria-label={`Focus map on ${center?.label || 'Olongapo City'}`} onClick={() => setMapFocusRequest(value => value + 1)}>
-              
-              <span className="hrmu-live-control-label">Focus</span>
-              <span className="hrmu-live-control-subtext">Olongapo</span>
-            </button>
-          </div>
 
-          <FacultyActivityLog activity={activityItems} loading={loading || activityLoading} onViewAll={() => loadMoreActivity(20)} />
-          
+        <div className="hrmu-live-controls">
+          <button type="button" className="hrmu-live-control-btn" aria-label="Refresh active employee" onClick={reload}>
+            <span className="hrmu-live-control-label">Refresh</span>
+            <span className="hrmu-live-control-subtext">Live data</span>
+          </button>
+          <button type="button" className="hrmu-live-control-pill" aria-label={`Focus map on ${center?.label || 'Olongapo City'}`} onClick={() => setMapFocusRequest(value => value + 1)}>
 
-          <FacultyDetailCard faculty={selectedFaculty} detail={selectedFacultyDetail} loading={loading || detailLoading} />
-          
-
-          {error && <div className="hrmu-live-inline-alert">
-              <strong>Live tracking error</strong>
-              <span>{error}</span>
-            </div>}
+            <span className="hrmu-live-control-label">Focus</span>
+            <span className="hrmu-live-control-subtext">Olongapo</span>
+          </button>
         </div>
-      </section>
-    </HrmuWorkspaceShell>;
+
+        <FacultyActivityLog activity={activityItems} loading={loading || activityLoading} onViewAll={() => loadMoreActivity(20)} />
+
+
+        <FacultyDetailCard faculty={selectedFaculty} detail={selectedFacultyDetail} loading={loading || detailLoading} />
+
+
+        {error && <div className="hrmu-live-inline-alert">
+          <strong>Live tracking error</strong>
+          <span>{error}</span>
+        </div>}
+      </div>
+    </section>
+  </HrmuWorkspaceShell>;
 };

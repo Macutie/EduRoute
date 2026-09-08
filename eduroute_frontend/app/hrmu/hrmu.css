@@ -8398,6 +8398,7 @@
   display: grid;
   gap: 20px;
   padding-bottom: 36px;
+  min-width: 0;
 }
 
 .hrmu-employee-analytics-header,
@@ -8476,6 +8477,107 @@
   background-repeat: no-repeat;
   background-position: right 13px center;
   background-size: 18px 18px;
+}
+
+.hrmu-employee-picker-field {
+  position: relative;
+}
+
+.hrmu-employee-picker {
+  position: relative;
+}
+
+.hrmu-employee-picker > input {
+  padding-right: 42px;
+}
+
+.hrmu-employee-picker > input:focus {
+  border-color: var(--green);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(11, 150, 23, 0.12);
+}
+
+.hrmu-employee-picker-icon {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  color: var(--green);
+  font-size: 22px;
+  line-height: 1;
+  transform: translateY(-52%);
+  pointer-events: none;
+}
+
+.hrmu-employee-picker-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid #d8e8da;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgba(40, 70, 45, 0.16);
+}
+
+.hrmu-employee-picker-menu button {
+  display: grid;
+  width: 100%;
+  gap: 3px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.hrmu-employee-picker-menu button:hover,
+.hrmu-employee-picker-menu button:focus-visible {
+  background: #f1f8f1;
+  outline: none;
+}
+
+.hrmu-employee-picker-menu strong {
+  color: #21352a;
+  font-size: 14px;
+}
+
+.hrmu-employee-picker-menu small,
+.hrmu-employee-picker-menu p {
+  margin: 0;
+  color: #748279;
+  font-size: 12px;
+}
+
+.hrmu-employee-verification-button {
+  min-width: 86px;
+  padding: 8px 10px;
+  border: 1px solid #cfe5d2;
+  border-radius: 999px;
+  background: #f1f8f1;
+  color: var(--green);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.hrmu-employee-verification-button:disabled {
+  border-color: #e4ebe5;
+  background: #f7f9f7;
+  color: #9aa59d;
+  cursor: not-allowed;
+}
+
+.hrmu-employee-verification-message {
+  margin: 12px 0 0;
+  color: #65736a;
+  font-size: 13px;
 }
 
 .hrmu-employee-date-field {
@@ -8578,11 +8680,13 @@
 
 .hrmu-employee-metric-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+  min-width: 0;
 }
 
 .hrmu-employee-metric-grid article {
+  min-width: 0;
   padding: 20px;
   border: 1px solid #dce9de;
   border-radius: 18px;
@@ -8595,20 +8699,21 @@
 .hrmu-employee-metric-grid strong { display: block; margin: 10px 0 5px; color: var(--green); font-size: 32px; }
 .hrmu-employee-metric-grid .alert strong { color: #c81e1e; }
 
-.hrmu-employee-analytics-columns { display: grid; grid-template-columns: 1.2fr .8fr; gap: 20px; }
-.hrmu-employee-panel { padding: 22px; border: 1px solid #dce9de; border-radius: 20px; background: #fff; }
+.hrmu-employee-analytics-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 20px; min-width: 0; }
+.hrmu-employee-panel { min-width: 0; padding: 22px; border: 1px solid #dce9de; border-radius: 20px; background: #fff; }
 .hrmu-employee-panel-head { margin-bottom: 18px; }
 .hrmu-employee-panel-head h2 { margin: 5px 0 0; color: #21352a; font-size: 23px; }
 .hrmu-employee-panel-head small { color: #748279; }
 .hrmu-employee-activity-list, .hrmu-employee-destination-list, .hrmu-employee-incident-list { display: grid; gap: 10px; }
 .hrmu-employee-activity-list > div, .hrmu-employee-destination-list > div, .hrmu-employee-incident-list > div { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; background: #f5f9f5; color: #44544a; font-size: 15px; }
 .hrmu-employee-activity-list strong, .hrmu-employee-destination-list strong, .hrmu-employee-incident-list b { color: #25382a; }
+.hrmu-employee-activity-list > div { grid-template-columns: 1fr auto; }
 .hrmu-employee-activity-list b { min-width: 45px; color: var(--green); text-align: right; font-size: 14px; }
 .hrmu-employee-destination-list > div { grid-template-columns: 1fr auto; }
 .hrmu-employee-incident-list > div { grid-template-columns: auto 1fr; }
 .hrmu-employee-ledger-panel { overflow: hidden; }
 .hrmu-employee-ledger { overflow-x: auto; }
-.hrmu-employee-ledger-row { display: grid; grid-template-columns: 1.25fr 1.05fr 1.1fr 1.1fr .9fr 1fr; align-items: center; gap: 16px; min-width: 1100px; padding: 16px 0; border-bottom: 1px solid #e7efe8; color: #405047; font-size: 14px; }
+.hrmu-employee-ledger-row { display: grid; grid-template-columns: 1.25fr 1.05fr 1.1fr 1.1fr .9fr 1fr .9fr; align-items: center; gap: 16px; min-width: 1240px; padding: 16px 0; border-bottom: 1px solid #e7efe8; color: #405047; font-size: 14px; }
 .hrmu-employee-ledger-row.header { padding-top: 0; color: #718078; font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; }
 .hrmu-employee-ledger-row span { display: grid; gap: 4px; }
 .hrmu-employee-ledger-row strong { color: #23382a; font-size: 15px; }
@@ -8617,14 +8722,32 @@
 .hrmu-employee-ledger-row b.late { color: #c81e1e; }
 .hrmu-employee-ledger-row b.on-time { color: var(--green); }
 .hrmu-employee-summary-list,
-.hrmu-employee-stat-list { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+.hrmu-employee-stat-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; min-width: 0; }
+.hrmu-employee-summary-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; min-width: 0; }
 .hrmu-employee-summary-list > div,
-.hrmu-employee-stat-list > div { display: grid; gap: 6px; padding: 14px 16px; border-radius: 12px; background: #f5f9f5; }
+.hrmu-employee-stat-list > div { display: grid; min-width: 0; gap: 6px; padding: 14px 16px; border-radius: 12px; background: #f5f9f5; }
+.hrmu-employee-summary-list > div { min-width: 0; }
 .hrmu-employee-summary-list span,
 .hrmu-employee-stat-list span { color: #68776d; font-size: 13px; font-weight: 700; }
 .hrmu-employee-summary-list strong,
 .hrmu-employee-stat-list strong { color: var(--green); font-size: 22px; }
-.hrmu-employee-stat-list { grid-template-columns: repeat(2, 1fr); }
+.hrmu-employee-stat-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.hrmu-employee-timing-panel .hrmu-employee-stat-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.hrmu-employee-schedule-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.hrmu-employee-schedule-grid > div { display: grid; gap: 6px; padding: 16px; border-radius: 12px; background: #f5f9f5; }
+.hrmu-employee-schedule-grid strong { color: #25382a; font-size: 16px; }
+.hrmu-employee-schedule-grid span,
+.hrmu-employee-schedule-grid small { color: #68776d; font-size: 13px; }
+.hrmu-employee-schedule-grid b { color: var(--green); font-size: 22px; }
+.hrmu-employee-schedule-grid b.late { color: #c81e1e; }
+.hrmu-employee-schedule-ledger { width: 100%; max-width: 100%; margin-top: 18px; overflow-x: auto; box-sizing: border-box; }
+.hrmu-employee-schedule-row { display: grid; grid-template-columns: 1.1fr 1.25fr 1.25fr .95fr 1.25fr 1.25fr .95fr; align-items: center; gap: 14px; min-width: 1180px; padding: 14px 0; border-bottom: 1px solid #e7efe8; color: #405047; font-size: 13px; }
+.hrmu-employee-schedule-row.header { padding-top: 0; color: #718078; font-size: 11px; font-weight: 800; letter-spacing: .7px; text-transform: uppercase; }
+.hrmu-employee-schedule-row span { display: grid; gap: 4px; }
+.hrmu-employee-schedule-row strong { color: #23382a; font-size: 13px; }
+.hrmu-employee-schedule-row small { color: #77857b; font-size: 11px; }
+.hrmu-employee-schedule-row b { color: var(--green); font-size: 13px; }
+.hrmu-employee-schedule-row b.late { color: #c81e1e; }
 .hrmu-employee-metric-grid strong em { font-size: 14px; font-style: normal; }
 .hrmu-employee-muted { margin: 0; color: #78857d; font-size: 15px; }
 .hrmu-employee-analytics-empty { display: grid; min-height: 260px; place-items: center; padding: 30px; border: 1px dashed #c9dfcc; border-radius: 22px; background: #f8fbf8; text-align: center; }
@@ -8642,7 +8765,7 @@
 @media (max-width: 600px) {
   .hrmu-employee-analytics-header, .hrmu-employee-profile-card { align-items: flex-start; flex-direction: column; }
   .hrmu-employee-analytics-header h1 { font-size: 30px; }
-  .hrmu-employee-analytics-controls, .hrmu-employee-metric-grid, .hrmu-employee-summary-list, .hrmu-employee-stat-list { grid-template-columns: 1fr; }
+  .hrmu-employee-analytics-controls, .hrmu-employee-metric-grid, .hrmu-employee-summary-list, .hrmu-employee-stat-list, .hrmu-employee-timing-panel .hrmu-employee-stat-list, .hrmu-employee-schedule-grid { grid-template-columns: 1fr; }
   .hrmu-employee-profile-card > strong { white-space: normal; }
 }
 

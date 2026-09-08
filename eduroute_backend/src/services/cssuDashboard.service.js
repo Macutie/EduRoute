@@ -842,7 +842,8 @@ const updateExitLogStatus = async (ISSUUserId, locatorSlipId, payload = {}) => {
             gate,
             lookupMethod: validationMethod,
             outcome: 'entry_validated',
-            notes: rawNotes || 'Return entry QR allowed by ISSU.'
+            notes: rawNotes || 'Return entry QR allowed by ISSU.',
+            validatedBy: ISSUUserId
         }).catch(() => null);
 
         return {

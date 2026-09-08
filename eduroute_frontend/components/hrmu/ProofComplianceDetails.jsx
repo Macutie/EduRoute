@@ -77,6 +77,7 @@ const ProofComplianceDetails = ({
   reviewing,
   reviewLocked,
   onClose,
+  closeLabel = 'Return to Registry',
   onReview,
   onViewPathHistory,
 }) => {
@@ -529,7 +530,7 @@ const ProofComplianceDetails = ({
                   View Path History
                 </button>
               )}
-              <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>Return to Registry</button>
+              <button type="button" className="hrmu-verify-return-btn" onClick={onClose}>{closeLabel}</button>
               <button 
                 type="button" 
                 className="hrmu-verify-return-btn" 

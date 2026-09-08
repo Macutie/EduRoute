@@ -93,10 +93,31 @@
   text-decoration: none;
 }
 
+.landing-login-link {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  border-radius: 999px;
+  background: var(--landing-green);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(0, 150, 36, 0.2);
+  transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
+}
+
 .landing-login-link:hover,
 .landing-footer-links button:hover,
 .landing-back-link:hover {
   text-decoration: underline;
+}
+
+.landing-login-link:hover,
+.landing-login-link:focus-visible {
+  background: var(--landing-green-dark);
+  box-shadow: 0 15px 28px rgba(0, 150, 36, 0.26);
+  text-decoration: none;
+  transform: translateY(-2px);
 }
 
 .landing-footer-links button {
@@ -135,6 +156,10 @@
 .landing-download-btn {
   min-height: 42px;
   padding-inline: 24px;
+}
+
+.landing-mobile-download-btn {
+  display: none;
 }
 
 .landing-outline-btn {
@@ -988,9 +1013,9 @@
   }
 
   .landing-nav {
-    min-height: auto;
-    padding: 16px 0;
-    align-items: flex-start;
+    min-height: 60px;
+    padding: 10px 0;
+    align-items: center;
   }
 
   .landing-nav-actions {
@@ -999,13 +1024,21 @@
   }
 
   .landing-login-link {
-    font-size: 0.86rem;
+    display: inline-flex;
+    min-height: 36px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 999px;
+    background: var(--landing-green);
+    color: #ffffff;
+    font-size: 0.82rem;
+    white-space: nowrap;
   }
 
-  .landing-download-btn {
-    min-height: 38px;
-    padding-inline: 16px;
-    font-size: 0.86rem;
+  .landing-header .landing-download-btn {
+    display: none;
   }
 
   .landing-hero {
@@ -1013,7 +1046,7 @@
   }
 
   .landing-hero-grid {
-    padding: 56px 0 68px;
+    padding: 34px 0 52px;
   }
 
   .landing-hero-copy {
@@ -1021,11 +1054,35 @@
   }
 
   .landing-hero-actions {
+    flex-direction: column;
     align-items: stretch;
+    gap: 12px;
   }
 
   .landing-hero-actions > * {
-    flex: 1 1 180px;
+    width: 100%;
+  }
+
+  .landing-mobile-download-btn {
+    display: inline-flex;
+    min-height: 46px;
+    padding-inline: 22px;
+    background: #ffffff;
+    color: var(--landing-green-dark);
+    border: 1px solid var(--landing-green);
+    box-shadow: none;
+  }
+
+  .landing-hero h1 {
+    max-width: 100%;
+    margin-top: 18px;
+    font-size: clamp(2.7rem, 12vw, 4rem);
+    line-height: 0.98;
+  }
+
+  .landing-hero p {
+    margin-bottom: 22px;
+    font-size: 0.95rem;
   }
 
   .landing-hero-visual {
@@ -1075,7 +1132,7 @@
 
 @media (max-width: 430px) {
   .landing-nav {
-    gap: 12px;
+    gap: 10px;
   }
 
   .landing-logo {
@@ -1088,16 +1145,7 @@
   }
 
   .landing-nav-actions {
-    max-width: 160px;
-  }
-
-  .landing-download-btn,
-  .landing-login-link {
-    width: 100%;
-  }
-
-  .landing-login-link {
-    text-align: center;
+    max-width: none;
   }
 
   .landing-badge {
@@ -1108,5 +1156,61 @@
   .landing-outline-btn,
   .landing-white-btn {
     padding-inline: 22px;
+  }
+}
+
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .landing-role-card:active,
+  .landing-role-card:focus-within {
+    z-index: 2;
+    background: #ffffff;
+    box-shadow: 0 20px 38px rgba(0, 0, 0, 0.13);
+    transform: translateY(-4px) scale(1.015);
+  }
+
+  .landing-role-card:active::after,
+  .landing-role-card:focus-within::after {
+    transform: translateX(125%);
+  }
+
+  .landing-role-card:active .landing-role-icon,
+  .landing-role-card:focus-within .landing-role-icon,
+  .landing-capability-card:active .landing-capability-icon,
+  .landing-capability-card:focus-within .landing-capability-icon,
+  .landing-cta-card:active .landing-cta-icon,
+  .landing-cta-card:focus-within .landing-cta-icon {
+    background: #049516;
+    color: #ffffff;
+    box-shadow: 0 14px 28px rgba(4, 149, 22, 0.22);
+    transform: scale(1.06);
+  }
+
+  .landing-capability-card:active,
+  .landing-capability-card:focus-within {
+    border-color: rgba(4, 149, 22, 0.45);
+    background: #fbfffa;
+    box-shadow: 0 20px 40px rgba(4, 149, 22, 0.12);
+    transform: translateY(-4px);
+  }
+
+  .landing-cta-card:active,
+  .landing-cta-card:focus-within {
+    transform: translateY(-4px);
+  }
+
+  .landing-phone-mockup:active,
+  .landing-phone-mockup:focus-within {
+    transform: translateY(-7px) scale(1.02);
+  }
+
+  .landing-phone-mockup:active::before,
+  .landing-phone-mockup:focus-within::before {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  .landing-phone-mockup:active img,
+  .landing-phone-mockup:focus-within img {
+    filter: drop-shadow(0 24px 28px rgba(17, 24, 39, 0.16));
   }
 }

@@ -155,19 +155,18 @@ const usePwaInstallPrompt = () => {
   };
 };
 
-const LandingHeader = ({ onInstall }) => (
+const LandingHeader = () => (
   <header className="landing-header">
     <nav className="landing-nav" aria-label="Landing page navigation">
       <LandingLogo />
       <div className="landing-nav-actions">
         <a className="landing-login-link" href="/login">Portal Login</a>
-        <button className="landing-download-btn" type="button" onClick={onInstall}>Download App</button>
       </div>
     </nav>
   </header>
 );
 
-const HeroSection = ({ onInstall }) => {
+const HeroSection = () => {
   const scrollToCapabilities = () => {
     document.getElementById('landing-capabilities')?.scrollIntoView({
       behavior: 'smooth',
@@ -309,8 +308,8 @@ export default function LandingPage() {
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
 
   return <main className="landing-page">
-    <LandingHeader onInstall={requestInstall} />
-    <HeroSection onInstall={requestInstall} />
+    <LandingHeader />
+    <HeroSection />
     <RoleCards />
     <CapabilityCards />
     <DownloadPortalSection installMessage={installMessage} onInstall={requestInstall} />
@@ -327,12 +326,7 @@ export function PublicLegalPage({ type }) {
   }, [type]);
 
   return <main className="landing-page landing-legal-page">
-    <LandingHeader onInstall={() => {
-      document.getElementById('landing-legal-install-note')?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
-    }} />
+    <LandingHeader />
     <section className="landing-legal-section">
       <div className="landing-container landing-legal-card">
         <a className="landing-back-link" href="/">Back to Home</a>
