@@ -577,7 +577,8 @@ function App() {
     const identifier = typedIdentifier && !typedIdentifier.includes('@')
       ? `${typedIdentifier}${GORDON_COLLEGE_EMAIL_DOMAIN}`
       : typedIdentifier;
-    if (isEmailIdentifier(identifier) && !isGordonCollegeEmail(identifier)) {
+    const isSystemAdminLogin = identifier === 'admin.eduroute.system@gmail.com';
+    if (isEmailIdentifier(identifier) && !isSystemAdminLogin && !isGordonCollegeEmail(identifier)) {
       setAppDialog({
         title: 'Institutional Email Required',
         message: 'Only @gordoncollege.edu.ph email addresses are accepted for EduRoute login.',
