@@ -3579,6 +3579,19 @@
   color: #9CA3AF;
 }
 
+.dlogin-input-group .login-identifier-hint {
+  margin: -2px 2px 0;
+  color: #68736b;
+  font-size: 12px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.dlogin-input-group .login-identifier-hint strong {
+  color: var(--green);
+  font-weight: 800;
+}
+
 .dlogin-input-wrapper svg {
   flex-shrink: 0;
 }

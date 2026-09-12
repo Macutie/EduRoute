@@ -1758,6 +1758,7 @@ export const MapTrackingView = ({
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
   const [showEntryQrCode, setShowEntryQrCode] = useState(false);
+  const [showTripStartPermission, setShowTripStartPermission] = useState(false);
   const [returnEntryState, setReturnEntryState] = useState(null);
   const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
   const [tripSummary, setTripSummary] = useState(null);
@@ -2462,6 +2463,10 @@ export const MapTrackingView = ({
       return;
     }
     setMapError('');
+    setShowTripStartPermission(true);
+  };
+  const confirmTripStart = () => {
+    setShowTripStartPermission(false);
     startTripFromCurrentLocation();
   };
   const markTripArrived = async () => {
@@ -3230,6 +3235,19 @@ export const MapTrackingView = ({
       }}>
           Show Routes
         </button>}
+
+      {showTripStartPermission && <div className="permission-modal-backdrop" role="presentation" onClick={() => !mapLoading && setShowTripStartPermission(false)}>
+          <div className="permission-modal-card trip-start-permission-modal" role="dialog" aria-modal="true" aria-labelledby="trip-start-permission-title" onClick={event => event.stopPropagation()}>
+            <div className="permission-modal-glow" />
+            <div className="permission-modal-icon" aria-hidden="true"><MapIcon color="var(--green)" size="26" /></div>
+            <span className="permission-modal-kicker">REAL-TIME ROUTE ACCESS</span>
+            <h3 id="trip-start-permission-title" className="permission-modal-title">Allow route optimization?</h3>
+            <p className="permission-modal-copy">EduRoute will use your current location while this trip is active to optimize your route and provide real-time navigation guidance to your approved destination.</p>
+            <p className="permission-modal-note">Location access is used for this active trip’s route guidance. It does not change your approved destination or locator slip details.</p>
+            <button type="button" className="permission-primary-btn" onClick={confirmTripStart} disabled={mapLoading}>Allow and Start Trip</button>
+            <button type="button" className="permission-ghost-btn" onClick={() => setShowTripStartPermission(false)} disabled={mapLoading}>Not Now</button>
+          </div>
+        </div>}
 
       {showEntryQrCode && canShowEntryQrCode && <div className="qr-modal-overlay" onClick={() => setShowEntryQrCode(false)}>
           <div className="qr-modal-card" onClick={event => event.stopPropagation()}>

@@ -39,6 +39,10 @@ const ProofOfComplianceForm = ({
   const [arrivalPhotoFile, setArrivalPhotoFile] = useState(null);
   const [arrivalPhotoPreview, setArrivalPhotoPreview] = useState(initialValues?.arrivalPhotoUrl || '');
   const [hasSignature, setHasSignature] = useState(false);
+  const [proofMethods, setProofMethods] = useState({
+    signature: false,
+    arrivalPhoto: false,
+  });
   const [localError, setLocalError] = useState('');
 
   useEffect(() => {
@@ -62,8 +66,13 @@ const ProofOfComplianceForm = ({
     && focalPersonName.trim()
     && focalPersonPosition.trim()
     && focalPersonCompany.trim()
-    && hasSignature
-  ), [disabled, loading, focalPersonName, focalPersonPosition, focalPersonCompany, hasSignature]);
+    && (hasSignature || arrivalPhotoFile || arrivalPhotoPreview)
+  ), [disabled, loading, focalPersonName, focalPersonPosition, focalPersonCompany, hasSignature, arrivalPhotoFile, arrivalPhotoPreview]);
+
+  const toggleProofMethod = (method) => {
+    setProofMethods(current => ({ ...current, [method]: !current[method] }));
+    setLocalError('');
+  };
 
   const beginDraw = (event) => {
     if (disabled || loading) return;
@@ -128,25 +137,31 @@ const ProofOfComplianceForm = ({
   const handleSubmit = async (event) => {
     event.preventDefault();
     const canvas = canvasRef.current;
-    if (!canvas) return;
 
-    if (!focalPersonName.trim()) {
-      setLocalError('Focal person name is required.');
-      return;
+    if (proofMethods.signature) {
+      if (!focalPersonName.trim()) {
+        setLocalError('Focal person name is required for a signature.');
+        return;
+      }
+
+      if (!focalPersonPosition.trim()) {
+        setLocalError('Focal person position is required for a signature.');
+        return;
+      }
+
+      if (!focalPersonCompany.trim()) {
+        setLocalError('Focal person company is required for a signature.');
+        return;
+      }
+
+      if (!canvas || !hasSignature) {
+        setLocalError('Please provide the focal person signature.');
+        return;
+      }
     }
 
-    if (!focalPersonPosition.trim()) {
-      setLocalError('Focal person position is required.');
-      return;
-    }
-
-    if (!focalPersonCompany.trim()) {
-      setLocalError('Focal person company is required.');
-      return;
-    }
-
-    if (!hasSignature) {
-      setLocalError('Focal person signature is required.');
+    if (!hasSignature && !arrivalPhotoFile && !arrivalPhotoPreview) {
+      setLocalError('Choose at least one proof method: signature or arrival photo.');
       return;
     }
 
@@ -155,7 +170,7 @@ const ProofOfComplianceForm = ({
       focalPersonName: focalPersonName.trim(),
       focalPersonPosition: focalPersonPosition.trim(),
       focalPersonCompany: focalPersonCompany.trim(),
-      signatureDataUrl: canvas.toDataURL('image/png'),
+      signatureDataUrl: hasSignature ? canvas.toDataURL('image/png') : null,
       arrivalPhotoFile,
     });
   };
@@ -170,64 +185,49 @@ const ProofOfComplianceForm = ({
         <span className="proof-form-pill">Required before return</span>
       </div>
 
-      <div className="proof-form-grid">
-        <label className="proof-form-field">
-          <span>Focal Person Name</span>
-          <input
-            type="text"
-            value={focalPersonName}
-            onChange={(event) => setFocalPersonName(event.target.value)}
-            placeholder="Enter the focal person name"
-            disabled={disabled || loading}
-          />
-        </label>
-
-        <label className="proof-form-field">
-          <span>Focal Person Position</span>
-          <input
-            type="text"
-            value={focalPersonPosition}
-            onChange={(event) => setFocalPersonPosition(event.target.value)}
-            placeholder="Enter the focal person position"
-            disabled={disabled || loading}
-          />
-        </label>
-
-        <label className="proof-form-field">
-          <span>Focal Person Company</span>
-          <input
-            type="text"
-            value={focalPersonCompany}
-            onChange={(event) => setFocalPersonCompany(event.target.value)}
-            placeholder="Enter the focal person company"
-            disabled={disabled || loading}
-          />
-        </label>
-      </div>
-
-      <div className="proof-form-signature">
+      <div className="proof-method-picker">
         <div className="proof-form-section-head">
-          <strong>Focal Person Signature</strong>
-          <button type="button" className="proof-inline-btn" onClick={clearSignature} disabled={disabled || loading}>
-            Clear Signature
+          <strong>Choose proof method</strong>
+          <span>At least one required</span>
+        </div>
+        <p className="proof-method-help">Use a focal person signature, upload an arrival photo, or provide both.</p>
+        <div className="proof-method-options">
+          <button type="button" className={`proof-method-option ${proofMethods.signature ? 'selected' : ''}`} onClick={() => toggleProofMethod('signature')} disabled={disabled || loading} aria-pressed={proofMethods.signature}>
+            <strong>Focal person signature</strong>
+            <span>{proofMethods.signature ? 'Selected' : 'Choose signature'}</span>
+          </button>
+          <button type="button" className={`proof-method-option ${proofMethods.arrivalPhoto ? 'selected' : ''}`} onClick={() => toggleProofMethod('arrivalPhoto')} disabled={disabled || loading} aria-pressed={proofMethods.arrivalPhoto}>
+            <strong>Arrival photo</strong>
+            <span>{proofMethods.arrivalPhoto ? 'Selected' : 'Choose photo'}</span>
           </button>
         </div>
-        <canvas
-          ref={canvasRef}
-          width={960}
-          height={320}
-          className="proof-signature-canvas"
-          onMouseDown={beginDraw}
-          onMouseMove={continueDraw}
-          onMouseUp={endDraw}
-          onMouseLeave={endDraw}
-          onTouchStart={beginDraw}
-          onTouchMove={continueDraw}
-          onTouchEnd={endDraw}
-        />
       </div>
 
-      <div className="proof-form-upload">
+      {proofMethods.signature && <>
+        <div className="proof-form-grid">
+          <label className="proof-form-field">
+            <span>Focal Person Name</span>
+            <input type="text" value={focalPersonName} onChange={(event) => setFocalPersonName(event.target.value)} placeholder="Enter the focal person name" disabled={disabled || loading} />
+          </label>
+          <label className="proof-form-field">
+            <span>Focal Person Position</span>
+            <input type="text" value={focalPersonPosition} onChange={(event) => setFocalPersonPosition(event.target.value)} placeholder="Enter the focal person position" disabled={disabled || loading} />
+          </label>
+          <label className="proof-form-field">
+            <span>Focal Person Company</span>
+            <input type="text" value={focalPersonCompany} onChange={(event) => setFocalPersonCompany(event.target.value)} placeholder="Enter the focal person company" disabled={disabled || loading} />
+          </label>
+        </div>
+        <div className="proof-form-signature">
+          <div className="proof-form-section-head">
+            <strong>Focal Person Signature</strong>
+            <button type="button" className="proof-inline-btn" onClick={clearSignature} disabled={disabled || loading}>Clear Signature</button>
+          </div>
+          <canvas ref={canvasRef} width={960} height={320} className="proof-signature-canvas" onMouseDown={beginDraw} onMouseMove={continueDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={beginDraw} onTouchMove={continueDraw} onTouchEnd={endDraw} />
+        </div>
+      </>}
+
+      {proofMethods.arrivalPhoto && <div className="proof-form-upload">
         <div className="proof-form-section-head">
           <strong>Arrival Photo</strong>
           <span>Optional</span>
@@ -246,7 +246,7 @@ const ProofOfComplianceForm = ({
         {arrivalPhotoPreview && (
           <img src={arrivalPhotoPreview} alt="Arrival preview" className="proof-arrival-preview" />
         )}
-      </div>
+      </div>}
 
       {combinedError && (
         <p className="proof-form-error">{combinedError}</p>

@@ -118,6 +118,19 @@ label {
   color: var(--text-light);
 }
 
+.login-identifier-hint {
+  margin: 7px 2px 0;
+  color: #68736b;
+  font-size: 11px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.login-identifier-hint strong {
+  color: var(--green);
+  font-weight: 800;
+}
+
 .input-wrapper.disabled {
   opacity: 0.8;
   background: #E5E7EB;

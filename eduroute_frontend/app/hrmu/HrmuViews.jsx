@@ -1538,7 +1538,7 @@ export const HrmuAnalyticsReportsView = ({
           <span>EMPLOYEE</span>
           <div className="hrmu-analytics-select-wrap"><select className="hrmu-analytics-select hrmu-analytics-select-input" value={filters.employeeId} onChange={event => updateFilter('employeeId', event.target.value)}>
             <option value="">All employees</option>
-            {employeeOptions.map(employee => <option key={employee.id} value={employee.id}>{employee.name} • {employee.employeeId || employee.collegeName}</option>)}
+            {employeeOptions.map(employee => <option key={employee.id} value={employee.id}>{employee.name} • {employee.collegeName || 'Department unavailable'}</option>)}
           </select><ChevronDownIcon color="#2F3438" /></div>
         </div>}
         <button type="button" className="hrmu-analytics-apply-btn" onClick={applyFilters} disabled={loading || smartGenerating}>
@@ -2062,11 +2062,42 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
   }, {});
   const monthlyRows = Object.entries(monthlyCounts).slice(0, 6);
   const selectedEmployeeOption = employeeOptions.find(employee => String(employee.id) === String(filters.employeeId));
-  const filteredEmployeeOptions = employeeOptions.filter(employee => {
+  const sortedEmployeeOptions = useMemo(() => [...employeeOptions].sort((left, right) => String(left.name || '').localeCompare(String(right.name || ''))), [employeeOptions]);
+  const filteredEmployeeOptions = useMemo(() => {
     const query = employeeSearch.trim().toLowerCase();
-    if (!query) return true;
-    return [employee.name, employee.employeeId, employee.collegeName].filter(Boolean).some(value => String(value).toLowerCase().includes(query));
-  }).slice(0, 12);
+    if (!query) return sortedEmployeeOptions.slice(0, 12);
+
+    // Binary-search the sorted name index for the first possible prefix match.
+    let low = 0;
+    let high = sortedEmployeeOptions.length;
+    while (low < high) {
+      const middle = Math.floor((low + high) / 2);
+      const name = String(sortedEmployeeOptions[middle].name || '').toLowerCase();
+      if (name < query) low = middle + 1;
+      else high = middle;
+    }
+
+    const matches = [];
+    for (let index = low; index < sortedEmployeeOptions.length && matches.length < 12; index += 1) {
+      const employee = sortedEmployeeOptions[index];
+      const name = String(employee.name || '').toLowerCase();
+      if (!name.startsWith(query)) break;
+      matches.push(employee);
+    }
+
+    // Preserve searching by department for queries that are not names. Employee IDs
+    // remain available internally for record matching, but are not exposed here.
+    const existingIds = new Set(matches.map(employee => String(employee.id)));
+    sortedEmployeeOptions.forEach(employee => {
+      if (matches.length >= 12 || existingIds.has(String(employee.id))) return;
+      const metadata = [employee.collegeName].filter(Boolean).map(value => String(value).toLowerCase());
+      if (metadata.some(value => value.includes(query))) {
+        matches.push(employee);
+        existingIds.add(String(employee.id));
+      }
+    });
+    return matches;
+  }, [employeeSearch, sortedEmployeeOptions]);
   const filingToExitValues = tripRecords.map(record => getWholeMinuteDifference(record.locatorSlipFiledAt, record.startedAt)).filter(value => value !== null);
   const averageFilingToExit = filingToExitValues.length ? Math.floor(filingToExitValues.reduce((sum, value) => sum + value, 0) / filingToExitValues.length) : null;
   const getPeakTimeWindow = (field) => {
@@ -2152,13 +2183,13 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
         <button type="button" className="hrmu-analytics-export primary" onClick={handleExport} disabled={!selectedEmployee || exporting}><HrmuReportIcon color="white" />{exporting ? 'Exporting...' : 'Export PDF'}</button>
       </section>
       <section className="hrmu-employee-analytics-controls">
-        <label className="hrmu-employee-picker-field"><span>EMPLOYEE</span><div className="hrmu-employee-picker"><input type="search" value={employeeSearch || (selectedEmployeeOption ? `${selectedEmployeeOption.name} • ${selectedEmployeeOption.employeeId || selectedEmployeeOption.collegeName}` : '')} onChange={event => { setEmployeeSearch(event.target.value); setEmployeePickerOpen(true); if (filters.employeeId) updateFilter('employeeId', ''); }} onFocus={() => setEmployeePickerOpen(true)} placeholder="Search employee or ID" aria-label="Search employee" /><span className="hrmu-employee-picker-icon">⌕</span>{employeePickerOpen && <div className="hrmu-employee-picker-menu">{filteredEmployeeOptions.length ? filteredEmployeeOptions.map(employee => <button key={employee.id} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { updateFilter('employeeId', employee.id); setEmployeeSearch(`${employee.name} • ${employee.employeeId || employee.collegeName}`); setEmployeePickerOpen(false); }}><strong>{employee.name}</strong><small>{employee.employeeId || 'Employee ID unavailable'}{employee.collegeName ? ` • ${employee.collegeName}` : ''}</small></button>) : <p>No matching employees found.</p>}</div>}</div></label>
+        <label className="hrmu-employee-picker-field"><span>EMPLOYEE</span><div className="hrmu-employee-picker"><input type="search" value={employeeSearch || (selectedEmployeeOption ? `${selectedEmployeeOption.name} • ${selectedEmployeeOption.collegeName || 'Department unavailable'}` : '')} onChange={event => { setEmployeeSearch(event.target.value); setEmployeePickerOpen(true); if (filters.employeeId) updateFilter('employeeId', ''); }} onFocus={() => setEmployeePickerOpen(true)} placeholder="Search employee or department" aria-label="Search employee or department" /><span className="hrmu-employee-picker-icon">⌕</span>{employeePickerOpen && <div className="hrmu-employee-picker-menu">{filteredEmployeeOptions.length ? filteredEmployeeOptions.map(employee => <button key={employee.id} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { updateFilter('employeeId', employee.id); setEmployeeSearch(`${employee.name} • ${employee.collegeName || 'Department unavailable'}`); setEmployeePickerOpen(false); }}><strong>{employee.name}</strong><small>{employee.collegeName || 'Department unavailable'}</small></button>) : <p>No matching employees found.</p>}</div>}</div></label>
         <label><span>START DATE</span><div className="hrmu-employee-date-field"><button type="button" className="hrmu-employee-date-toggle" onClick={() => openEmployeeDatePicker(employeeStartDateRef)}><span>{formatEmployeeFilterDate(filters.startDate)}</span><svg className="hrmu-employee-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg></button><input ref={employeeStartDateRef} type="date" className="hrmu-employee-date-native" value={filters.startDate} onChange={event => updateFilter('startDate', event.target.value)} aria-label="Employee analytics start date" /></div></label>
         <label><span>END DATE</span><div className="hrmu-employee-date-field"><button type="button" className="hrmu-employee-date-toggle" onClick={() => openEmployeeDatePicker(employeeEndDateRef)}><span>{formatEmployeeFilterDate(filters.endDate)}</span><svg className="hrmu-employee-date-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" /><path d="M7 3.5v4M17 3.5v4M3.5 9h17" /></svg></button><input ref={employeeEndDateRef} type="date" className="hrmu-employee-date-native" value={filters.endDate} onChange={event => updateFilter('endDate', event.target.value)} aria-label="Employee analytics end date" /></div></label>
         <button type="button" className="hrmu-employee-analytics-apply" onClick={applyFilters} disabled={loading}>{loading ? 'Loading...' : 'View Analytics'}</button>
       </section>
       {!selectedEmployee ? <section className="hrmu-employee-analytics-empty"><div><h2>Select an employee</h2><p>Choose an employee above to view their recorded movement, approval, return, and compliance history.</p></div></section> : <>
-        <section className="hrmu-employee-profile-card"><div className="hrmu-employee-profile-avatar">{selectedEmployee.name?.split(' ').map(part => part[0]).slice(0, 2).join('')}</div><div><span>EMPLOYEE PROFILE</span><h2>{selectedEmployee.name}</h2><p>{selectedEmployee.employeeId || 'Employee ID unavailable'} • {selectedEmployee.collegeName}</p></div><strong>{formatDate(analytics?.dateRange?.startDate)} – {formatDate(analytics?.dateRange?.endDate)}</strong></section>
+        <section className="hrmu-employee-profile-card"><div className="hrmu-employee-profile-avatar">{selectedEmployee.name?.split(' ').map(part => part[0]).slice(0, 2).join('')}</div><div><span>EMPLOYEE PROFILE</span><h2>{selectedEmployee.name}</h2><p>{selectedEmployee.collegeName || 'Department unavailable'}</p></div><strong>{formatDate(analytics?.dateRange?.startDate)} – {formatDate(analytics?.dateRange?.endDate)}</strong></section>
         <section className="hrmu-employee-metric-grid"><article><span>Filed slips</span><strong>{summary.totalFiled || 0}</strong><small>{summary.approvedCount || 0} approved</small></article><article><span>Approval rate</span><strong>{Number(approval.percentage || 0).toFixed(1)}%</strong><small>{approval.approvedCount || 0} approved of {approval.totalFiledCount || 0} filed</small></article><article><span>Completed trips</span><strong>{completedTrips}</strong><small>{complianceRate.toFixed(1)}% completion rate</small></article><article><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong><small>{summary.lateReturnCount || 0} late completed return{summary.lateReturnCount === 1 ? '' : 's'}</small></article><article className="alert"><span>Exceptions</span><strong>{Number(summary.lateReturns || 0) + Number(summary.missingProof || 0)}</strong><small>{summary.lateReturns || 0} late • {summary.missingProof || 0} missing proof</small></article><article className="alert"><span>Average late delay</span><strong>{formatDuration(Number(summary.averageReturnDelayMinutes || 0))}</strong><small>Across late completed returns</small></article></section>
         <section className="hrmu-employee-panel hrmu-employee-summary-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP SUMMARY</span><h2>Locator slip outcomes</h2></div><small>Selected period</small></div><div className="hrmu-employee-summary-list"><div><span>Total locator slips</span><strong>{summary.totalFiled || 0}</strong></div><div><span>Approved trips</span><strong>{summary.approvedCount || 0}</strong></div><div><span>Rejected trips</span><strong>{summary.rejectedCount || 0}</strong></div><div><span>Completed trips</span><strong>{completedTrips}</strong></div><div><span>Cancelled trips</span><strong>{summary.cancelledCount || 0}</strong></div></div></section>
         <section className="hrmu-employee-panel hrmu-employee-timing-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP TIMING</span><h2>Request and movement timing</h2></div><small>Recorded timestamps</small></div><div className="hrmu-employee-stat-list"><div><span>Average filing to exit</span><strong>{averageFilingToExit === null ? '--' : formatDuration(averageFilingToExit)}</strong></div><div><span>Peak exit window</span><strong>{peakExitWindow}</strong></div><div><span>Peak return window</span><strong>{peakReturnWindow}</strong></div></div></section>

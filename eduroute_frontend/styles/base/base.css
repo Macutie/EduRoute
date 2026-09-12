@@ -222,6 +222,55 @@
   gap: 10px;
 }
 
+.proof-method-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #dfe8dd;
+  border-radius: 16px;
+  background: #f8fbf8;
+}
+
+.proof-method-help {
+  margin: 0;
+  color: #677381;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.proof-method-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.proof-method-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  border: 1px solid #d5dde8;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+  color: #24323f;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proof-method-option span {
+  color: #677381;
+  font-size: 11px;
+}
+
+.proof-method-option.selected {
+  border-color: #0b9617;
+  background: #eef7ef;
+  box-shadow: inset 0 0 0 1px #0b9617;
+}
+
 .proof-form-section-head {
   display: flex;
   justify-content: space-between;

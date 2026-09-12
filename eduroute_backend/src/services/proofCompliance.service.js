@@ -138,17 +138,12 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
     const focalPersonName = String(payload.focalPersonName || '').trim();
     const focalPersonPosition = String(payload.focalPersonPosition || '').trim();
     const focalPersonCompany = String(payload.focalPersonCompany || '').trim();
+    const uploadedSignatureFile = Array.isArray(files.signature_image) ? files.signature_image[0] : null;
+    const uploadedArrivalPhoto = Array.isArray(files.arrival_photo) ? files.arrival_photo[0] : null;
+    const hasSignatureInput = Boolean(uploadedSignatureFile || String(payload.signatureDataUrl || '').trim());
 
-    if (!focalPersonName) {
-        throw new AppError('Focal person name is required.', 422);
-    }
-
-    if (!focalPersonPosition) {
-        throw new AppError('Focal person position is required.', 422);
-    }
-
-    if (!focalPersonCompany) {
-        throw new AppError('Focal person company is required.', 422);
+    if (hasSignatureInput && (!focalPersonName || !focalPersonPosition || !focalPersonCompany)) {
+        throw new AppError('Focal person name, position, and company are required when using a signature.', 422);
     }
 
     const trip = await facultyTripRepository.getTripSummaryRow(tripId, facultyUserId);
@@ -184,25 +179,30 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
         throw new AppError('Linked locator slip not found.', 404);
     }
 
-    const uploadedSignatureFile = Array.isArray(files.signature_image) ? files.signature_image[0] : null;
-    const uploadedArrivalPhoto = Array.isArray(files.arrival_photo) ? files.arrival_photo[0] : null;
+    if (!uploadedSignatureFile && !String(payload.signatureDataUrl || '').trim() && !uploadedArrivalPhoto) {
+        throw new AppError('Provide a focal person signature or an arrival photo.', 422);
+    }
     const signatureSource = uploadedSignatureFile
         ? {
             buffer: uploadedSignatureFile.buffer,
             mimetype: uploadedSignatureFile.mimetype
         }
-        : parseSignatureDataUrl(payload.signatureDataUrl);
+        : String(payload.signatureDataUrl || '').trim()
+            ? parseSignatureDataUrl(payload.signatureDataUrl)
+            : null;
 
-    const optimizedSignature = await sharp(signatureSource.buffer, { failOn: 'none' })
-        .rotate()
-        .resize({
-            width: 900,
-            height: 260,
-            fit: 'contain',
-            background: { r: 255, g: 255, b: 255, alpha: 0 }
-        })
-        .png()
-        .toBuffer();
+    const optimizedSignature = signatureSource
+        ? await sharp(signatureSource.buffer, { failOn: 'none' })
+            .rotate()
+            .resize({
+                width: 900,
+                height: 260,
+                fit: 'contain',
+                background: { r: 255, g: 255, b: 255, alpha: 0 }
+            })
+            .png()
+            .toBuffer()
+        : null;
 
     const optimizedArrivalPhoto = uploadedArrivalPhoto
         ? await optimizeImage(uploadedArrivalPhoto, 'locationVerification')
@@ -213,12 +213,14 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
     const destination = trip.destination || trip.destination_name || linkedLocatorSlip.destination || 'Destination';
     const purpose = trip.custom_purpose || trip.purpose_of_travel || linkedLocatorSlip.purpose || 'Official travel';
 
-    const signatureUpload = await uploadImageBuffer(optimizedSignature, {
-        folder: 'proof-compliance/signatures',
-        publicId: `signature-${trip.locator_slip_id}-${Date.now()}`,
-        format: 'png',
-        extension: 'png'
-    });
+    const signatureUpload = optimizedSignature
+        ? await uploadImageBuffer(optimizedSignature, {
+            folder: 'proof-compliance/signatures',
+            publicId: `signature-${trip.locator_slip_id}-${Date.now()}`,
+            format: 'png',
+            extension: 'png'
+        })
+        : null;
 
     const arrivalPhotoUpload = optimizedArrivalPhoto
         ? await uploadImageBuffer(optimizedArrivalPhoto.buffer, {
@@ -273,8 +275,8 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             focalPersonName,
             focalPersonPosition,
             focalPersonCompany,
-            focalPersonSignatureUrl: signatureUpload.url,
-            focalPersonSignaturePublicId: signatureUpload.publicId,
+            focalPersonSignatureUrl: signatureUpload?.url || null,
+            focalPersonSignaturePublicId: signatureUpload?.publicId || null,
             arrivalPhotoUrl: arrivalPhotoUpload?.url || null,
             arrivalPhotoPublicId: arrivalPhotoUpload?.publicId || null,
             proofComplianceImageUrl: proofImageUpload.url,

@@ -573,15 +573,19 @@ function App() {
   };
   const handleLogin = async (e, portalRole = 'faculty') => {
     e.preventDefault();
-    const identifier = loginForm.email_or_employee_id.trim();
-    if (isEmailIdentifier(identifier) && identifier.toLowerCase() !== 'admin.eduroute.system@gmail.com' && !isGordonCollegeEmail(identifier)) {
+    const typedIdentifier = loginForm.email_or_employee_id.trim().toLowerCase();
+    const identifier = typedIdentifier && !typedIdentifier.includes('@')
+      ? `${typedIdentifier}${GORDON_COLLEGE_EMAIL_DOMAIN}`
+      : typedIdentifier;
+    if (isEmailIdentifier(identifier) && !isGordonCollegeEmail(identifier)) {
       setAppDialog({
         title: 'Institutional Email Required',
-        message: 'Only @gordoncollege.edu.ph email addresses are accepted for EduRoute login. You may also use your employee ID if your account supports it.',
+        message: 'Only @gordoncollege.edu.ph email addresses are accepted for EduRoute login.',
         tone: 'error'
       });
       return;
     }
+    setLoginForm(prev => ({ ...prev, email_or_employee_id: identifier }));
     setLoading(true);
     try {
       const data = await loginApi({

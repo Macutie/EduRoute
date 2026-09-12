@@ -1,5 +1,4 @@
 const sharp = require('sharp');
-const AppError = require('../utils/appError');
 
 const CARD_WIDTH = 1400;
 const CARD_HEIGHT = 1180;
@@ -99,16 +98,19 @@ const generateProofComplianceImage = async ({
     signatureBuffer,
     arrivalPhotoBuffer
 }) => {
-    if (!signatureBuffer) {
-        throw new AppError('Signature image is required to generate the proof of compliance.', 422);
-    }
-
-    const signatureCardBuffer = await ensurePngBuffer(signatureBuffer, {
-        width: 1180,
-        height: 260,
-        fit: 'contain',
-        background: { r: 255, g: 255, b: 255, alpha: 0 }
-    });
+    const signatureCardBuffer = signatureBuffer
+        ? await ensurePngBuffer(signatureBuffer, {
+            width: 1180,
+            height: 260,
+            fit: 'contain',
+            background: { r: 255, g: 255, b: 255, alpha: 0 }
+        })
+        : await sharp(Buffer.from(`
+            <svg width="1180" height="260" xmlns="http://www.w3.org/2000/svg">
+                <rect width="1180" height="260" fill="#ffffff" />
+                <text x="590" y="140" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="#7a8490">Signature not provided</text>
+            </svg>
+        `)).png().toBuffer();
 
     const arrivalThumbBuffer = arrivalPhotoBuffer
         ? await ensurePngBuffer(arrivalPhotoBuffer, {

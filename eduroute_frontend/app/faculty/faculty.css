@@ -862,6 +862,10 @@
   max-width: 420px;
 }
 
+.trip-start-permission-modal {
+  max-width: 520px;
+}
+
 .locator-purpose-modal-close {
   position: absolute;
   top: 16px;
