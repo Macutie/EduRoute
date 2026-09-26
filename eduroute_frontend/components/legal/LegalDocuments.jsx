@@ -1,4 +1,4 @@
-import { ArrowRightIcon, FileTextIcon, QuestionCircleIcon, ShieldSearchIcon } from "../icons/AppIcons.jsx";
+import { BackArrowIcon, FileTextIcon, QuestionCircleIcon, ShieldSearchIcon } from "../icons/AppIcons.jsx";
 import { decodeJwtPayload } from "../../app/routing/portalRouting.js";
 export const LEGAL_DOCUMENTS = {
   terms: {
@@ -160,7 +160,7 @@ export const LegalDocumentModal = ({
             </>}
         </div>
         <button type="button" className="priv-legal-modal-btn" onClick={onClose}>
-          Go Back <ArrowRightIcon />
+          <BackArrowIcon color="white" /> Go Back
         </button>
         <div className="priv-legal-modal-pager">
           <span />

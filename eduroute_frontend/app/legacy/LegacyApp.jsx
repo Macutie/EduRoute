@@ -921,8 +921,8 @@ function App() {
       {view === 'admin-registry' && adminFrame('users', <AdminRegistryView setView={setView} profileData={profileData} />)}
       {view === 'admin-faculty' && adminFrame('users', <AdminFacultyView setView={setView} profileData={profileData} />)}
       {view === 'admin-profile' && <AdminProfileView setView={setView} profileData={profileData} onLogout={adminLogout} />}
-      {view === 'admin-change-password' && adminFrame('profile', <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />)}
-      {view === 'admin-edit-profile' && adminFrame('profile', <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />)}
+      {view === 'admin-change-password' && (['hrmu', 'cssu'].includes(profileData?.accountRole) ? <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} /> : adminFrame('profile', <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />))}
+      {view === 'admin-edit-profile' && (['hrmu', 'cssu'].includes(profileData?.accountRole) ? <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} /> : adminFrame('profile', <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />))}
 
 
       {logoutModalPortal && <div className="modal-overlay fade-in">
