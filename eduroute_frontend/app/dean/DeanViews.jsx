@@ -613,8 +613,9 @@ export const buildLocatorSlipReference = request => {
   if (!request?.locatorSlipId) return 'LS-000-000';
   const yearSource = request.createdAt || request.dateSubmitted;
   const year = yearSource ? new Date(yearSource).getFullYear() : new Date().getFullYear();
-  const numericId = String(request.locatorSlipId).padStart(3, '0');
-  return `LS-${year}-${numericId}`;
+  const normalizedId = String(request.locatorSlipId).replace(/-/g, '').toUpperCase();
+  if (!normalizedId) return `LS-${year}-000000`;
+  return `LS-${year}-${normalizedId.slice(0, 6)}`;
 };
 export const DeanRequestsView = ({
   setView,
@@ -933,7 +934,7 @@ export const DeanRequestDetailView = ({
             </span>
           </div>
           <div className="adet-banner-title-row">
-            <h2>Locator Slip #{slipReference}</h2>
+            <h2 title={`Full locator slip ID: ${request.locatorSlipId}`}>Locator Slip #{slipReference}</h2>
             {request.isUrgent && <span className="adet-urgent-mark">!</span>}
           </div>
         </div>

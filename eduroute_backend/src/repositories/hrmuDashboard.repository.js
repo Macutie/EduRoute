@@ -34,7 +34,7 @@ const HRMU_NOTIFICATION_TYPES = [
     HRMU_NOTIFICATION_TYPE_FLAGGED,
     HRMU_NOTIFICATION_TYPE_LATE_RETURN
 ];
-const HRMU_ALLOWED_ROLES = ['hrmu', 'admin'];
+const HRMU_ALLOWED_ROLES = ['hrmu', 'vp_admin_finance', 'admin'];
 let ISSUExitLogsTableExistsCache = null;
 
 const getISSUExitLogsTableExists = async () => {

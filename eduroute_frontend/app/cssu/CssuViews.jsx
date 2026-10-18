@@ -8,7 +8,7 @@ import { getISSUActiveFaculty, getISSUFacultyActivity, getISSUFacultyLiveDetail 
 import FacultyActivityLog from "../../components/hrmu/FacultyActivityLog";
 import FacultyDetailCard from "../../components/hrmu/FacultyDetailCard";
 import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, ISSUChartIcon, ISSUExitDoorIcon, ISSUIncidentsNavIcon, ISSUMapNavIcon, ISSUReportsNavIcon, ISSURoleIcon, ISSURosetteCheckIcon, ISSUScanNavIcon, ISSUTrendingUpIcon, ISSUWarningCircleIcon, ISSUWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultySearchIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
-import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
+import { DEFAULT_PROFILE_IMAGE, formatSsuDisplayLabel } from "../shared/appUtils.js";
 import { HrmuLiveMapPanel, OLONGAPO_CENTER } from "../hrmu/HrmuViews.jsx";
 import { formatStatusDateTime } from "../faculty/FacultyViews.jsx";
 // --------------------------------------------------------
@@ -165,9 +165,9 @@ const ISSUGateAssignmentModal = ({
   if (!open) return null;
   return <div className="cssu-gate-picker-backdrop" onClick={onCancel}>
     <div className="cssu-gate-picker-modal" role="dialog" aria-modal="true" aria-labelledby="issu-gate-assignment-title" onClick={event => event.stopPropagation()}>
-      <span className="cssu-gate-picker-kicker">ISSU GATE ASSIGNMENT</span>
+      <span className="cssu-gate-picker-kicker">SSU GATE ASSIGNMENT</span>
       <h3 id="issu-gate-assignment-title">Select your assigned gate</h3>
-      <p>Choose the gate where you are assigned today. All scans and validations you process will automatically use this ISSU gate.</p>
+      <p>Choose the gate where you are assigned today. All scans and validations you process will automatically use this SSU gate.</p>
       <div className="cssu-gate-picker-actions">
         <button type="button" className="cssu-gate-picker-btn" onClick={() => onSelect?.('main_gate')}>
           Main Gate
@@ -218,7 +218,7 @@ export const ISSUWorkspaceShell = ({
           <div className="cssu-brand-badge" />
           <div className="cssu-brand-text">
             <strong>EduRoute</strong>
-            <span>ISSU ADMIN</span>
+            <span>SSU ADMIN</span>
           </div>
         </div>
 
@@ -250,10 +250,10 @@ export const ISSUWorkspaceShell = ({
           </div>
           <div className="cssu-manager-copy">
             <strong>{profileData?.fullName || 'Admin User'}</strong>
-            <span>ISSU Administrator</span>
+            <span>SSU Administrator</span>
           </div>
           <div className="admin-avatar" onClick={() => setView('admin-profile')}>
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="ISSU Admin" />
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="SSU Admin" />
           </div>
         </div>
       </header>
@@ -289,7 +289,7 @@ export const ISSUDashboardDesktopViewLegacy = ({
   setView,
   profileData,
   onLogout
-}) => <ISSUDesktopPage activeKey="dashboard" title="ISSU Security Command" subtitle="Gate-based Employee Exit & Entry Verification" setView={setView} profileData={profileData} onLogout={onLogout}>
+}) => <ISSUDesktopPage activeKey="dashboard" title="SSU Security Command" subtitle="Gate-based Employee Exit & Entry Verification" setView={setView} profileData={profileData} onLogout={onLogout}>
 
     <div className="cssu-desktop-actions">
       <div className="cssu-live-pill">
@@ -343,7 +343,7 @@ export const ISSUDashboardDesktopViewLegacy = ({
         </div>
 
         <div className="cssu-desktop-log-table">
-          <div className="cssu-desktop-log-row head">
+          <div className="cssu-desktop-log-row head" style={{ fontSize: '12px', letterSpacing: '0.8px' }}>
             <span>Employee</span>
             <span>ID Number</span>
             <span>Status</span>
@@ -413,7 +413,7 @@ export const ISSUDashboardDesktopViewLegacy = ({
       </aside>
     </div>
   </ISSUDesktopPage>;
-export const getISSUDutyManagerLabel = profileData => profileData?.fullName || profileData?.email || 'ISSU Account';
+export const getISSUDutyManagerLabel = profileData => profileData?.fullName || profileData?.email || 'SSU Account';
 export const ISSUDashboardDesktopView = ({
   setView,
   profileData,
@@ -480,7 +480,7 @@ export const ISSUDashboardDesktopView = ({
         setActivityRows(Array.isArray(timelineData?.rows) ? timelineData.rows : []);
       } catch (error) {
         if (!isMounted) return;
-        setLoadError(error.message || 'Unable to load the ISSU dashboard right now.');
+        setLoadError(error.message || 'Unable to load the SSU dashboard right now.');
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -525,7 +525,7 @@ export const ISSUDashboardDesktopView = ({
     }));
   const monitoringRows = monitorMode === 'return' ? returnMonitoringRows : liveRows;
   const latestActivity = activityRows[0] || null;
-  const operationalInsights = [summary.totalFacultyExiting > 0 ? `${summary.totalFacultyExiting} employee exit record${Number(summary.totalFacultyExiting) === 1 ? '' : 's'} tracked today.` : 'No employee exits are currently tracked today.', liveRows.length > 0 ? `${liveRows.length} locator slip${liveRows.length === 1 ? '' : 's'} visible in the ${selectedGateLabel} live monitoring queue.` : `${selectedGateLabel} has no queued approved locator slips right now.`, summary.rejectedLocatorSlips > 0 ? `${summary.rejectedLocatorSlips} rejected locator slip${Number(summary.rejectedLocatorSlips) === 1 ? '' : 's'} need ISSU review or intervention.` : 'No rejected locator slips are reported today.', summary.repeatAttempts > 0 ? `${summary.repeatAttempts} repeat scan attempt${Number(summary.repeatAttempts) === 1 ? '' : 's'} detected today.` : 'No repeat scan attempts detected today.', latestActivity ? `Latest gate activity: ${latestActivity.title || 'Activity logged'} for ${latestActivity.facultyName || 'an employee'} at ${latestActivity.gateLabel || selectedGateLabel}.` : 'No gate activity has been logged yet.'];
+  const operationalInsights = [summary.totalFacultyExiting > 0 ? `${summary.totalFacultyExiting} employee exit record${Number(summary.totalFacultyExiting) === 1 ? '' : 's'} tracked today.` : 'No employee exits are currently tracked today.', liveRows.length > 0 ? `${liveRows.length} locator slip${liveRows.length === 1 ? '' : 's'} visible in the ${selectedGateLabel} live monitoring queue.` : `${selectedGateLabel} has no queued approved locator slips right now.`, summary.rejectedLocatorSlips > 0 ? `${summary.rejectedLocatorSlips} rejected locator slip${Number(summary.rejectedLocatorSlips) === 1 ? '' : 's'} need SSU review or intervention.` : 'No rejected locator slips are reported today.', summary.repeatAttempts > 0 ? `${summary.repeatAttempts} repeat scan attempt${Number(summary.repeatAttempts) === 1 ? '' : 's'} detected today.` : 'No repeat scan attempts detected today.', latestActivity ? `Latest gate activity: ${latestActivity.title || 'Activity logged'} for ${latestActivity.facultyName || 'an employee'} at ${latestActivity.gateLabel || selectedGateLabel}.` : 'No gate activity has been logged yet.'];
   const openExitClearanceForRow = row => {
     if (monitorMode === 'return') {
       if (!row?.returnEntryCode) return;
@@ -569,13 +569,13 @@ export const ISSUDashboardDesktopView = ({
       });
     }
   };
-  return <ISSUDesktopPage activeKey="dashboard" title="ISSU Security Command" subtitle="Gate-based Employee Exit & Entry Verification" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
+  return <ISSUDesktopPage activeKey="dashboard" title="SSU Security Command" subtitle="Gate-based Employee Exit & Entry Verification" setView={setView} profileData={profileData} onLogout={onLogout} hideHeader>
     <ISSUGateAssignmentModal open={showGateAssignmentPrompt && gateOfficerKey !== 'shared'} onSelect={assignDailyGate} onCancel={() => setShowGateAssignmentPrompt(false)} />
 
     <div className="cssu-dashboard-hero-row">
       <div className="cssu-dashboard-hero-copy">
         <span className="cssu-desktop-kicker">Campus Operations</span>
-        <h1>ISSU Security Command</h1>
+        <h1>SSU Security Command</h1>
         <p>Gate-based Employee Exit & Entry Verification</p>
       </div>
       <div className="cssu-desktop-actions">
@@ -640,12 +640,14 @@ export const ISSUDashboardDesktopView = ({
     </div>
 
     <div className="cssu-desktop-content-grid">
-      <section className="cssu-desktop-log-card">
+      <section className="cssu-desktop-log-card cssu-live-monitoring-card">
         <div className="cssu-desktop-log-headline">
           <h2>{monitorMode === 'return' ? 'Live Return Monitoring' : 'Live Exit Monitoring'}</h2>
-          <div className="cssu-desktop-toggle-group cssu-gate-assignment-toggle">
+          <div className="cssu-live-monitoring-mode cssu-desktop-toggle-group">
             <button type="button" className={monitorMode === 'exit' ? 'active' : ''} onClick={() => setMonitorMode('exit')}>Exit</button>
             <button type="button" className={monitorMode === 'return' ? 'active' : ''} onClick={() => setMonitorMode('return')}>Return</button>
+          </div>
+          <div className="cssu-live-monitoring-gate cssu-gate-assignment-toggle">
             {assignedGate ? <>
               <span className="cssu-assigned-gate-pill">Assigned today: {selectedGateLabel}</span>
               <button type="button" className="active" disabled>{selectedGateLabel}</button>
@@ -704,7 +706,7 @@ export const ISSUDashboardDesktopView = ({
       <aside className="cssu-desktop-side-stack">
         <article className="cssu-desktop-status-card">
           <h3>Security Status: Low</h3>
-          <p>Current campus status is stable. ISSU is monitoring approved slips and rejected slip interventions in real time.</p>
+          <p>Current campus status is stable. SSU is monitoring approved slips and rejected slip interventions in real time.</p>
 
           <div className="cssu-desktop-status-note">
             <strong>{selectedGateLabel} Queue</strong>
@@ -713,7 +715,7 @@ export const ISSUDashboardDesktopView = ({
 
           <div className="cssu-desktop-status-note">
             <strong>Today&apos;s Busiest Gate</strong>
-            <span>{summary.busiestGateLabel || 'Main Gate'} with {summary.busiestGateCount || 0} ISSU decisions.</span>
+            <span>{summary.busiestGateLabel || 'Main Gate'} with {summary.busiestGateCount || 0} SSU decisions.</span>
           </div>
 
           <div className="cssu-desktop-status-note">
@@ -770,15 +772,15 @@ export const ISSUDashboardDesktopView = ({
             <span>{item.locatorSlipCode} • {item.destination}</span>
             <small>{item.gateLabel} • {item.occurredTimeLabel}</small>
           </div>)}
-        </div> : <div className="cssu-desktop-log-empty">No previous ISSU exit activity found.</div>}
+        </div> : <div className="cssu-desktop-log-empty">No previous SSU exit activity found.</div>}
       </aside>
     </div>}
 
     {summaryModalOpen && <div className="eduroute-dialog-backdrop" role="presentation" onClick={() => setSummaryModalOpen(false)}>
       <div className="eduroute-dialog-modal info cssu-operational-summary-modal" role="dialog" aria-modal="true" aria-labelledby="cssu-summary-title" onClick={event => event.stopPropagation()}>
-        <span className="eduroute-dialog-kicker">ISSU OPERATIONS</span>
+        <span className="eduroute-dialog-kicker">SSU OPERATIONS</span>
         <h2 id="cssu-summary-title">Operational Summary</h2>
-        <p>Generated from the current ISSU dashboard data for {selectedGateLabel}.</p>
+        <p>Generated from the current SSU dashboard data for {selectedGateLabel}.</p>
 
         <div className="cssu-operational-summary-grid">
           <div>
@@ -846,6 +848,7 @@ export const ISSUDashboardView = ({
   const gateOfficerKey = getISSUGateOfficerKey(profileData);
   const [mobileGateAssignment, setMobileGateAssignment] = useState(() => readISSUDailyGateAssignment(profileData) || 'main_gate');
   const [showGateAssignmentPrompt, setShowGateAssignmentPrompt] = useState(false);
+  const [mobileMonitorMode, setMobileMonitorMode] = useState('exit');
   const [mobileLiveRows, setMobileLiveRows] = useState([]);
   const [activityRows, setActivityRows] = useState([]);
   const [showAllMobileLiveRows, setShowAllMobileLiveRows] = useState(false);
@@ -898,7 +901,7 @@ export const ISSUDashboardView = ({
         setShowAllMobileLiveRows(false);
       } catch (error) {
         if (!isMounted) return;
-        setLoadError(error.message || 'Unable to load the ISSU dashboard right now.');
+        setLoadError(error.message || 'Unable to load the SSU dashboard right now.');
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -914,13 +917,30 @@ export const ISSUDashboardView = ({
     return <ISSUDashboardDesktopView setView={setView} profileData={profileData} onLogout={onLogout} />;
   }
   const approvedRateLabel = summary.totalFacultyExiting ? `${summary.approvalRate}% approved today` : 'No tracked exits yet';
-  const commandStatusPercent = Math.max(0, Math.min(100, Number(summary.approvalRate || 0)));
   const gateSummaryLabel = getISSUGateLabel(mobileGateAssignment);
-  const visibleMobileLiveRows = showAllMobileLiveRows ? mobileLiveRows : mobileLiveRows.slice(0, 3);
-  const hasMoreMobileLiveRows = mobileLiveRows.length > 3;
+  const mobileReturnMonitoringRows = activityRows
+    .filter(activity => activity.status === 'entry_validated' && mobileLiveRows.some(row => String(row.locatorSlipId) === String(activity.locatorSlipId)))
+    .map(activity => ({
+      locatorSlipId: activity.locatorSlipId,
+      locatorSlipCode: activity.locatorSlipCode,
+      returnEntryCode: mobileLiveRows.find(row => String(row.locatorSlipId) === String(activity.locatorSlipId))?.returnEntryCode || null,
+      facultyUserId: activity.facultyUserId,
+      facultyName: activity.facultyName,
+      profileImageUrl: activity.profileImageUrl,
+      facultyId: activity.facultyId,
+      departmentName: activity.departmentName,
+      status: 'entry_validated',
+      statusLabel: 'Allowed Entry',
+      gate: activity.gate,
+      gateLabel: activity.gateLabel,
+      validatedTimeLabel: activity.occurredTimeLabel
+    }));
+  const mobileMonitoringRows = mobileMonitorMode === 'return' ? mobileReturnMonitoringRows : mobileLiveRows;
+  const visibleMobileLiveRows = showAllMobileLiveRows ? mobileMonitoringRows : mobileMonitoringRows.slice(0, 3);
+  const hasMoreMobileLiveRows = mobileMonitoringRows.length > 3;
   const latestActivity = activityRows[0] || null;
   const needsMobileReview = Number(summary.rejectedLocatorSlips || 0) > 0 || Number(summary.repeatAttempts || 0) > 0;
-  const operationalInsights = [summary.totalFacultyExiting > 0 ? `${summary.totalFacultyExiting} employee exit record${Number(summary.totalFacultyExiting) === 1 ? '' : 's'} tracked today.` : 'No employee exits are currently tracked today.', mobileLiveRows.length > 0 ? `${mobileLiveRows.length} live locator slip${mobileLiveRows.length === 1 ? '' : 's'} visible in ${gateSummaryLabel}.` : `${gateSummaryLabel} has no queued approved locator slips right now.`, summary.rejectedLocatorSlips > 0 ? `${summary.rejectedLocatorSlips} rejected locator slip${Number(summary.rejectedLocatorSlips) === 1 ? '' : 's'} need ISSU review or intervention.` : 'No rejected locator slips are reported today.', summary.repeatAttempts > 0 ? `${summary.repeatAttempts} repeat scan attempt${Number(summary.repeatAttempts) === 1 ? '' : 's'} detected today.` : 'No repeat scan attempts detected today.', latestActivity ? `Latest gate activity: ${latestActivity.title || 'Activity logged'} for ${latestActivity.facultyName || 'an employee'} at ${latestActivity.gateLabel || 'a campus gate'}.` : 'No gate activity has been logged yet.'];
+  const operationalInsights = [summary.totalFacultyExiting > 0 ? `${summary.totalFacultyExiting} employee exit record${Number(summary.totalFacultyExiting) === 1 ? '' : 's'} tracked today.` : 'No employee exits are currently tracked today.', mobileLiveRows.length > 0 ? `${mobileLiveRows.length} live locator slip${mobileLiveRows.length === 1 ? '' : 's'} visible in ${gateSummaryLabel}.` : `${gateSummaryLabel} has no queued approved locator slips right now.`, summary.rejectedLocatorSlips > 0 ? `${summary.rejectedLocatorSlips} rejected locator slip${Number(summary.rejectedLocatorSlips) === 1 ? '' : 's'} need SSU review or intervention.` : 'No rejected locator slips are reported today.', summary.repeatAttempts > 0 ? `${summary.repeatAttempts} repeat scan attempt${Number(summary.repeatAttempts) === 1 ? '' : 's'} detected today.` : 'No repeat scan attempts detected today.', latestActivity ? `Latest gate activity: ${latestActivity.title || 'Activity logged'} for ${latestActivity.facultyName || 'an employee'} at ${latestActivity.gateLabel || 'a campus gate'}.` : 'No gate activity has been logged yet.'];
   const closeHistoryDrawer = () => setHistoryDrawer({
     open: false,
     loading: false,
@@ -929,6 +949,13 @@ export const ISSUDashboardView = ({
     rows: []
   });
   const openExitClearanceForRow = row => {
+    if (mobileMonitorMode === 'return') {
+      if (!row?.returnEntryCode) return;
+      localStorage.setItem('edurouteISSUPendingReturnEntryCode', row.returnEntryCode);
+      localStorage.setItem('edurouteISSUPendingLookupSource', 'dashboard-return-eye');
+      setView('cssu-return');
+      return;
+    }
     if (!row?.locatorSlipCode) return;
     localStorage.setItem('edurouteISSUPendingLocatorSlipCode', row.locatorSlipCode);
     localStorage.setItem('edurouteISSUPendingLookupSource', 'dashboard-eye');
@@ -1039,25 +1066,25 @@ export const ISSUDashboardView = ({
           </div>
         </div>
 
-        {/* Summary Card */}
-        <div className="cssu-summary-card">
-          <div className="cssu-summary-header">
-            <ISSUChartIcon />
-            <span>COMMAND STATUS SUMMARY</span>
+        {/* Gate Activity Timeline */}
+        <section className="cssu-mobile-activity-card">
+          <div className="cssu-mobile-activity-head">
+            <div>
+              <span className="cssu-mobile-activity-kicker">GATE ACTIVITY</span>
+              <h2>Gate Activity Timeline</h2>
+            </div>
+            <span className="cssu-mobile-assigned-gate">Assigned today: {gateSummaryLabel}</span>
           </div>
-          <div className="cssu-summary-zone">
-            <span className="cssu-sz-label">Active Monitoring Zone</span>
-            <span className="cssu-sz-value">{gateSummaryLabel}</span>
+          <div className="cssu-activity-timeline">
+            {activityRows.length ? activityRows.slice(0, 6).map(activity => <div key={activity.id} className={`cssu-activity-timeline-row ${String(activity.status || '').includes('denied') || String(activity.status || '').includes('rejected') ? 'danger' : ''}`}>
+              <span />
+              <div>
+                <strong>{activity.title}</strong>
+                <small>{activity.facultyName} • {activity.gateLabel || gateSummaryLabel} • {activity.occurredTimeLabel}</small>
+              </div>
+            </div>) : <div className="cssu-desktop-log-empty compact">No gate activity has been logged yet.</div>}
           </div>
-          <div className="cssu-summary-progress-bg">
-            <div className="cssu-summary-progress-fill" style={{
-              width: `${commandStatusPercent}%`
-            }}></div>
-          </div>
-          <p className="cssu-summary-desc">
-            Current efficiency rating: {commandStatusPercent}% based on ISSU locator slip validation today.
-          </p>
-        </div>
+        </section>
 
         <button type="button" className="cssu-mobile-summary-btn" onClick={() => setSummaryModalOpen(true)} disabled={loading}>
           Generate Summary
@@ -1066,14 +1093,20 @@ export const ISSUDashboardView = ({
         {/* Live Exit Monitoring */}
         <div className="cssu-live-section">
           <div className="cssu-live-header">
-            <h3>Live Exit Monitoring</h3>
-            <span className="cssu-live-view-all" onClick={() => {
+            <div className="cssu-mobile-monitor-heading">
+              <h3>{mobileMonitorMode === 'return' ? 'Live Return Monitoring' : 'Live Exit Monitoring'}</h3>
+              <div className="cssu-mobile-monitor-toggle" role="group" aria-label="Monitoring mode">
+                <button type="button" className={mobileMonitorMode === 'exit' ? 'active' : ''} onClick={() => { setMobileMonitorMode('exit'); setShowAllMobileLiveRows(false); }}>Exit</button>
+                <button type="button" className={mobileMonitorMode === 'return' ? 'active' : ''} onClick={() => { setMobileMonitorMode('return'); setShowAllMobileLiveRows(false); }}>Return</button>
+              </div>
+            </div>
+            <button type="button" className="cssu-live-view-all" disabled={!hasMoreMobileLiveRows} onClick={() => {
               if (!hasMoreMobileLiveRows) return;
               setShowAllMobileLiveRows(current => !current);
             }}>
 
               {hasMoreMobileLiveRows ? showAllMobileLiveRows ? 'Show Less' : 'View All' : 'View All'}
-            </span>
+            </button>
           </div>
           <div className="cssu-live-list">
             {loading && <div className="cssu-live-item cssu-live-item-empty">
@@ -1093,12 +1126,12 @@ export const ISSUDashboardView = ({
               </div>
             </div>}
 
-            {!loading && !loadError && mobileLiveRows.length === 0 && <div className="cssu-live-item cssu-live-item-empty">
+            {!loading && !loadError && mobileMonitoringRows.length === 0 && <div className="cssu-live-item cssu-live-item-empty">
               <div className="cssu-li-info">
                 <div className="cssu-li-top">
                   <h4>No live exits yet</h4>
                 </div>
-                <p>Approved and validated employee exits will appear here.</p>
+                <p>{mobileMonitorMode === 'return' ? 'Allowed return entries will appear here.' : 'Approved and validated employee exits will appear here.'}</p>
               </div>
             </div>}
 
@@ -1114,7 +1147,7 @@ export const ISSUDashboardView = ({
                     <h4>{row.facultyName}</h4>
                     <span className={`cssu-li-badge ${badgeClass}`}>{badgeLabel}</span>
                   </div>
-                  <p>Exited: {row.validatedTimeLabel || '--'} &bull; {row.gateLabel || row.gateLabel || row.gate || 'Unknown Gate'}</p>
+                  <p>{mobileMonitorMode === 'return' ? 'Returned' : 'Exited'}: {row.validatedTimeLabel || '--'} &bull; {row.gateLabel || row.gate || 'Unknown Gate'}</p>
                 </div>
                 <div className="cssu-mobile-live-actions">
                   <button type="button" className="cssu-mobile-live-action eye" onClick={() => openExitClearanceForRow(row)} aria-label={`View scan details for ${row.facultyName}`}>
@@ -1143,15 +1176,15 @@ export const ISSUDashboardView = ({
             <span>{item.locatorSlipCode} &bull; {item.destination}</span>
             <small>{item.gateLabel} &bull; {item.occurredTimeLabel}</small>
           </div>)}
-        </div> : <div className="cssu-desktop-log-empty">No previous ISSU exit activity found.</div>}
+        </div> : <div className="cssu-desktop-log-empty">No previous SSU exit activity found.</div>}
       </aside>
     </div>}
 
     {summaryModalOpen && <div className="eduroute-dialog-backdrop" role="presentation" onClick={() => setSummaryModalOpen(false)}>
       <div className="eduroute-dialog-modal info cssu-operational-summary-modal" role="dialog" aria-modal="true" aria-labelledby="cssu-mobile-summary-title" onClick={event => event.stopPropagation()}>
-        <span className="eduroute-dialog-kicker">ISSU OPERATIONS</span>
+        <span className="eduroute-dialog-kicker">SSU OPERATIONS</span>
         <h2 id="cssu-mobile-summary-title">Operational Summary</h2>
-        <p>Generated from the current ISSU dashboard data for {gateSummaryLabel}.</p>
+        <p>Generated from the current SSU dashboard data for {gateSummaryLabel}.</p>
 
         <div className="cssu-operational-summary-grid">
           <div>
@@ -1320,7 +1353,7 @@ export const ISSUMapView = ({
     };
   }, [isDesktopViewport, mobileOverlayOffsets]);
   if (isDesktopViewport) {
-    return <ISSUDesktopPage activeKey="map" title="Live Tracking" subtitle="Information Security Services Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
+    return <ISSUDesktopPage activeKey="map" title="Live Tracking" subtitle="Security Service Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
 
       <section className="cssu-live-page">
         <div className="hrmu-live-map-stage cssu-live-map-stage">
@@ -1456,7 +1489,7 @@ export const ISSUMapView = ({
                     {tone === 'success' ? <HrmuMiniCheckIcon color="var(--green)" /> : <HrmuWarningIcon color="#8B6B00" />}
                   </div>
                   <div className="cssu-mobile-live-activity-copy">
-                    <strong>{item.title}</strong>
+                    <strong>{formatSsuDisplayLabel(item.title)}</strong>
                     <p>{item.subtitle}</p>
                   </div>
                   <time>{item.relativeTime || '--'}</time>
@@ -1506,7 +1539,7 @@ export const ISSUIncidentsView = ({
         });
       } catch (error) {
         if (!isMounted) return;
-        setLoadError(error.message || 'Unable to load the ISSU incidents right now.');
+        setLoadError(error.message || 'Unable to load the SSU incidents right now.');
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -1557,7 +1590,7 @@ export const ISSUIncidentsView = ({
           <div className="cssu-incident-list">
             {loading && <div className="cssu-incident-empty">Loading incident cases...</div>}
             {!loading && loadError && <div className="cssu-incident-empty">{loadError}</div>}
-            {!loading && !loadError && incidentRows.length === 0 && <div className="cssu-incident-empty">No ISSU incident cases were recorded today.</div>}
+            {!loading && !loadError && incidentRows.length === 0 && <div className="cssu-incident-empty">No SSU incident cases were recorded today.</div>}
             {incidentRows.map(incident => <article key={incident.id} className={`cssu-incident-row ${incident.tone}`}>
               <div className={`cssu-incident-icon ${incident.tone}`}>
                 {incident.tone === 'red' && <ExclamationCircleIcon color="#C81E1E" size="22" />}
@@ -1658,12 +1691,12 @@ export const ISSUIncidentsView = ({
 
           {!loading && loadError && <div className="cssu-mobile-incident-empty error">{loadError}</div>}
 
-          {!loading && !loadError && incidentData.incidents.length === 0 && <div className="cssu-mobile-incident-empty">No ISSU incident cases were recorded today.</div>}
+          {!loading && !loadError && incidentData.incidents.length === 0 && <div className="cssu-mobile-incident-empty">No SSU incident cases were recorded today.</div>}
 
           {!loading && !loadError && incidentData.incidents.map(incident => {
             const toneClass = incident.tone === 'red' ? 'critical' : incident.tone === 'yellow' ? 'moderate' : 'low';
             const metaIcon = incident.destination ? <LocationIcon color="#3D4B3E" /> : <ProfileIcon color="#3D4B3E" />;
-            const metaText = incident.destination || incident.facultyName || incident.departmentName || 'ISSU logged activity';
+            const metaText = incident.destination || incident.facultyName || incident.departmentName || 'SSU logged activity';
             return <article key={incident.id} className={`cssu-mobile-incident-card ${toneClass}`}>
               <div className="cssu-mobile-incident-top">
                 <span className={`cssu-mobile-incident-badge ${toneClass}`}>{String(incident.severity || toneClass).toUpperCase()}</span>
@@ -1700,7 +1733,7 @@ export const ISSUScanViewLegacy = ({
     return () => window.clearInterval(timer);
   }, []);
   if (isDesktopViewport) {
-    return <ISSUDesktopPage activeKey="scan" title="Exit Verification" subtitle="Information Security Services Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
+    return <ISSUDesktopPage activeKey="scan" title="Exit Verification" subtitle="Security Service Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
 
       <div className="cssu-checkpoint-header">
         <div className="cssu-checkpoint-time">
@@ -1959,7 +1992,7 @@ export const ISSUScanView = ({
       const lookupGate = readISSUDailyGateAssignment(profileData);
       if (!lookupGate) {
         setLookupLoading(false);
-        setLookupError('Select your assigned ISSU gate before scanning or entering a locator slip.');
+        setLookupError('Select your assigned SSU gate before scanning or entering a locator slip.');
         setShowGateAssignmentPrompt(true);
         return;
       }
@@ -2076,7 +2109,7 @@ export const ISSUScanView = ({
   };
   const handleExitDecision = async (nextStatus, gateOverride = null) => {
     if (!activeCandidate?.locatorSlip?.locatorSlipId) {
-      setLookupError('No approved locator slip is available for ISSU validation.');
+      setLookupError('No approved locator slip is available for SSU validation.');
       return;
     }
     setActionLoading(true);
@@ -2125,9 +2158,9 @@ export const ISSUScanView = ({
           occurredAt: result.validatedAt || new Date().toISOString()
         }]
       }));
-      setActionMessage(isEntryValidation ? `Return entry has been validated at ${result.gateLabel || 'Main Gate'}. The trip is now completed.` : result.status === 'validated' ? `Locator slip is now officially validated for exit at ${result.gateLabel || 'Main Gate'}.` : result.status === 'flagged' ? 'Exit attempt has been flagged and logged for ISSU incident review.' : 'Exit has been denied and logged for ISSU review.');
+      setActionMessage(isEntryValidation ? `Return entry has been validated at ${result.gateLabel || 'Main Gate'}. The trip is now completed.` : result.status === 'validated' ? `Locator slip is now officially validated for exit at ${result.gateLabel || 'Main Gate'}.` : result.status === 'flagged' ? 'Exit attempt has been flagged and logged for SSU incident review.' : 'Exit has been denied and logged for SSU review.');
     } catch (error) {
-      setLookupError(error.message || 'Unable to update the ISSU exit decision right now.');
+      setLookupError(error.message || 'Unable to update the SSU exit decision right now.');
     } finally {
       setActionLoading(false);
     }
@@ -2291,7 +2324,7 @@ export const ISSUScanView = ({
             {validationLog.map((item, index) => <div key={`${item.title}-${index}`} className={`cssu-checkpoint-log-row ${item.type === 'danger' ? 'danger' : item.type === 'warning' ? 'warning' : 'success'}`}>
               <div className="cssu-checkpoint-log-message">
                 <span className="dot" />
-                <strong>{item.title}</strong>
+                <strong>{formatSsuDisplayLabel(item.title)}</strong>
               </div>
               <span className="time">{item.occurredAt ? formatStatusDateTime(item.occurredAt) : item.timeLabel}</span>
             </div>)}
@@ -2386,7 +2419,7 @@ export const ISSUScanView = ({
     </div>}
   </>;
   if (isDesktopViewport) {
-    return <ISSUDesktopPage activeKey={isReturnVerification ? 'return' : 'scan'} title={checkpointTitle} subtitle="Information Security Services Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
+    return <ISSUDesktopPage activeKey={isReturnVerification ? 'return' : 'scan'} title={checkpointTitle} subtitle="Security Service Unit" setView={setView} profileData={profileData} onLogout={onLogout}>
 
       {renderCheckpointContent(false)}
     </ISSUDesktopPage>;
@@ -2503,7 +2536,7 @@ export const ISSUReportsView = ({
       const result = await getISSUReportsOverview(filters);
       setReportData(result);
     } catch (error) {
-      setLoadError(error.message || 'Unable to load ISSU reports right now.');
+      setLoadError(error.message || 'Unable to load SSU reports right now.');
     } finally {
       setLoading(false);
     }
@@ -2562,7 +2595,7 @@ export const ISSUReportsView = ({
         <div className="cssu-reports-hero-copy">
           <span className="cssu-desktop-kicker">Internal Logistics</span>
             <h1>History</h1>
-          <p>Review recorded exit and return scan activity from ISSU gates.</p>
+          <p>Review recorded exit and return scan activity from SSU gates.</p>
         </div>
       </div>
 
@@ -2707,7 +2740,7 @@ export const ISSUReportsView = ({
           <article className="cssu-reports-banner-card">
             <div className="cssu-reports-banner-overlay" />
             <span>SYSTEM INTEGRITY</span>
-            <h3>ISSU Security &amp; Movement Hub</h3>
+            <h3>SSU Security &amp; Movement Hub</h3>
           </article>
         </aside>
       </div>
@@ -2718,7 +2751,7 @@ export const ISSUReportsView = ({
           <span>ALL DATA IS ENCRYPTED AND COMPLIES WITH GORDON COLLEGE PRIVACY POLICIES.</span>
         </div>
         <div className="cssu-reports-footer-meta">
-          <strong>Report ID: {reportData?.reportMeta?.reportId || 'cssu-REPORT-DRAFT'}</strong>
+          <strong>Report ID: {formatSsuDisplayLabel(reportData?.reportMeta?.reportId || 'cssu-REPORT-DRAFT')}</strong>
           <span>Last Generated: {reportData?.reportMeta?.lastGeneratedLabel || formatReportFooterDate(new Date().toISOString())}</span>
         </div>
       </footer>
@@ -2900,7 +2933,7 @@ export const ISSUNotificationsView = ({
           type: notification.type === 'flagged' ? 'flagged' : 'validated',
           locatorSlipCode: notification.locatorSlipCode || null,
           title: notification.title || (notification.type === 'flagged' ? 'Flagged Exit Attempt' : 'Exit Clearance Validated'),
-          body: notification.type === 'flagged' ? `${notification.facultyName} attempted exit clearance at ${notification.gateLabel} while the locator slip was still ${notification.locatorSlipStatus}.` : `${notification.facultyName} was cleared by ISSU for ${notification.purpose}${notification.destination ? ` bound for ${notification.destination}` : ''}.`,
+          body: notification.type === 'flagged' ? `${notification.facultyName} attempted exit clearance at ${notification.gateLabel} while the locator slip was still ${notification.locatorSlipStatus}.` : `${notification.facultyName} was cleared by SSU for ${notification.purpose}${notification.destination ? ` bound for ${notification.destination}` : ''}.`,
           time: formatRelativeAlertTime(notification.occurredAt),
           sortDate: notification.occurredAt ? new Date(notification.occurredAt).getTime() : 0,
           actionLabelPrimary: notification.type === 'flagged' ? 'Open Incidents' : 'Open Exit Clearance',
@@ -2919,7 +2952,7 @@ export const ISSUNotificationsView = ({
           flaggedExits: 0,
           unauthorizedExit: 0
         });
-        setAlertsError(error.message || 'Failed to load ISSU notifications.');
+        setAlertsError(error.message || 'Failed to load SSU notifications.');
       } finally {
         if (isMounted) {
           setAlertsLoading(false);
@@ -2959,7 +2992,7 @@ export const ISSUNotificationsView = ({
             <span className="dash-logo-text chpw-nav-title">EduRoute</span>
           </div>
           <div className="dash-avatar">
-            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="ISSU Profile" style={{
+            <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="SSU Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'
@@ -2972,7 +3005,7 @@ export const ISSUNotificationsView = ({
         <div className="notif-header">
           <span className="notif-label-green">INTERNAL LOGISTICS</span>
           <h1 className="notif-title">System Alerts</h1>
-          <p className="notif-subtitle">Real-time monitoring and clearance notifications after locator slips are validated by ISSU.</p>
+          <p className="notif-subtitle">Real-time monitoring and clearance notifications after locator slips are validated by SSU.</p>
         </div>
 
         <div className="cssu-mobile-notif-sticky-header">
@@ -3020,7 +3053,7 @@ export const ISSUNotificationsView = ({
               </span>
               <time>{alert.time}</time>
             </div>
-            <h3>{alert.title}</h3>
+            <h3>{formatSsuDisplayLabel(alert.title)}</h3>
             <p>{alert.body}</p>
             <div className="cssu-mobile-notif-actions">
               <button type="button" className="cssu-mobile-notif-action primary" onClick={() => openAlertExitClearance(alert)}>
@@ -3045,13 +3078,13 @@ export const ISSUNotificationsView = ({
         <div className="hrmu-alerts-copy">
           <span className="hrmu-alerts-kicker">INTERNAL LOGISTICS</span>
           <h1>System Alerts</h1>
-          <p>Real-time monitoring and clearance notifications for ISSU employee exit verification.</p>
+          <p>Real-time monitoring and clearance notifications for SSU employee exit verification.</p>
         </div>
         <div className="hrmu-alerts-actions">
           <button type="button" className="hrmu-alerts-btn ghost">Mark all read</button>
           <label className="hrmu-alerts-filter">
             <StatusGraphIcon color="currentColor" />
-            <select value={alertFilter} onChange={event => setAlertFilter(event.target.value)} aria-label="Filter ISSU alerts">
+            <select value={alertFilter} onChange={event => setAlertFilter(event.target.value)} aria-label="Filter SSU alerts">
               <option value="all">All</option>
               <option value="validated">Validated</option>
               <option value="flagged">Flagged</option>
@@ -3065,7 +3098,7 @@ export const ISSUNotificationsView = ({
           {alertsLoading ? <div className="hrmu-alert-feed-empty">Loading system alerts...</div> : null}
 
           {!alertsLoading && !alertsError && filteredAlerts.length === 0 ? <div className="hrmu-alert-feed-empty">
-            No {alertFilter === 'all' ? 'ISSU' : alertFilter} alerts available right now.
+            No {alertFilter === 'all' ? 'SSU' : alertFilter} alerts available right now.
           </div> : null}
 
           {!alertsLoading && filteredAlerts.length > 0 ? <div className="hrmu-alert-feed-list">
@@ -3084,7 +3117,7 @@ export const ISSUNotificationsView = ({
                       </span>
                       <span className="hrmu-alert-feed-time">{alert.time}</span>
                     </div>
-                    <h2>{alert.title}</h2>
+                    <h2>{formatSsuDisplayLabel(alert.title)}</h2>
                     <p>{alert.body}</p>
                     <div className="hrmu-alert-feed-actions">
                       <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => openAlertExitClearance(alert)}>

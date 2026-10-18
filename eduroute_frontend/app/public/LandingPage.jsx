@@ -15,7 +15,7 @@ const roles = [
     icon: 'dean'
   },
   {
-    title: 'ISSU',
+    title: 'SSU',
     description: 'Live monitoring of entry and exit logs via rapid QR scanning dashboard.',
     icon: 'issu'
   },
@@ -254,7 +254,7 @@ const DownloadPortalSection = ({ installMessage, onInstall }) => (
           <div className="landing-cta-icon"><LandingIcon name="monitor" /></div>
           <h3>Administrator Portal</h3>
           <p>
-            Access the complete portal for Supervisors, ISSU, and HRMU. Full analytics, live tracking, and system configuration.
+            Access the complete portal for Supervisors, SSU, and HRMU. Full analytics, live tracking, and system configuration.
           </p>
           <Checklist items={[
             'Supervisor approval dashboard & alerts',

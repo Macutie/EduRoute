@@ -1,5 +1,6 @@
 const { successResponse } = require('../utils/apiResponse');
 const hrmuDashboardService = require('../services/hrmuDashboard.service');
+const lateComplianceService = require('../services/lateCompliance.service');
 const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const getSummary = async (req, res, next) => {
@@ -9,6 +10,28 @@ const getSummary = async (req, res, next) => {
             'HRMU dashboard summary fetched successfully.',
             encryptSensitiveResponseData(req, summary)
         ));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getEmployeeLateCompliance = async (req, res, next) => {
+    try {
+        const summary = await lateComplianceService.getLateComplianceSummary(req.params.facultyUserId);
+        return res.json(successResponse('Employee late compliance summary fetched successfully.', summary));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const grantEmployeeLocatorSlipAccess = async (req, res, next) => {
+    try {
+        const grant = await lateComplianceService.grantLocatorSlipAccess(
+            req.params.facultyUserId,
+            req.user.sub,
+            req.body?.reason || null
+        );
+        return res.status(201).json(successResponse('Locator slip access granted for one filing.', grant));
     } catch (error) {
         return next(error);
     }
@@ -96,6 +119,8 @@ const exportRecentActivityCsv = async (req, res, next) => {
 
 module.exports = {
     getSummary,
+    getEmployeeLateCompliance,
+    grantEmployeeLocatorSlipAccess,
     getLiveFaculty,
     getNotifications,
     getRecentActivity,

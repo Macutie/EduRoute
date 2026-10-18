@@ -6,6 +6,7 @@ const { optimizeImage } = require('./imageOptimization.service');
 const notificationService = require('./notification.service');
 const locatorSlipNotificationService = require('./locatorSlipNotification.service');
 const socketBroadcasterService = require('./socketBroadcaster.service');
+const lateComplianceService = require('./lateCompliance.service');
 
 const LOCATOR_SLIP_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'cancelled'];
 const QR_VISIBLE_SLIP_STATUSES = new Set(['pending', 'approved', 'verified']);
@@ -417,6 +418,8 @@ const createLocatorSlip = async (facultyUserId, payload) => {
     try {
         await client.query('BEGIN');
 
+        const lateCompliance = await lateComplianceService.assertCanFileLocatorSlip(facultyUserId, client);
+
         const facultyResult = await client.query(
             `SELECT
                 fu.id,
@@ -504,6 +507,10 @@ const createLocatorSlip = async (facultyUserId, payload) => {
 
         if (!insertedSlip) {
             throw lastInsertError || new AppError('Unable to generate a unique locator slip code.', 500);
+        }
+
+        if (lateCompliance.activeGrant) {
+            await lateComplianceService.consumeGrant(facultyUserId, client);
         }
 
         const notificationPayload = {

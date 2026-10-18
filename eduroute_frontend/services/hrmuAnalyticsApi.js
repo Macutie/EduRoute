@@ -57,8 +57,34 @@ const postRequest = async (endpoint, params = {}) => {
   return data.data;
 };
 
+const postJsonRequest = async (endpoint, body = {}) => {
+  const token = getToken();
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || 'HRMU analytics request failed');
+  }
+
+  return data.data;
+};
+
 export const getHrmuAnalyticsOverview = (params = {}) =>
   request('/api/hrmu/analytics/overview', params);
+
+export const getHrmuEmployeeLateCompliance = (facultyUserId) =>
+  request(`/api/hrmu/employee-compliance/${encodeURIComponent(facultyUserId)}`);
+
+export const grantHrmuEmployeeLocatorSlipAccess = (facultyUserId, reason = '') =>
+  postJsonRequest(`/api/hrmu/employee-compliance/${encodeURIComponent(facultyUserId)}/grant-locator-slip-access`, { reason });
 
 export const getHrmuAnalyticsDailyMovement = (params = {}) =>
   request('/api/hrmu/analytics/daily-movement', params);

@@ -31,7 +31,7 @@ import { decryptSensitiveResponseJson, getSensitiveResponseHeaders, resetSensiti
 import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileEditIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, AdminUserOutlineIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, ISSUChartIcon, ISSUExitDoorIcon, ISSUIncidentsNavIcon, ISSUMapNavIcon, ISSUReportsNavIcon, ISSURoleIcon, ISSURosetteCheckIcon, ISSUScanNavIcon, ISSUTrendingUpIcon, ISSUWarningCircleIcon, ISSUWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPersonIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultySearchIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryEyeIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
 import { LEGAL_DOCUMENTS, LegalDocumentModal, getPermissionSetupStorageKey } from "../../components/legal/LegalDocuments.jsx";
 import { DEFAULT_PROFILE_IMAGE, GORDON_COLLEGE_EMAIL_DOMAIN, isEmailIdentifier, isGordonCollegeEmail, triggerBlobDownload } from "../shared/appUtils.js";
-import { APP_VIEWS, decodeJwtPayload, getDefaultViewForRole, getEduRouteDialogContent, getHashForView, getPortalAdministrationDescription, getPortalBadgeLabel, getPortalHomeViewForRole, getPortalMetaLabel, getPortalNotificationsViewForRole, getPortalPositionLabel, getViewFromUrlHash, isDeanPortalAccount, supportsPortalPushNotifications } from "../routing/portalRouting.js";
+import { APP_VIEWS, decodeJwtPayload, getDefaultViewForRole, getEduRouteDialogContent, getHashForView, getPortalAdministrationDescription, getPortalBadgeLabel, getPortalHomeViewForRole, getPortalMetaLabel, getPortalNotificationsViewForRole, getPortalPositionLabel, getViewFromUrlHash, isDeanPortalAccount, isHrmuPortalRole, supportsPortalPushNotifications } from "../routing/portalRouting.js";
 import { TripPathHistoryModal, formatPathHistoryDateTime } from "../../components/trips/TripPathHistoryModal.jsx";
 import { DesktopAuthShell, ForgotPasswordView, LOGIN_PORTAL_ROLES, LoginView, ResetCodeView, SetNewPasswordView, SignUpView } from "../auth/AuthViews.jsx";
 import { formatNotificationRelativeTime, getNotificationGroupLabel } from "../shared/dateDisplay.js";
@@ -667,7 +667,7 @@ function App() {
     setView('login');
   };
   const getLogoutPortalLabel = portalKey => {
-    if (portalKey === 'cssu') return 'EduRoute ISSU Portal';
+    if (portalKey === 'cssu') return 'EduRoute SSU Portal';
     if (portalKey === 'hrmu') return 'EduRoute HRMU Portal';
     if (portalKey === 'dean') return 'EduRoute Supervisor Portal';
     return 'EduRoute Portal';
@@ -851,7 +851,7 @@ function App() {
   const desktopWorkspaceViews = ['hrmu-dashboard', 'hrmu-verification', 'hrmu-analytics', 'hrmu-employee-analytics', 'hrmu-reports', 'hrmu-notifications', 'hrmu-inbox', 'admin-dashboard', 'admin-users', 'admin-notifications', 'admin-approval-requests', 'admin-approval-detail', 'admin-registry', 'admin-faculty', 'admin-profile', 'admin-edit-profile', 'admin-change-password', 'cssu-dashboard', 'cssu-incidents', 'cssu-scan', 'cssu-return', 'cssu-reports', 'cssu-notifications'];
   const adminLogout = () => {
     const role = profileData?.accountRole;
-    if (role === 'hrmu') {
+    if (isHrmuPortalRole(role)) {
       requestPortalLogout('hrmu');
       return;
     }
@@ -921,8 +921,8 @@ function App() {
       {view === 'admin-registry' && adminFrame('users', <AdminRegistryView setView={setView} profileData={profileData} />)}
       {view === 'admin-faculty' && adminFrame('users', <AdminFacultyView setView={setView} profileData={profileData} />)}
       {view === 'admin-profile' && <AdminProfileView setView={setView} profileData={profileData} onLogout={adminLogout} />}
-      {view === 'admin-change-password' && (['hrmu', 'cssu'].includes(profileData?.accountRole) ? <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} /> : adminFrame('profile', <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />))}
-      {view === 'admin-edit-profile' && (['hrmu', 'cssu'].includes(profileData?.accountRole) ? <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} /> : adminFrame('profile', <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />))}
+      {view === 'admin-change-password' && (isHrmuPortalRole(profileData?.accountRole) || profileData?.accountRole === 'cssu' ? <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} /> : adminFrame('profile', <ChangePasswordView setView={setView} profileData={profileData} backView="admin-profile" setForgotPasswordBackView={setForgotPasswordBackView} />))}
+      {view === 'admin-edit-profile' && (isHrmuPortalRole(profileData?.accountRole) || profileData?.accountRole === 'cssu' ? <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} /> : adminFrame('profile', <AdminEditProfileView setView={setView} profileData={profileData} setProfileData={setProfileData} />))}
 
 
       {logoutModalPortal && <div className="modal-overlay fade-in">

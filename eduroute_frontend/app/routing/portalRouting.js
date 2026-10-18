@@ -8,8 +8,9 @@ export const decodeJwtPayload = token => {
     return null;
   }
 };
+export const isHrmuPortalRole = role => ['hrmu', 'vp_admin_finance'].includes(String(role || '').toLowerCase());
 export const getDefaultViewForRole = role => {
-  if (role === 'hrmu') return 'hrmu-dashboard';
+  if (isHrmuPortalRole(role)) return 'hrmu-dashboard';
   if (role === 'cssu') return 'cssu-dashboard';
   if (['assistant_dean', 'college_dean'].includes(role)) return 'dean-dashboard';
   if (role === 'admin') return 'admin-dashboard';
@@ -28,40 +29,43 @@ export const getHashForView = view => {
   return `#/${encodeURIComponent(view)}`;
 };
 export const getPortalHomeViewForRole = role => {
-  if (role === 'hrmu') return 'hrmu-dashboard';
+  if (isHrmuPortalRole(role)) return 'hrmu-dashboard';
   if (role === 'cssu') return 'cssu-dashboard';
   if (role === 'admin') return 'admin-dashboard';
   return 'dashboard';
 };
 export const getPortalNotificationsViewForRole = role => {
-  if (role === 'hrmu') return 'hrmu-notifications';
+  if (isHrmuPortalRole(role)) return 'hrmu-notifications';
   if (role === 'cssu') return 'cssu-notifications';
   if (role === 'admin') return 'admin-notifications';
   return 'notifications';
 };
 export const getPortalBadgeLabel = role => {
-  if (role === 'hrmu') return 'HRMU ADMIN';
-  if (role === 'cssu') return 'ISSU ADMIN';
+  if (isHrmuPortalRole(role)) return 'HRMU ADMIN';
+  if (role === 'cssu') return 'SSU ADMIN';
   if (role === 'admin') return 'ADMIN';
   return 'PORTAL';
 };
 export const isCollegeDeanDepartment = (department = '') => /^College of\b/i.test(String(department || '').trim());
 export const isDeanPortalAccount = (profileData = {}) => ['assistant_dean', 'college_dean'].includes(profileData?.accountRole);
+export const isVpAdminFinanceAccount = (profileData = {}) => String(profileData?.accountRole || '').toLowerCase() === 'hrmu'
+  && String(profileData?.email || '').trim().toLowerCase() === 'vpadminandfinance@gordoncollege.edu.ph';
 export const getPortalPositionLabel = (profileData = {}) => {
+  if (isVpAdminFinanceAccount(profileData) || profileData?.accountRole === 'vp_admin_finance') return 'VP - Admin and Finance';
   if (profileData?.position) return profileData.position;
-  if (profileData?.accountRole === 'hrmu') return 'Human Resources Management Unit';
-  if (profileData?.accountRole === 'cssu') return 'Information Security';
+  if (isHrmuPortalRole(profileData?.accountRole)) return 'Human Resources Management Unit';
+  if (profileData?.accountRole === 'cssu') return 'Security Service Unit';
   if (profileData?.accountRole === 'admin') return 'Administrator';
   return 'Portal User';
 };
 export const getPortalMetaLabel = (profileData = {}) => {
-  if (profileData?.accountRole === 'cssu') return 'ISSU Administration';
-  if (profileData?.accountRole === 'hrmu') return 'HRMU Administration';
+  if (profileData?.accountRole === 'cssu') return 'SSU Administration';
+  if (isHrmuPortalRole(profileData?.accountRole)) return 'HRMU Administration';
   return profileData?.department || 'Portal Administration';
 };
 export const supportsPortalPushNotifications = (accountRole = '', department = '') => {
   const normalizedRole = String(accountRole || '').toLowerCase();
-  if (['faculty', 'assistant_dean', 'college_dean', 'hrmu', 'cssu'].includes(normalizedRole)) {
+  if (['faculty', 'assistant_dean', 'college_dean', 'hrmu', 'vp_admin_finance', 'cssu'].includes(normalizedRole)) {
     return true;
   }
   if (normalizedRole === 'admin') {
@@ -71,9 +75,9 @@ export const supportsPortalPushNotifications = (accountRole = '', department = '
 };
 export const getPortalAdministrationDescription = (profileData = {}) => {
   if (profileData?.accountRole === 'cssu') {
-    return 'Manage your ISSU profile details and credential settings.';
+    return 'Manage your SSU profile details and credential settings.';
   }
-  if (profileData?.accountRole === 'hrmu') {
+  if (isHrmuPortalRole(profileData?.accountRole)) {
     return 'Manage your HRMU profile details and credential settings.';
   }
   return 'Manage your profile details and credential settings.';

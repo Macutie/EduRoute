@@ -46,7 +46,7 @@ const notifyCssuOfLocatorSlipApproval = async ({ senderUserId, locatorSlipId, fa
             senderUserId,
             locatorSlipId,
             type: 'LOCATOR_SLIP_READY_FOR_EXIT',
-            title: 'Locator Slip Ready for ISSU',
+            title: 'Locator Slip Ready for SSU',
             message: `${facultyName || 'An employee'} has an approved locator slip${destination ? ` to ${destination}` : ''}${purpose ? ` for ${purpose}` : ''}.`,
             data: {
                 locatorSlipId,
@@ -80,7 +80,7 @@ const notifyFacultyOfCssuExitValidation = async ({ recipientUserId, senderUserId
         locatorSlipId,
         type: 'LOCATOR_SLIP_EXIT_ALLOWED',
         title: 'Exit Clearance Allowed',
-        message: `ISSU allowed your exit through ${gateLabel}${destination ? ` for ${destination}` : ''}.`,
+        message: `SSU allowed your exit through ${gateLabel}${destination ? ` for ${destination}` : ''}.`,
         data: {
             locatorSlipId,
             url: '/#/status'
@@ -96,8 +96,8 @@ const notifyFacultyOfCssuExitDenial = async ({ recipientUserId, senderUserId, lo
         type: 'LOCATOR_SLIP_EXIT_DENIED',
         title: 'Exit Clearance Denied',
         message: remarks
-            ? `ISSU denied your exit through ${gateLabel}. ${remarks}`
-            : `ISSU denied your exit through ${gateLabel}. Your locator slip is now rejected.`,
+            ? `SSU denied your exit through ${gateLabel}. ${remarks}`
+            : `SSU denied your exit through ${gateLabel}. Your locator slip is now rejected.`,
         data: {
             locatorSlipId,
             url: '/#/status'

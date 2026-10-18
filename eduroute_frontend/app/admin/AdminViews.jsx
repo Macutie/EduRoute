@@ -6,7 +6,7 @@ import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevr
 import { LegalDocumentModal } from "../../components/legal/LegalDocuments.jsx";
 import { DEFAULT_PROFILE_IMAGE } from "../shared/appUtils.js";
 import { getCancellationReasonLabel } from "../faculty/FacultyViews.jsx";
-import { getPortalAdministrationDescription, getPortalHomeViewForRole, getPortalNotificationsViewForRole, getPortalPositionLabel, getPortalMetaLabel, getPortalBadgeLabel, isDeanPortalAccount } from "../routing/portalRouting.js";
+import { getPortalAdministrationDescription, getPortalHomeViewForRole, getPortalNotificationsViewForRole, getPortalPositionLabel, getPortalMetaLabel, getPortalBadgeLabel, isDeanPortalAccount, isHrmuPortalRole } from "../routing/portalRouting.js";
 import { ISSUBottomNav, ISSUDesktopPage, useDesktopWorkspaceViewport } from "../cssu/CssuViews.jsx";
 import { HrmuWorkspaceShell } from "../hrmu/HrmuViews.jsx";
 import { getAdminDashboard } from "../../services/adminUserApi";
@@ -1280,7 +1280,7 @@ export const AdminProfileView = ({
   const badgeLabel = getPortalBadgeLabel(accountRole);
   const metaLabel = getPortalMetaLabel(profileData);
   const administrationDescription = getPortalAdministrationDescription(profileData);
-  const showLegalPanel = accountRole === 'hrmu' || accountRole === 'cssu';
+  const showLegalPanel = isHrmuPortalRole(accountRole) || accountRole === 'cssu';
   const legalProfileItems = [{
     key: 'terms',
     label: 'Terms and Conditions',
@@ -1452,7 +1452,7 @@ export const AdminProfileView = ({
       <LegalDocumentModal activeLegalDoc={activeLegalDoc} onClose={() => setActiveLegalDoc(null)} />
     </>;
   }
-  if (accountRole === 'hrmu' && isDesktopViewport) {
+  if (isHrmuPortalRole(accountRole) && isDesktopViewport) {
     return <>
         <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={onLogout}>
           <section className="ISSU-desktop-page">{desktopProfileContent}</section>
@@ -1486,7 +1486,7 @@ export const AdminProfileView = ({
                   <div className="admin-bell-dot" />
                 </div>
                 <div className="dash-avatar">
-                  <img src={profileData.image} alt="ISSU Profile" style={{
+                  <img src={profileData.image} alt="SSU Profile" style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
@@ -1501,7 +1501,7 @@ export const AdminProfileView = ({
               </div>
               <div className="profile-image-container">
                 <div className="profile-image-wrapper">
-                  <img src={profileData.image} alt="ISSU Profile" style={{
+                  <img src={profileData.image} alt="SSU Profile" style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover'
@@ -1842,8 +1842,8 @@ export const AdminEditProfileView = ({
   if (accountRole === 'admin' && isDesktopViewport) {
     return desktopEditContent;
   }
-  if ((accountRole === 'hrmu' || accountRole === 'cssu') && isDesktopViewport) {
-    if (accountRole === 'hrmu') {
+  if ((isHrmuPortalRole(accountRole) || accountRole === 'cssu') && isDesktopViewport) {
+    if (isHrmuPortalRole(accountRole)) {
       return <HrmuWorkspaceShell activeKey="" setView={setView} profileData={profileData} onLogout={() => setView('admin-profile')}>
           <section className="ISSU-desktop-page">{desktopEditContent}</section>
         </HrmuWorkspaceShell>;
@@ -1862,7 +1862,7 @@ export const AdminEditProfileView = ({
               <span className="dash-logo-text chpw-nav-title">Account Settings</span>
             </div>
             <div className="dash-avatar">
-              <img src={profileImage} alt="ISSU Profile" style={{
+              <img src={profileImage} alt="SSU Profile" style={{
               width: '100%',
               height: '100%',
               objectFit: 'cover'

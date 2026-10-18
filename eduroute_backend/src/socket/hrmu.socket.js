@@ -1,4 +1,4 @@
-const HRMU_SOCKET_ROLES = ['hrmu', 'admin', 'cssu'];
+const HRMU_SOCKET_ROLES = ['hrmu', 'vp_admin_finance', 'admin', 'cssu'];
 
 const registerHrmuSocketHandlers = (io) => {
     io.on('connection', (socket) => {

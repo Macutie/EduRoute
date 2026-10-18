@@ -132,8 +132,7 @@ const calculateLateReturn = (expectedReturnTime, actualReturnTime) => {
         };
     }
 
-    const threshold = expected.getTime() + (60 * 60 * 1000);
-    if (actual.getTime() <= threshold) {
+    if (actual.getTime() <= expected.getTime()) {
         return {
             isLateReturn: false,
             minutesLate: 0
@@ -439,14 +438,34 @@ const resolveDestination = async (facultyUserId, locatorSlipId, destinationText)
     ensureApprovedLocatorSlip(locatorSlip);
 
     const query = String(destinationText || locatorSlip.destination || '').trim();
-    const results = await mapboxService.searchDestinations(query, {
-        limit: 1,
+    const results = await mapboxService.searchBoxDestinations(query, {
+        limit: 5,
         language: 'en',
         country: 'PH',
-        types: mapboxService.DEFAULT_GEOCODING_TYPES
+        types: 'poi,address,place,locality,neighborhood,street'
     });
 
-    if (!results[0]?.coordinates?.lat || !results[0]?.coordinates?.lng) {
+    const normalizedQuery = query.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const queryWords = normalizedQuery.split(/\s+/).filter(Boolean);
+    const rankedResults = results
+        .filter((result) => Number.isFinite(Number(result?.coordinates?.lat)) && Number.isFinite(Number(result?.coordinates?.lng)))
+        .map((result) => {
+            const name = String(result.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const address = String(result.full_address || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const isPoi = String(result.id || '').startsWith('poi.');
+            const exactName = name === normalizedQuery;
+            const nameContainsQuery = name.includes(normalizedQuery) || normalizedQuery.includes(name);
+            const matchingWords = queryWords.filter((word) => name.includes(word) || address.includes(word)).length;
+
+            return {
+                result,
+                score: (isPoi ? 100 : 0) + (exactName ? 100 : 0) + (nameContainsQuery ? 50 : 0) + matchingWords * 5
+            };
+        })
+        .sort((left, right) => right.score - left.score);
+    const bestResult = rankedResults[0]?.result;
+
+    if (!bestResult?.coordinates?.lat || !bestResult?.coordinates?.lng) {
         return {
             resolved: false,
             requiresManualPin: true,
@@ -456,8 +475,8 @@ const resolveDestination = async (facultyUserId, locatorSlipId, destinationText)
 
     const updatedSlip = await facultyTripRepository.updateLocatorSlipDestination(facultyUserId, locatorSlipId, {
         destinationLabel: null,
-        lat: results[0].coordinates.lat,
-        lng: results[0].coordinates.lng,
+        lat: bestResult.coordinates.lat,
+        lng: bestResult.coordinates.lng,
         method: 'search'
     });
 
@@ -469,7 +488,10 @@ const resolveDestination = async (facultyUserId, locatorSlipId, destinationText)
             label: locatorSlip.destination || updatedSlip.destination,
             lat: updatedSlip.destination_lat,
             lng: updatedSlip.destination_lng,
-            source: 'geocoding'
+            source: 'geocoding',
+            matchedName: bestResult.name,
+            matchedAddress: bestResult.full_address,
+            mapboxFeatureId: bestResult.id
         }
     };
 };

@@ -14,6 +14,7 @@ const router = express.Router();
 router.use(protect, requireRole('faculty'));
 
 router.get('/faculty-profile', locatorSlipController.getFacultyProfile);
+router.get('/compliance', locatorSlipController.getLateCompliance);
 router.post('/', decryptSensitivePayload, createLocatorSlipValidator, locatorSlipController.createLocatorSlip);
 router.get('/my-slips', locatorSlipController.getMyLocatorSlips);
 router.patch('/:id/cancel', decryptSensitivePayload, locatorSlipIdValidator, cancelLocatorSlipValidator, locatorSlipController.cancelLocatorSlip);

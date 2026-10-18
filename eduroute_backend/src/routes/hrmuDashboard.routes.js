@@ -9,12 +9,14 @@ const { protect, requireRole } = require('../middlewares/auth.middleware');
 const router = express.Router();
 
 router.use(protect);
-router.use(requireRole('hrmu', 'admin'));
+router.use(requireRole('hrmu', 'vp_admin_finance', 'admin'));
 router.use('/analytics', hrmuAnalyticsRoutes);
 router.use('/reports', hrmuReportsRoutes);
 router.use('/verification', hrmuVerificationRoutes);
 
 router.get('/dashboard/summary', hrmuDashboardController.getSummary);
+router.get('/employee-compliance/:facultyUserId', hrmuDashboardController.getEmployeeLateCompliance);
+router.post('/employee-compliance/:facultyUserId/grant-locator-slip-access', hrmuDashboardController.grantEmployeeLocatorSlipAccess);
 router.get('/notifications', hrmuDashboardController.getNotifications);
 router.get('/report-inbox', hrmuDashboardController.getReportInbox);
 router.get('/report-inbox/:id/download', hrmuDashboardController.downloadReportInboxAttachment);

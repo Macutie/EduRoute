@@ -86,7 +86,7 @@ const buildScanConfidence = ({ currentStatus, normalizedSlipStatus, attemptStats
             level: 'ready',
             tone: 'success',
             title: 'Return entry ready',
-            message: 'This locator slip is already cleared for exit and is now ready for ISSU return-entry validation.',
+            message: 'This locator slip is already cleared for exit and is now ready for SSU return-entry validation.',
             repeatAttempts
         };
     }
@@ -96,7 +96,7 @@ const buildScanConfidence = ({ currentStatus, normalizedSlipStatus, attemptStats
             level: 'locked',
             tone: 'danger',
             title: 'Denied exit is locked',
-            message: 'ISSU already denied this exit. No further exit action is allowed for this locator slip.',
+            message: 'SSU already denied this exit. No further exit action is allowed for this locator slip.',
             repeatAttempts
         };
     }
@@ -106,7 +106,7 @@ const buildScanConfidence = ({ currentStatus, normalizedSlipStatus, attemptStats
             level: 'final',
             tone: 'success',
             title: 'Exit already validated',
-            message: 'This locator slip has a final ISSU allowed-exit decision.',
+            message: 'This locator slip has a final SSU allowed-exit decision.',
             repeatAttempts
         };
     }
@@ -144,8 +144,8 @@ const buildScanConfidence = ({ currentStatus, normalizedSlipStatus, attemptStats
     return {
         level: 'ready',
         tone: 'success',
-        title: 'Approved for ISSU decision',
-        message: 'Supervisor approval is valid. ISSU may allow or deny the exit.',
+        title: 'Approved for SSU decision',
+        message: 'Supervisor approval is valid. SSU may allow or deny the exit.',
         repeatAttempts
     };
 };
@@ -217,7 +217,7 @@ const normalizeReportsFilters = (query = {}) => {
     }
 
     if (departmentName !== 'all' && !ISSU_ALLOWED_DEPARTMENTS.has(departmentName)) {
-        throw new AppError('Invalid ISSU department filter.', 422);
+        throw new AppError('Invalid SSU department filter.', 422);
     }
 
     return {
@@ -270,7 +270,7 @@ const mapISSUActivityRow = (row) => ({
     method: row.validation_method || 'manual',
     status: String(row.status || '').toLowerCase(),
     statusLabel: formatStatusLabel(String(row.status || '').toLowerCase()),
-    title: row.title || 'ISSU activity',
+    title: row.title || 'SSU activity',
     entryType: row.entry_type || 'activity',
     occurredAt: row.occurred_at ? new Date(row.occurred_at).toISOString() : null,
     occurredTimeLabel: formatDateTimeLabel(row.occurred_at),
@@ -304,7 +304,7 @@ const getLiveExitMonitoring = async (query = {}) => {
     const limit = Math.min(Math.max(Number(query.limit || 20), 1), 100);
 
     if (!GATE_OPTIONS.has(gate)) {
-        throw new AppError('Invalid ISSU gate filter.', 422);
+        throw new AppError('Invalid SSU gate filter.', 422);
     }
 
     const rows = await ISSUDashboardRepository.getLiveExitMonitoring(gate, limit);
@@ -462,20 +462,20 @@ const getReportsOverview = async (query = {}) => {
 const getReportsDownload = async (userId, query = {}) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['cssu', 'admin']);
     if (!user) {
-        throw new AppError('Only ISSU and admin users can export ISSU reports.', 403);
+        throw new AppError('Only SSU and admin users can export SSU reports.', 403);
     }
 
     const report = await getReportsOverview(query);
     const startSlug = report.filters.startDate.replace(/-/g, '');
     const endSlug = report.filters.endDate.replace(/-/g, '');
-    const filename = `eduroute-ISSU-movement-${startSlug}-${endSlug}.pdf`;
+    const filename = `eduroute-SSU-movement-${startSlug}-${endSlug}.pdf`;
     const buffer = await buildISSUMovementReportPdf({
         filters: report.filters,
         summary: report.summary,
         movementLogs: report.movementLogs,
         reportMeta: report.reportMeta,
         sortOrder: normalizeSortOrder(query.sortOrder),
-        exportedBy: user.full_name || 'ISSU Administrator',
+        exportedBy: user.full_name || 'SSU Administrator',
     });
 
     return {
@@ -487,13 +487,13 @@ const getReportsDownload = async (userId, query = {}) => {
 const sendReportToHrmu = async (userId, query = {}) => {
     const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['cssu', 'admin']);
     if (!user) {
-        throw new AppError('Only ISSU and admin users can send ISSU reports to HRMU.', 403);
+        throw new AppError('Only SSU and admin users can send SSU reports to HRMU.', 403);
     }
 
     const report = await getReportsOverview(query);
     const startSlug = report.filters.startDate.replace(/-/g, '');
     const endSlug = report.filters.endDate.replace(/-/g, '');
-    const filename = `eduroute-ISSU-movement-${startSlug}-${endSlug}.pdf`;
+    const filename = `eduroute-SSU-movement-${startSlug}-${endSlug}.pdf`;
     const sortOrder = normalizeSortOrder(query.sortOrder);
     const buffer = await buildISSUMovementReportPdf({
         filters: report.filters,
@@ -501,14 +501,14 @@ const sendReportToHrmu = async (userId, query = {}) => {
         movementLogs: report.movementLogs,
         reportMeta: report.reportMeta,
         sortOrder,
-        exportedBy: user.full_name || 'ISSU Administrator',
+        exportedBy: user.full_name || 'SSU Administrator',
     });
 
     const inboxItem = await hrmuReportInboxRepository.createInboxAttachment({
         senderUserId: userId,
-        senderName: user.full_name || 'ISSU Administrator',
+        senderName: user.full_name || 'SSU Administrator',
         reportKind: 'ISSU_movement',
-        reportTitle: 'ISSU Movement Logs Preview',
+        reportTitle: 'SSU Movement Logs Preview',
         reportSubtitle: `Coverage: ${report.filters.dateRangeLabel}`,
         filename,
         mimeType: 'application/pdf',
@@ -527,8 +527,8 @@ const sendReportToHrmu = async (userId, query = {}) => {
         id: inboxItem?.id || null,
         filename,
         sentAt: inboxItem?.created_at ? new Date(inboxItem.created_at).toISOString() : new Date().toISOString(),
-        sentBy: user.full_name || 'ISSU Administrator',
-        reportTitle: 'ISSU Movement Logs Preview',
+        sentBy: user.full_name || 'SSU Administrator',
+        reportTitle: 'SSU Movement Logs Preview',
     };
 };
 
@@ -571,15 +571,15 @@ const lookupExitCandidate = async (query = {}) => {
     const allowConsumedReturnEntry = ['true', '1', 'history'].includes(String(query.history || '').toLowerCase());
 
     if (!locatorSlipCode) {
-        throw new AppError('Locator slip code is required for ISSU exit validation lookup.', 422);
+        throw new AppError('Locator slip code is required for SSU exit validation lookup.', 422);
     }
 
     if (!GATE_OPTIONS.has(gate)) {
-        throw new AppError('Invalid ISSU gate filter.', 422);
+        throw new AppError('Invalid SSU gate filter.', 422);
     }
 
     if (!['manual', 'qr'].includes(method)) {
-        throw new AppError('Invalid ISSU lookup method.', 422);
+        throw new AppError('Invalid SSU lookup method.', 422);
     }
 
     let returnEntryTokenRow = null;
@@ -759,19 +759,19 @@ const updateExitLogStatus = async (ISSUUserId, locatorSlipId, payload = {}) => {
     const checkpoint = String(payload.checkpoint || 'exit').toLowerCase();
 
     if (!GATE_OPTIONS.has(gate)) {
-        throw new AppError('Invalid ISSU gate value.', 422);
+        throw new AppError('Invalid SSU gate value.', 422);
     }
 
     if (!['approved', 'validated', 'denied', 'flagged'].includes(status)) {
-        throw new AppError('Invalid ISSU exit status.', 422);
+        throw new AppError('Invalid SSU exit status.', 422);
     }
 
     if (!['exit', 'entry'].includes(checkpoint)) {
-        throw new AppError('Invalid ISSU checkpoint.', 422);
+        throw new AppError('Invalid SSU checkpoint.', 422);
     }
 
     if (!['manual', 'qr'].includes(validationMethod)) {
-        throw new AppError('Invalid ISSU validation method.', 422);
+        throw new AppError('Invalid SSU validation method.', 422);
     }
 
     const locatorSlip = await ISSUDashboardRepository.findLocatorSlipForExitStatus(locatorSlipId);
@@ -842,7 +842,7 @@ const updateExitLogStatus = async (ISSUUserId, locatorSlipId, payload = {}) => {
             gate,
             lookupMethod: validationMethod,
             outcome: 'entry_validated',
-            notes: rawNotes || 'Return entry QR allowed by ISSU.',
+            notes: rawNotes || 'Return entry QR allowed by SSU.',
             validatedBy: ISSUUserId
         }).catch(() => null);
 
@@ -862,24 +862,24 @@ const updateExitLogStatus = async (ISSUUserId, locatorSlipId, payload = {}) => {
     }
 
     if (existingExitStatus === 'validated') {
-        throw new AppError('ISSU exit validation is already final for this locator slip.', 409);
+        throw new AppError('SSU exit validation is already final for this locator slip.', 409);
     }
 
     if (existingExitStatus === 'denied') {
         throw new AppError(
             hasExistingFlagIncidentNote
-                ? 'This locator slip was already flagged by ISSU and can no longer be changed.'
-                : 'This locator slip exit was already rejected by ISSU and can no longer be changed.',
+                ? 'This locator slip was already flagged by SSU and can no longer be changed.'
+                : 'This locator slip exit was already rejected by SSU and can no longer be changed.',
             409
         );
     }
 
     if (status === 'flagged') {
         if (!['pending', 'rejected'].includes(locatorSlipStatus)) {
-            throw new AppError('Only pending or rejected locator slips can be flagged as ISSU exit incidents.', 409);
+            throw new AppError('Only pending or rejected locator slips can be flagged as SSU exit incidents.', 409);
         }
     } else if (!['approved', 'verified'].includes(locatorSlipStatus)) {
-        throw new AppError('Only approved locator slips can be tracked in ISSU exit monitoring.', 409);
+        throw new AppError('Only approved locator slips can be tracked in SSU exit monitoring.', 409);
     }
 
     const persistedStatus = status === 'flagged' ? 'denied' : status;
@@ -920,8 +920,8 @@ const updateExitLogStatus = async (ISSUUserId, locatorSlipId, payload = {}) => {
             await hrmuDashboardRepository.createHrmuTripEventNotifications(null, {
                 locatorSlipId,
                 type: hrmuDashboardRepository.HRMU_NOTIFICATION_TYPE_ISSU_VALIDATED_EXIT,
-                title: 'ISSU validated exit',
-                message: `${hrmuValidationContext.faculty_name || 'An employee'} was cleared by ISSU through ${formatGateLabel(gate)}${hrmuValidationContext.destination ? ` for ${hrmuValidationContext.destination}` : ''}.`
+                title: 'SSU validated exit',
+                message: `${hrmuValidationContext.faculty_name || 'An employee'} was cleared by SSU through ${formatGateLabel(gate)}${hrmuValidationContext.destination ? ` for ${hrmuValidationContext.destination}` : ''}.`
             }).catch(() => null);
         }
 

@@ -374,7 +374,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
       startTrip: false,
       viewUploadedPhoto: true,
       showTripSummaryButton: false,
-      helperText: cssuValidationStatus === 'allowed' ? 'ISSU validated. You can continue viewing the trip map.' : '',
+      helperText: cssuValidationStatus === 'allowed' ? 'SSU validated. You can continue viewing the trip map.' : '',
       cssuValidationStatus
     };
   }
@@ -386,7 +386,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: true,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'ISSU validated. You can now access maps.',
+      helperText: 'SSU validated. You can now access maps.',
         cssuValidationStatus
       };
     }
@@ -397,7 +397,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: false,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'Exit denied by ISSU.',
+      helperText: 'Exit denied by SSU.',
         cssuValidationStatus
       };
     }
@@ -408,7 +408,7 @@ export const getLocatorSlipActionState = (slip, currentTrip = null) => {
         startTrip: false,
         viewUploadedPhoto: true,
         showTripSummaryButton: false,
-        helperText: 'Exit flagged by ISSU. Please contact ISSU or HRMU.',
+      helperText: 'Exit flagged by SSU. Please contact SSU or HRMU.',
         cssuValidationStatus
       };
     }
@@ -510,6 +510,8 @@ export const LocatorSlipView = ({
 }) => {
   const [facultyProfile, setFacultyProfile] = useState(null);
   const [locatorSlipLoading, setLocatorSlipLoading] = useState(false);
+  const [lateCompliance, setLateCompliance] = useState(null);
+  const [showLateComplianceWarning, setShowLateComplianceWarning] = useState(false);
   const [locatorSlipErrors, setLocatorSlipErrors] = useState({});
   const [activeLegalDoc, setActiveLegalDoc] = useState(null);
   const [showPurposeTypeModal, setShowPurposeTypeModal] = useState(false);
@@ -567,7 +569,7 @@ export const LocatorSlipView = ({
     }
     return errors;
   }, [currentDateTimeLocal, locatorSlipForm]);
-  const canSubmitLocatorSlip = facultyProfile && Object.keys(locatorSlipValidation).length === 0 && !locatorSlipLoading;
+  const canSubmitLocatorSlip = facultyProfile && Object.keys(locatorSlipValidation).length === 0 && !locatorSlipLoading && !lateCompliance?.restricted;
   const getAuthHeaders = () => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token') || ''}`
@@ -602,6 +604,9 @@ export const LocatorSlipView = ({
       try {
         const data = await fetchLocatorSlipJson('/api/locator-slips/faculty-profile');
         setFacultyProfile(data.data);
+        const compliance = await fetchLocatorSlipJson('/api/locator-slips/compliance');
+        setLateCompliance(compliance.data);
+        setShowLateComplianceWarning(Boolean(compliance.data?.restricted));
       } catch (error) {
         alert(error.message);
       } finally {
@@ -716,6 +721,16 @@ export const LocatorSlipView = ({
           <h1>Create Locator Slip</h1>
           <p>Please document your destination and expected return for institutional coordination.</p>
         </div>
+
+        {showLateComplianceWarning && <div className="permission-modal-backdrop locator-purpose-backdrop" role="dialog" aria-modal="true" aria-labelledby="late-compliance-title">
+            <div className="permission-modal-card dean-signature-permission-modal locator-purpose-modal" onClick={event => event.stopPropagation()}>
+              <div className="permission-modal-icon"><ExclamationCircleIcon color="#B54708" /></div>
+              <span className="permission-modal-kicker">HRMU COMPLIANCE REQUIRED</span>
+              <h3 id="late-compliance-title" className="permission-modal-title">Locator slip filing is temporarily restricted</h3>
+              <p className="permission-modal-copy">You have accumulated {formatTripDurationLabel(lateCompliance?.totalLateMinutes || 0)} of late returns this month. The monthly threshold is 8 hours. Please comply with HRMU before filing another locator slip.</p>
+              <button type="button" className="sig-setting-primary" onClick={() => setShowLateComplianceWarning(false)}>I Understand</button>
+            </div>
+          </div>}
 
         {showPurposeTypeModal && <div className="permission-modal-backdrop locator-purpose-backdrop" onClick={closePurposeModal}>
             <div className="permission-modal-card dean-signature-permission-modal locator-purpose-modal" onClick={e => e.stopPropagation()}>
@@ -1293,7 +1308,7 @@ export const LocatorSlipDetailView = ({
             {isCancelled && <span className="text-red">Cancelled</span>}
           </h2>
           <p>
-            {isPending ? 'Your request is being reviewed. The EduRoute administration is currently verifying your employee credentials.' : isCompleted ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.' : isApproved ? cssuValidationStatus === 'allowed' ? 'Your request has been reviewed, approved, and cleared by ISSU. You may now view your route and start the trip.' : 'Your request has been reviewed and approved by the supervisor. ISSU exit validation is still required before you can start the trip.' : isRejected ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.' : isCancelled ? 'This locator slip was cancelled by the employee before approval.' : `This locator slip request is currently marked as ${slip.status}.`}
+            {isPending ? 'Your request is being reviewed. The EduRoute administration is currently verifying your employee credentials.' : isCompleted ? 'Your approved trip was successfully completed and the generated trip summary is ready to view.' : isApproved ? cssuValidationStatus === 'allowed' ? 'Your request has been reviewed, approved, and cleared by SSU. You may now view your route and start the trip.' : 'Your request has been reviewed and approved by the supervisor. SSU exit validation is still required before you can start the trip.' : isRejected ? 'Your request has been reviewed and rejected. You may submit a corrected locator slip request.' : isCancelled ? 'This locator slip was cancelled by the employee before approval.' : `This locator slip request is currently marked as ${slip.status}.`}
           </p>
           {isRejected && slip.additional_remarks && <div className="submitted-reason-card">
               <span>REJECTION REASON</span>
@@ -1307,10 +1322,10 @@ export const LocatorSlipDetailView = ({
           marginTop: '0.75rem'
         }}>
               {actionState.helperText}
-              {cssuValidationStatus === 'pending' ? ' ISSU must allow exit before you can start this trip.' : ''}
+              {cssuValidationStatus === 'pending' ? ' SSU must allow exit before you can start this trip.' : ''}
             </p>}
           {cssuValidationStatus === 'allowed' && cssuValidatedByName && <div className="submitted-reason-card">
-              <span>ISSU VALIDATED BY</span>
+              <span>SSU VALIDATED BY</span>
               <strong>{cssuValidatedByName}</strong>
             </div>}
         </div>
@@ -1474,7 +1489,7 @@ export const LocatorSlipDetailView = ({
             <div className="qr-modal-card" onClick={event => event.stopPropagation()}>
               <span className="location-proof-kicker">LOCATOR SLIP QR</span>
               <h3>{slip.locator_slip_code}</h3>
-              <p>Present this QR code or locator slip code to ISSU for exit verification.</p>
+              <p>Present this QR code or locator slip code to SSU for exit verification.</p>
               <img className="qr-modal-image" src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(slip.locator_slip_code)}`} alt={`QR code for ${slip.locator_slip_code}`} />
             
               <div className="qr-modal-code">{slip.locator_slip_code}</div>
@@ -1755,6 +1770,7 @@ export const MapTrackingView = ({
   const [showTripMetrics, setShowTripMetrics] = useState(false);
   const [showRouteTools, setShowRouteTools] = useState(false);
   const [showProofPanel, setShowProofPanel] = useState(true);
+  const [mapControlsExpanded, setMapControlsExpanded] = useState(false);
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
   const [showEntryQrCode, setShowEntryQrCode] = useState(false);
@@ -2450,7 +2466,7 @@ export const MapTrackingView = ({
   const startTrip = () => {
     const tripActionState = getLocatorSlipActionState(locatorSlip, activeTrip);
     if (!tripActionState.startTrip) {
-      setMapError(tripActionState.helperText || 'ISSU must allow exit before you can start this trip.');
+      setMapError(tripActionState.helperText || 'SSU must allow exit before you can start this trip.');
       return;
     }
     if (!normalizeMapCoordinate(destination)) {
@@ -2970,15 +2986,26 @@ export const MapTrackingView = ({
         </div>
       </div>
 
-      <div className="trip-map-floating-actions" aria-label="Map controls">
-        <button type="button" className="trip-map-floating-btn" onClick={requestCurrentLocation} disabled={mapLoading} aria-label="Recenter map on my current location" title="Recenter on my location">
-          <span aria-hidden="true">◎</span>
-          <small>Recenter</small>
+      <div className={`trip-map-floating-actions ${mapControlsExpanded ? 'is-expanded' : ''}`} aria-label="Map controls">
+        <button type="button" className="trip-map-floating-toggle" onClick={() => setMapControlsExpanded(current => !current)} aria-expanded={mapControlsExpanded} aria-controls="trip-map-secondary-controls" aria-label={mapControlsExpanded ? 'Collapse map controls' : 'Expand map controls'} title={mapControlsExpanded ? 'Hide map controls' : 'Show map controls'}>
+          <span aria-hidden="true">{mapControlsExpanded ? '×' : '☷'}</span>
         </button>
-        {destination?.latitude && destination?.longitude && <button type="button" className="trip-map-floating-btn" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.latitude},${destination.longitude}`)}`, '_blank', 'noopener,noreferrer')} aria-label="Open destination in an external maps app" title="Open external maps">
-          <span aria-hidden="true">↗</span>
-          <small>Open map</small>
-        </button>}
+        <div id="trip-map-secondary-controls" className="trip-map-secondary-controls" aria-hidden={!mapControlsExpanded}>
+          <button type="button" className="trip-map-floating-btn trip-map-zoom-btn" onClick={() => mapRef.current?.zoomIn({ duration: 250 })} disabled={!mapControlsExpanded || mapLoading} tabIndex={mapControlsExpanded ? 0 : -1} aria-label="Zoom in on the map" title="Zoom in">
+            <span aria-hidden="true">+</span>
+          </button>
+          <button type="button" className="trip-map-floating-btn trip-map-zoom-btn" onClick={() => mapRef.current?.zoomOut({ duration: 250 })} disabled={!mapControlsExpanded || mapLoading} tabIndex={mapControlsExpanded ? 0 : -1} aria-label="Zoom out on the map" title="Zoom out">
+            <span aria-hidden="true">−</span>
+          </button>
+          <button type="button" className="trip-map-floating-btn" onClick={requestCurrentLocation} disabled={!mapControlsExpanded || mapLoading} tabIndex={mapControlsExpanded ? 0 : -1} aria-label="Recenter map on my current location" title="Recenter on my location">
+            <span aria-hidden="true">◎</span>
+            <small>Recenter</small>
+          </button>
+          {destination?.latitude && destination?.longitude && <button type="button" className="trip-map-floating-btn" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${destination.latitude},${destination.longitude}`)}`, '_blank', 'noopener,noreferrer')} disabled={!mapControlsExpanded} tabIndex={mapControlsExpanded ? 0 : -1} aria-label="Open destination in an external maps app" title="Open external maps">
+            <span aria-hidden="true">↗</span>
+            <small>Open map</small>
+          </button>}
+        </div>
       </div>
 
       {showSearchPanel ? <div className={`trip-search-panel ${activeTrip ? 'trip-search-panel-active' : ''}`} style={getOverlayStyle('search')}>
@@ -3253,7 +3280,7 @@ export const MapTrackingView = ({
           <div className="qr-modal-card" onClick={event => event.stopPropagation()}>
             <span className="location-proof-kicker">RETURN ENTRY QR</span>
             <h3>{returnEntryDisplayCode}</h3>
-            <p>Present this QR code to ISSU for return-entry verification. It expires at {returnEntryState?.expiresAt ? new Date(returnEntryState.expiresAt).toLocaleTimeString() : 'the stated time'}.</p>
+            <p>Present this QR code to SSU for return-entry verification. It expires at {returnEntryState?.expiresAt ? new Date(returnEntryState.expiresAt).toLocaleTimeString() : 'the stated time'}.</p>
             <img className="qr-modal-image" src={`https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(returnEntryQrCode)}`} alt={`Return entry QR code for ${returnEntryQrCode}`} />
             <div className="qr-modal-code">{returnEntryDisplayCode}</div>
             <button type="button" className="qr-modal-action" onClick={() => setShowEntryQrCode(false)}>

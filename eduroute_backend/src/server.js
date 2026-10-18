@@ -74,6 +74,18 @@ const startServer = async () => {
             await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS uq_trip_return_entry_tokens_entry_code ON trip_return_entry_tokens(entry_code);`);
             await pool.query(`CREATE INDEX IF NOT EXISTS idx_trip_return_entry_tokens_active
                 ON trip_return_entry_tokens(trip_id, expires_at, consumed_at);`);
+            await pool.query(`CREATE TABLE IF NOT EXISTS faculty_locator_slip_access_grants (
+                id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                faculty_user_id UUID NOT NULL REFERENCES faculty_users(id) ON DELETE CASCADE,
+                granted_by UUID NOT NULL REFERENCES faculty_users(id),
+                reason TEXT,
+                uses_remaining INTEGER NOT NULL DEFAULT 1 CHECK (uses_remaining >= 0),
+                expires_at TIMESTAMP NULL,
+                consumed_at TIMESTAMP NULL,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );`);
+            await pool.query(`CREATE INDEX IF NOT EXISTS idx_locator_slip_access_grants_active
+                ON faculty_locator_slip_access_grants(faculty_user_id, uses_remaining, created_at DESC);`);
             console.log('Auto-migrations completed successfully.');
         } catch (migrationError) {
             console.error('Auto-migration failed, but continuing:', migrationError);

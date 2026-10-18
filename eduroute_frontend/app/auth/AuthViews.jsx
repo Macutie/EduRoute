@@ -36,8 +36,8 @@ export const LOGIN_PORTAL_ROLES = [{
   viewports: ['desktop']
 }, {
   key: 'cssu',
-  label: 'ISSU',
-  title: 'Gordon College ISSU Portal',
+  label: 'SSU',
+  title: 'Gordon College SSU Portal',
   icon: CssuRoleIcon,
   portalRole: 'cssu',
   viewports: ['mobile', 'desktop']

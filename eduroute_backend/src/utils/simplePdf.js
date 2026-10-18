@@ -567,7 +567,7 @@ const drawCssuReportHeader = ({ page, fonts, logoImage, reportMeta, filters, col
         });
     }
 
-    page.drawText('EduRoute ISSU', {
+    page.drawText('EduRoute SSU', {
         x: textX,
         y: headerCenterY + 8,
         size: 15,
@@ -622,7 +622,7 @@ const drawCssuSummaryCards = ({ page, fonts, summary, y, colorize }) => {
         {
             label: 'EXIT CLEARANCES',
             value: String(summary.exitClearances || 0).padStart(2, '0'),
-            note: 'Validated ISSU departures',
+            note: 'Validated SSU departures',
             accent: COLORS.green,
         },
         {
@@ -1464,7 +1464,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
     return Buffer.from(pdfBytes);
 };
 
-const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc', exportedBy = 'ISSU Administrator' }) => {
+const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, reportMeta, sortOrder = 'desc', exportedBy = 'SSU Administrator' }) => {
     let PDFDocument;
     let StandardFonts;
     let rgb;
@@ -1472,7 +1472,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     try {
         ({ PDFDocument, StandardFonts, rgb } = require('pdf-lib'));
     } catch (error) {
-        error.message = 'ISSU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
+        error.message = 'SSU PDF export dependency "pdf-lib" is missing in the deployed backend. Reinstall backend dependencies and redeploy.';
         throw error;
     }
 
@@ -1525,7 +1525,7 @@ const buildCssuMovementReportPdf = async ({ filters, summary, movementLogs, repo
     });
 
     const sortOrderLabel = `Sort Order: ${sortOrder === 'asc' ? 'Ascending' : 'Descending'}`;
-    const exportedByLabel = `Exported by: ${exportedBy || 'ISSU Administrator'}`;
+    const exportedByLabel = `Exported by: ${exportedBy || 'SSU Administrator'}`;
     const rightMetaX = PAGE.width - PAGE.marginX - 150;
 
     page.drawText(sortOrderLabel, {

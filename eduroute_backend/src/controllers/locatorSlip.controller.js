@@ -1,5 +1,6 @@
 const { successResponse } = require('../utils/apiResponse');
 const locatorSlipService = require('../services/locatorSlip.service');
+const lateComplianceService = require('../services/lateCompliance.service');
 const { encryptSensitiveResponseData } = require('../utils/sensitiveResponseEncryption');
 
 const getFacultyProfile = async (req, res, next) => {
@@ -9,6 +10,15 @@ const getFacultyProfile = async (req, res, next) => {
             'Employee profile fetched successfully.',
             encryptSensitiveResponseData(req, profile)
         ));
+    } catch (error) {
+        return next(error);
+    }
+};
+
+const getLateCompliance = async (req, res, next) => {
+    try {
+        const summary = await lateComplianceService.getLateComplianceSummary(req.user.sub);
+        return res.json(successResponse('Late compliance summary fetched successfully.', summary));
     } catch (error) {
         return next(error);
     }
@@ -86,6 +96,7 @@ const getLocationVerification = async (req, res, next) => {
 
 module.exports = {
     getFacultyProfile,
+    getLateCompliance,
     createLocatorSlip,
     getMyLocatorSlips,
     getLocatorSlipById,

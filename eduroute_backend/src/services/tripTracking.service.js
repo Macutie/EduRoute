@@ -7,7 +7,7 @@ const tripIncidentService = require('./tripIncident.service');
 
 const VALID_END_STATUSES = new Set(['completed', 'cancelled']);
 const OPEN_TRIP_STATUSES = new Set(['active', 'arrived', 'returning']);
-const PATH_HISTORY_ROLES = new Set(['hrmu', 'admin']);
+const PATH_HISTORY_ROLES = new Set(['hrmu', 'vp_admin_finance', 'admin']);
 const DEAN_PATH_HISTORY_ROLES = new Set(['assistant_dean', 'college_dean']);
 const DISCONNECTED_GAP_MINUTES = 15;
 

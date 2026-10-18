@@ -3,6 +3,7 @@ import mapboxgl from "mapbox-gl";
 import { API_BASE_URL, MAPBOX_PUBLIC_TOKEN } from "../../config";
 import { encryptSensitivePayload, withFreshAuthPayloadKeyRetry } from "../../services/authPayloadEncryption";
 import { useHrmuAnalytics } from "../../hooks/useHrmuAnalytics";
+import { getHrmuEmployeeLateCompliance, grantHrmuEmployeeLocatorSlipAccess } from "../../services/hrmuAnalyticsApi";
 import { useHrmuMonthlyReport } from "../../hooks/useHrmuMonthlyReport";
 import { useHrmuLiveTracking } from "../../hooks/useHrmuLiveTracking";
 import { useProofOfCompliance } from "../../hooks/useProofOfCompliance";
@@ -18,7 +19,7 @@ import ProofComplianceList from "../../components/hrmu/ProofComplianceList";
 import ProofComplianceDetails from "../../components/hrmu/ProofComplianceDetails";
 import { AdminBadgeIcon, AdminBellIcon, AdminEmailOutlineIcon, AdminProfileChevronIcon, AdminProfileIdIcon, AdminProfileLogoutIcon, AdminProfilePasswordIcon, AdminRoleIcon, AdminSaveCheckIcon, ApproveCheckIcon, ArrowRightIcon, AtSymbolIcon, BackArrowIcon, BadgeIcon, BatteryIcon, BellRingIcon, BriefcaseIcon, CameraIcon, CapIcon, CheckCircleAdminIcon, CheckCircleIcon, CheckCircleSolidIcon, ChevronDownIcon, ChevronRightIcon, ClipboardCheckIcon, ClipboardClockIcon, ClockIcon, CssuChartIcon, CssuIncidentsNavIcon, CssuMapNavIcon, CssuReportsNavIcon, CssuRoleIcon, CssuRosetteCheckIcon, CssuScanNavIcon, CssuTrendingUpIcon, CssuWarningCircleIcon, CssuWarningTriangleIcon, DashboardNavIcon, DeanNotificationDocIcon, DetailClockIcon, DetailClockReturnIcon, DetailDocIcon, DetailPinIcon, DetailRouteIcon, DocumentIcon, DummySignature, EditPencilIcon, EwanIcon, ExclamationCircleIcon, EyeIcon, EyeOffIcon, FacultyCheckCircleIcon, FacultyChevronRightIcon, FacultyCopyIcon, FacultyCrossCircleIcon, FacultyDocIcon, FacultyFilterIcon, FacultyIdBadgeIcon, FacultyNavIcon, FacultyRoleIcon, FacultyWaitCircleIcon, FileTextIcon, FilledClockIcon, FlashlightIcon, GlobeIcon, GlobeSmIcon, GraduationCapIcon, GridIcon, HeadsetIcon, HelpCircleIcon, HelpIcon, HomeNavIcon, HourglassIcon, HrmuAlertTinyIcon, HrmuChartIcon, HrmuCheckTinyIcon, HrmuExportIcon, HrmuEyeMiniIcon, HrmuFilterIcon, HrmuMapRouteIcon, HrmuMiniCheckIcon, HrmuPinMiniIcon, HrmuReportIcon, HrmuRoleIcon, HrmuSidebarGridIcon, HrmuSyncIcon, HrmuVerificationIcon, HrmuViewRouteIcon, HrmuWarningIcon, IdBadgeIcon, InboxArchiveIcon, InfoIcon, LinkIcon, LocationPinFilledIcon, LocationPinIcon, LockIcon, LockPrivIcon, LockSmallIcon, LoginDoorIcon, LogoutIcon, MailIcon, MapFoldIcon, MapIcon, ModalCloseIcon, NotifPendingIcon, NotifSlipIcon, NotificationIcon, PasswordIcon, PermissionsIcon, PersonOutlineIcon, PinIcon, PlayTriangleIcon, PolicyBulbIcon, PolicyCheckIcon, PrivacyIcon, ProfileEditIcon, ProfileNavIcon, ProgressReviewIcon, QuestionCircleIcon, RefreshClockIcon, RefreshIcon, RegistryDownloadIcon, RegistryModalCloseIcon, RegistryModalDoneIcon, RegistryModalIdIcon, RegistryModalVerifiedIcon, RegistryNavIcon, RejectXIcon, RemarksIcon, ReportPrintIcon, RequestsNavIcon, SaveIcon, ScanQRIcon, SendIcon, ShieldCheckIcon, ShieldCheckSmallIcon, ShieldSearchIcon, ShieldSolidIcon, SignalIcon, SignatureNavIcon, SlashedPersonIcon, SlipIcon, StatusGraphIcon, TogaLogoIcon, ToggleSwitch, TrashIcon, UploadIcon, UsersAdminIcon, WifiIcon, XCircleIcon } from "../../components/icons/AppIcons.jsx";
 import { TripPathHistoryModal } from "../../components/trips/TripPathHistoryModal.jsx";
-import { DEFAULT_PROFILE_IMAGE, triggerBlobDownload } from "../shared/appUtils.js";
+import { DEFAULT_PROFILE_IMAGE, formatSsuDisplayLabel, triggerBlobDownload } from "../shared/appUtils.js";
 export const OLONGAPO_CENTER = [120.2822, 14.8386];
 export const DEFAULT_HRMU_MAP_CENTER = {
   lat: 14.8386,
@@ -501,7 +502,7 @@ export const HrmuWorkspaceShell = ({
           </div>
           <div className="hrmu-manager-copy">
             <strong>{profileData?.fullName || 'HRMU Manager'}</strong>
-            <span>HRMU Administrator</span>
+            <span>{profileData?.accountRole === 'vp_admin_finance' ? 'VP - Admin and Finance' : 'HRMU Administrator'}</span>
           </div>
           <div className="admin-avatar" onClick={() => setView('admin-profile')}>
             <img src={profileData?.image || DEFAULT_PROFILE_IMAGE} alt="HRMU Manager" />
@@ -1964,6 +1965,19 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
   const [selectedEmployeeProofDetails, setSelectedEmployeeProofDetails] = useState(null);
   const [employeeProofLoading, setEmployeeProofLoading] = useState(false);
   const [employeeProofMessage, setEmployeeProofMessage] = useState('');
+  const [employeeLateCompliance, setEmployeeLateCompliance] = useState(null);
+  const [lateSummaryOpen, setLateSummaryOpen] = useState(false);
+  const [lateGrantLoading, setLateGrantLoading] = useState(false);
+  const [lateGrantMessage, setLateGrantMessage] = useState('');
+  const [selectedAnalyticsPanel, setSelectedAnalyticsPanel] = useState('activity');
+  const analyticsPanelOptions = [
+    { value: 'activity', label: 'Activity (Recorded trip activity)' },
+    { value: 'destinations', label: 'Destinations (Most visited)' },
+    { value: 'duration', label: 'Actual trip duration' },
+    { value: 'purpose', label: 'Purpose / agenda' },
+    { value: 'returns', label: 'Return scans' },
+    { value: 'monthly', label: 'Monthly trend' }
+  ];
   const formatEmployeeFilterDate = value => {
     if (!value) return 'mm/dd/yyyy';
     const date = new Date(`${value}T00:00:00`);
@@ -2002,6 +2016,54 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     });
     return () => { active = false; };
   }, [selectedEmployee?.id]);
+  useEffect(() => {
+    let active = true;
+    if (!selectedEmployee?.id) {
+      setEmployeeLateCompliance(null);
+      return () => { active = false; };
+    }
+    getHrmuEmployeeLateCompliance(selectedEmployee.id).then(summary => {
+      if (active) setEmployeeLateCompliance(summary);
+    }).catch(error => {
+      if (active) setLateGrantMessage(error.message || 'Late compliance summary is unavailable.');
+    });
+    return () => { active = false; };
+  }, [selectedEmployee?.id]);
+  const grantLateFilingAccess = async () => {
+    if (!selectedEmployee?.id) return;
+    setLateGrantLoading(true);
+    setLateGrantMessage('');
+    try {
+      const grant = await grantHrmuEmployeeLocatorSlipAccess(selectedEmployee.id, 'Face-to-face HRMU compliance completed.');
+      const grantedState = {
+        activeGrant: grant || { id: `local-${Date.now()}`, uses_remaining: 1 },
+        resetAt: grant?.created_at || new Date().toISOString(),
+        totalLateMinutes: 0,
+        thresholdReached: false,
+        restricted: false
+      };
+      setEmployeeLateCompliance(previous => ({ ...(previous || {}), ...grantedState }));
+      try {
+        const refreshedSummary = await getHrmuEmployeeLateCompliance(selectedEmployee.id);
+        setEmployeeLateCompliance(previous => ({
+          ...(refreshedSummary || {}),
+          ...grantedState,
+          lateTrips: refreshedSummary?.lateTrips || previous?.lateTrips || []
+        }));
+      } catch {
+        // Keep the successful grant state locally even if the follow-up refresh is unavailable.
+      }
+      setLateSummaryOpen(false);
+      setLateGrantMessage('Access granted. The employee can file locator slips while below the 8-hour threshold.');
+    } catch (error) {
+      const errorMessage = String(error?.message || '').trim();
+      setLateGrantMessage(errorMessage.toLowerCase() === 'route not found'
+        ? 'Grant access service is unavailable. Please redeploy the HRMU backend.'
+        : errorMessage || 'Unable to grant locator slip access.');
+    } finally {
+      setLateGrantLoading(false);
+    }
+  };
   const smart = analytics?.smartAnalytics || {};
   const summary = smart.summary || {};
   const approval = analytics?.approvalRate || {};
@@ -2176,6 +2238,34 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     if (typeof input.showPicker === 'function') input.showPicker();
     else { input.focus(); input.click(); }
   };
+  const scheduleLateTrips = tripRecords.map(record => {
+    const minutesLate = getSignedMinuteDifference(record.expectedReturnTime, record.actualReturnTime);
+    if (minutesLate === null || minutesLate <= 0 || !record.actualReturnTime) return null;
+    return { ...record, minutesLate };
+  }).filter(Boolean);
+  const scheduleTotalLateMinutes = scheduleLateTrips.reduce((total, record) => total + record.minutesLate, 0);
+  const hasActiveLateGrant = Boolean(employeeLateCompliance?.activeGrant);
+  const hasComplianceReset = Boolean(employeeLateCompliance?.resetAt);
+  const backendCycleLateMinutes = Number(employeeLateCompliance?.totalLateMinutes || 0);
+  const currentCycleLateMinutes = hasComplianceReset ? backendCycleLateMinutes : scheduleTotalLateMinutes;
+  const displayedLateMinutes = hasActiveLateGrant ? 0 : currentCycleLateMinutes;
+  const lateComplianceThreshold = Number(employeeLateCompliance?.thresholdMinutes || 480);
+  const lateComplianceForDisplay = {
+    ...(employeeLateCompliance || {}),
+    thresholdMinutes: lateComplianceThreshold,
+    totalLateMinutes: displayedLateMinutes,
+    lateTrips: scheduleLateTrips,
+    thresholdReached: displayedLateMinutes >= lateComplianceThreshold,
+    restricted: displayedLateMinutes >= lateComplianceThreshold && !employeeLateCompliance?.activeGrant,
+    activeGrant: employeeLateCompliance?.activeGrant || null
+  };
+  const lateSummaryRows = (lateComplianceForDisplay?.lateTrips || []).reduce((rows, item) => {
+    const previousTotal = rows.length ? rows[rows.length - 1].totalLateMinutes : 0;
+    const minutesLate = Number(item.minutesLate || 0);
+    rows.push({ ...item, minutesLate, totalLateMinutes: previousTotal + minutesLate });
+    return rows;
+  }, []);
+  const displayLateGrantMessage = lateGrantMessage?.trim().toLowerCase() === 'route not found' ? '' : lateGrantMessage;
   return <HrmuWorkspaceShell activeKey="employee-analytics" setView={setView} profileData={profileData} onLogout={onLogout}>
     <div ref={analyticsExportRef} className="hrmu-employee-analytics-page">
       <section className="hrmu-employee-analytics-header">
@@ -2190,15 +2280,39 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
       </section>
       {!selectedEmployee ? <section className="hrmu-employee-analytics-empty"><div><h2>Select an employee</h2><p>Choose an employee above to view their recorded movement, approval, return, and compliance history.</p></div></section> : <>
         <section className="hrmu-employee-profile-card"><div className="hrmu-employee-profile-avatar">{selectedEmployee.name?.split(' ').map(part => part[0]).slice(0, 2).join('')}</div><div><span>EMPLOYEE PROFILE</span><h2>{selectedEmployee.name}</h2><p>{selectedEmployee.collegeName || 'Department unavailable'}</p></div><strong>{formatDate(analytics?.dateRange?.startDate)} – {formatDate(analytics?.dateRange?.endDate)}</strong></section>
+        {lateSummaryOpen && <div className="permission-modal-backdrop hrmu-late-summary-backdrop" role="dialog" aria-modal="true"><div className="permission-modal-card hrmu-late-summary-modal"><button type="button" className="locator-purpose-modal-close" onClick={() => setLateSummaryOpen(false)} aria-label="Close late summary">×</button><span className="permission-modal-kicker">LATE RETURN SUMMARY</span><h3 className="permission-modal-title">{selectedEmployee.name}</h3><p className="hrmu-late-summary-department">{selectedEmployee.collegeName || 'Department unavailable'}</p><p className="permission-modal-copy">Total accumulated late: <strong>{formatDuration(lateComplianceForDisplay?.totalLateMinutes || 0)}</strong></p><div className="hrmu-late-summary-list">{lateComplianceForDisplay?.lateTrips?.length ? lateComplianceForDisplay.lateTrips.map(item => <div key={item.tripId}><strong>{new Date(item.actualReturnTime).toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' })}</strong><span>{formatDuration(Number(item.minutesLate || 0))} late</span></div>) : <p>No late completed returns recorded this month.</p>}</div>{displayLateGrantMessage && <p className="hrmu-late-grant-message">{displayLateGrantMessage}</p>}{lateComplianceForDisplay?.restricted && <button type="button" className="sig-setting-primary" onClick={grantLateFilingAccess} disabled={lateGrantLoading}>{lateGrantLoading ? 'GRANTING...' : 'Grant Locator Slip Access'}</button>}</div></div>}
         <section className="hrmu-employee-metric-grid"><article><span>Filed slips</span><strong>{summary.totalFiled || 0}</strong><small>{summary.approvedCount || 0} approved</small></article><article><span>Approval rate</span><strong>{Number(approval.percentage || 0).toFixed(1)}%</strong><small>{approval.approvedCount || 0} approved of {approval.totalFiledCount || 0} filed</small></article><article><span>Completed trips</span><strong>{completedTrips}</strong><small>{complianceRate.toFixed(1)}% completion rate</small></article><article><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong><small>{summary.lateReturnCount || 0} late completed return{summary.lateReturnCount === 1 ? '' : 's'}</small></article><article className="alert"><span>Exceptions</span><strong>{Number(summary.lateReturns || 0) + Number(summary.missingProof || 0)}</strong><small>{summary.lateReturns || 0} late • {summary.missingProof || 0} missing proof</small></article><article className="alert"><span>Average late delay</span><strong>{formatDuration(Number(summary.averageReturnDelayMinutes || 0))}</strong><small>Across late completed returns</small></article></section>
         <section className="hrmu-employee-panel hrmu-employee-summary-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP SUMMARY</span><h2>Locator slip outcomes</h2></div><small>Selected period</small></div><div className="hrmu-employee-summary-list"><div><span>Total locator slips</span><strong>{summary.totalFiled || 0}</strong></div><div><span>Approved trips</span><strong>{summary.approvedCount || 0}</strong></div><div><span>Rejected trips</span><strong>{summary.rejectedCount || 0}</strong></div><div><span>Completed trips</span><strong>{completedTrips}</strong></div><div><span>Cancelled trips</span><strong>{summary.cancelledCount || 0}</strong></div></div></section>
         <section className="hrmu-employee-panel hrmu-employee-timing-panel"><div className="hrmu-employee-panel-head"><div><span>TRIP TIMING</span><h2>Request and movement timing</h2></div><small>Recorded timestamps</small></div><div className="hrmu-employee-stat-list"><div><span>Average filing to exit</span><strong>{averageFilingToExit === null ? '--' : formatDuration(averageFilingToExit)}</strong></div><div><span>Peak exit window</span><strong>{peakExitWindow}</strong></div><div><span>Peak return window</span><strong>{peakReturnWindow}</strong></div></div></section>
         <section className="hrmu-employee-panel hrmu-employee-schedule-panel"><div className="hrmu-employee-panel-head"><div><span>SCHEDULE ADHERENCE</span><h2>Filed and expected times vs actual scans</h2></div><small>Compared per locator slip</small></div><div className="hrmu-employee-schedule-grid"><div><strong>Exit timing</strong><span>Early and late exits</span><b>{earlyExitCount} early</b><small>{lateExitCount} late</small></div><div><strong>Return timing</strong><span>Early and late returns</span><b>{earlyReturnCount} early</b><small>{lateReturnCount} late</small></div></div><div className="hrmu-employee-schedule-ledger"><div className="hrmu-employee-schedule-row header"><span>Locator slip</span><span>Filed departure</span><span>Actual exit</span><span>Exit variance</span><span>Expected return</span><span>Actual return</span><span>Return variance</span></div>{tripRecords.map(record => { const exitVariance = getSignedMinuteDifference(record.scheduledDepartureAt, record.startedAt); const returnVariance = getSignedMinuteDifference(record.expectedReturnTime, record.actualReturnTime); return <div key={`schedule-${record.tripId || record.locatorSlipId}`} className="hrmu-employee-schedule-row"><span><strong>{record.locatorSlipId ? `LS-${String(record.locatorSlipId).replace(/-/g, '').slice(0, 8).toUpperCase()}` : 'Locator slip'}</strong><small>{record.destination || 'Destination unavailable'}</small></span><span>{formatDateTime(record.scheduledDepartureAt)}</span><span>{formatDateTime(record.startedAt)}</span><b className={exitVariance > 0 ? 'late' : ''}>{formatScheduleVariance(exitVariance)}</b><span>{formatDateTime(record.expectedReturnTime)}</span><span>{formatDateTime(record.actualReturnTime)}</span><b className={returnVariance > 0 ? 'late' : ''}>{formatScheduleVariance(returnVariance)}</b></div>; })}</div></section>
-        <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>ACTIVITY</span><h2>Recorded trip activity</h2></div><small>{analytics?.dateRange?.label || 'Selected period'}</small></div>{dailyItems.length ? <div className="hrmu-employee-activity-list">{dailyItems.map(item => <div key={item.date}><strong>{formatDate(item.date)}</strong><span>{item.locatorSlipCount} locator slip{item.locatorSlipCount === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No recorded activity for this period.</p>}</article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>DESTINATIONS</span><h2>Most visited</h2></div></div>{destinations.length ? <div className="hrmu-employee-destination-list">{destinations.map(row => <div key={`${row.rank}-${row.label}`}><strong>{row.label}</strong><span>{row.count} trip{row.count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No destinations recorded.</p>}</article></section>
-        <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>ACTUAL TRIP DURATION</span><h2>Time outside campus</h2></div><small>Exit to return scans</small></div><div className="hrmu-employee-stat-list"><div><span>Average duration</span><strong>{durationValues.length ? formatDuration(Math.round(durationTotalMinutes / durationValues.length)) : '--'}</strong></div><div><span>Shortest trip</span><strong>{durationValues.length ? formatDuration(Math.min(...durationValues)) : '--'}</strong></div><div><span>Longest trip</span><strong>{durationValues.length ? formatDuration(Math.max(...durationValues)) : '--'}</strong></div><div><span>Total time outside</span><strong>{durationValues.length ? formatDuration(durationTotalMinutes) : '--'}</strong></div></div></article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>PURPOSE / AGENDA</span><h2>Common trip reasons</h2></div><small>{purposeRows.length ? `${purposeRows[0][0]} most common` : 'No purpose data'}</small></div>{purposeRows.length ? <div className="hrmu-employee-destination-list">{purposeRows.map(([purpose, count]) => <div key={purpose}><strong>{purpose}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No purpose records available.</p>}</article></section>
-        <section className="hrmu-employee-analytics-columns"><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>RETURN SCANS</span><h2>Return scan completion</h2></div><small>Historical records only</small></div><div className="hrmu-employee-stat-list"><div><span>Trips with return scan</span><strong>{returnScanCount} / {tripRecords.length}</strong></div><div><span>Trips without return scan</span><strong>{missingReturnScanCount}</strong></div><div><span>Late returns</span><strong>{summary.lateReturnCount || 0}</strong></div><div><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong></div></div></article><article className="hrmu-employee-panel"><div className="hrmu-employee-panel-head"><div><span>MONTHLY TREND</span><h2>Trips filed by month</h2></div><small>Selected period</small></div>{monthlyRows.length ? <div className="hrmu-employee-destination-list">{monthlyRows.map(([month, count]) => <div key={month}><strong>{month}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No monthly trend data available.</p>}</article></section>
+        <section className="hrmu-employee-insights-container" data-selected-panel={selectedAnalyticsPanel}>
+          <div className="hrmu-employee-insights-header"><div><span>INDIVIDUAL TRIP INSIGHTS</span><h2>Trip Analytics Details</h2><p>Explore specific metrics, durations, destinations, and trends.</p></div><label><span>SELECT ANALYTICS PANEL</span><select value={selectedAnalyticsPanel} onChange={event => setSelectedAnalyticsPanel(event.target.value)} aria-label="Select analytics panel">{analyticsPanelOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label></div>
+          <div className="hrmu-employee-insights-scroll">
+            <section className="hrmu-employee-analytics-columns hrmu-employee-analytics-insights-row"><article className="hrmu-employee-panel hrmu-employee-insight-panel activity"><div className="hrmu-employee-panel-head"><div><span>ACTIVITY</span><h2>Recorded trip activity</h2></div><small>{analytics?.dateRange?.label || 'Selected period'}</small></div>{dailyItems.length ? <div className="hrmu-employee-activity-list">{dailyItems.map(item => <div key={item.date}><strong>{formatDate(item.date)}</strong><span>{item.locatorSlipCount} locator slip{item.locatorSlipCount === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No recorded activity for this period.</p>}</article><article className="hrmu-employee-panel hrmu-employee-insight-panel destinations"><div className="hrmu-employee-panel-head"><div><span>DESTINATIONS</span><h2>Most visited</h2></div></div>{destinations.length ? <div className="hrmu-employee-destination-list">{destinations.map(row => <div key={`${row.rank}-${row.label}`}><strong>{row.label}</strong><span>{row.count} trip{row.count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No destinations recorded.</p>}</article></section>
+            <section className="hrmu-employee-analytics-columns hrmu-employee-analytics-insights-row"><article className="hrmu-employee-panel hrmu-employee-insight-panel duration"><div className="hrmu-employee-panel-head"><div><span>ACTUAL TRIP DURATION</span><h2>Time outside campus</h2></div><small>Exit to return scans</small></div><div className="hrmu-employee-stat-list"><div><span>Average duration</span><strong>{durationValues.length ? formatDuration(Math.round(durationTotalMinutes / durationValues.length)) : '--'}</strong></div><div><span>Shortest trip</span><strong>{durationValues.length ? formatDuration(Math.min(...durationValues)) : '--'}</strong></div><div><span>Longest trip</span><strong>{durationValues.length ? formatDuration(Math.max(...durationValues)) : '--'}</strong></div><div><span>Total time outside</span><strong>{durationValues.length ? formatDuration(durationTotalMinutes) : '--'}</strong></div></div></article><article className="hrmu-employee-panel hrmu-employee-insight-panel purpose"><div className="hrmu-employee-panel-head"><div><span>PURPOSE / AGENDA</span><h2>Common trip reasons</h2></div><small>{purposeRows.length ? `${purposeRows[0][0]} most common` : 'No purpose data'}</small></div>{purposeRows.length ? <div className="hrmu-employee-destination-list">{purposeRows.map(([purpose, count]) => <div key={purpose}><strong>{purpose}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No purpose records available.</p>}</article></section>
+            <section className="hrmu-employee-analytics-columns hrmu-employee-analytics-insights-row"><article className="hrmu-employee-panel hrmu-employee-insight-panel returns"><div className="hrmu-employee-panel-head"><div><span>RETURN SCANS</span><h2>Return scan completion</h2></div><small>Historical records only</small></div><div className="hrmu-employee-stat-list"><div><span>Trips with return scan</span><strong>{returnScanCount} / {tripRecords.length}</strong></div><div><span>Trips without return scan</span><strong>{missingReturnScanCount}</strong></div><div><span>Late returns</span><strong>{summary.lateReturnCount || 0}</strong></div><div><span>On-time returns</span><strong>{summary.onTimeReturnCount || 0}</strong></div></div></article><article className="hrmu-employee-panel hrmu-employee-insight-panel monthly"><div className="hrmu-employee-panel-head"><div><span>MONTHLY TREND</span><h2>Trips filed by month</h2></div><small>Selected period</small></div>{monthlyRows.length ? <div className="hrmu-employee-destination-list">{monthlyRows.map(([month, count]) => <div key={month}><strong>{month}</strong><span>{count} trip{count === 1 ? '' : 's'}</span></div>)}</div> : <p className="hrmu-employee-muted">No monthly trend data available.</p>}</article></section>
+          </div>
+        </section>
         <section className="hrmu-employee-panel hrmu-employee-ledger-panel"><div className="hrmu-employee-panel-head"><div><span>ATTENDANCE / MOVEMENT LOG</span><h2>Recorded exit and return scans</h2></div><small>{tripRecords.length} recorded slip{tripRecords.length === 1 ? '' : 's'}</small></div>{tripRecords.length ? <div className="hrmu-employee-ledger"><div className="hrmu-employee-ledger-row header"><span>Locator slip filed</span><span>Destination</span><span>Exit scan</span><span>Return scan</span><span>Actual duration</span><span>Status</span><span>Verification</span></div>{tripRecords.map(record => { const recordStatus = String(record.status || record.tripStatus || '').toLowerCase(); const rejected = ['rejected', 'denied'].includes(recordStatus); const late = Boolean(record.lateReturn) || (record.actualReturnTime && record.expectedReturnTime && new Date(record.actualReturnTime) > new Date(record.expectedReturnTime)); const duration = getActualDurationMinutes(record); const hasProof = Boolean(verificationBySlip.get(String(record.locatorSlipId))?.id); return <div key={record.tripId || record.locatorSlipId} className="hrmu-employee-ledger-row"><span><strong>{formatDateTime(record.locatorSlipFiledAt)}</strong><small>{record.locatorSlipId ? `LS-${String(record.locatorSlipId).replace(/-/g, '').slice(0, 8).toUpperCase()}` : 'Locator slip'}</small></span><span>{record.destination || '--'}</span><span>{formatDateTime(record.startedAt)}</span><span>{formatDateTime(record.actualReturnTime)}</span><span>{formatDuration(duration)}</span><b className={rejected || late ? 'late' : 'on-time'}>{rejected ? 'Rejected' : late ? 'Late return' : record.actualReturnTime ? 'Completed' : 'No return scan'}</b><button type="button" className="hrmu-employee-verification-button" onClick={() => openEmployeeVerification(record)} disabled={!hasProof}>{hasProof ? 'View proof' : 'No proof'}</button></div>; })}</div> : <p className="hrmu-employee-muted">No locator slip records are available for this period.</p>}{employeeProofMessage && <p className="hrmu-employee-verification-message">{employeeProofMessage}</p>}</section>
-        <section className="hrmu-employee-panel hrmu-employee-exceptions-panel"><div className="hrmu-employee-panel-head"><div><span>COMPLIANCE</span><h2>Recorded exceptions</h2></div><small>Historical records only</small></div>{incidents.length ? <div className="hrmu-employee-incident-list">{incidents.map((incident, index) => <div key={`${incident.type}-${incident.tripId || index}`}><b>{incident.type}</b><span>{incident.destination || 'Destination unavailable'}</span></div>)}</div> : <p className="hrmu-employee-muted">No exceptions recorded for this employee in the selected period.</p>}</section>
+        <section className={`hrmu-employee-panel hrmu-employee-late-summary-panel ${lateComplianceForDisplay?.restricted ? 'is-restricted' : ''}`}>
+          <div className="hrmu-employee-panel-head">
+            <div><span>COMPLIANCE</span><h2>Review late summary and Grant Access</h2></div>
+          </div>
+          {lateSummaryRows.length ? <div className="hrmu-employee-late-summary-table">
+            <div className="hrmu-employee-late-summary-row header"><span>Date of locator slip</span><span>Late time</span><span>Total late</span><span>Status</span></div>
+            {lateSummaryRows.map(item => <div className="hrmu-employee-late-summary-row" key={item.tripId || item.locatorSlipId}>
+              <span>{formatDateTime(item.locatorSlipFiledAt)}</span>
+              <strong>{formatDuration(item.minutesLate)}</strong>
+              <strong>{formatDuration(item.totalLateMinutes)}</strong>
+              <strong className={lateComplianceForDisplay.resetAt && item.actualReturnTime && new Date(item.actualReturnTime) <= new Date(lateComplianceForDisplay.resetAt) ? 'is-complied' : 'is-pending'}>{lateComplianceForDisplay.resetAt && item.actualReturnTime && new Date(item.actualReturnTime) <= new Date(lateComplianceForDisplay.resetAt) ? 'Complied' : 'Pending'}</strong>
+            </div>)}
+          </div> : <p className="hrmu-employee-muted">No late locator slips recorded.</p>}
+          {displayLateGrantMessage && <p className="hrmu-late-grant-message" role="status">{displayLateGrantMessage}</p>}
+          <div className="hrmu-employee-late-summary-footer">
+            <div><span>Total late</span><strong>{formatDuration(Number(lateComplianceForDisplay?.totalLateMinutes || 0))}</strong><small>Threshold: {formatDuration(Number(lateComplianceForDisplay?.thresholdMinutes || 480))}</small></div>
+            <button type="button" className={`hrmu-late-grant-button ${lateComplianceForDisplay?.thresholdReached && !lateComplianceForDisplay?.activeGrant ? 'is-available' : ''}`} onClick={() => setLateSummaryOpen(true)} disabled={!lateComplianceForDisplay?.thresholdReached || Boolean(lateComplianceForDisplay?.activeGrant) || lateGrantLoading}>Grant Access</button>
+          </div>
+        </section>
       </>}
       {selectedEmployeeProof && <ProofComplianceDetails row={selectedEmployeeProof} details={selectedEmployeeProofDetails} reviewMessage={employeeProofLoading ? 'Loading verification details…' : employeeProofMessage} reviewLocked closeLabel="Close details" onClose={closeEmployeeVerification} />}
     </div>
@@ -2789,7 +2903,7 @@ export const HrmuReportInboxView = ({
         <div className="hrmu-inbox-copy">
           <span className="hrmu-alerts-kicker">HRMU REPORT HUB</span>
           <h1>Inbox</h1>
-          <p>Received ISSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
+          <p>Received SSU report attachments appear here. Open a report to preview it in-app or download the same PDF.</p>
         </div>
         <div className="hrmu-inbox-hero-badges">
           <span className="hrmu-inbox-pill neutral">{items.length} Total Reports</span>
@@ -2802,13 +2916,13 @@ export const HrmuReportInboxView = ({
           <div className="hrmu-inbox-feed-head">
             <div>
               <h2>Received Attachments</h2>
-              <p>Most recent ISSU submissions are shown first.</p>
+              <p>Most recent SSU submissions are shown first.</p>
             </div>
           </div>
 
           {loading ? <div className="hrmu-alert-feed-empty">Loading report inbox...</div> : null}
           {!loading && error ? <div className="hrmu-alert-feed-empty">{error}</div> : null}
-          {!loading && !error && items.length === 0 ? <div className="hrmu-alert-feed-empty">No ISSU reports have been sent to the HRMU inbox yet.</div> : null}
+          {!loading && !error && items.length === 0 ? <div className="hrmu-alert-feed-empty">No SSU reports have been sent to the HRMU inbox yet.</div> : null}
 
           {!loading && !error && items.length > 0 ? <div className="hrmu-alert-feed-list">
             {items.map(item => <article key={item.id} className={`hrmu-alert-feed-card verified hrmu-inbox-card ${item.isRead ? 'read' : 'unread'}`}>
@@ -2822,10 +2936,10 @@ export const HrmuReportInboxView = ({
                     <span className="hrmu-alert-critical-pill verified">{item.isRead ? 'RECEIVED' : 'NEW REPORT'}</span>
                     <span className="hrmu-alert-feed-time">{formatInboxDateTime(item.createdAt)}</span>
                   </div>
-                  <h2>{item.title || 'ISSU Report Attachment'}</h2>
-                  <p>{item.subtitle || 'ISSU sent a movement report PDF to the HRMU inbox.'}</p>
+                  <h2>{formatSsuDisplayLabel(item.title || 'SSU Report Attachment')}</h2>
+                  <p>{item.subtitle || 'SSU sent a movement report PDF to the HRMU inbox.'}</p>
                   <div className="hrmu-inbox-meta-row">
-                    <span><strong>From:</strong> {item.senderName || 'ISSU Administrator'}</span>
+                    <span><strong>From:</strong> {formatSsuDisplayLabel(item.senderName || 'SSU Administrator')}</span>
                     <span><strong>Attachment:</strong> {item.filename}</span>
                   </div>
                   <div className="hrmu-alert-feed-actions">
@@ -2851,7 +2965,7 @@ export const HrmuReportInboxView = ({
 
           <article className="hrmu-inbox-summary-card">
             <span className="hrmu-inbox-summary-kicker">Latest Sender</span>
-            <h3>{latestItem?.senderName || 'Awaiting ISSU reports'}</h3>
+            <h3>{formatSsuDisplayLabel(latestItem?.senderName || 'Awaiting SSU reports')}</h3>
             <p>{latestItem ? formatInboxDateTime(latestItem.createdAt) : 'No report has been delivered yet.'}</p>
           </article>
 
@@ -3090,7 +3204,7 @@ export const HrmuNotificationsRealtimeView = ({
                       </span>
                       <span className="hrmu-alert-feed-time">{alert.time}</span>
                     </div>
-                    <h2>{alert.title}</h2>
+                    <h2>{formatSsuDisplayLabel(alert.title)}</h2>
                     <p>{alert.body}</p>
                     <div className="hrmu-alert-feed-actions">
                       <button type="button" className={`hrmu-alert-primary-btn ${tone}`} onClick={() => handleAlertAction(alert, alert.actionLabelPrimary || (primaryTarget === 'hrmu-verification' ? 'Review Verification' : 'Open Dashboard'))}>

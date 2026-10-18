@@ -1927,6 +1927,39 @@
 
 /* HRMU ANALYTICS & REPORTS */
 
+.hrmu-late-compliance-panel { display:flex; align-items:center; justify-content:space-between; gap:18px; margin:18px 0; padding:20px 22px; border:1px solid #E7EFE7; border-radius:20px; background:#fff; }
+.hrmu-late-compliance-panel.is-restricted { border-color:#F5C26B; background:#FFF9ED; }
+.hrmu-late-compliance-panel span { color:var(--green); font-size:11px; font-weight:900; letter-spacing:1.2px; }
+.hrmu-late-compliance-panel h2 { margin:6px 0 4px; font-size:22px; }
+.hrmu-late-compliance-panel p { margin:0; color:#66736A; }
+.hrmu-late-compliance-panel>small { color:var(--green); font-weight:800; }
+.hrmu-late-summary-modal { width:min(560px, calc(100vw - 32px)); max-height:min(720px, calc(100vh - 32px)); overflow:auto; }
+.hrmu-late-summary-department { margin:-12px 0 12px; color:#66736A; font-size:14px; font-weight:700; }
+.hrmu-late-summary-backdrop { position:fixed !important; inset:0 !important; z-index:3000; display:flex !important; align-items:center !important; justify-content:center !important; padding:16px !important; }
+.hrmu-late-summary-list { display:grid; gap:8px; max-height:320px; overflow:auto; margin:16px 0; }
+.hrmu-late-summary-list div { display:flex; justify-content:space-between; gap:12px; padding:12px 14px; border-radius:12px; background:#F5F8F2; }
+.hrmu-late-summary-list span { color:#66736A; text-align:right; }
+.hrmu-employee-late-summary-panel { margin-top:18px; }
+.hrmu-employee-late-summary-panel.is-restricted { border-color:#F5C26B; background:#FFF9ED; }
+.hrmu-employee-late-summary-copy { margin:0 0 16px; color:#66736A; }
+.hrmu-employee-late-summary-table { overflow-x:auto; border:1px solid #E7EFE7; border-radius:14px; }
+.hrmu-employee-late-summary-row { display:grid; grid-template-columns:1.25fr 1fr 1fr .8fr; align-items:center; gap:16px; min-width:700px; padding:12px 16px; border-top:1px solid #E7EFE7; color:#53615A; }
+.hrmu-employee-late-summary-row:first-child { border-top:0; }
+.hrmu-employee-late-summary-row.header { color:#66736A; background:#F5F8F2; font-size:11px; font-weight:900; letter-spacing:.8px; text-transform:uppercase; }
+.hrmu-employee-late-summary-row strong { color:#B45309; }
+.hrmu-employee-late-summary-row strong.is-complied { color:var(--green); }
+.hrmu-employee-late-summary-row strong.is-pending { color:#B45309; }
+.hrmu-employee-late-summary-footer { display:flex; align-items:center; justify-content:space-between; gap:18px; margin-top:18px; }
+.hrmu-employee-late-summary-footer>div { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 12px; }
+.hrmu-employee-late-summary-footer span { color:#66736A; font-weight:800; }
+.hrmu-employee-late-summary-footer strong { color:#B45309; font-size:22px; }
+.hrmu-employee-late-summary-footer small { color:#66736A; }
+.hrmu-late-grant-button { min-width:128px; padding:11px 18px; border:1px solid #DCE7DE; border-radius:10px; background:#fff; color:#6B756E; font:inherit; font-weight:800; cursor:not-allowed; }
+.hrmu-late-grant-button.is-available { border-color:var(--green); background:var(--green); color:#fff; cursor:pointer; }
+.hrmu-late-grant-message { display:block; margin-top:10px; color:var(--green); font-weight:800; }
+@media (max-width:700px) { .hrmu-late-compliance-panel { align-items:stretch; flex-direction:column; } .hrmu-late-summary-list div { flex-direction:column; } .hrmu-late-summary-list span { text-align:left; } }
+@media (max-width:700px) { .hrmu-employee-late-summary-footer { align-items:stretch; flex-direction:column; } .hrmu-employee-late-summary-footer button { width:100%; } }
+
 .hrmu-analytics-export-surface {
   display: flex;
   flex-direction: column;
@@ -8699,7 +8732,62 @@
 .hrmu-employee-metric-grid strong { display: block; margin: 10px 0 5px; color: var(--green); font-size: 32px; }
 .hrmu-employee-metric-grid .alert strong { color: #c81e1e; }
 
+.hrmu-employee-insights-container {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #dce9de;
+  border-radius: 22px;
+  background: #fff;
+}
+.hrmu-employee-insights-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 28px;
+  border-bottom: 1px solid #e5eee6;
+}
+.hrmu-employee-insights-header > div { min-width: 0; }
+.hrmu-employee-insights-header > div > span,
+.hrmu-employee-insights-header label > span {
+  display: block;
+  color: var(--green);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.6px;
+}
+.hrmu-employee-insights-header h2 { margin: 5px 0 0; color: #21352a; font-size: 23px; line-height: 1.25; }
+.hrmu-employee-insights-header p { margin: 4px 0 0; color: #748279; font-size: 13px; }
+.hrmu-employee-insights-header label { display: grid; flex: 0 1 420px; gap: 8px; min-width: 280px; }
+.hrmu-employee-insights-header select {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid #d7e5d9;
+  border-radius: 14px;
+  padding: 0 44px 0 16px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: #f7faf7 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2324352a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 14px center / 18px 18px;
+  color: #24352a;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.hrmu-employee-insights-header select:focus { outline: none; border-color: var(--green); box-shadow: 0 0 0 3px rgba(11, 150, 23, .12); }
+.hrmu-employee-insights-scroll { max-height: 520px; overflow: auto; padding: 24px; }
+.hrmu-employee-analytics-insights-row { grid-template-columns: 1fr; margin: 0 0 20px; }
+.hrmu-employee-analytics-insights-row:last-child { margin-bottom: 0; }
+.hrmu-employee-insight-panel { min-width: 0; }
+.hrmu-employee-insights-container[data-selected-panel="activity"] .hrmu-employee-insight-panel:not(.activity),
+.hrmu-employee-insights-container[data-selected-panel="destinations"] .hrmu-employee-insight-panel:not(.destinations),
+.hrmu-employee-insights-container[data-selected-panel="duration"] .hrmu-employee-insight-panel:not(.duration),
+.hrmu-employee-insights-container[data-selected-panel="purpose"] .hrmu-employee-insight-panel:not(.purpose),
+.hrmu-employee-insights-container[data-selected-panel="returns"] .hrmu-employee-insight-panel:not(.returns),
+.hrmu-employee-insights-container[data-selected-panel="monthly"] .hrmu-employee-insight-panel:not(.monthly) { display: none; }
+
 .hrmu-employee-analytics-columns { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: 20px; min-width: 0; }
+.hrmu-employee-insights-container .hrmu-employee-analytics-insights-row { grid-template-columns: minmax(0, 1fr); }
 .hrmu-employee-panel { min-width: 0; padding: 22px; border: 1px solid #dce9de; border-radius: 20px; background: #fff; }
 .hrmu-employee-panel-head { margin-bottom: 18px; }
 .hrmu-employee-panel-head h2 { margin: 5px 0 0; color: #21352a; font-size: 23px; }
@@ -8765,6 +8853,10 @@
 @media (max-width: 600px) {
   .hrmu-employee-analytics-header, .hrmu-employee-profile-card { align-items: flex-start; flex-direction: column; }
   .hrmu-employee-analytics-header h1 { font-size: 30px; }
+  .hrmu-employee-insights-header { align-items: stretch; flex-direction: column; padding: 22px; }
+  .hrmu-employee-insights-header h2 { font-size: 23px; }
+  .hrmu-employee-insights-header label { flex-basis: auto; min-width: 0; }
+  .hrmu-employee-insights-scroll { max-height: 460px; padding: 16px; }
   .hrmu-employee-analytics-controls, .hrmu-employee-metric-grid, .hrmu-employee-summary-list, .hrmu-employee-stat-list, .hrmu-employee-timing-panel .hrmu-employee-stat-list, .hrmu-employee-schedule-grid { grid-template-columns: 1fr; }
   .hrmu-employee-profile-card > strong { white-space: normal; }
 }

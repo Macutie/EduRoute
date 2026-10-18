@@ -5,7 +5,7 @@ const AppError = require('../utils/appError');
 const { validatePasswordPolicy } = require('../utils/passwordPolicy');
 
 const ADMIN_EMAIL = 'admin.eduroute.system@gmail.com';
-const ADMIN_ROLES = new Set(['faculty', 'hrmu', 'cssu', 'college_dean', 'admin']);
+const ADMIN_ROLES = new Set(['faculty', 'hrmu', 'vp_admin_finance', 'cssu', 'college_dean', 'admin']);
 
 const normalizeEmail = value => String(value || '').trim().toLowerCase();
 const isAllowedEmail = email => email === ADMIN_EMAIL || email.endsWith('@gordoncollege.edu.ph');

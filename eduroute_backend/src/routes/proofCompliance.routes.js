@@ -31,21 +31,21 @@ router.get(
 router.get(
     '/hrmu/proof-of-compliance',
     protect,
-    requireRole('hrmu', 'admin'),
+    requireRole('hrmu', 'vp_admin_finance', 'admin'),
     proofComplianceController.getHrmuProofList
 );
 
 router.get(
     '/hrmu/proof-of-compliance/:id',
     protect,
-    requireRole('hrmu', 'admin'),
+    requireRole('hrmu', 'vp_admin_finance', 'admin'),
     proofComplianceController.getHrmuProofDetails
 );
 
 router.patch(
     '/hrmu/proof-of-compliance/:id/review',
     protect,
-    requireRole('hrmu', 'admin'),
+    requireRole('hrmu', 'vp_admin_finance', 'admin'),
     decryptSensitivePayload,
     proofComplianceController.reviewHrmuProof
 );

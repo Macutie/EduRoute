@@ -1,0 +1,17 @@
+-- Add the VP for Admin and Finance role while keeping its access scoped to HRMU.
+ALTER TABLE faculty_users
+    DROP CONSTRAINT IF EXISTS faculty_users_account_role_check;
+
+ALTER TABLE faculty_users
+    ADD CONSTRAINT faculty_users_account_role_check
+    CHECK (account_role IN ('faculty', 'hrmu', 'vp_admin_finance', 'cssu', 'assistant_dean', 'college_dean', 'admin'));
+
+ALTER TABLE faculty_users
+    DROP CONSTRAINT IF EXISTS faculty_users_department_required_for_role_check;
+
+ALTER TABLE faculty_users
+    ADD CONSTRAINT faculty_users_department_required_for_role_check
+    CHECK (
+        account_role IN ('hrmu', 'vp_admin_finance', 'cssu', 'admin')
+        OR department_id IS NOT NULL
+    );

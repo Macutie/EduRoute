@@ -13,8 +13,9 @@ const { encryptNullableText } = require('../utils/fieldEncryption');
 const ROLE_LABELS = {
     faculty: 'Employee',
     hrmu: 'HRMU',
-    cssu: 'ISSU',
-    issu: 'ISSU',
+    vp_admin_finance: 'VP - Admin and Finance',
+    cssu: 'SSU',
+    issu: 'SSU',
     admin: 'Admin',
     assistant_dean: 'Assistant Supervisor',
     college_dean: 'College Supervisor'
@@ -24,7 +25,8 @@ const PORTAL_ROLE_ALIASES = {
     ISSU: 'cssu',
     issu: 'cssu',
     CSSU: 'cssu',
-    cssu: 'cssu'
+    cssu: 'cssu',
+    vp_admin_finance: 'hrmu'
 };
 
 const normalizePortalRole = (role = 'faculty') => {
@@ -89,7 +91,7 @@ const registerFaculty = async (payload) => {
         const accountRole = payload.account_role || 'faculty';
         if (accountRole !== 'faculty') {
             throw new AppError(
-                'Self-registration is limited to employee accounts. HRMU, ISSU, and Supervisor accounts must be assigned by an authorized administrator.',
+                'Self-registration is limited to employee accounts. HRMU, SSU, and Supervisor accounts must be assigned by an authorized administrator.',
                 403
             );
         }

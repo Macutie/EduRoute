@@ -4,6 +4,7 @@ const ROLE_LABELS = {
     faculty: 'Employee',
     cssu: 'ISSU',
     hrmu: 'HRMU',
+    vp_admin_finance: 'VP - Admin and Finance',
     assistant_dean: 'Assistant dean',
     college_dean: 'College dean',
     admin: 'Admin'
@@ -18,7 +19,7 @@ const getDashboard = async () => {
                 COUNT(*)::int AS total_users,
                 COUNT(*) FILTER (WHERE account_role = 'faculty')::int AS employees,
                 COUNT(*) FILTER (WHERE account_role = 'cssu')::int AS issu,
-                COUNT(*) FILTER (WHERE account_role = 'hrmu')::int AS hrmu,
+                COUNT(*) FILTER (WHERE account_role IN ('hrmu', 'vp_admin_finance'))::int AS hrmu,
                 COUNT(*) FILTER (WHERE account_role IN ('assistant_dean', 'college_dean'))::int AS supervisors,
                 COUNT(*) FILTER (WHERE status <> 'active')::int AS deactivated
             FROM faculty_users

@@ -105,7 +105,7 @@ const normalizeRouteGeometry = (value) => {
 };
 
 const assertHrmuUser = async (userId) => {
-    const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['hrmu', 'admin', 'cssu']);
+    const user = await hrmuDashboardRepository.getHrmuUserContext(userId, ['hrmu', 'vp_admin_finance', 'admin', 'cssu']);
 
     if (!user) {
         throw new AppError('Only HRMU, ISSU, and admin users can access live tracking.', 403);

@@ -8,7 +8,20 @@ const VALID_PROFILES = new Set([
     'mapbox/cycling'
 ]);
 
-const DEFAULT_GEOCODING_TYPES = 'country,region,postcode,district,place,locality,neighborhood,address';
+// These are the supported restrictive types for Mapbox Geocoding v6.
+// POI searches use the Search Box API below instead.
+const DEFAULT_GEOCODING_TYPES = 'country,region,postcode,district,place,locality,neighborhood,street,block,address,secondary_address';
+
+const normalizeSearchFeatures = (features = []) => features.map((feature) => ({
+    id: feature.id,
+    name: feature.properties?.name || feature.properties?.full_address || 'Unknown destination',
+    full_address: feature.properties?.full_address || feature.properties?.place_formatted || feature.properties?.name || 'Unknown destination',
+    coordinates: {
+        lng: feature.geometry?.coordinates?.[0],
+        lat: feature.geometry?.coordinates?.[1]
+    },
+    feature
+}));
 
 const searchDestinations = async (query, options = {}) => {
     if (!env.mapboxSecretToken) {
@@ -27,7 +40,15 @@ const searchDestinations = async (query, options = {}) => {
     url.searchParams.set('limit', String(options.limit || 5));
     url.searchParams.set('language', options.language || 'en');
     url.searchParams.set('country', options.country || 'PH');
-    url.searchParams.set('types', options.types || DEFAULT_GEOCODING_TYPES);
+    // Passing an empty/null types option intentionally leaves Mapbox free to
+    // return establishment matches. The Geocoding API does not accept `poi`
+    // as a type; POI-style matches are returned when no restrictive filter is
+    // supplied.
+    if (options.types) {
+        url.searchParams.set('types', options.types);
+    } else if (options.types !== null) {
+        url.searchParams.set('types', DEFAULT_GEOCODING_TYPES);
+    }
 
     const response = await fetch(url);
     const data = await response.json();
@@ -36,16 +57,36 @@ const searchDestinations = async (query, options = {}) => {
         throw new AppError(data.message || 'Unable to search destinations from Mapbox.', response.status || 502);
     }
 
-    return (data.features || []).map((feature) => ({
-        id: feature.id,
-        name: feature.properties?.name || feature.properties?.full_address || 'Unknown destination',
-        full_address: feature.properties?.full_address || feature.properties?.place_formatted || feature.properties?.name || 'Unknown destination',
-        coordinates: {
-            lng: feature.geometry?.coordinates?.[0],
-            lat: feature.geometry?.coordinates?.[1]
-        },
-        feature
-    }));
+    return normalizeSearchFeatures(data.features || []);
+};
+
+const searchBoxDestinations = async (query, options = {}) => {
+    if (!env.mapboxSecretToken) {
+        throw new AppError('Mapbox secret token is not configured.', 500);
+    }
+
+    const searchText = String(query || '').trim();
+    if (searchText.length < 2) return [];
+
+    const url = new URL('https://api.mapbox.com/search/searchbox/v1/forward');
+    url.searchParams.set('access_token', env.mapboxSecretToken);
+    url.searchParams.set('q', searchText);
+    url.searchParams.set('limit', String(Math.min(Number(options.limit || 5), 10)));
+    url.searchParams.set('language', options.language || 'en');
+    url.searchParams.set('country', options.country || 'PH');
+    url.searchParams.set('types', options.types || 'poi,address,place,locality,neighborhood,street');
+    if (options.proximity) {
+        url.searchParams.set('proximity', `${options.proximity.lng},${options.proximity.lat}`);
+    }
+
+    const response = await fetch(url);
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new AppError(data.message || 'Unable to search destinations from Mapbox Search Box.', response.status || 502);
+    }
+
+    return normalizeSearchFeatures(data.features || []);
 };
 
 const assertCoordinate = (coordinate, label) => {
@@ -126,5 +167,6 @@ module.exports = {
     assertCoordinate,
     getDirections,
     searchDestinations,
+    searchBoxDestinations,
     DEFAULT_GEOCODING_TYPES
 };

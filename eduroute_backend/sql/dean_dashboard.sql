@@ -14,7 +14,7 @@ DROP CONSTRAINT IF EXISTS faculty_users_account_role_check;
 
 ALTER TABLE faculty_users
 ADD CONSTRAINT faculty_users_account_role_check
-CHECK (account_role IN ('faculty', 'hrmu', 'cssu', 'admin', 'assistant_dean', 'college_dean'));
+CHECK (account_role IN ('faculty', 'hrmu', 'vp_admin_finance', 'cssu', 'admin', 'assistant_dean', 'college_dean'));
 
 ALTER TABLE faculty_users
 DROP CONSTRAINT IF EXISTS faculty_users_department_required_for_role_check;
@@ -22,7 +22,7 @@ DROP CONSTRAINT IF EXISTS faculty_users_department_required_for_role_check;
 ALTER TABLE faculty_users
 ADD CONSTRAINT faculty_users_department_required_for_role_check
 CHECK (
-    account_role IN ('hrmu', 'cssu')
+    account_role IN ('hrmu', 'vp_admin_finance', 'cssu')
     OR department_id IS NOT NULL
 );
 
