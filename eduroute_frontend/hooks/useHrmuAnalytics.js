@@ -16,6 +16,103 @@ const HRMU_ANALYTICS_COLLEGE_ORDER = [
   'College of Computer Studies',
 ];
 
+const normalizeCssColorFunctions = value => String(value || '').replace(/color\(\s*([\w-]+)\s+([^)]*)\)/gi, (match, profile, channels) => {
+  const [channelText, alphaText] = channels.split('/').map(part => part.trim());
+  const channelValues = channelText.split(/\s+/).filter(Boolean);
+  if (channelValues.length !== 3) return match;
+
+  const toRgbChannel = channel => {
+    const numericValue = Number.parseFloat(channel.replace('%', ''));
+    if (!Number.isFinite(numericValue)) return null;
+    return Math.round((channel.includes('%') ? numericValue / 100 : numericValue) * 255);
+  };
+
+  const rgbChannels = channelValues.map(toRgbChannel);
+  if (rgbChannels.some(channel => channel === null)) return match;
+
+  const alpha = alphaText ? Number.parseFloat(alphaText.replace('%', '')) / (alphaText.includes('%') ? 100 : 1) : 1;
+  if (!Number.isFinite(alpha)) return match;
+  const clampedAlpha = Math.max(0, Math.min(1, alpha));
+  return clampedAlpha >= 1
+    ? `rgb(${rgbChannels.join(', ')})`
+    : `rgba(${rgbChannels.join(', ')}, ${clampedAlpha})`;
+});
+
+const normalizeClonedDocumentColors = clonedDocument => {
+  const view = clonedDocument.defaultView;
+  if (!view) return;
+
+  clonedDocument.querySelectorAll('*').forEach(element => {
+    const computedStyle = view.getComputedStyle(element);
+    for (let index = 0; index < computedStyle.length; index += 1) {
+      const property = computedStyle[index];
+      const value = computedStyle.getPropertyValue(property);
+      if (!value.toLowerCase().includes('color(')) continue;
+      const normalizedValue = normalizeCssColorFunctions(value);
+      if (normalizedValue !== value) {
+        element.style.setProperty(property, normalizedValue);
+      }
+    }
+  });
+};
+
+const HRMU_CSV_COLUMNS = [
+  'section', 'label', 'value', 'trips', 'completed', 'risk',
+  'date', 'employee', 'department', 'destination', 'locator_slip', 'status',
+  'filed_at', 'actual_exit', 'expected_return', 'actual_return',
+  'variance_minutes', 'duration_minutes', 'notes'
+];
+
+const HRMU_CSV_HEADERS = [
+  'Section', 'Label / Department', 'Value', 'Trips', 'Completed', 'Risk',
+  'Date', 'Employee', 'Department', 'Destination', 'Locator Slip', 'Status',
+  'Filed At', 'Actual Exit', 'Expected Return', 'Actual Return',
+  'Variance', 'Duration', 'Notes'
+];
+
+const formatCsvRow = row => ({
+  ...row,
+  label: row.label || row.metric || row.department || '',
+  value: row.unit === 'percent' && row.value !== '' && row.value !== null && row.value !== undefined
+    ? `${row.value}%`
+    : row.value,
+});
+
+const escapeCsvValue = value => {
+  if (value === null || value === undefined) return '';
+  const text = String(value);
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+};
+
+const downloadCsvFile = ({ filename, rows = [] }) => {
+  const normalizedRows = rows.map(formatCsvRow);
+  const activeColumns = HRMU_CSV_COLUMNS.filter(column => normalizedRows.some(row => {
+    const value = row[column];
+    return value !== null && value !== undefined && String(value).trim() !== '';
+  }));
+  const activeHeaders = activeColumns.map(column => HRMU_CSV_HEADERS[HRMU_CSV_COLUMNS.indexOf(column)]);
+  const csv = [
+    activeHeaders.join(','),
+    ...normalizedRows.flatMap((row, index) => {
+      const previousRow = rows[index - 1];
+      const separator = index > 0 && previousRow?.section !== row.section
+        ? [activeColumns.map(() => '').join(',')]
+        : [];
+      if (index > 0 && previousRow?.section === row.section) row.section = '';
+      return [...separator, activeColumns.map(column => escapeCsvValue(row[column])).join(',')];
+    })
+  ].join('\r\n');
+  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+};
+
 const getTodayIso = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -128,7 +225,7 @@ export const useHrmuAnalytics = () => {
     }));
   }, []);
 
-  const exportPdf = useCallback(async ({ element }) => {
+  const exportPdf = useCallback(async ({ element, fileName = '' }) => {
     if (!element) {
       throw new Error('Analytics export surface is unavailable.');
     }
@@ -143,6 +240,15 @@ export const useHrmuAnalytics = () => {
       exportSurface = element.cloneNode(true);
       exportSurface.classList.add('is-exporting-pdf', 'hrmu-analytics-export-staging');
       exportSurface.setAttribute('aria-hidden', 'true');
+      // Keep the export clone sized to its complete contents instead of inheriting
+      // a viewport-height shell from the live dashboard.
+      exportSurface.style.position = 'absolute';
+      exportSurface.style.top = '0';
+      exportSurface.style.left = '0';
+      exportSurface.style.height = 'auto';
+      exportSurface.style.minHeight = '0';
+      exportSurface.style.maxHeight = 'none';
+      exportSurface.style.overflow = 'visible';
 
       // cloneNode does not reliably preserve the current value of form controls.
       const sourceControls = element.querySelectorAll('input, select, textarea');
@@ -164,17 +270,7 @@ export const useHrmuAnalytics = () => {
       const margin = 8;
       const contentWidth = pageWidth - margin * 2;
       const contentHeight = pageHeight - margin * 2;
-      const sourceBlocks = Array.from(exportSurface.children).flatMap((child) => {
-        if (child.classList?.contains('hrmu-smart-analytics-section')) {
-          return Array.from(child.children);
-        }
-
-        return [child];
-      }).filter((child) => !child.hasAttribute('data-html2canvas-ignore'));
-
-      if (sourceBlocks.length === 0) {
-        throw new Error('No analytics content is available to export.');
-      }
+      const sourceBlocks = [exportSurface];
 
       let cursorY = margin;
       let hasContent = false;
@@ -185,6 +281,7 @@ export const useHrmuAnalytics = () => {
           useCORS: true,
           backgroundColor: '#ffffff',
           logging: false,
+          onclone: normalizeClonedDocumentColors,
           scrollX: 0,
           scrollY: 0,
           windowWidth: 1200,
@@ -193,25 +290,21 @@ export const useHrmuAnalytics = () => {
 
         if (!canvas.width || !canvas.height) continue;
 
-        const imageData = canvas.toDataURL('image/png');
-        const imageHeight = (canvas.height * contentWidth) / canvas.width;
-
-        if (hasContent && cursorY + imageHeight > pageHeight - margin) {
-          pdf.addPage();
-          cursorY = margin;
-        }
-
-        if (imageHeight <= contentHeight) {
-          pdf.addImage(imageData, 'PNG', margin, cursorY, contentWidth, imageHeight, undefined, 'FAST');
-          cursorY += imageHeight + 5;
-          hasContent = true;
-          continue;
-        }
-
         let sourceY = 0;
-        const pageCanvasHeight = Math.floor((contentHeight * canvas.width) / contentWidth);
         while (sourceY < canvas.height) {
-          const sliceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
+          let availableHeight = pageHeight - margin - cursorY;
+          if (hasContent && availableHeight < 1) {
+            pdf.addPage();
+            cursorY = margin;
+            availableHeight = contentHeight;
+          }
+
+          const remainingRenderedHeight = ((canvas.height - sourceY) * contentWidth) / canvas.width;
+          const renderedSliceHeight = Math.min(remainingRenderedHeight, availableHeight);
+          const sliceHeight = Math.max(1, Math.min(
+            canvas.height - sourceY,
+            Math.floor((renderedSliceHeight * canvas.width) / contentWidth)
+          ));
           const sliceCanvas = document.createElement('canvas');
           sliceCanvas.width = canvas.width;
           sliceCanvas.height = sliceHeight;
@@ -219,26 +312,28 @@ export const useHrmuAnalytics = () => {
           if (!sliceContext) throw new Error('Unable to prepare an analytics PDF page.');
           sliceContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
           const sliceImage = sliceCanvas.toDataURL('image/png');
-          const renderedSliceHeight = (sliceHeight * contentWidth) / canvas.width;
+          const actualSliceHeight = (sliceHeight * contentWidth) / canvas.width;
 
-          if (hasContent) {
-            pdf.addPage();
-          }
-
-          pdf.addImage(sliceImage, 'PNG', margin, margin, contentWidth, renderedSliceHeight, undefined, 'FAST');
+          pdf.addImage(sliceImage, 'PNG', margin, cursorY, contentWidth, actualSliceHeight, undefined, 'FAST');
           hasContent = true;
           sourceY += sliceHeight;
-        }
 
-        cursorY = margin;
+          if (sourceY < canvas.height) {
+            pdf.addPage();
+            cursorY = margin;
+          } else {
+            cursorY += actualSliceHeight + 5;
+          }
+        }
       }
 
       if (!hasContent) {
         throw new Error('Analytics charts could not be rendered for export.');
       }
 
+      const safeFileName = String(fileName || '').trim().replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase();
       const safeDateLabel = `${appliedFilters.startDate || 'start'}-${appliedFilters.endDate || 'end'}`.replace(/[^\w-]+/g, '-');
-      pdf.save(`eduroute-hrmu-analytics-${safeDateLabel}.pdf`);
+      pdf.save(safeFileName ? `eduroute-${safeFileName}.pdf` : `eduroute-hrmu-analytics-${safeDateLabel}.pdf`);
       setExportMessage('Analytics PDF downloaded successfully.');
     } catch (requestError) {
       setError(requestError?.message || 'Analytics PDF export failed.');
@@ -248,6 +343,11 @@ export const useHrmuAnalytics = () => {
       setExporting(false);
     }
   }, [appliedFilters]);
+
+  const exportCsv = useCallback(({ filename, rows }) => {
+    downloadCsvFile({ filename, rows });
+    setExportMessage('Analytics CSV downloaded successfully.');
+  }, []);
 
   const generateSmartAnalytics = useCallback(async () => {
     setSmartGenerating(true);
@@ -294,5 +394,6 @@ export const useHrmuAnalytics = () => {
     reload: loadAnalytics,
     generateSmartAnalytics,
     exportPdf,
+    exportCsv,
   };
 };

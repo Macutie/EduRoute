@@ -1234,7 +1234,8 @@ export const HrmuAnalyticsReportsView = ({
     departmentOptions,
     updateFilter,
     applyFilters,
-    exportPdf
+    exportPdf,
+    exportCsv
   } = useHrmuAnalytics();
   const analyticsStartDateInputRef = useRef(null);
   const analyticsEndDateInputRef = useRef(null);
@@ -1347,6 +1348,47 @@ export const HrmuAnalyticsReportsView = ({
     } catch (requestError) {
       console.error('PDF export failed:', requestError);
     }
+  };
+  const handleExportCsv = () => {
+    const rows = [
+      ...[
+        ['Filed locator slips', smartTotalTrips],
+        ['Approval rate', approvalRatePercentage],
+        ['Completed trips', smartCompletedTrips],
+        ['Compliance rate', smartTotalTrips ? smartCompletedTrips / smartTotalTrips * 100 : 0],
+        ['Rejected trips', smartRejectedTrips],
+        ['Cancelled trips', smartCancelledTrips],
+        ['Late returns', Number(smartSummary.lateReturns || 0)],
+        ['Missing proof', Number(smartSummary.missingProof || 0)],
+      ].map(([label, value]) => ({ section: 'Executive Summary', metric: label, value: Number(value), unit: label.toLowerCase().includes('rate') ? 'percent' : 'count', percentage: label.toLowerCase().includes('rate') ? Number(value) : '' })),
+      ...weeklyMovementTrend.values.map((value, index) => ({ section: 'Movement Trend', label: weeklyMovementTrend.labels[index], value: Number(value), unit: 'count' })),
+      ...smartIncidentBars.map(item => ({ section: 'Operational Exceptions', label: item.label, value: Number(item.value), unit: 'count' })),
+      ...uniqueSmartIncidents.map(incident => ({ section: 'Incidents', label: incident.type, employee: incident.facultyName, destination: incident.destination })),
+      ...smartCollegeSummary.map(college => {
+        const risk = topCollegeRiskScores.find(row => String(row.collegeId || row.collegeName) === String(college.collegeId || college.collegeName));
+        const tripCount = Number(college.tripCount || 0);
+        const completedCount = Number(college.completedTripCount || 0);
+        return {
+          section: 'Department Comparison',
+          label: college.collegeName,
+          trips: tripCount,
+          completed: completedCount,
+          risk: Number(risk?.riskScore || 0),
+        };
+      }),
+      ...calendarDays.filter(day => day.inMonth && Number(day.count) >= 1).map(day => ({
+        section: 'Trip Activity Calendar',
+        date: day.date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'short', day: 'numeric', year: 'numeric' }),
+        label: 'Locator slips',
+        value: Number(day.count),
+        unit: 'count'
+      })),
+      ...frequentDestinations.map(row => ({ section: 'Destinations', destination: row.label, value: Number(row.count), unit: 'count', metric: 'Trips' })),
+      ...recommendations.map((recommendation, index) => ({ section: 'Recommendations', metric: `Recommendation ${index + 1}`, value: recommendation })),
+      ...repeatIncidents.map(incident => ({ section: 'Repeat Incidents', label: incident.name, metric: incident.type, value: Number(incident.count), unit: 'count', department: incident.scope })),
+    ];
+    const dateLabel = `${appliedFilters.startDate || 'start'}-${appliedFilters.endDate || 'end'}`;
+    exportCsv({ filename: `eduroute-hrmu-analytics-${dateLabel}.csv`, rows });
   };
   const smartTotalTrips = Number(smartSummary.totalFiled || smartSummary.totalTripsThisMonth || 0);
   const smartCompletedTrips = Number(smartSummary.completedTrips || 0);
@@ -1504,6 +1546,7 @@ export const HrmuAnalyticsReportsView = ({
             <HrmuReportIcon color="white" />
             <span>{exporting ? 'Exporting...' : 'Export PDF'}</span>
           </button>
+          <button type="button" className="hrmu-analytics-export primary" onClick={handleExportCsv} disabled={loading || smartGenerating}><HrmuReportIcon color="white" />Export CSV</button>
         </div>
       </section>
 
@@ -1997,7 +2040,8 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     employeeOptions,
     updateFilter,
     applyFilters,
-    exportPdf
+    exportPdf,
+    exportCsv
   } = useHrmuAnalytics();
   const selectedEmployee = analytics?.selectedEmployee || null;
   useEffect(() => {
@@ -2078,6 +2122,20 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
   const complianceRate = totalTrips ? completedTrips / totalTrips * 100 : 0;
   const formatDate = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--';
   const formatDateTime = value => value ? new Date(value).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '--';
+  const formatCsvDate = value => {
+    if (!value) return '';
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' });
+  };
+  const formatCsvDateTime = value => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const datePart = date.toLocaleDateString('en-US', { timeZone: 'Asia/Manila', month: 'long', day: 'numeric', year: 'numeric' });
+    const timePart = date.toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' });
+    return `${datePart} - ${timePart}`;
+  };
+  const formatCsvLocatorSlip = value => value ? `LS-${String(value).replace(/-/g, '').slice(0, 8).toUpperCase()}` : '';
   const formatDuration = minutes => {
     if (!Number.isFinite(minutes) || minutes < 0) return '--';
     const hours = Math.floor(minutes / 60);
@@ -2230,7 +2288,48 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     setEmployeeProofMessage('');
   };
   const handleExport = async () => {
-    if (selectedEmployee) await exportPdf({ element: analyticsExportRef.current });
+    if (selectedEmployee) await exportPdf({ element: analyticsExportRef.current, fileName: selectedEmployee.name });
+  };
+  const handleExportCsv = () => {
+    if (!selectedEmployee) return;
+    const employeeName = String(selectedEmployee.name || 'employee');
+    const rows = [
+      ...[
+        ['Filed slips', Number(summary.totalFiled || 0)],
+        ['Approved slips', Number(summary.approvedCount || 0)],
+        ['Completed trips', completedTrips],
+        ['Compliance rate', complianceRate],
+        ['On-time returns', Number(summary.onTimeReturnCount || 0)],
+        ['Late returns', Number(summary.lateReturnCount || 0)],
+        ['Missing proof', Number(summary.missingProof || 0)],
+        ['Average late delay', Number(summary.averageReturnDelayMinutes || 0)],
+        ['Accumulated late', Number(lateComplianceForDisplay?.totalLateMinutes || 0)],
+      ].map(([metric, value], index) => {
+        const isDuration = ['Average late delay', 'Accumulated late'].includes(metric);
+        return {
+          section: 'Employee Summary',
+          metric,
+          value: isDuration ? formatDuration(value) : value,
+          unit: metric.toLowerCase().includes('rate') ? 'percent' : isDuration ? 'duration' : 'count',
+          employee: index === 0 ? employeeName : '',
+          department: index === 0 ? selectedEmployee.collegeName : ''
+        };
+      }),
+      ...tripRecords.map(record => {
+        const exitVariance = getSignedMinuteDifference(record.scheduledDepartureAt, record.startedAt);
+        const returnVariance = getSignedMinuteDifference(record.expectedReturnTime, record.actualReturnTime);
+        const durationMinutes = getActualDurationMinutes(record);
+        return { section: 'Schedule Adherence', locator_slip: formatCsvLocatorSlip(record.locatorSlipId), destination: record.destination, filed_at: formatCsvDateTime(record.locatorSlipFiledAt), actual_exit: formatCsvDateTime(record.startedAt), expected_return: formatCsvDateTime(record.expectedReturnTime), actual_return: formatCsvDateTime(record.actualReturnTime), variance_minutes: formatScheduleVariance(returnVariance), duration_minutes: durationMinutes === null ? '--' : formatDuration(durationMinutes), status: record.status || record.tripStatus };
+      }),
+      ...dailyItems.map(item => ({ section: 'Daily Activity', date: formatCsvDate(item.date), metric: 'Locator slips', value: Number(item.locatorSlipCount || 0), unit: 'count' })),
+      ...destinations.map(row => ({ section: 'Destinations', destination: row.label, metric: 'Trips', value: Number(row.count || 0), unit: 'count' })),
+      ...incidents.map(incident => ({ section: 'Incidents', metric: incident.type, employee: employeeName, destination: incident.destination, status: incident.status })),
+      ...purposeRows.map(([purpose, count]) => ({ section: 'Purpose / Agenda', label: purpose, metric: 'Trips', value: Number(count), unit: 'count' })),
+      ...monthlyRows.map(([month, count]) => ({ section: 'Monthly Trend', date: formatCsvDate(new Date(`${month} 1`)), metric: 'Trips', value: Number(count), unit: 'count' })),
+      ...lateSummaryRows.map(item => ({ section: 'Late Compliance', date: formatCsvDateTime(item.locatorSlipFiledAt), locator_slip: formatCsvLocatorSlip(item.locatorSlipId), metric: 'Late duration', value: formatDuration(Number(item.minutesLate || 0)), unit: 'duration', variance_minutes: formatDuration(Number(item.totalLateMinutes || 0)), status: lateComplianceForDisplay.resetAt && item.actualReturnTime && new Date(item.actualReturnTime) <= new Date(lateComplianceForDisplay.resetAt) ? 'Complied' : 'Pending' })),
+    ];
+    const safeEmployeeName = employeeName.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase() || 'employee';
+    exportCsv({ filename: `eduroute-${safeEmployeeName}.csv`, rows });
   };
   const openEmployeeDatePicker = inputRef => {
     const input = inputRef?.current;
@@ -2270,7 +2369,10 @@ export const HrmuEmployeeAnalyticsView = ({ setView, profileData, onLogout }) =>
     <div ref={analyticsExportRef} className="hrmu-employee-analytics-page">
       <section className="hrmu-employee-analytics-header">
         <div><span>INDIVIDUAL HISTORICAL PROFILE</span><h1>Employee Analytics</h1><p>Review one employee’s recorded trip and compliance history.</p></div>
-        <button type="button" className="hrmu-analytics-export primary" onClick={handleExport} disabled={!selectedEmployee || exporting}><HrmuReportIcon color="white" />{exporting ? 'Exporting...' : 'Export PDF'}</button>
+        <div className="hrmu-analytics-actions">
+          <button type="button" className="hrmu-analytics-export primary" onClick={handleExport} disabled={!selectedEmployee || exporting}><HrmuReportIcon color="white" />{exporting ? 'Exporting...' : 'Export PDF'}</button>
+          <button type="button" className="hrmu-analytics-export primary" onClick={handleExportCsv} disabled={!selectedEmployee || loading}><HrmuReportIcon color="white" />Export CSV</button>
+        </div>
       </section>
       <section className="hrmu-employee-analytics-controls">
         <label className="hrmu-employee-picker-field"><span>EMPLOYEE</span><div className="hrmu-employee-picker"><input type="search" value={employeeSearch || (selectedEmployeeOption ? `${selectedEmployeeOption.name} • ${selectedEmployeeOption.collegeName || 'Department unavailable'}` : '')} onChange={event => { setEmployeeSearch(event.target.value); setEmployeePickerOpen(true); if (filters.employeeId) updateFilter('employeeId', ''); }} onFocus={() => setEmployeePickerOpen(true)} placeholder="Search employee or department" aria-label="Search employee or department" /><span className="hrmu-employee-picker-icon">⌕</span>{employeePickerOpen && <div className="hrmu-employee-picker-menu">{filteredEmployeeOptions.length ? filteredEmployeeOptions.map(employee => <button key={employee.id} type="button" onMouseDown={event => event.preventDefault()} onClick={() => { updateFilter('employeeId', employee.id); setEmployeeSearch(`${employee.name} • ${employee.collegeName || 'Department unavailable'}`); setEmployeePickerOpen(false); }}><strong>{employee.name}</strong><small>{employee.collegeName || 'Department unavailable'}</small></button>) : <p>No matching employees found.</p>}</div>}</div></label>
