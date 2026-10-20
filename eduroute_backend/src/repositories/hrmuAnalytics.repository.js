@@ -336,7 +336,7 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
              COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) AS expected_return_datetime,
              COALESCE(ls.created_at, fallback_ls.created_at) AS locator_slip_filed_at,
              COALESCE(ls.departure_datetime, fallback_ls.departure_datetime) AS scheduled_departure_at,
-            exit_scan.actual_exit_at,
+            COALESCE(ls.cssu_validated_at, exit_scan.actual_exit_at) AS actual_exit_at,
             COALESCE(ll.recorded_at, t.updated_at, t.started_at) AS last_location_at,
             ll.lat::float8 AS current_lat,
             ll.lng::float8 AS current_lng,

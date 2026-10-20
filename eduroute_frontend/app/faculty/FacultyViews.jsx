@@ -2844,12 +2844,16 @@ export const MapTrackingView = ({
       checking = true;
       try {
         const slip = await getFacultyLocatorSlipDetails(slipId);
-        const completedTrip = slip?.currentTrip;
-        const completed = completedTrip && (
-          completedTrip.status === 'completed'
-          || completedTrip.trip_status === 'completed'
-          || completedTrip.returned_at
-          || completedTrip.ended_at
+        const completedTrip = slip?.currentTrip || activeTrip;
+        const completed = Boolean(
+          (slip?.currentTrip && (
+            slip.currentTrip.status === 'completed'
+            || slip.currentTrip.trip_status === 'completed'
+            || slip.currentTrip.returned_at
+            || slip.currentTrip.ended_at
+          ))
+          || ['completed', 'completed_trip'].includes(String(slip?.trip_status || '').toLowerCase())
+          || String(slip?.status || '').toLowerCase() === 'completed'
         );
         if (!mounted || !completed) return;
 
@@ -2858,7 +2862,9 @@ export const MapTrackingView = ({
           status: 'completed',
           trip_status: 'completed'
         };
-        const summaryPayload = await getFacultyTripSummary(normalizedCompletedTrip.id).catch(() => null);
+        const summaryPayload = normalizedCompletedTrip.id
+          ? await getFacultyTripSummary(normalizedCompletedTrip.id).catch(() => null)
+          : null;
         if (!mounted) return;
         setLocatorSlip(current => ({
           ...(current || {}),
@@ -2902,7 +2908,7 @@ export const MapTrackingView = ({
       mounted = false;
       window.clearInterval(intervalId);
     };
-  }, [tripLifecycleState, selectedSlip?.id, setSelectedSlip]);
+  }, [tripLifecycleState, activeTrip?.id, selectedSlip?.id, setSelectedSlip]);
   useEffect(() => {
     if (!locatorSlip || getCssuValidationStatus(locatorSlip) === 'allowed') return undefined;
     const slipId = locatorSlip.id || selectedSlip?.id || localStorage.getItem('edurouteMapSlipId');

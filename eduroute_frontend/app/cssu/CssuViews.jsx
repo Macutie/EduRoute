@@ -2155,7 +2155,7 @@ export const ISSUScanView = ({
         returnEntryToken: activeCandidate?.locatorSlip?.returnEntryToken || null,
         returnEntryCode: activeCandidate?.locatorSlip?.returnEntryCode || null
       });
-      const isEntryValidation = result.checkpoint === 'entry' || result.status === 'entry_validated';
+      const isEntryValidation = isReturnVerification || result.checkpoint === 'entry' || result.status === 'entry_validated';
       const validationTitle = isEntryValidation ? 'Locator Slip: Entry Validated' : result.status === 'flagged' ? 'Locator Slip: Flagged Incident' : result.status === 'denied' ? 'Locator Slip: Exit Denied' : 'Locator Slip: Validated (Official)';
       setActiveCandidate(prev => ({
         ...prev,
