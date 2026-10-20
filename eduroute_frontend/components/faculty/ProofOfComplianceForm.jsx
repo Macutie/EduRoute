@@ -73,9 +73,6 @@ const ProofOfComplianceForm = ({
     if (disabled || loading) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    if (event.cancelable) {
-      event.preventDefault();
-    }
     drawingRef.current = true;
     lastPointRef.current = createCanvasPoint(event, canvas);
     setHasSignature(true);
@@ -90,9 +87,6 @@ const ProofOfComplianceForm = ({
     const nextPoint = createCanvasPoint(event, canvas);
     drawSignatureStroke(context, lastPointRef.current, nextPoint);
     lastPointRef.current = nextPoint;
-    if (event.cancelable) {
-      event.preventDefault();
-    }
   };
 
   const endDraw = () => {

@@ -40,7 +40,10 @@ const getApiBaseUrl = () => {
       const configuredUrl = new URL(normalizedConfiguredApiBaseUrl);
       const apiIsConfiguredForLocalhost = ['localhost', '127.0.0.1'].includes(configuredUrl.hostname);
 
-      if (apiIsConfiguredForLocalhost) {
+      // A deployed HTTPS page must never call a local or insecure API URL.
+      // This also protects production builds from an accidentally copied
+      // VITE_API_BASE_URL=http://localhost:5000 setting in Vercel.
+      if (apiIsConfiguredForLocalhost || (protocol === 'https:' && configuredUrl.protocol !== 'https:')) {
         return PRODUCTION_API_URL;
       }
 
