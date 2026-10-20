@@ -243,7 +243,8 @@ const uploadDeanSignatureFile = async (deanUserId, file, payload = {}) => {
         publicId: `dean-signature-${dean.id}-${Date.now()}`,
         extension,
         format: extension,
-        resourceType: getResourceTypeForMime(file.mimetype)
+        resourceType: getResourceTypeForMime(file.mimetype),
+        mimeType: file.mimetype
     });
 
     await pool.query(

@@ -336,6 +336,7 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
              COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) AS expected_return_datetime,
              COALESCE(ls.created_at, fallback_ls.created_at) AS locator_slip_filed_at,
              COALESCE(ls.departure_datetime, fallback_ls.departure_datetime) AS scheduled_departure_at,
+            exit_scan.actual_exit_at,
             COALESCE(ll.recorded_at, t.updated_at, t.started_at) AS last_location_at,
             ll.lat::float8 AS current_lat,
             ll.lng::float8 AS current_lng,
@@ -368,6 +369,14 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
                 COALESCE(slip.departure_datetime, slip.created_at) DESC
             LIMIT 1
         ) fallback_ls ON ls.id IS NULL
+        LEFT JOIN LATERAL (
+            SELECT COALESCE(log.validated_at, log.created_at) AS actual_exit_at
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = COALESCE(ls.id, fallback_ls.id)
+              AND log.status = 'validated'
+            ORDER BY log.validated_at DESC NULLS LAST, log.created_at DESC
+            LIMIT 1
+        ) exit_scan ON TRUE
         LEFT JOIN latest_locations ll ON ll.trip_id = t.id
         LEFT JOIN LATERAL (
             SELECT

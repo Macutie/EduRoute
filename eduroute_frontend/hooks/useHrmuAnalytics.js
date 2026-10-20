@@ -1,6 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+
+const loadGordonCollegeLogo = async () => {
+  const response = await fetch('/gordon-college-logo.jpg');
+  if (!response.ok) throw new Error('Gordon College logo could not be loaded for PDF export.');
+  const blob = await response.blob();
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
 import {
   getHrmuAnalyticsApprovalRate,
   getHrmuAnalyticsDailyMovement,
@@ -265,15 +277,22 @@ export const useHrmuAnalytics = () => {
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
       const pdf = new jsPDF('p', 'mm', 'a4');
+      const logoData = await loadGordonCollegeLogo();
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 8;
       const contentWidth = pageWidth - margin * 2;
+      const logoSize = 20;
       const contentHeight = pageHeight - margin * 2;
       const sourceBlocks = [exportSurface];
 
       let cursorY = margin;
       let hasContent = false;
+      let logoAttached = false;
+
+      const addPdfHeader = () => {
+        pdf.addImage(logoData, 'JPEG', pageWidth * 0.75, 4, logoSize, logoSize);
+      };
 
       for (const block of sourceBlocks) {
         const canvas = await html2canvas(block, {
@@ -315,6 +334,12 @@ export const useHrmuAnalytics = () => {
           const actualSliceHeight = (sliceHeight * contentWidth) / canvas.width;
 
           pdf.addImage(sliceImage, 'PNG', margin, cursorY, contentWidth, actualSliceHeight, undefined, 'FAST');
+          // Draw the logo only on the first page, after the captured content
+          // so the html2canvas output cannot cover it.
+          if (!logoAttached) {
+            addPdfHeader();
+            logoAttached = true;
+          }
           hasContent = true;
           sourceY += sliceHeight;
 

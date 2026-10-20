@@ -1774,6 +1774,8 @@ export const MapTrackingView = ({
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState('');
   const [showEntryQrCode, setShowEntryQrCode] = useState(false);
+  const [exitVerificationNotice, setExitVerificationNotice] = useState(null);
+  const [returnVerificationNotice, setReturnVerificationNotice] = useState(null);
   const [showTripStartPermission, setShowTripStartPermission] = useState(false);
   const [returnEntryState, setReturnEntryState] = useState(null);
   const [locatorSlip, setLocatorSlip] = useState(selectedSlip || null);
@@ -2832,6 +2834,109 @@ export const MapTrackingView = ({
     };
   }, [selectedSlip?.id, setSelectedSlip, setView, mapReady]);
   useEffect(() => {
+    if (tripLifecycleState !== 'RETURNING') return undefined;
+    const slipId = selectedSlip?.id || localStorage.getItem('edurouteMapSlipId');
+    if (!slipId) return undefined;
+    let mounted = true;
+    let checking = false;
+    const checkReturnVerification = async () => {
+      if (!mounted || checking) return;
+      checking = true;
+      try {
+        const slip = await getFacultyLocatorSlipDetails(slipId);
+        const completedTrip = slip?.currentTrip;
+        const completed = completedTrip && (
+          completedTrip.status === 'completed'
+          || completedTrip.trip_status === 'completed'
+          || completedTrip.returned_at
+          || completedTrip.ended_at
+        );
+        if (!mounted || !completed) return;
+
+        const normalizedCompletedTrip = {
+          ...completedTrip,
+          status: 'completed',
+          trip_status: 'completed'
+        };
+        const summaryPayload = await getFacultyTripSummary(normalizedCompletedTrip.id).catch(() => null);
+        if (!mounted) return;
+        setLocatorSlip(current => ({
+          ...(current || {}),
+          ...slip,
+          status: 'completed',
+          trip_status: 'completed',
+          tripStatus: 'completed',
+          displayStatus: 'completed'
+        }));
+        setSelectedSlip?.(current => ({
+          ...(current || {}),
+          ...slip,
+          status: 'completed',
+          trip_status: 'completed',
+          tripStatus: 'completed',
+          displayStatus: 'completed'
+        }));
+        setActiveTrip(normalizedCompletedTrip);
+        if (summaryPayload) setTripSummary(summaryPayload);
+        setShowEntryQrCode(false);
+        setShowActionBoard(false);
+        setShowTripMetrics(false);
+        setShowProofPanel(false);
+        setShowRouteTools(false);
+        setActiveRoutePanel(null);
+        clearRoute();
+        clearStoredTripProgress();
+        setReturnVerificationNotice({
+          locatorSlipCode: slip.locator_slip_code || slip.locatorSlipCode || '--',
+          verifiedAt: normalizedCompletedTrip.returned_at || normalizedCompletedTrip.ended_at || new Date().toISOString()
+        });
+      } catch {
+        // The next check will retry without interrupting the employee's return route.
+      } finally {
+        checking = false;
+      }
+    };
+    const intervalId = window.setInterval(checkReturnVerification, 3000);
+    checkReturnVerification();
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [tripLifecycleState, selectedSlip?.id, setSelectedSlip]);
+  useEffect(() => {
+    if (!locatorSlip || getCssuValidationStatus(locatorSlip) === 'allowed') return undefined;
+    const slipId = locatorSlip.id || selectedSlip?.id || localStorage.getItem('edurouteMapSlipId');
+    if (!slipId) return undefined;
+    let mounted = true;
+    let checking = false;
+    const checkExitVerification = async () => {
+      if (!mounted || checking) return;
+      checking = true;
+      try {
+        const slip = await getFacultyLocatorSlipDetails(slipId);
+        if (!mounted || getCssuValidationStatus(slip) !== 'allowed') return;
+        window.clearInterval(intervalId);
+        setLocatorSlip(slip);
+        setSelectedSlip?.(slip);
+        setExitVerificationNotice({
+          locatorSlipCode: slip.locator_slip_code || slip.locatorSlipCode || '--',
+          gateLabel: slip.cssu_gate_label || slip.cssuGateLabel || 'Main Gate',
+          validatedAt: slip.cssu_validated_at || slip.cssuValidatedAt || new Date().toISOString()
+        });
+      } catch {
+        // The next check will retry without interrupting the employee panel.
+      } finally {
+        checking = false;
+      }
+    };
+    const intervalId = window.setInterval(checkExitVerification, 3000);
+    checkExitVerification();
+    return () => {
+      mounted = false;
+      window.clearInterval(intervalId);
+    };
+  }, [locatorSlip?.id, selectedSlip?.id, setSelectedSlip]);
+  useEffect(() => {
     if (!MAPBOX_PUBLIC_TOKEN || !mapContainerRef.current || mapRef.current) return;
     mapboxgl.accessToken = MAPBOX_PUBLIC_TOKEN;
     const map = new mapboxgl.Map({
@@ -3288,6 +3393,35 @@ export const MapTrackingView = ({
             </button>
           </div>
         </div>}
+
+      {returnVerificationNotice && <div className="permission-modal-backdrop faculty-return-success-backdrop" role="presentation" onClick={() => setReturnVerificationNotice(null)}>
+        <div className="permission-modal-card faculty-return-success-modal" role="dialog" aria-modal="true" aria-labelledby="faculty-return-success-title" onClick={event => event.stopPropagation()}>
+          <div className="permission-modal-icon faculty-return-success-icon" aria-hidden="true">✓</div>
+          <span className="permission-modal-kicker">RETURN VERIFICATION APPROVED</span>
+          <h3 id="faculty-return-success-title" className="permission-modal-title">Your locator slip is completed</h3>
+          <p className="permission-modal-copy">SSU verified your return successfully. Your trip has been completed and the record is now available in your trip history.</p>
+          <div className="faculty-return-success-details">
+            <span>LOCATOR SLIP <strong>{returnVerificationNotice.locatorSlipCode}</strong></span>
+            <span>RETURN VERIFIED <strong>{formatStatusDateTime(returnVerificationNotice.verifiedAt)}</strong></span>
+          </div>
+          <button type="button" className="permission-primary-btn" onClick={() => setReturnVerificationNotice(null)}>Done</button>
+        </div>
+      </div>}
+
+      {exitVerificationNotice && <div className="permission-modal-backdrop faculty-return-success-backdrop" role="presentation" onClick={() => setExitVerificationNotice(null)}>
+        <div className="permission-modal-card faculty-return-success-modal" role="dialog" aria-modal="true" aria-labelledby="faculty-exit-success-title" onClick={event => event.stopPropagation()}>
+          <div className="permission-modal-icon faculty-return-success-icon" aria-hidden="true">✓</div>
+          <span className="permission-modal-kicker">EXIT VERIFICATION APPROVED</span>
+          <h3 id="faculty-exit-success-title" className="permission-modal-title">Your locator slip is cleared</h3>
+          <p className="permission-modal-copy">SSU approved your exit. You may now proceed with the approved trip and start the route.</p>
+          <div className="faculty-return-success-details">
+            <span>LOCATOR SLIP <strong>{exitVerificationNotice.locatorSlipCode}</strong></span>
+            <span>GATE <strong>{exitVerificationNotice.gateLabel}</strong></span>
+            <span>EXIT VERIFIED <strong>{formatStatusDateTime(exitVerificationNotice.validatedAt)}</strong></span>
+          </div>
+          <button type="button" className="permission-primary-btn" onClick={() => setExitVerificationNotice(null)}>Done</button>
+        </div>
+      </div>}
 
       {activeRoutePanel && <div className="trip-side-panel fade-in" style={getOverlayStyle('panel')}>
           {activeRoutePanel === 'summary' && <>

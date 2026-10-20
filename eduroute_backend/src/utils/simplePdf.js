@@ -35,6 +35,10 @@ const REPORT_LOGO_CANDIDATES = [
     path.join(__dirname, '../../public/eduroute-logo.jfif'),
     path.join(__dirname, '../../public/eduroute-logo.png'),
 ];
+const HRMU_REPORT_LOGO_CANDIDATES = [
+    path.join(__dirname, '../../assets/gordon-college-logo.jpg'),
+    path.join(__dirname, '../../public/gordon-college-logo.jpg'),
+];
 
 const wrapTextByWidth = (font, text, size, width) => {
     const source = String(text || '').trim();
@@ -148,7 +152,7 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
         bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
     };
     const colorize = (tuple) => rgb(tuple[0], tuple[1], tuple[2]);
-    const logoBytes = loadLogoBytes();
+    const logoBytes = loadHrmuLogoBytes();
     let logoImage = null;
 
     if (logoBytes) {
@@ -175,7 +179,7 @@ const buildHrmuNotificationLogReportPdf = async ({ reportTitle = 'Monthly Log Re
         if (logoImage) {
             const logoDims = logoImage.scale(0.09);
             page.drawImage(logoImage, {
-                x: PAGE.marginX,
+                x: PAGE.width - PAGE.marginX - logoDims.width,
                 y: cursorY - 38,
                 width: logoDims.width,
                 height: logoDims.height,
@@ -314,6 +318,11 @@ const loadLogoBytes = () => {
     return logoPath ? fs.readFileSync(logoPath) : null;
 };
 
+const loadHrmuLogoBytes = () => {
+    const logoPath = HRMU_REPORT_LOGO_CANDIDATES.find((candidate) => fs.existsSync(candidate));
+    return logoPath ? fs.readFileSync(logoPath) : null;
+};
+
 const drawWrappedText = (page, font, text, options) => {
     const {
         x,
@@ -338,7 +347,7 @@ const drawWrappedText = (page, font, text, options) => {
     return lines.length;
 };
 
-const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
+const drawHeader = ({ page, fonts, logoImage, gordonLogoImage, reportMeta, colorize }) => {
     const topY = PAGE.height - PAGE.marginTop;
     const brandBoxSize = 54;
     const brandBoxX = PAGE.marginX;
@@ -381,7 +390,16 @@ const drawHeader = ({ page, fonts, logoImage, reportMeta, colorize }) => {
         color: colorize(COLORS.ink),
     });
 
-    const rightMetaX = PAGE.width - PAGE.marginX - 150;
+    if (gordonLogoImage) {
+        page.drawImage(gordonLogoImage, {
+            x: PAGE.width - PAGE.marginX - 196,
+            y: brandBoxY + 6,
+            width: 42,
+            height: 42,
+        });
+    }
+
+    const rightMetaX = PAGE.width - PAGE.marginX - 125;
     page.drawText('OFFICIAL DOCUMENT', {
         x: rightMetaX,
         y: headerCenterY + 12,
@@ -701,11 +719,17 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     };
 
     const logoBytes = loadLogoBytes();
+    const gordonLogoBytes = loadHrmuLogoBytes();
     let logoImage = null;
+    let gordonLogoImage = null;
 
     if (logoBytes) {
         const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
         logoImage = isPng ? await pdfDoc.embedPng(logoBytes) : await pdfDoc.embedJpg(logoBytes);
+    }
+    if (gordonLogoBytes) {
+        const isPng = gordonLogoBytes[0] === 0x89 && gordonLogoBytes[1] === 0x50;
+        gordonLogoImage = isPng ? await pdfDoc.embedPng(gordonLogoBytes) : await pdfDoc.embedJpg(gordonLogoBytes);
     }
 
     const rows = Array.isArray(locatorSlipLogs) ? locatorSlipLogs : [];
@@ -720,7 +744,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
     const bodyLineGap = 3;
 
     let page = pdfDoc.addPage([PAGE.width, PAGE.height]);
-    let cursorY = drawHeader({ page, fonts, logoImage, reportMeta, colorize });
+    let cursorY = drawHeader({ page, fonts, logoImage, gordonLogoImage, reportMeta, colorize });
     cursorY = drawSummarySection({ page, fonts, summary, reportMeta, startY: cursorY, colorize });
     cursorY = drawLogTitle({ page, fonts, y: cursorY, colorize });
     cursorY = drawTableHeader({ page, fonts, columns, y: cursorY, colorize });
@@ -752,7 +776,7 @@ const buildHrmuMonthlyReportPdf = async ({ reportMeta, summary, locatorSlipLogs 
 
             if (cursorY - rowHeight < PAGE.marginBottom) {
                 page = pdfDoc.addPage([PAGE.width, PAGE.height]);
-                cursorY = drawHeader({ page, fonts, logoImage, reportMeta, colorize });
+                cursorY = drawHeader({ page, fonts, logoImage, gordonLogoImage, reportMeta, colorize });
                 cursorY = drawLogTitle({ page, fonts, y: cursorY, colorize });
                 cursorY = drawTableHeader({ page, fonts, columns, y: cursorY, colorize });
             }
@@ -845,7 +869,7 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
         bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
     };
 
-    const logoBytes = loadLogoBytes();
+    const logoBytes = loadHrmuLogoBytes();
     let logoImage = null;
     if (logoBytes) {
         const isPng = logoBytes[0] === 0x89 && logoBytes[1] === 0x50;
@@ -895,8 +919,8 @@ const buildHrmuAnalyticsReportPdf = async (analytics = {}, filters = {}) => {
         });
 
         if (logoImage) {
-            page.drawImage(logoImage, {
-                x: brandBoxX + 4,
+        page.drawImage(logoImage, {
+                x: PAGE.width - PAGE.marginX - brandBoxSize,
                 y: brandBoxY + 4,
                 width: brandBoxSize - 8,
                 height: brandBoxSize - 8,

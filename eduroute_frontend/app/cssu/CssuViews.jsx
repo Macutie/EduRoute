@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./cssu.css";
 import { API_BASE_URL } from "../../config";
+import ProtectedMedia from "../../components/common/ProtectedMedia";
 import { useHrmuLiveTracking } from "../../hooks/useHrmuLiveTracking";
 import { useNotificationSocket } from "../../hooks/useNotificationSocket";
 import { getISSUDashboardSummary, getISSUActivityTimeline, getISSUFacultyExitHistory, getISSUIncidentsOverview, getISSULiveExitMonitoring, getISSUNotificationsOverview, getISSUReportsOverview, downloadISSUReportsPdf, sendISSUReportToHrmu, lookupISSUExitCandidate, updateISSUExitStatus } from "../../services/cssuApi";
@@ -677,7 +678,7 @@ export const ISSUDashboardDesktopView = ({
             const statusClass = ['validated', 'entry_validated'].includes(row.status) ? 'valid' : row.status === 'denied' ? 'flagged' : 'approved';
             return <div key={`${row.locatorSlipId}-${row.gate}`} className="cssu-desktop-log-row">
               <div className="cssu-desktop-person">
-                <img src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} />
+                <ProtectedMedia src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} />
                 <div>
                   <strong>{row.facultyName}</strong>
                   <span>{row.departmentName}</span>
@@ -1141,7 +1142,7 @@ export const ISSUDashboardView = ({
               const badgeLabel = isFlagged ? 'FLAGGED' : row.statusLabel?.toUpperCase?.() || 'VERIFIED';
               return <div key={`${row.locatorSlipId}-${row.gate}-${row.status}`} className={`cssu-live-item${isFlagged ? ' flagged-item' : ''}`}>
 
-                <img src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-li-avatar" />
+                <ProtectedMedia src={row.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={row.facultyName} className="cssu-li-avatar" />
                 <div className="cssu-li-info">
                   <div className="cssu-li-top">
                     <h4>{row.facultyName}</h4>
@@ -1865,12 +1866,19 @@ export const ISSUScanView = ({
   const qrScanFrameRef = useRef(null);
   const qrStreamRef = useRef(null);
   const qrDetectorRef = useRef(null);
+  const qrCandidateRef = useRef({
+    rawValue: '',
+    firstDetectedAt: 0
+  });
+  const qrConfirmationDelayMs = 1000;
   const [serverTime, setServerTime] = useState(formatISSUServerTime);
   const [manualFacultyId, setManualFacultyId] = useState('');
   const [lookupLoading, setLookupLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [lookupError, setLookupError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
+  const [returnVerificationSuccess, setReturnVerificationSuccess] = useState(null);
+  const [exitVerificationSuccess, setExitVerificationSuccess] = useState(null);
   const [activeCandidate, setActiveCandidate] = useState(null);
   const [lastLookupMethod, setLastLookupMethod] = useState('manual');
   const [showGatePicker, setShowGatePicker] = useState(false);
@@ -1931,6 +1939,10 @@ export const ISSUScanView = ({
       qrVideoRef.current.pause?.();
       qrVideoRef.current.srcObject = null;
     }
+    qrCandidateRef.current = {
+      rawValue: '',
+      firstDetectedAt: 0
+    };
   };
   useEffect(() => () => {
     stopQrScanner();
@@ -2040,9 +2052,18 @@ export const ISSUScanView = ({
       if (!qrVideoRef.current || !qrStreamRef.current) return;
       try {
         const barcodes = await detector.detect(qrVideoRef.current);
-        if (Array.isArray(barcodes) && barcodes.length > 0) {
-          const rawValue = barcodes[0]?.rawValue?.trim();
-          if (rawValue) {
+        const rawValue = Array.isArray(barcodes)
+          ? barcodes[0]?.rawValue?.trim()
+          : '';
+        if (rawValue) {
+          const now = Date.now();
+          if (qrCandidateRef.current.rawValue !== rawValue) {
+            qrCandidateRef.current = {
+              rawValue,
+              firstDetectedAt: now
+            };
+            setQrScannerStatus('QR detected. Hold it steady for 1 second...');
+          } else if (now - qrCandidateRef.current.firstDetectedAt >= qrConfirmationDelayMs) {
             if (isReturnVerification !== isReturnEntryLookupValue(rawValue)) {
               stopQrScanner();
               setQrScannerOpen(false);
@@ -2062,6 +2083,11 @@ export const ISSUScanView = ({
             setQrScannerStatus('');
             return;
           }
+        } else {
+          qrCandidateRef.current = {
+            rawValue: '',
+            firstDetectedAt: 0
+          };
         }
       } catch (error) {
         setQrScannerError(error?.message || 'Unable to scan the QR code right now.');
@@ -2158,6 +2184,21 @@ export const ISSUScanView = ({
           occurredAt: result.validatedAt || new Date().toISOString()
         }]
       }));
+      if (isEntryValidation) {
+        setReturnVerificationSuccess({
+          facultyName: activeCandidate?.faculty?.facultyName || 'Employee',
+          locatorSlipCode: activeCandidate?.locatorSlip?.locatorSlipCode || '--',
+          gateLabel: result.gateLabel || 'Main Gate',
+          validatedAt: result.validatedAt || new Date().toISOString()
+        });
+      } else if (result.status === 'validated') {
+        setExitVerificationSuccess({
+          facultyName: activeCandidate?.faculty?.facultyName || 'Employee',
+          locatorSlipCode: activeCandidate?.locatorSlip?.locatorSlipCode || '--',
+          gateLabel: result.gateLabel || 'Main Gate',
+          validatedAt: result.validatedAt || new Date().toISOString()
+        });
+      }
       setActionMessage(isEntryValidation ? `Return entry has been validated at ${result.gateLabel || 'Main Gate'}. The trip is now completed.` : result.status === 'validated' ? `Locator slip is now officially validated for exit at ${result.gateLabel || 'Main Gate'}.` : result.status === 'flagged' ? 'Exit attempt has been flagged and logged for SSU incident review.' : 'Exit has been denied and logged for SSU review.');
     } catch (error) {
       setLookupError(error.message || 'Unable to update the SSU exit decision right now.');
@@ -2243,7 +2284,7 @@ export const ISSUScanView = ({
         <article className="cssu-checkpoint-profile-card">
           <div className="cssu-checkpoint-profile-top">
             <div className="cssu-checkpoint-profile-avatar">
-              <img src={faculty?.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={faculty?.facultyName || 'Employee'} />
+              <ProtectedMedia src={faculty?.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={faculty?.facultyName || 'Employee'} />
             </div>
             <div className="cssu-checkpoint-profile-copy">
               <span className="cssu-checkpoint-card-kicker">EMPLOYEE PROFILE</span>
@@ -2337,6 +2378,40 @@ export const ISSUScanView = ({
       {lookupError || actionMessage}
     </div>}
 
+    {returnVerificationSuccess && <div className="eduroute-dialog-backdrop cssu-return-success-backdrop" role="presentation" onClick={() => setReturnVerificationSuccess(null)}>
+      <section className="eduroute-dialog-modal info cssu-return-success-modal" role="dialog" aria-modal="true" aria-labelledby="cssu-return-success-title" onClick={event => event.stopPropagation()}>
+        <div className="eduroute-dialog-icon" aria-hidden="true">✓</div>
+        <span className="eduroute-dialog-kicker">RETURN VERIFICATION APPROVED</span>
+        <h2 id="cssu-return-success-title">The locator slip is completed</h2>
+        <p>{returnVerificationSuccess.facultyName}'s return has been verified successfully. The employee may proceed, and this locator slip is now recorded as completed.</p>
+        <div className="cssu-return-success-details">
+          <div><span>LOCATOR SLIP</span><strong>{returnVerificationSuccess.locatorSlipCode}</strong></div>
+          <div><span>GATE</span><strong>{returnVerificationSuccess.gateLabel}</strong></div>
+          <div><span>VERIFIED</span><strong>{formatStatusDateTime(returnVerificationSuccess.validatedAt)}</strong></div>
+        </div>
+        <div className="eduroute-dialog-actions">
+          <button type="button" className="eduroute-dialog-primary" onClick={() => setReturnVerificationSuccess(null)}>Done</button>
+        </div>
+      </section>
+    </div>}
+
+    {exitVerificationSuccess && <div className="eduroute-dialog-backdrop cssu-return-success-backdrop" role="presentation" onClick={() => setExitVerificationSuccess(null)}>
+      <section className="eduroute-dialog-modal info cssu-return-success-modal" role="dialog" aria-modal="true" aria-labelledby="cssu-exit-success-title" onClick={event => event.stopPropagation()}>
+        <div className="eduroute-dialog-icon" aria-hidden="true">✓</div>
+        <span className="eduroute-dialog-kicker">EXIT VERIFICATION APPROVED</span>
+        <h2 id="cssu-exit-success-title">The locator slip is cleared</h2>
+        <p>{exitVerificationSuccess.facultyName}'s exit has been verified successfully. The employee may now proceed with the approved trip.</p>
+        <div className="cssu-return-success-details">
+          <div><span>LOCATOR SLIP</span><strong>{exitVerificationSuccess.locatorSlipCode}</strong></div>
+          <div><span>GATE</span><strong>{exitVerificationSuccess.gateLabel}</strong></div>
+          <div><span>VERIFIED</span><strong>{formatStatusDateTime(exitVerificationSuccess.validatedAt)}</strong></div>
+        </div>
+        <div className="eduroute-dialog-actions">
+          <button type="button" className="eduroute-dialog-primary" onClick={() => setExitVerificationSuccess(null)}>Done</button>
+        </div>
+      </section>
+    </div>}
+
     <div className="cssu-checkpoint-actions">
       {!isReturnEntryCheckpoint && <button type="button" className="cssu-checkpoint-btn ghost-danger" onClick={() => handleExitDecision('flagged')} disabled={!locatorSlip?.canFlagIncident || actionLoading}>
 
@@ -2366,7 +2441,7 @@ export const ISSUScanView = ({
       <div className="cssu-qr-scanner-modal" onClick={event => event.stopPropagation()}>
         <span className="cssu-gate-picker-kicker">QR SCANNER</span>
         <h3>Scan locator slip QR code</h3>
-        <p>{qrScannerStatus || 'Align the locator slip QR code in the camera frame. Lookup will begin automatically after detection.'}</p>
+        <p>{qrScannerStatus || 'Align the locator slip QR code in the camera frame. Lookup begins after it stays detected for 1 second.'}</p>
         <div className="cssu-qr-scanner-stage">
           <video ref={qrVideoRef} className="cssu-qr-scanner-video" playsInline muted />
           <div className="cssu-qr-scanner-frame" aria-hidden="true">

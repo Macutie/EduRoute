@@ -1,3 +1,5 @@
+import ProtectedMedia from '../common/ProtectedMedia';
+
 const ProofOfCompliancePreview = ({
   proof,
   title = 'Submitted Proof of Compliance',
@@ -24,7 +26,7 @@ const ProofOfCompliancePreview = ({
       {proof.focalPersonSignatureUrl && (
         <div className="proof-preview-signature-card">
           <span>Captured Signature</span>
-          <img
+          <ProtectedMedia
             src={proof.focalPersonSignatureUrl}
             alt="Focal person signature"
             className="proof-preview-signature-image"
@@ -54,7 +56,7 @@ const ProofOfCompliancePreview = ({
       {showFullCard && proof.proofComplianceImageUrl && (
         <div className="proof-preview-proof-card">
           <span>Full Compliance Card</span>
-          <img
+          <ProtectedMedia
             src={proof.proofComplianceImageUrl}
             alt="Proof of compliance"
             className="proof-preview-image"
@@ -65,7 +67,7 @@ const ProofOfCompliancePreview = ({
       {showArrivalPhoto && proof.arrivalPhotoUrl && (
         <div className="proof-arrival-card">
           <span>Arrival Photo</span>
-          <img src={proof.arrivalPhotoUrl} alt="Arrival upload" className="proof-arrival-preview" />
+          <ProtectedMedia src={proof.arrivalPhotoUrl} alt="Arrival upload" className="proof-arrival-preview" />
         </div>
       )}
     </div>

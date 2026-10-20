@@ -218,7 +218,8 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             folder: 'proof-compliance/signatures',
             publicId: `signature-${trip.locator_slip_id}-${Date.now()}`,
             format: 'png',
-            extension: 'png'
+            extension: 'png',
+            mimeType: 'image/png'
         })
         : null;
 
@@ -227,7 +228,8 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
             folder: 'proof-compliance/arrival-photos',
             publicId: `arrival-photo-${trip.locator_slip_id}-${Date.now()}`,
             format: optimizedArrivalPhoto.extension,
-            extension: optimizedArrivalPhoto.extension
+            extension: optimizedArrivalPhoto.extension,
+            mimeType: optimizedArrivalPhoto.mimetype
         })
         : null;
 
@@ -248,7 +250,8 @@ const submitFacultyProof = async (facultyUserId, tripId, files = {}, payload = {
         folder: 'proof-compliance/cards',
         publicId: `proof-card-${trip.locator_slip_id}-${Date.now()}`,
         format: 'png',
-        extension: 'png'
+            extension: 'png',
+            mimeType: 'image/png'
     });
 
     const client = await pool.connect();

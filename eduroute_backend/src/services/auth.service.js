@@ -6,8 +6,8 @@ const { signAccessToken } = require('../utils/jwt');
 const { validatePasswordPolicy } = require('../utils/passwordPolicy');
 const { generateResetCode, hashResetCode, compareResetCode } = require('../utils/resetCode');
 const { sendResetCodeEmail } = require('./email.service');
-const cloudinary = require('../config/cloudinary');
 const { optimizeImage } = require('./imageOptimization.service');
+const { uploadImageBuffer, destroyUploadedAsset } = require('./upload.service');
 const { encryptNullableText } = require('../utils/fieldEncryption');
 
 const ROLE_LABELS = {
@@ -337,25 +337,6 @@ const updateCurrentFacultyProfile = async (facultyId, payload) => {
     return getCurrentFaculty(facultyId);
 };
 
-const uploadToCloudinary = (optimizedImage, facultyId) =>
-    new Promise((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-            {
-                folder: 'eduroute/faculty-profile-images',
-                public_id: `faculty-${facultyId}-${Date.now()}`,
-                overwrite: true,
-                resource_type: 'image',
-                format: optimizedImage.extension
-            },
-            (error, result) => {
-                if (error) return reject(error);
-                return resolve(result);
-            }
-        );
-
-        uploadStream.end(optimizedImage.buffer);
-    });
-
 const updateCurrentFacultyProfileImage = async (facultyId, file) => {
     if (!file) {
         throw new AppError('Profile image is required.', 422);
@@ -366,7 +347,13 @@ const updateCurrentFacultyProfileImage = async (facultyId, file) => {
         [facultyId]
     );
     const optimizedImage = await optimizeImage(file, 'profile');
-    const uploadResult = await uploadToCloudinary(optimizedImage, facultyId);
+    const uploadResult = await uploadImageBuffer(optimizedImage.buffer, {
+        folder: 'eduroute/faculty-profile-images',
+        publicId: `faculty-${facultyId}-${Date.now()}`,
+        format: optimizedImage.extension,
+        extension: optimizedImage.extension,
+        mimeType: optimizedImage.mimetype
+    });
 
     await pool.query(
         `UPDATE faculty_users
@@ -381,8 +368,8 @@ const updateCurrentFacultyProfileImage = async (facultyId, file) => {
          WHERE id = $1`,
         [
             facultyId,
-            uploadResult.secure_url,
-            uploadResult.public_id,
+            uploadResult.url,
+            uploadResult.publicId,
             optimizedImage.mimetype,
             optimizedImage.size,
             optimizedImage.original.size,
@@ -394,9 +381,7 @@ const updateCurrentFacultyProfileImage = async (facultyId, file) => {
     const currentPublicId = currentImageResult.rows[0]?.profile_image_public_id;
 
     if (currentPublicId) {
-        cloudinary.uploader.destroy(currentPublicId).catch((error) => {
-            console.error('Failed to remove old Cloudinary profile image:', error.message);
-        });
+        await destroyUploadedAsset({ publicId: currentPublicId });
     }
 
     return getCurrentFaculty(facultyId);

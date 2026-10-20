@@ -1782,6 +1782,72 @@
   color: var(--green);
 }
 
+.cssu-return-success-backdrop {
+  z-index: 1200;
+}
+
+.cssu-return-success-modal {
+  width: min(440px, calc(100vw - 32px));
+  text-align: center;
+}
+
+.cssu-return-success-modal .eduroute-dialog-icon {
+  margin: 0 auto 14px;
+  background: #EAF8EC;
+  color: var(--green);
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.cssu-return-success-modal .eduroute-dialog-kicker {
+  color: var(--green);
+}
+
+.cssu-return-success-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.cssu-return-success-details div {
+  padding: 10px;
+  border: 1px solid #DCE9DD;
+  border-radius: 12px;
+  background: #F7FBF7;
+}
+
+.cssu-return-success-details span,
+.cssu-return-success-details strong {
+  display: block;
+}
+
+.cssu-return-success-details span {
+  margin-bottom: 5px;
+  color: #6B7280;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .06em;
+}
+
+.cssu-return-success-details strong {
+  color: #263226;
+  font-size: 12px;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.cssu-return-success-modal .eduroute-dialog-actions {
+  justify-content: center;
+}
+
+@media (max-width: 520px) {
+  .cssu-return-success-details {
+    grid-template-columns: 1fr;
+  }
+}
+
 .cssu-checkpoint-actions {
   display: flex;
   justify-content: flex-end;

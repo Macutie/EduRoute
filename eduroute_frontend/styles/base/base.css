@@ -214,12 +214,29 @@
   font: inherit;
 }
 
+.proof-required-star {
+  color: #dc2626 !important;
+  font-size: inherit !important;
+  font-weight: 800 !important;
+}
+
+.proof-form-field input.proof-field-invalid {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
+}
+
 .proof-form-signature,
 .proof-form-upload,
 .proof-arrival-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.proof-upload-invalid .proof-upload-btn {
+  border-color: #dc2626;
+  color: #b91c1c;
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.12);
 }
 
 .proof-method-picker {

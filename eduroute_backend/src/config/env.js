@@ -33,6 +33,7 @@ module.exports = {
     jwtSecret: process.env.JWT_SECRET,
     jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
     fieldEncryptionKey: process.env.FIELD_ENCRYPTION_KEY,
+    mediaEncryptionKey: process.env.MEDIA_ENCRYPTION_KEY,
     authPayloadPrivateKey: process.env.AUTH_PAYLOAD_PRIVATE_KEY,
     frontendUrl: resolvedFrontendUrl,
     clientOrigin: resolvedClientOrigin,

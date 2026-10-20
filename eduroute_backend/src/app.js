@@ -16,6 +16,7 @@ const searchRoutes = require('./routes/search.routes');
 const deanDashboardRoutes = require('./routes/deanDashboard.routes');
 const hrmuDashboardRoutes = require('./routes/hrmuDashboard.routes');
 const cssuDashboardRoutes = require('./routes/cssuDashboard.routes');
+const secureMediaRoutes = require('./routes/secureMedia.routes');
 const { notFoundHandler, errorHandler } = require('./middlewares/error.middleware');
 const env = require('./config/env');
 
@@ -65,6 +66,7 @@ app.use('/api/dean', deanDashboardRoutes);
 app.use('/api/hrmu', hrmuDashboardRoutes);
 app.use('/api/cssu', cssuDashboardRoutes);
 app.use('/api/issu', cssuDashboardRoutes);
+app.use('/api/secure-media', secureMediaRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

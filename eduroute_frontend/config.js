@@ -56,6 +56,17 @@ const getApiBaseUrl = () => {
 export const API_BASE_URL = getApiBaseUrl();
 console.log('API_BASE_URL:', API_BASE_URL);
 
+export const resolveMediaUrl = (value) => {
+  if (!value || !API_BASE_URL) return value;
+  try {
+    const parsed = new URL(value, typeof window === 'undefined' ? undefined : window.location.origin);
+    if (!parsed.pathname.includes('/api/secure-media/')) return value;
+    return `${API_BASE_URL}${parsed.pathname}${parsed.search}`;
+  } catch (error) {
+    return value;
+  }
+};
+
 const getSocketTransports = () => {
   if (typeof window === 'undefined') {
     return ['websocket', 'polling'];

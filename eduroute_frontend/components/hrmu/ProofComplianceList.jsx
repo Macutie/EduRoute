@@ -1,3 +1,5 @@
+import ProtectedMedia from '../common/ProtectedMedia';
+
 const ProofComplianceList = ({ rows, loading, onOpen }) => (
   <div className="hrmu-verify-table">
     <div className="hrmu-verify-table-head">
@@ -25,7 +27,7 @@ const ProofComplianceList = ({ rows, loading, onOpen }) => (
       <div key={row.key} className="hrmu-verify-row">
         <div className="hrmu-verify-faculty">
           <div className="hrmu-verify-avatar">
-            <img src={row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
+            <ProtectedMedia src={row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
           </div>
           <div>
             <strong>{row.name}</strong>

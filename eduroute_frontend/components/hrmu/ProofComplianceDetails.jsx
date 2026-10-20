@@ -1,5 +1,7 @@
 import React, { useRef, useState } from 'react';
 import jsPDF from 'jspdf';
+import { resolveMediaUrl } from '../../config';
+import ProtectedMedia from '../common/ProtectedMedia';
 
 const formatDateTime = (value) => {
   if (!value) return 'N/A';
@@ -51,6 +53,7 @@ const buildStatusCopy = (proof) => {
 };
 
 const getImageDataUrl = async (url) => {
+  url = resolveMediaUrl(url);
   if (!url) return null;
   if (String(url).startsWith('data:')) return url;
 
@@ -366,7 +369,7 @@ const ProofComplianceDetails = ({
         <div className="hrmu-verify-modal-header">
           <div className="hrmu-verify-modal-person">
             <div className="hrmu-verify-modal-avatar">
-              <img src={activeProof.profileImageUrl || row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
+              <ProtectedMedia src={activeProof.profileImageUrl || row.profileImageUrl || '/profile_pic.png'} alt={row.name} />
             </div>
             <div className="hrmu-verify-modal-person-copy">
               <div className="hrmu-verify-modal-topline">
@@ -405,7 +408,7 @@ const ProofComplianceDetails = ({
                 <div className="hrmu-verify-signature-card">
                   <div className="hrmu-verify-signature-art">
                     {activeProof.focalPersonSignatureUrl ? (
-                      <img
+                      <ProtectedMedia
                         className="hrmu-verify-signature-image"
                         src={activeProof.focalPersonSignatureUrl}
                         alt={`${row.name} proof of compliance signature`}
@@ -431,12 +434,12 @@ const ProofComplianceDetails = ({
                     <div className="hrmu-verify-signature-art">
                       {deanSignature.asset?.mimeType === 'application/pdf' ? (
                         <div className="hrmu-verify-signature-empty">
-                          <a href={deanSignature.asset?.url} target="_blank" rel="noreferrer">
+                            <a href={resolveMediaUrl(deanSignature.asset?.url)} target="_blank" rel="noreferrer">
                             Open Supervisor Signature PDF
                           </a>
                         </div>
                       ) : deanSignature.asset?.url ? (
-                        <img
+                        <ProtectedMedia
                           className="hrmu-verify-signature-image"
                           src={deanSignature.asset.url}
                           alt={`${deanSignature.name || 'Supervisor'} digital signature`}
@@ -482,7 +485,7 @@ const ProofComplianceDetails = ({
             {activeProof.arrivalPhotoUrl && (
               <div className="hrmu-verify-proof-card">
                 <span>UPLOADED ARRIVAL IMAGE</span>
-                <img src={activeProof.arrivalPhotoUrl} alt={`${row.name} uploaded arrival image`} />
+                <ProtectedMedia src={activeProof.arrivalPhotoUrl} alt={`${row.name} uploaded arrival image`} />
               </div>
             )}
           </div>

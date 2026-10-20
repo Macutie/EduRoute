@@ -28,6 +28,7 @@
         "migrate:return-entry-tokens": "node scripts/run-sql-file.js sql/trip_return_entry_tokens.sql",
         "migrate:proof-compliance": "node scripts/run-sql-file.js sql/proof_of_compliance.sql",
         "migrate:field-encryption": "node scripts/run-sql-file.js sql/field_encryption.sql",
+        "migrate:secure-media": "node scripts/migrate-secure-media.js",
         "migrate:admin-users": "node scripts/run-sql-file.js sql/admin_user_management.sql",
         "seed:admin": "node scripts/seed-admin.js",
         "test:field-encryption": "node scripts/test-field-encryption.js",

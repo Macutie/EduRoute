@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ProtectedMedia from "../../components/common/ProtectedMedia";
 import { useDeanDashboardSummary, useDeanNotifications, useDeanPendingApprovals, useDeanRealtimeNotifications } from "../../hooks/useDeanDashboard";
 import { useNotificationSocket } from "../../hooks/useNotificationSocket";
 import { approveDeanLocatorSlipRequest, bulkApproveDeanLocatorSlips, getDeanFacultyOverview, getDeanLocatorSlips, getDeanNotifications, getDeanPendingRequestsPage, getDeanProofComplianceByLocatorSlip, getDeanProofComplianceDetails, getDeanRequestInsights, getDeanRegistryPage, getDeanSignatureSettings, markDeanNotificationRead, rejectDeanLocatorSlipRequest, uploadDeanSignatureFile } from "../../services/deanApi";
@@ -138,7 +139,7 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
         <div className="dean-proof-media-stack">
           <div className="dean-proof-media-card">
             <span>Focal Person Signature</span>
-            {focalSignature ? <img src={focalSignature} alt="Focal person signature" /> : <p>No focal person signature uploaded.</p>}
+            {focalSignature ? <ProtectedMedia src={focalSignature} alt="Focal person signature" /> : <p>No focal person signature uploaded.</p>}
           </div>
           {deanSignature && (
             <div className="dean-proof-media-card">
@@ -146,7 +147,7 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
               {deanSignature.asset?.mimeType === 'application/pdf' ? (
                 <p><a href={deanSignature.asset.url} target="_blank" rel="noreferrer">Open supervisor signature PDF</a></p>
               ) : deanSignature.asset?.url ? (
-                <img src={deanSignature.asset.url} alt={`${deanSignature.name || 'Supervisor'} digital signature`} />
+                <ProtectedMedia src={deanSignature.asset.url} alt={`${deanSignature.name || 'Supervisor'} digital signature`} />
               ) : (
                 <p>No supervisor signature image available.</p>
               )}
@@ -156,7 +157,7 @@ const DeanProofComplianceSheet = ({ proof, onClose, onViewPathHistory }) => {
           )}
           <div className="dean-proof-media-card">
             <span>Arrival Photo</span>
-            {arrivalPhoto ? <img src={arrivalPhoto} alt="Arrival proof" /> : <p>No arrival photo uploaded.</p>}
+            {arrivalPhoto ? <ProtectedMedia src={arrivalPhoto} alt="Arrival proof" /> : <p>No arrival photo uploaded.</p>}
           </div>
         </div>
 
@@ -1419,7 +1420,7 @@ export const DeanSignatureView = ({
               </div>
 
               {hasCurrentImage && <div className="dean-signature-preview-card">
-                  <img src={selectedImagePreview || settings?.signatureUrl} alt="Supervisor signature preview" className="dean-signature-preview-image" />
+                  <ProtectedMedia src={selectedImagePreview || settings?.signatureUrl} alt="Supervisor signature preview" className="dean-signature-preview-image" />
                 </div>}
 
               {hasCurrentPdf && <div className="dean-signature-pdf-card">
@@ -1614,7 +1615,7 @@ export const DeanFacultyView = ({
               <div className="afac-card-header">
                 <div className="afac-card-profile">
                   <div className="afac-card-avatar-wrapper">
-                    <img src={member.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={member.fullName} />
+                    <ProtectedMedia src={member.profileImageUrl || DEFAULT_PROFILE_IMAGE} alt={member.fullName} />
                   </div>
                   <div className="afac-card-info">
                     <h3>{member.fullName}</h3>

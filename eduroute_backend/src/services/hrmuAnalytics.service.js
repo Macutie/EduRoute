@@ -457,6 +457,9 @@ const mapRiskTrip = (row, now = new Date()) => {
         locatorSlipFiledAt: row.locator_slip_filed_at ? new Date(row.locator_slip_filed_at).toISOString() : null,
         scheduledDepartureAt: row.scheduled_departure_at ? new Date(row.scheduled_departure_at).toISOString() : null,
         expectedReturnTime: expectedReturnTime ? expectedReturnTime.toISOString() : null,
+        actualExitTime: row.actual_exit_at
+            ? new Date(row.actual_exit_at).toISOString()
+            : (startedAt ? startedAt.toISOString() : null),
         startedAt: startedAt ? startedAt.toISOString() : null,
         actualReturnTime: row.ended_at || row.returned_at || null,
         riskScore,
