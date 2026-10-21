@@ -1476,6 +1476,10 @@ export const HrmuAnalyticsReportsView = ({
   const topTrendRows = trendComparison.slice(0, 5);
   const calendarStartDate = analytics?.dateRange?.startDate ? new Date(`${analytics.dateRange.startDate}T00:00:00`) : null;
   const calendarEndDate = analytics?.dateRange?.endDate ? new Date(`${analytics.dateRange.endDate}T00:00:00`) : null;
+  const calendarDateKey = date => {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
   const calendarTripCountByDate = dailyMovementItems.reduce((counts, item) => {
     counts[String(item.date).slice(0, 10)] = Number(item.locatorSlipCount || 0);
     return counts;
@@ -1498,7 +1502,7 @@ export const HrmuAnalyticsReportsView = ({
       });
     }
     for (let date = new Date(calendarStartDate); date <= calendarEndDate; date.setDate(date.getDate() + 1)) {
-      const key = date.toISOString().slice(0, 10);
+      const key = calendarDateKey(date);
       days.push({
         date: new Date(date),
         count: calendarTripCountByDate[key] || 0,
