@@ -8,6 +8,7 @@ const tripIncidentService = require('./tripIncident.service');
 const { buildHrmuAnalyticsReportPdf } = require('../utils/simplePdf');
 
 const DAY_LABELS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
+const WEEKLY_PEAK_DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const CAMPUS_COORDINATE = {
     lat: 14.8386,
     lng: 120.2842
@@ -62,6 +63,15 @@ const getPercentChange = (currentValue, previousValue) => {
         percent: rounded,
         direction: delta > 0 ? 'increase' : 'decrease'
     };
+};
+
+const getSundayToSaturdayRange = (endDate) => {
+    const end = new Date(endDate);
+    const start = new Date(end);
+    start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+    const endExclusive = new Date(start);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 7);
+    return { start, endExclusive };
 };
 
 const toDate = (value) => {
@@ -271,8 +281,8 @@ const buildRouteDeviationDetections = (tripRows = []) => tripRows
     .filter(Boolean)
     .sort((left, right) => right.maxDeviationKm - left.maxDeviationKm);
 
-const buildPeakMovementHeatmap = (rows = []) => {
-    const labels = DAY_LABELS;
+const buildPeakMovementHeatmap = (rows = [], weekRange = null) => {
+    const labels = WEEKLY_PEAK_DAY_LABELS;
     const buckets = [
         { key: '7-9', label: '07 AM - 09 AM', startHour: 7, endHour: 9 },
         { key: '9-11', label: '09 AM - 11 AM', startHour: 9, endHour: 11 },
@@ -303,7 +313,11 @@ const buildPeakMovementHeatmap = (rows = []) => {
         buckets,
         matrix,
         peak,
-        maxCount: Math.max(...flat.map((row) => row.count), 0)
+        maxCount: Math.max(...flat.map((row) => row.count), 0),
+        weekStartDate: weekRange?.start?.toISOString().slice(0, 10) || null,
+        weekEndDate: weekRange?.endExclusive
+            ? new Date(weekRange.endExclusive.getTime() - 86400000).toISOString().slice(0, 10)
+            : null
     };
 };
 
@@ -527,6 +541,7 @@ const buildAnalyticsContext = async (query = {}) => {
         startDate: query.startDate,
         endDate: query.endDate
     });
+    const weeklyPeakRange = getSundayToSaturdayRange(dateRange.end);
     const collegeContext = await hrmuAnalyticsRepository.resolveAllowedColleges({
         collegeId: query.collegeId,
         collegeName: query.collegeName
@@ -546,6 +561,7 @@ const buildAnalyticsContext = async (query = {}) => {
 
     return {
         dateRange,
+        weeklyPeakRange,
         ...collegeContext,
         employees,
         selectedEmployee,
@@ -714,8 +730,8 @@ const getOverview = async (query = {}) => {
             facultyUserId: context.facultyUserId
         }),
         hrmuAnalyticsRepository.getPeakMovementRows({
-            start: context.dateRange.start,
-            endExclusive: context.dateRange.endExclusive,
+            start: context.weeklyPeakRange.start,
+            endExclusive: context.weeklyPeakRange.endExclusive,
             collegeIds: context.collegeIds,
             facultyUserId: context.facultyUserId
         }),
@@ -782,7 +798,7 @@ const getOverview = async (query = {}) => {
             peakHour: formatHourLabel(monthlyStats.peak_hour, monthlyStats.avg_minute),
             peakHourLabel: getPeakHourLabel(monthlyStats.peak_hour)
         },
-        peakMovementHeatmap: buildPeakMovementHeatmap(peakMovementRows),
+        peakMovementHeatmap: buildPeakMovementHeatmap(peakMovementRows, context.weeklyPeakRange),
         smartAnalytics,
         smartAnalyticsWarning
     };
