@@ -373,15 +373,21 @@ const getApprovedLocatorSlips = async (facultyUserId) => {
 
 const getLocatorSlipDetails = async (facultyUserId, locatorSlipId) => {
     const locatorSlip = await facultyTripRepository.getLocatorSlipForTripAccess(facultyUserId, locatorSlipId);
-    ensureApprovedLocatorSlip(locatorSlip);
-
     let currentTrip = await facultyTripRepository.getCurrentTripForLocatorSlip(facultyUserId, locatorSlipId);
+    const completedLocatorSlip = isLocatorSlipCompleted(locatorSlip, currentTrip);
+
+    // Completed slips remain readable so the employee portal can refresh the
+    // final return state and show the completion confirmation. They are still
+    // blocked from starting or modifying another trip elsewhere in the flow.
+    if (!completedLocatorSlip) {
+        ensureApprovedLocatorSlip(locatorSlip, currentTrip);
+    }
 
     // Older databases may not have trips.locator_slip_id yet, so fall back to the
     // best trip inferred for this specific locator slip only. Avoid attaching an
     // unrelated open trip from another slip, which can leak stale proof state into
     // a newly created locator slip.
-    if (!currentTrip) {
+    if (!currentTrip && !completedLocatorSlip) {
         currentTrip = await facultyTripRepository.getBlockingTripForLocatorSlip(locatorSlipId, facultyUserId);
     }
 

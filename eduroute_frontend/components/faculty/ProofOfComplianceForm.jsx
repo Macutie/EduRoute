@@ -222,7 +222,7 @@ const ProofOfComplianceForm = ({
             <strong>Focal Person Signature <span className="proof-required-star" aria-hidden="true">*</span></strong>
             <button type="button" className="proof-inline-btn" onClick={clearSignature} disabled={disabled || loading}>Clear Signature</button>
           </div>
-          <canvas ref={canvasRef} width={960} height={320} className="proof-signature-canvas" onMouseDown={beginDraw} onMouseMove={continueDraw} onMouseUp={endDraw} onMouseLeave={endDraw} onTouchStart={beginDraw} onTouchMove={continueDraw} onTouchEnd={endDraw} />
+          <canvas ref={canvasRef} width={960} height={320} className="proof-signature-canvas" onPointerDown={beginDraw} onPointerMove={continueDraw} onPointerUp={endDraw} onPointerLeave={endDraw} onPointerCancel={endDraw} />
         </div>
       </>}
 

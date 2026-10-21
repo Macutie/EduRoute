@@ -4,6 +4,40 @@ const { ALLOWED_COLLEGE_NAMES } = require('./hrmuDashboard.repository');
 const APPROVED_ANALYTICS_STATUSES = ['approved', 'verified', 'completed'];
 const MANILA_CREATED_AT_EXPRESSION = "(ls.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')";
 let tripColumnCache = null;
+let locatorSlipCssuValidatedAtColumnCache = null;
+let cssuExitLogsTableCache = null;
+
+const getLocatorSlipCssuValidatedAtColumnExists = async () => {
+    if (locatorSlipCssuValidatedAtColumnCache !== null) {
+        return locatorSlipCssuValidatedAtColumnCache;
+    }
+
+    const { rows } = await pool.query(
+        `SELECT EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'locator_slips'
+              AND column_name = 'cssu_validated_at'
+        ) AS exists`
+    );
+
+    locatorSlipCssuValidatedAtColumnCache = Boolean(rows[0]?.exists);
+    return locatorSlipCssuValidatedAtColumnCache;
+};
+
+const getCssuExitLogsTableExists = async () => {
+    if (cssuExitLogsTableCache !== null) {
+        return cssuExitLogsTableCache;
+    }
+
+    const { rows } = await pool.query(
+        `SELECT to_regclass('public.cssu_exit_logs') AS table_name`
+    );
+
+    cssuExitLogsTableCache = Boolean(rows[0]?.table_name);
+    return cssuExitLogsTableCache;
+};
 
 const getTripsColumnSet = async () => {
     if (tripColumnCache) {
@@ -266,6 +300,34 @@ const getMonthlySummaryStats = async ({ start, endExclusive, previousMonthStart,
 };
 
 const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId = null }) => {
+    const [hasCssuValidatedAtColumn, hasCssuExitLogsTable] = await Promise.all([
+        getLocatorSlipCssuValidatedAtColumnExists(),
+        getCssuExitLogsTableExists()
+    ]);
+
+    const actualExitAtSelect = hasCssuValidatedAtColumn && hasCssuExitLogsTable
+        ? 'COALESCE(ls.cssu_validated_at, exit_scan.actual_exit_at) AS actual_exit_at'
+        : hasCssuValidatedAtColumn
+            ? 'ls.cssu_validated_at AS actual_exit_at'
+            : hasCssuExitLogsTable
+                ? 'exit_scan.actual_exit_at AS actual_exit_at'
+                : 'NULL::timestamp AS actual_exit_at';
+
+    const exitScanJoin = hasCssuExitLogsTable
+        ? `LEFT JOIN LATERAL (
+            SELECT COALESCE(log.validated_at, log.created_at) AS actual_exit_at
+            FROM cssu_exit_logs log
+            WHERE log.locator_slip_id = COALESCE(ls.id, fallback_ls.id)
+              AND log.status = 'validated'
+            ORDER BY log.validated_at DESC NULLS LAST, log.created_at DESC
+            LIMIT 1
+        ) exit_scan ON TRUE`
+        : '';
+
+    const cssuValidatedAtSelect = hasCssuValidatedAtColumn
+        ? ', ls.cssu_validated_at AS cssu_validated_at'
+        : '';
+
     const { rows } = await pool.query(
         `WITH current_month_slips AS (
             SELECT
@@ -278,6 +340,7 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
                 ls.expected_return_datetime,
                 ls.departure_datetime,
                 ls.created_at
+                ${cssuValidatedAtSelect}
             FROM locator_slips ls
             JOIN faculty_users fu ON fu.id = ls.faculty_user_id
             WHERE ls.created_at >= $1
@@ -336,7 +399,7 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
              COALESCE(ls.expected_return_datetime, fallback_ls.expected_return_datetime) AS expected_return_datetime,
              COALESCE(ls.created_at, fallback_ls.created_at) AS locator_slip_filed_at,
              COALESCE(ls.departure_datetime, fallback_ls.departure_datetime) AS scheduled_departure_at,
-            COALESCE(ls.cssu_validated_at, exit_scan.actual_exit_at) AS actual_exit_at,
+            ${actualExitAtSelect},
             COALESCE(ll.recorded_at, t.updated_at, t.started_at) AS last_location_at,
             ll.lat::float8 AS current_lat,
             ll.lng::float8 AS current_lng,
@@ -369,14 +432,7 @@ const getSmartTripRows = async ({ start, endExclusive, collegeIds, facultyUserId
                 COALESCE(slip.departure_datetime, slip.created_at) DESC
             LIMIT 1
         ) fallback_ls ON ls.id IS NULL
-        LEFT JOIN LATERAL (
-            SELECT COALESCE(log.validated_at, log.created_at) AS actual_exit_at
-            FROM cssu_exit_logs log
-            WHERE log.locator_slip_id = COALESCE(ls.id, fallback_ls.id)
-              AND log.status = 'validated'
-            ORDER BY log.validated_at DESC NULLS LAST, log.created_at DESC
-            LIMIT 1
-        ) exit_scan ON TRUE
+        ${exitScanJoin}
         LEFT JOIN latest_locations ll ON ll.trip_id = t.id
         LEFT JOIN LATERAL (
             SELECT
