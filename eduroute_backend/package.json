@@ -3,6 +3,9 @@
     "version": "1.0.0",
     "main": "src/server.js",
     "type": "commonjs",
+    "engines": {
+        "node": ">=24.22.1 <27"
+    },
     "scripts": {
         "dev": "nodemon src/server.js",
         "start": "node src/server.js",
